@@ -1,0 +1,18 @@
+{
+  "name": "@agent-evals/example-basic-agent",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "eval": "node ../../packages/cli/src/bin.ts run",
+    "eval:list": "node ../../packages/cli/src/bin.ts list"
+  },
+  "dependencies": {
+    "@agent-evals/sdk": "workspace:*",
+    "@agent-evals/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

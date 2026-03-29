@@ -1,0 +1,24 @@
+{
+  "name": "@agent-evals/runner",
+  "version": "0.0.1",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "tsc": "tsc --noEmit",
+    "lint": "tsc --noEmit && eslint ."
+  },
+  "dependencies": {
+    "@agent-evals/shared": "workspace:*",
+    "@agent-evals/sdk": "workspace:*",
+    "chokidar": "^4.0.3",
+    "glob": "^11.0.2",
+    "vitest": "^3.2.4",
+    "zod": "^4.1.11"
+  },
+  "devDependencies": {
+    "@types/node": "^24.7.2",
+    "typescript": "^5.9.2"
+  }
+}

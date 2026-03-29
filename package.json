@@ -1,0 +1,26 @@
+{
+  "name": "agent-evals",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter @agent-evals/server dev",
+    "dev:web": "pnpm --filter @agent-evals/web dev",
+    "dev:all": "pnpm --filter @agent-evals/web dev & pnpm --filter @agent-evals/server dev",
+    "build": "pnpm -r build",
+    "build:web": "pnpm --filter @agent-evals/web build",
+    "build:server": "pnpm --filter @agent-evals/server build",
+    "tsc": "pnpm -r tsc",
+    "lint": "pnpm -r lint",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.36.0",
+    "@ls-stack/extended-lint": "^0.76.1",
+    "eslint": "^9.36.0",
+    "eslint-plugin-unicorn": "^61.0.2",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.45.0"
+  },
+  "packageManager": "pnpm@10.12.1"
+}

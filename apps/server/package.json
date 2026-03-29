@@ -1,0 +1,23 @@
+{
+  "name": "@agent-evals/server",
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/index.ts",
+    "build": "tsc",
+    "tsc": "tsc --noEmit",
+    "lint": "tsc --noEmit && eslint ."
+  },
+  "dependencies": {
+    "@agent-evals/shared": "workspace:*",
+    "@agent-evals/runner": "workspace:*",
+    "@hono/node-server": "^1.14.3",
+    "@hono/zod-validator": "^0.7.3",
+    "hono": "^4.9.9",
+    "zod": "^4.1.11"
+  },
+  "devDependencies": {
+    "@types/node": "^24.7.2",
+    "typescript": "^5.9.2"
+  }
+}

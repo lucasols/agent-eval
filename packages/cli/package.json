@@ -1,0 +1,25 @@
+{
+  "name": "@agent-evals/cli",
+  "version": "0.0.1",
+  "type": "module",
+  "bin": {
+    "agent-evals": "./src/bin.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "tsc": "tsc --noEmit",
+    "lint": "tsc --noEmit && eslint ."
+  },
+  "dependencies": {
+    "@agent-evals/runner": "workspace:*",
+    "@agent-evals/shared": "workspace:*",
+    "@hono/node-server": "^1.14.3",
+    "hono": "^4.9.9"
+  },
+  "devDependencies": {
+    "@types/node": "^24.7.2",
+    "typescript": "^5.9.2"
+  }
+}

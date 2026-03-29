@@ -1,0 +1,23 @@
+{
+  "name": "@agent-evals/sdk",
+  "version": "0.0.1",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "tsc": "tsc --noEmit",
+    "lint": "tsc --noEmit && eslint ."
+  },
+  "dependencies": {
+    "@agent-evals/shared": "workspace:*",
+    "@ls-stack/utils": "^3.58.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  },
+  "peerDependencies": {
+    "vitest": ">=3.0.0"
+  }
+}
