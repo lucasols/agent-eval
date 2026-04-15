@@ -7,7 +7,8 @@
     "build": "tsgo && vite build",
     "preview": "vite preview",
     "tsc": "tsgo --noEmit",
-    "lint": "tsgo --noEmit && eslint ."
+    "lint": "tsgo --noEmit && eslint .",
+    "eslint": "eslint ."
   },
   "dependencies": {
     "@agent-evals/shared": "workspace:*",

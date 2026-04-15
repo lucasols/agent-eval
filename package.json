@@ -11,6 +11,7 @@
     "build:server": "pnpm --filter @agent-evals/server build",
     "tsc": "pnpm -r tsc",
     "lint": "pnpm -r lint",
+    "eslint": "pnpm -r eslint",
     "format": "prettier --write ."
   },
   "devDependencies": {

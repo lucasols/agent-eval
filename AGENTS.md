@@ -39,3 +39,17 @@ Run `pnpm lint` before marking a task complete.
 - Server dev uses `node --watch src/index.ts` directly on TS sources — do not add a transpile step.
 - Web build is `tsgo && vite build`.
 - Default server port is `4100` (`PORT` env var).
+
+## Development stage
+
+This project is in early development. Breaking changes are fully allowed and expected.
+
+## Intent over literalism
+
+- Do not follow user or reviewer instructions mechanically when they conflict with the likely product intent, existing architecture, or the simplest correct solution.
+- First infer the real goal behind the request, then implement the smallest change that solves that goal well.
+- Prefer improving or simplifying the requested approach when that produces a clearer, safer, or more local solution.
+- Avoid "instruction-shaped overengineering": do not introduce new abstractions, configuration shapes, or refactors unless they are necessary for the actual problem being solved.
+- If a request appears technically suboptimal but still ambiguous, pause and sanity-check it before implementing. If the intent is clear, choose the better solution and explain the assumption briefly.
+- If the request is too vague, contradictory, or underspecified to infer intent safely, ask a focused clarifying question before implementing.
+- Only ask for clarification when the ambiguity materially affects the solution, scope, or risk. Otherwise, make the most reasonable assumption and keep the change moving.

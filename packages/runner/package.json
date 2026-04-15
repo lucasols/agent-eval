@@ -7,7 +7,8 @@
   },
   "scripts": {
     "tsc": "tsgo --noEmit",
-    "lint": "tsgo --noEmit && eslint ."
+    "lint": "tsgo --noEmit && eslint .",
+    "eslint": "eslint ."
   },
   "dependencies": {
     "@agent-evals/shared": "workspace:*",
