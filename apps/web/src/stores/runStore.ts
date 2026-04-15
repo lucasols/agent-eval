@@ -1,5 +1,28 @@
 import { Store } from 't-state';
-import type { CacheMode, CaseRow, RunManifest, RunSummary, CaseDetail } from '@agent-evals/shared';
+import {
+  caseDetailSchema,
+  caseRowSchema,
+  runManifestSchema,
+  runSummarySchema,
+  type CacheMode,
+  type CaseRow,
+  type RunManifest,
+  type RunSummary,
+  type CaseDetail,
+} from '@agent-evals/shared';
+import { z } from 'zod/v4';
+
+const createRunResponseSchema = z.object({
+  manifest: runManifestSchema,
+  summary: runSummarySchema,
+  cases: z.array(caseRowSchema),
+});
+
+const runSummaryEnvelopeSchema = z.object({ payload: runSummarySchema });
+const caseRowEnvelopeSchema = z.object({ payload: caseRowSchema });
+const runErrorEnvelopeSchema = z.object({
+  payload: z.object({ message: z.string() }),
+});
 
 type RunState = {
   currentRun: {
@@ -37,7 +60,7 @@ export async function startRun(target: {
     body: JSON.stringify({ target, cacheMode, trials }),
   });
 
-  const run = await response.json() as { manifest: RunManifest; summary: RunSummary; cases: CaseRow[] };
+  const run = createRunResponseSchema.parse(await response.json());
   runStore.setPartialState({
     currentRun: run,
     selectedCaseId: null,
@@ -57,7 +80,7 @@ function subscribeToRunEvents(runId: string): void {
   runStore.setPartialState({ eventSource: es });
 
   es.addEventListener('run.summary', (e) => {
-    const envelope = JSON.parse(e.data) as { payload: RunSummary };
+    const envelope = runSummaryEnvelopeSchema.parse(JSON.parse(e.data));
     runStore.setState((prev) => {
       if (!prev.currentRun) return prev;
       return { ...prev, currentRun: { ...prev.currentRun, summary: envelope.payload } };
@@ -65,7 +88,7 @@ function subscribeToRunEvents(runId: string): void {
   });
 
   es.addEventListener('case.updated', (e) => {
-    const envelope = JSON.parse(e.data) as { payload: CaseRow };
+    const envelope = caseRowEnvelopeSchema.parse(JSON.parse(e.data));
     runStore.setState((prev) => {
       if (!prev.currentRun) return prev;
       const cases = prev.currentRun.cases.map((c) =>
@@ -89,7 +112,7 @@ function subscribeToRunEvents(runId: string): void {
   });
 
   es.addEventListener('case.finished', (e) => {
-    const envelope = JSON.parse(e.data) as { payload: CaseRow };
+    const envelope = caseRowEnvelopeSchema.parse(JSON.parse(e.data));
     runStore.setState((prev) => {
       if (!prev.currentRun) return prev;
       const cases = prev.currentRun.cases.map((c) =>
@@ -102,7 +125,7 @@ function subscribeToRunEvents(runId: string): void {
   });
 
   es.addEventListener('run.finished', (e) => {
-    const envelope = JSON.parse(e.data) as { payload: RunSummary };
+    const envelope = runSummaryEnvelopeSchema.parse(JSON.parse(e.data));
     runStore.setState((prev) => {
       if (!prev.currentRun) return prev;
       return {
@@ -134,7 +157,7 @@ function subscribeToRunEvents(runId: string): void {
   });
 
   es.addEventListener('run.error', (e) => {
-    const envelope = JSON.parse(e.data) as { payload: { message: string } };
+    const envelope = runErrorEnvelopeSchema.parse(JSON.parse(e.data));
     console.error('Run error:', envelope.payload.message);
     runStore.setState((prev) => {
       if (!prev.currentRun) return prev;
@@ -167,7 +190,7 @@ export async function selectCase(caseId: string): Promise<void> {
     const response = await fetch(
       `/api/runs/${run.manifest.id}/cases/${caseId}`,
     );
-    const detail = await response.json() as CaseDetail;
+    const detail = caseDetailSchema.parse(await response.json());
     runStore.setPartialState({ selectedCaseDetail: detail });
   } catch {
     runStore.setPartialState({ selectedCaseDetail: null });

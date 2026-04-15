@@ -6,7 +6,7 @@ import { getRunnerInstance } from '../runner.ts';
 
 export const runsRoutes = new Hono();
 
-runsRoutes.get('/', async (c) => {
+runsRoutes.get('/', (c) => {
   const runner = getRunnerInstance();
   const runs = runner.getRuns();
   return c.json(runs, 200);
@@ -23,7 +23,7 @@ runsRoutes.post(
   },
 );
 
-runsRoutes.get('/:runId', async (c) => {
+runsRoutes.get('/:runId', (c) => {
   const runId = c.req.param('runId');
   const runner = getRunnerInstance();
   const run = runner.getRun(runId);
@@ -33,14 +33,14 @@ runsRoutes.get('/:runId', async (c) => {
   return c.json(run, 200);
 });
 
-runsRoutes.post('/:runId/cancel', async (c) => {
+runsRoutes.post('/:runId/cancel', (c) => {
   const runId = c.req.param('runId');
   const runner = getRunnerInstance();
   runner.cancelRun(runId);
   return c.json({ ok: true }, 200);
 });
 
-runsRoutes.get('/:runId/cases/:caseId', async (c) => {
+runsRoutes.get('/:runId/cases/:caseId', (c) => {
   const runId = c.req.param('runId');
   const caseId = c.req.param('caseId');
   const runner = getRunnerInstance();
@@ -51,7 +51,7 @@ runsRoutes.get('/:runId/cases/:caseId', async (c) => {
   return c.json(caseDetail, 200);
 });
 
-runsRoutes.get('/:runId/events', async (c) => {
+runsRoutes.get('/:runId/events', (c) => {
   const runId = c.req.param('runId');
   const runner = getRunnerInstance();
 

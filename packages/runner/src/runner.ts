@@ -13,7 +13,6 @@ import type {
   AgentEvalsConfig,
 } from '@agent-evals/shared';
 import { getEvalRegistry, createTraceRecorder } from '@agent-evals/sdk';
-import type { EvalDefinition } from '@agent-evals/sdk';
 import { loadConfig } from './config.ts';
 import { createCacheManager } from './cache.ts';
 import type { CacheManager } from './cache.ts';
@@ -68,7 +67,7 @@ export function createRunner(): EvalRunner {
   const evals = new Map<string, EvalMeta>();
   const staleEvals = new Set<string>();
   const runs = new Map<string, RunState>();
-  let lastRunStatusMap = new Map<string, EvalSummary['lastRunStatus']>();
+  const lastRunStatusMap = new Map<string, EvalSummary['lastRunStatus']>();
 
   const runner: EvalRunner = {
     async init() {
@@ -247,7 +246,7 @@ export function createRunner(): EvalRunner {
       return workspaceRoot;
     },
 
-    getArtifactPath(_artifactId) {
+    getArtifactPath(artifactId_) {
       return undefined;
     },
   };
@@ -636,14 +635,17 @@ export function createRunner(): EvalRunner {
   return runner;
 }
 
+const defineEvalRegex = /defineEval\s*\(\s*\{/;
+const idMatchRegex = /id\s*:\s*['"]([^'"]+)['"]/;
+const titleMatchRegex = /title\s*:\s*['"]([^'"]+)['"]/;
+
 function parseEvalMeta(filePath: string, content: string): EvalMeta | null {
-  const defineEvalRegex = /defineEval\s*\(\s*\{/;
   if (!defineEvalRegex.test(content)) return null;
 
-  const idMatch = /id\s*:\s*['"]([^'"]+)['"]/g.exec(content);
+  const idMatch = idMatchRegex.exec(content);
   if (!idMatch?.[1]) return null;
 
-  const titleMatch = /title\s*:\s*['"]([^'"]+)['"]/g.exec(content);
+  const titleMatch = titleMatchRegex.exec(content);
 
   const result: EvalMeta = {
     id: idMatch[1],

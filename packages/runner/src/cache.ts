@@ -5,6 +5,25 @@ import { createHash } from 'node:crypto';
 import type { CacheMode } from '@agent-evals/shared';
 import type { CacheRuntime } from '@agent-evals/sdk';
 
+function safeJsonParse(raw: string): unknown {
+  const result: unknown = JSON.parse(raw);
+  return result;
+}
+
+function isCacheEntry<T>(value: unknown): value is { response: T } {
+  return (
+    typeof value === 'object' && value !== null && 'response' in value
+  );
+}
+
+function parseCacheEntry<T>(raw: string): { response: T } {
+  const parsed = safeJsonParse(raw);
+  if (!isCacheEntry<T>(parsed)) {
+    throw new Error('Invalid cache entry format');
+  }
+  return parsed;
+}
+
 export type CacheManager = {
   createCacheRuntime(mode: CacheMode): CacheRuntime;
 };
@@ -44,7 +63,7 @@ export function createCacheManager(
             const localPath = filePath(localCacheDir);
             if (existsSync(localPath)) {
               const raw = await readFile(localPath, 'utf-8');
-              const entry = JSON.parse(raw) as { response: T };
+              const entry = parseCacheEntry<T>(raw);
               return { value: entry.response, status: 'hit', key };
             }
 
@@ -68,11 +87,11 @@ export function createCacheManager(
             return { value, status: 'miss', key };
           }
 
-          if (mode === 'recorded' || mode === 'readonly-recorded') {
+          {
             const recordedPath = filePath(recordedDir);
             if (existsSync(recordedPath)) {
               const raw = await readFile(recordedPath, 'utf-8');
-              const entry = JSON.parse(raw) as { response: T };
+              const entry = parseCacheEntry<T>(raw);
               return { value: entry.response, status: 'hit', key };
             }
 
@@ -101,9 +120,6 @@ export function createCacheManager(
 
             return { value, status: 'miss', key };
           }
-
-          const value = await params.producer();
-          return { value, status: 'miss', key };
         },
       };
     },

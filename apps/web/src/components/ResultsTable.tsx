@@ -1,6 +1,6 @@
 import { styled, css } from 'vindur';
 import { colors } from '#src/style/colors.ts';
-import { inline, stack, ellipsis, transition, centerContent, monoFont } from '#src/style/helpers.ts';
+import { transition, monoFont } from '#src/style/helpers.ts';
 import { runStore, selectCase } from '../stores/runStore.ts';
 import { uiStore, setSortColumn } from '../stores/uiStore.ts';
 import { StatusBadge } from './StatusBadge.tsx';
@@ -133,7 +133,7 @@ export function ResultsTable() {
     (k) => columnVisibility[k] !== false,
   );
 
-  let sortedCases = [...currentRun.cases];
+  const sortedCases = [...currentRun.cases];
   if (sortColumn) {
     sortedCases.sort((a, b) => {
       const aVal = getColumnValue(a, sortColumn);

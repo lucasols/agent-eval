@@ -140,10 +140,7 @@ function getFileUrl(ref: FileRef): string {
     }
     return `/api/repo-file?${params.toString()}`;
   }
-  if (ref.source === 'run') {
-    return `/api/artifacts/${ref.artifactId}`;
-  }
-  return '';
+  return `/api/artifacts/${ref.artifactId}`;
 }
 
 const htmlEscapeMap: Record<string, string> = {

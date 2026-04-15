@@ -1,5 +1,5 @@
 import { createRunner } from '@agent-evals/runner';
-import type { CacheMode } from '@agent-evals/shared';
+import { cacheModeSchema, type CacheMode } from '@agent-evals/shared';
 
 type CliArgs = {
   command: 'dev' | 'list' | 'run' | 'help';
@@ -38,7 +38,7 @@ function parseArgs(argv: string[]): CliArgs {
       args.caseIds.push(...next.split(','));
       i++;
     } else if (arg === '--cache' && next) {
-      args.cacheMode = next as CacheMode;
+      args.cacheMode = cacheModeSchema.parse(next);
       i++;
     } else if (arg === '--trials' && next) {
       args.trials = Number(next);
@@ -74,18 +74,54 @@ export async function runCli(argv: string[]): Promise<void> {
   }
 }
 
-async function commandDev(args: CliArgs): Promise<void> {
-  const { serve } = await import('@hono/node-server');
-  const { app } = await import('../../server/src/app.ts' as string);
-  const { initRunner } = await import('../../server/src/runner.ts' as string);
+type HonoAppLike = { fetch: (...args: unknown[]) => Response };
 
-  await initRunner();
-
-  console.info(`Agent Evals dev server: http://localhost:${String(args.port)}`);
-  serve({ fetch: (app as { fetch: (...args: unknown[]) => Response }).fetch, port: args.port });
+async function importUnknown(specifier: string): Promise<unknown> {
+  const mod: unknown = await import(specifier);
+  return mod;
 }
 
-async function commandList(_args: CliArgs): Promise<void> {
+function isHonoAppModule(mod: unknown): mod is { app: HonoAppLike } {
+  if (typeof mod !== 'object' || mod === null || !('app' in mod)) {
+    return false;
+  }
+  const { app } = mod;
+  return (
+    typeof app === 'object' &&
+    app !== null &&
+    'fetch' in app &&
+    typeof app.fetch === 'function'
+  );
+}
+
+function isServerRunnerModule(
+  mod: unknown,
+): mod is { initRunner: () => Promise<unknown> } {
+  if (typeof mod !== 'object' || mod === null || !('initRunner' in mod)) {
+    return false;
+  }
+  return typeof mod.initRunner === 'function';
+}
+
+async function commandDev(args: CliArgs): Promise<void> {
+  const { serve } = await import('@hono/node-server');
+  const appModule = await importUnknown('../../server/src/app.ts');
+  const runnerModule = await importUnknown('../../server/src/runner.ts');
+
+  if (!isHonoAppModule(appModule)) {
+    throw new Error('Server app module is invalid');
+  }
+  if (!isServerRunnerModule(runnerModule)) {
+    throw new Error('Server runner module is invalid');
+  }
+
+  await runnerModule.initRunner();
+
+  console.info(`Agent Evals dev server: http://localhost:${String(args.port)}`);
+  serve({ fetch: appModule.app.fetch, port: args.port });
+}
+
+async function commandList(args_: CliArgs): Promise<void> {
   const runner = createRunner();
   await runner.init();
 

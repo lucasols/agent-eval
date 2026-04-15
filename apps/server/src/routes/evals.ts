@@ -3,7 +3,7 @@ import { getRunnerInstance } from '../runner.ts';
 
 export const evalsRoutes = new Hono();
 
-evalsRoutes.get('/', async (c) => {
+evalsRoutes.get('/', (c) => {
   const runner = getRunnerInstance();
   const evals = runner.getEvals();
   return c.json(evals, 200);
@@ -16,7 +16,7 @@ evalsRoutes.post('/refresh', async (c) => {
   return c.json(evals, 200);
 });
 
-evalsRoutes.get('/:evalId', async (c) => {
+evalsRoutes.get('/:evalId', (c) => {
   const runner = getRunnerInstance();
   const evalId = c.req.param('evalId');
   const evalData = runner.getEval(evalId);

@@ -1,8 +1,13 @@
-import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import type { AgentEvalsConfig } from '@agent-evals/shared';
+import { agentEvalsConfigSchema, type AgentEvalsConfig } from '@agent-evals/shared';
+import { z } from 'zod/v4';
+
+const configModuleSchema = z.object({
+  default: agentEvalsConfigSchema.optional(),
+  config: agentEvalsConfigSchema.optional(),
+});
 
 const defaultConfig: AgentEvalsConfig = {
   include: ['**/*.eval.ts'],
@@ -22,7 +27,8 @@ export async function loadConfig(): Promise<AgentEvalsConfig> {
   }
 
   try {
-    const configModule = await import(pathToFileURL(configPath).href) as { default?: AgentEvalsConfig; config?: AgentEvalsConfig };
+    const imported: unknown = await import(pathToFileURL(configPath).href);
+    const configModule = configModuleSchema.parse(imported);
     const userConfig = configModule.default ?? configModule.config;
 
     if (!userConfig) {

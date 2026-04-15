@@ -1,4 +1,7 @@
 import { Store } from 't-state';
+import { z } from 'zod/v4';
+
+const columnVisibilitySchema = z.record(z.string(), z.boolean());
 
 type SortDirection = 'asc' | 'desc';
 
@@ -21,7 +24,7 @@ export const uiStore = new Store<UiState>({
 function loadColumnVisibility(): Record<string, boolean> {
   try {
     const stored = localStorage.getItem('agent-evals:column-visibility');
-    if (stored) return JSON.parse(stored) as Record<string, boolean>;
+    if (stored) return columnVisibilitySchema.parse(JSON.parse(stored));
   } catch {
     // ignore
   }

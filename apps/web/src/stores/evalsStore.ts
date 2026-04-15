@@ -1,5 +1,8 @@
 import { Store } from 't-state';
-import type { EvalSummary } from '@agent-evals/shared';
+import { evalSummarySchema, type EvalSummary } from '@agent-evals/shared';
+import { z } from 'zod/v4';
+
+const evalSummariesSchema = z.array(evalSummarySchema);
 
 type EvalsState = {
   evals: EvalSummary[];
@@ -19,7 +22,7 @@ export async function fetchEvals(): Promise<void> {
   evalsStore.setPartialState({ loading: true });
   try {
     const response = await fetch('/api/evals');
-    const data = await response.json() as EvalSummary[];
+    const data = evalSummariesSchema.parse(await response.json());
     evalsStore.setPartialState({ evals: data, loading: false });
   } catch {
     evalsStore.setPartialState({ loading: false });
@@ -30,7 +33,7 @@ export async function refreshDiscovery(): Promise<void> {
   evalsStore.setPartialState({ loading: true });
   try {
     const response = await fetch('/api/evals/refresh', { method: 'POST' });
-    const data = await response.json() as EvalSummary[];
+    const data = evalSummariesSchema.parse(await response.json());
     evalsStore.setPartialState({ evals: data, loading: false });
   } catch {
     evalsStore.setPartialState({ loading: false });
