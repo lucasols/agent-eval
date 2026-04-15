@@ -79,14 +79,19 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 
-const app = new Hono().post(
-  '/api/tasks',
-  zValidator('json', z.object({ title: z.string() })),
-  async (c) => {
-    const data = c.req.valid('json');
-    return c.json({ success: true });
-  },
-);
+const app = new Hono()
+  .get('/api/tasks', async (c) => {
+    // Return tasks
+    return c.json({ tasks: [] });
+  })
+  .post(
+    '/api/tasks',
+    zValidator('json', z.object({ title: z.string() })),
+    async (c) => {
+      const data = c.req.valid('json');
+      return c.json({ success: true });
+    },
+  );
 
 export type AppType = typeof app;
 ```
@@ -112,14 +117,21 @@ Vindur is a compile-time CSS-in-JS framework. Place styles at the top of compone
 ```tsx
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
-import { inline, stack, centerContent, fillContainer } from '#src/style/helpers';
+import {
+  inline,
+  stack,
+  centerContent,
+  fillContainer,
+} from '#src/style/helpers';
 
 const Button = styled.button`
   background: ${colors.accent.var};
   color: ${colors.white.var};
   border: 1px solid ${colors.accent.alpha(0.1)};
 
-  &:hover { background: ${colors.accent.darken(0.1)}; }
+  &:hover {
+    background: ${colors.accent.darken(0.1)};
+  }
 `;
 ```
 
@@ -128,7 +140,9 @@ Conditional styling — use style flags, not inline ternaries:
 ```tsx
 const Card = styled.div<{ isActive: boolean }>`
   padding: 16px;
-  &.isActive { border: 2px solid ${colors.accent.var}; }
+  &.isActive {
+    border: 2px solid ${colors.accent.var};
+  }
 `;
 ```
 
@@ -139,10 +153,18 @@ Scoped CSS variables use triple-dash (`---gap`). Use `keyframes` for animations.
 Layout helpers replace manual flexbox:
 
 ```tsx
-const Header = styled.div`${inline({ justify: 'space-between', gap: 16 })}`;
-const Sidebar = styled.div`${stack({ align: 'center', gap: 12 })}`;
-const Modal = styled.div`${centerContent}`;
-const Overlay = styled.div`${fillContainer}`;
+const Header = styled.div`
+  ${inline({ justify: 'space-between', gap: 16 })}
+`;
+const Sidebar = styled.div`
+  ${stack({ align: 'center', gap: 12 })}
+`;
+const Modal = styled.div`
+  ${centerContent}
+`;
+const Overlay = styled.div`
+  ${fillContainer}
+`;
 ```
 
 Don't use conditional style functions inside styled components — Vindur doesn't support them. Use style flags instead. Don't use `colorAlpha` with static colors — use `color.name.alpha(n)`.
@@ -164,7 +186,9 @@ Common anti-patterns to avoid:
 Use `useActionFn` from `t-state` instead of tracking progress with `useState`:
 
 ```tsx
-const doSomething = useActionFn(async (...args) => { /* ... */ });
+const doSomething = useActionFn(async (...args) => {
+  /* ... */
+});
 
 doSomething.call(...args);
 doSomething.isInProgress;
