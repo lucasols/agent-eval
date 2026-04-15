@@ -12,10 +12,13 @@
   },
   "dependencies": {
     "@agent-evals/shared": "workspace:*",
+    "@ls-stack/utils": "^3.75.0",
     "hono": "^4.9.9",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "t-result": "^0.6.1",
     "t-state": "^9.8.0",
+    "t-state-form": "^2.1.0",
     "vindur": "^0.10.1",
     "zod": "^4.3.6"
   },

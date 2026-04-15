@@ -72,6 +72,9 @@ importers:
       '@agent-evals/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@ls-stack/utils':
+        specifier: ^3.75.0
+        version: 3.75.0
       hono:
         specifier: ^4.9.9
         version: 4.12.9
@@ -81,9 +84,15 @@ importers:
       react-dom:
         specifier: ^19.1.1
         version: 19.2.4(react@19.2.4)
+      t-result:
+        specifier: ^0.6.1
+        version: 0.6.1
       t-state:
         specifier: ^9.8.0
         version: 9.8.2(react@19.2.4)
+      t-state-form:
+        specifier: ^2.1.0
+        version: 2.1.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       vindur:
         specifier: ^0.10.1
         version: 0.10.1(react@19.2.4)(vite@7.3.1(@types/node@24.12.0)(jiti@2.6.1)(terser@5.46.1))
@@ -2502,6 +2511,13 @@ packages:
   t-result@0.6.1:
     resolution: {integrity: sha512-a1aZsIAFYpjb0J51tZfrS93xxpTp4WY70EhZBCKcHylh/y/tF4uWXIyJUoDQKcg88lDdPlAcwuzE5JAC/4MVZg==}
     engines: {node: '>=23.0.0'}
+
+  t-state-form@2.1.0:
+    resolution: {integrity: sha512-Ag5RTFMvyDBuCK32IZ2RGolTB4kGu8eZTAFBIotln3y9bJQF/EU9l/wLDRY0GKvB0aa+Nxr/AaEs9v5VBoY8oQ==}
+    engines: {node: '>=14.6.0'}
+    peerDependencies:
+      react: ^18.2.0
+      react-dom: ^18.2.0
 
   t-state@9.8.2:
     resolution: {integrity: sha512-mp1usCyYtCnB5ZderW1cxurls8HI3oTmaIQjbX1v9G3qbwQD2YXMcbpr139CPDRPwbJELW8YRfRHDoO6yu1Kfg==}
@@ -5297,6 +5313,13 @@ snapshots:
   supports-preserve-symlinks-flag@1.0.0: {}
 
   t-result@0.6.1: {}
+
+  t-state-form@2.1.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+    dependencies:
+      immer: 10.2.0
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
+      t-state: 9.8.2(react@19.2.4)
 
   t-state@9.8.2(react@19.2.4):
     dependencies:
