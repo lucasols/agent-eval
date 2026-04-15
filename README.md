@@ -65,14 +65,14 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
    })
    ```
 
-3. **List and run** from the CLI:
+3. **Open the UI** — `agent-evals` (or `agent-evals dev`) serves it at `http://localhost:4100` (override with `--port`). The UI gives you run controls, per-case results, trace drawer, cost, and per-run cache toggle.
+
+4. **Or use the CLI**:
 
    ```sh
    agent-evals list
    agent-evals run
    ```
-
-4. **Or open the UI** — `agent-evals dev` serves it at `http://localhost:4100` (override with `--port`). The UI gives you run controls, per-case results, trace drawer, cost, and per-run cache toggle.
 
 A complete working example lives at [`examples/basic-agent`](./examples/basic-agent).
 
