@@ -107,10 +107,7 @@ export function SpanDetail({ span }: SpanDetailProps) {
           <DetailItem label="Cost" value={`$${span.costUsd.toFixed(4)}`} />
         ) : null}
         {span.cache ? (
-          <>
-            <DetailItem label="Cache mode" value={span.cache.mode} />
-            <DetailItem label="Cache status" value={span.cache.status} />
-          </>
+          <DetailItem label="Cache status" value={span.cache.status} />
         ) : null}
       </DetailItems>
 

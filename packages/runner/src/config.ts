@@ -11,9 +11,6 @@ const configModuleSchema = z.object({
 
 const defaultConfig: AgentEvalsConfig = {
   include: ['**/*.eval.ts'],
-  localStateDir: '.agent-evals',
-  recordedCacheDir: 'evals/recordings',
-  defaultCacheMode: 'local',
   defaultTrials: 1,
   concurrency: 2,
 };

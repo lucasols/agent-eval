@@ -26,7 +26,6 @@ export const traceSpanSchema = z.object({
   }).optional(),
   costUsd: z.number().nullable().optional(),
   cache: z.object({
-    mode: z.enum(['off', 'local', 'recorded', 'readonly-recorded']),
     status: z.enum(['hit', 'miss', 'write', 'bypass']),
     key: z.string().optional(),
   }).optional(),

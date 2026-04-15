@@ -1,5 +1,4 @@
 import { z } from 'zod/v4';
-import { cacheModeSchema } from './api.ts';
 import { evalCostSummarySchema } from './cost.ts';
 
 export const runManifestSchema = z.object({
@@ -12,7 +11,6 @@ export const runManifestSchema = z.object({
     evalIds: z.array(z.string()).optional(),
     caseIds: z.array(z.string()).optional(),
   }),
-  cacheMode: cacheModeSchema,
   trials: z.number(),
 });
 export type RunManifest = z.infer<typeof runManifestSchema>;

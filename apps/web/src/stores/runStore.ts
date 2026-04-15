@@ -4,7 +4,6 @@ import {
   caseRowSchema,
   runManifestSchema,
   runSummarySchema,
-  type CacheMode,
   type CaseRow,
   type RunManifest,
   type RunSummary,
@@ -32,7 +31,6 @@ type RunState = {
   } | null;
   selectedCaseId: string | null;
   selectedCaseDetail: CaseDetail | null;
-  cacheMode: CacheMode;
   trials: number;
   eventSource: EventSource | null;
 };
@@ -42,7 +40,6 @@ export const runStore = new Store<RunState>({
     currentRun: null,
     selectedCaseId: null,
     selectedCaseDetail: null,
-    cacheMode: 'local',
     trials: 1,
     eventSource: null,
   },
@@ -52,12 +49,12 @@ export async function startRun(target: {
   mode: 'all' | 'evalIds';
   evalIds?: string[];
 }): Promise<void> {
-  const { cacheMode, trials } = runStore.state;
+  const { trials } = runStore.state;
 
   const response = await fetch('/api/runs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ target, cacheMode, trials }),
+    body: JSON.stringify({ target, trials }),
   });
 
   const run = createRunResponseSchema.parse(await response.json());
@@ -199,10 +196,6 @@ export async function selectCase(caseId: string): Promise<void> {
 
 export function closeCase(): void {
   runStore.setPartialState({ selectedCaseId: null, selectedCaseDetail: null });
-}
-
-export function setCacheMode(mode: CacheMode): void {
-  runStore.setPartialState({ cacheMode: mode });
 }
 
 export function setTrials(trials: number): void {

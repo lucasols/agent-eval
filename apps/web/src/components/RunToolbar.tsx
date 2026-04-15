@@ -2,16 +2,7 @@ import { styled, css } from 'vindur';
 import { colors } from '#src/style/colors.ts';
 import { inline } from '#src/style/helpers.ts';
 import { evalsStore } from '../stores/evalsStore.ts';
-import { runStore, startRun, cancelRun, setCacheMode, setTrials } from '../stores/runStore.ts';
-import type { CacheMode } from '@agent-evals/shared';
-
-const cacheModes: CacheMode[] = ['off', 'local', 'recorded', 'readonly-recorded'];
-
-const cacheModeSet: Set<string> = new Set(cacheModes);
-
-function isCacheMode(value: string): value is CacheMode {
-  return cacheModeSet.has(value);
-}
+import { runStore, startRun, cancelRun, setTrials } from '../stores/runStore.ts';
 
 const ToolbarContainer = styled.div`
   padding: 8px 16px;
@@ -58,15 +49,6 @@ const ToolbarLabel = styled.label`
   ${inline({ gap: 4 })}
 `;
 
-const SelectInput = styled.select`
-  background: ${colors.bg.var};
-  color: ${colors.text.var};
-  border: 1px solid ${colors.border.var};
-  border-radius: var(--radius-sm);
-  padding: 4px 8px;
-  font-size: 12px;
-`;
-
 const NumberInput = styled.input`
   width: 48px;
   background: ${colors.bg.var};
@@ -86,9 +68,8 @@ export function RunToolbar() {
   const { selectedEvalIds } = evalsStore.useSelectorRC((s) => ({
     selectedEvalIds: s.selectedEvalIds,
   }));
-  const { currentRun, cacheMode, trials } = runStore.useSelectorRC((s) => ({
+  const { currentRun, trials } = runStore.useSelectorRC((s) => ({
     currentRun: s.currentRun,
-    cacheMode: s.cacheMode,
     trials: s.trials,
   }));
 
@@ -126,23 +107,6 @@ export function RunToolbar() {
       ) : null}
 
       <Spacer />
-
-      <ToolbarLabel>
-        Cache:
-        <SelectInput
-          value={cacheMode}
-          onChange={(e) => {
-            const value = e.target.value;
-            if (isCacheMode(value)) {
-              setCacheMode(value);
-            }
-          }}
-        >
-          {cacheModes.map((m) => (
-            <option key={m} value={m}>{m}</option>
-          ))}
-        </SelectInput>
-      </ToolbarLabel>
 
       <ToolbarLabel>
         Trials:

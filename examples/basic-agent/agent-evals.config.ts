@@ -2,7 +2,6 @@ import type { AgentEvalsConfig } from '@agent-evals/shared';
 
 export const config: AgentEvalsConfig = {
   include: ['evals/**/*.eval.ts'],
-  defaultCacheMode: 'local',
   defaultTrials: 1,
   pricing: {
     'gpt-4o': {

@@ -706,7 +706,6 @@ export type EvalTraceSpan = {
   }
   costUsd?: number | null
   cache?: {
-    mode: 'off' | 'local' | 'recorded' | 'readonly-recorded'
     status: 'hit' | 'miss' | 'write' | 'bypass'
     key?: string
   }
@@ -738,7 +737,7 @@ type EvalTraceActiveSpan = {
   setAttributes(value: Record<string, unknown>): void
   setUsage(value: { inputTokens?: number; outputTokens?: number; totalTokens?: number }): void
   setCostUsd(value: number | null): void
-  setCache(value: { mode: 'off' | 'local' | 'recorded' | 'readonly-recorded'; status: 'hit' | 'miss' | 'write' | 'bypass'; key?: string }): void
+  setCache(value: { status: 'hit' | 'miss' | 'write' | 'bypass'; key?: string }): void
   addArtifact(params: { filePath: string; mimeType: string; fileName?: string }): RunArtifactRef
 }
 ```
@@ -830,47 +829,21 @@ The cache system must be:
 - file-based
 - safe to commit/review for recorded entries
 
-### 13.1 Cache namespaces
+### 13.1 Cache folder
 
-Use two namespaces in v1:
+Use a single gitignored folder in v1:
 
-1. **local cache**
-   - path: `.agent-evals/cache/local/`
-   - gitignored
-   - for speed during development
+- path: `.agent-evals/cache/<namespace>/<key>.json`
+- organized by namespace (e.g. `llm`, `tool`)
+- for speed during development; not committed
 
-2. **recorded cache**
-   - path: `evals/recordings/cache/`
-   - committable
-   - used for deterministic/reviewable runs
+### 13.2 Disabling the cache
 
-### 13.2 Cache modes exposed in UI/CLI
+Caching is always on by default. The only knob is a CLI flag:
 
-Implement exactly these modes in v1:
+- `--no-cache` — bypass both reads and writes; every call executes live
 
-- `off`
-- `local`
-- `recorded`
-- `readonly-recorded`
-
-Semantics:
-
-#### `off`
-- never read cache
-- never write cache
-
-#### `local`
-- read/write local cache only
-
-#### `recorded`
-- read recorded cache first
-- if miss, allow live execution
-- write new entries to recorded cache
-
-#### `readonly-recorded`
-- read recorded cache only
-- if miss, fail the operation with a clear error
-- do not write
+There are no configurable cache modes and no separate recorded cache in v1.
 
 ### 13.3 Cache entry format
 
@@ -887,7 +860,6 @@ Suggested shape:
   "response": {},
   "meta": {
     "createdAt": "2026-03-29T12:00:00.000Z",
-    "mode": "recorded",
     "usage": {
       "inputTokens": 100,
       "outputTokens": 25,
@@ -1151,7 +1123,7 @@ Implement these routes in v1.
     evalIds?: string[]
     caseIds?: string[]
   }
-  cacheMode: 'off' | 'local' | 'recorded' | 'readonly-recorded'
+  disableCache?: boolean
   trials: number
 }
 ```
@@ -1373,7 +1345,7 @@ Supports options:
 
 - `--eval <id>` repeated or comma-separated
 - `--case <id>` repeated or comma-separated if feasible
-- `--cache <off|local|recorded|readonly-recorded>`
+- `--no-cache` to bypass the cache for this run
 - `--trials <n>`
 - `--json`
 
@@ -1397,7 +1369,6 @@ Exit non-zero when:
 - any case throws/unhandled fails
 - any assertion fails
 - any case is below `passThreshold` if configured
-- a cache miss occurs in `readonly-recorded` mode
 
 ---
 
@@ -1411,23 +1382,20 @@ Create `agent-evals.config.ts` at project root.
 export type AgentEvalsConfig = {
   workspaceRoot?: string
   include: string[]
-  localStateDir?: string
-  recordedCacheDir?: string
-  defaultCacheMode?: 'off' | 'local' | 'recorded' | 'readonly-recorded'
   defaultTrials?: number
   pricing?: PricingRegistry
   concurrency?: number
 }
 ```
 
+Runner state and cache live at the hardcoded path `.agent-evals/` under
+`workspaceRoot` — neither the state dir nor the cache dir is configurable.
+
 ### 22.2 Default values
 
 Use sensible defaults:
 
 - `include: ['**/*.eval.ts']`
-- `localStateDir: '.agent-evals'`
-- `recordedCacheDir: 'evals/recordings'`
-- `defaultCacheMode: 'local'`
 - `defaultTrials: 1`
 - `concurrency: 2`
 
@@ -1610,9 +1578,8 @@ V1 is complete when all of the following are true.
 
 ### 26.3 Cache
 
-- cache mode can be selected in the UI and CLI
-- recorded cache entries are plain JSON files
-- readonly-recorded mode fails clearly on misses
+- cache entries are plain JSON files under `.agent-evals/cache/`
+- `--no-cache` CLI flag disables reads and writes for a run
 
 ### 26.4 CLI
 

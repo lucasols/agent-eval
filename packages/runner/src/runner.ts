@@ -62,7 +62,6 @@ export function createRunner(): EvalRunner {
   let config: AgentEvalsConfig;
   let workspaceRoot: string;
   let localStateDir: string;
-  let recordedCacheDir: string;
   let cacheManager: CacheManager;
   const evals = new Map<string, EvalMeta>();
   const staleEvals = new Set<string>();
@@ -73,14 +72,12 @@ export function createRunner(): EvalRunner {
     async init() {
       config = await loadConfig();
       workspaceRoot = config.workspaceRoot ?? process.cwd();
-      localStateDir = resolve(workspaceRoot, config.localStateDir ?? '.agent-evals');
-      recordedCacheDir = resolve(workspaceRoot, config.recordedCacheDir ?? 'evals/recordings');
-      cacheManager = createCacheManager(localStateDir, recordedCacheDir);
+      localStateDir = resolve(workspaceRoot, '.agent-evals');
+      cacheManager = createCacheManager(join(localStateDir, 'cache'));
 
       await mkdir(localStateDir, { recursive: true });
       await mkdir(join(localStateDir, 'runs'), { recursive: true });
-      await mkdir(join(localStateDir, 'cache', 'local'), { recursive: true });
-      await mkdir(join(recordedCacheDir, 'cache'), { recursive: true });
+      await mkdir(join(localStateDir, 'cache'), { recursive: true });
 
       await runner.refreshDiscovery();
       setupWatcher();
@@ -153,7 +150,6 @@ export function createRunner(): EvalRunner {
         startedAt: now,
         endedAt: null,
         target: request.target,
-        cacheMode: request.cacheMode,
         trials: request.trials,
       };
 
@@ -344,8 +340,9 @@ export function createRunner(): EvalRunner {
                   );
 
                   const runtimeCtx = {
-                    cacheMode: request.cacheMode,
-                    cache: cacheManager.createCacheRuntime(request.cacheMode),
+                    cache: cacheManager.createCacheRuntime(
+                      request.disableCache ?? false,
+                    ),
                     runId: runState.manifest.id,
                     workspaceRoot,
                     artifactsDir: join(runDir, 'artifacts', evalCase.id),

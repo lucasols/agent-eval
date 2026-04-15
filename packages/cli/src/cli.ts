@@ -1,11 +1,10 @@
 import { createRunner } from '@agent-evals/runner';
-import { cacheModeSchema, type CacheMode } from '@agent-evals/shared';
 
 type CliArgs = {
   command: 'dev' | 'list' | 'run' | 'help';
   evalIds: string[];
   caseIds: string[];
-  cacheMode: CacheMode;
+  noCache: boolean;
   trials: number;
   json: boolean;
   port: number;
@@ -16,7 +15,7 @@ function parseArgs(argv: string[]): CliArgs {
     command: 'help',
     evalIds: [],
     caseIds: [],
-    cacheMode: 'local',
+    noCache: false,
     trials: 1,
     json: false,
     port: 4100,
@@ -37,9 +36,8 @@ function parseArgs(argv: string[]): CliArgs {
     } else if (arg === '--case' && next) {
       args.caseIds.push(...next.split(','));
       i++;
-    } else if (arg === '--cache' && next) {
-      args.cacheMode = cacheModeSchema.parse(next);
-      i++;
+    } else if (arg === '--no-cache') {
+      args.noCache = true;
     } else if (arg === '--trials' && next) {
       args.trials = Number(next);
       i++;
@@ -157,13 +155,15 @@ async function commandRun(args: CliArgs): Promise<void> {
 
   const run = await runner.startRun({
     target,
-    cacheMode: args.cacheMode,
+    disableCache: args.noCache,
     trials: args.trials,
   });
 
   if (!args.json) {
     console.info(`Run started: ${run.manifest.id}`);
-    console.info(`Cache mode: ${args.cacheMode}`);
+    if (args.noCache) {
+      console.info('Cache: disabled');
+    }
     console.info(`Trials: ${String(args.trials)}`);
     console.info('');
   }
@@ -240,7 +240,7 @@ Commands:
 Options:
   --eval <id>        Run specific eval(s) (comma-separated)
   --case <id>        Run specific case(s) (comma-separated)
-  --cache <mode>     Cache mode: off, local, recorded, readonly-recorded
+  --no-cache         Disable caching for this run (bypass reads and writes)
   --trials <n>       Number of trials per case
   --json             Output results as JSON
   --port <n>         Server port (default: 4100)

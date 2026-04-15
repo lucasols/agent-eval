@@ -3,6 +3,6 @@ export { traceSpanSchema, traceSpanKindSchema, type EvalTraceSpan, type TraceSpa
 export { evalSummarySchema, caseRowSchema, caseDetailSchema, type EvalSummary, type CaseRow, type CaseDetail } from './schemas/eval.ts';
 export { runManifestSchema, runSummarySchema, type RunManifest, type RunSummary } from './schemas/run.ts';
 export { sseEnvelopeSchema, type SseEnvelope, type SseEventType } from './schemas/sse.ts';
-export { createRunRequestSchema, type CreateRunRequest, type CacheMode, cacheModeSchema } from './schemas/api.ts';
+export { createRunRequestSchema, type CreateRunRequest } from './schemas/api.ts';
 export { evalCostSummarySchema, modelPricingSchema, type EvalCostSummary, type ModelPricing, type PricingRegistry } from './schemas/cost.ts';
 export { agentEvalsConfigSchema, type AgentEvalsConfig } from './schemas/config.ts';

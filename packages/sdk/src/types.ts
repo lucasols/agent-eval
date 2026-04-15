@@ -1,5 +1,4 @@
 import type {
-  CacheMode,
   ColumnDef,
   DisplayBlock,
   EvalCostSummary,
@@ -54,7 +53,6 @@ export type EvalTraceActiveSpan = {
   }): void;
   setCostUsd(value: number | null): void;
   setCache(value: {
-    mode: CacheMode;
     status: 'hit' | 'miss' | 'write' | 'bypass';
     key?: string;
   }): void;
@@ -91,7 +89,6 @@ export type CacheRuntime = {
 };
 
 export type EvalRuntimeContext = {
-  cacheMode: CacheMode;
   cache: CacheRuntime;
   runId: string;
   workspaceRoot: string;
