@@ -301,220 +301,236 @@ export function createRunner(): EvalRunner {
 
           await import(evalFilePath);
 
-          const evalDef = registry.get(evalMeta.id);
-          if (!evalDef) continue;
+          const entry = registry.get(evalMeta.id);
+          if (!entry) continue;
 
-          const cases = typeof evalDef.data === 'function'
-            ? await evalDef.data()
-            : evalDef.data;
+          await entry.use(async (evalDef) => {
+            const cases =
+              typeof evalDef.data === 'function'
+                ? await evalDef.data()
+                : evalDef.data;
 
-          runState.summary.totalCases += cases.length * request.trials;
+            runState.summary.totalCases += cases.length * request.trials;
 
-          for (let trial = 0; trial < request.trials; trial++) {
-            for (const evalCase of cases) {
-              if (runState.abortController.signal.aborted) break;
+            for (let trial = 0; trial < request.trials; trial++) {
+              for (const evalCase of cases) {
+                if (runState.abortController.signal.aborted) break;
 
-              const caseRow: CaseRow = {
-                caseId: evalCase.id,
-                evalId: evalMeta.id,
-                status: 'running',
-                score: null,
-                latencyMs: null,
-                costUsd: null,
-                cacheStatus: null,
-                columns: evalCase.columns ?? {},
-                trial,
-              };
-
-              runState.cases.push(caseRow);
-
-              emitEvent(runState, {
-                type: 'case.started',
-                runId: runState.manifest.id,
-                timestamp: new Date().toISOString(),
-                payload: caseRow,
-              });
-
-              const startTime = Date.now();
-
-              try {
-                const { recorder, getSpans, buildTree } = createTraceRecorder(evalCase.id);
-
-                const runtimeCtx = {
-                  cacheMode: request.cacheMode,
-                  cache: cacheManager.createCacheRuntime(request.cacheMode),
-                  runId: runState.manifest.id,
-                  workspaceRoot,
-                  artifactsDir: join(runDir, 'artifacts', evalCase.id),
+                const caseRow: CaseRow = {
+                  caseId: evalCase.id,
+                  evalId: evalMeta.id,
+                  status: 'running',
+                  score: null,
+                  latencyMs: null,
+                  costUsd: null,
+                  cacheStatus: null,
+                  columns: evalCase.columns ?? {},
+                  trial,
                 };
 
-                await mkdir(runtimeCtx.artifactsDir, { recursive: true });
+                runState.cases.push(caseRow);
 
-                const taskResult = await evalDef.task({
-                  case: evalCase,
-                  input: evalCase.input,
-                  signal: runState.abortController.signal,
-                  trace: recorder,
-                  runtime: runtimeCtx,
+                emitEvent(runState, {
+                  type: 'case.started',
+                  runId: runState.manifest.id,
+                  timestamp: new Date().toISOString(),
+                  payload: caseRow,
                 });
 
-                const elapsedMs = Date.now() - startTime;
-                const traceTree = buildTree();
-                const spans = getSpans();
+                const startTime = Date.now();
 
-                const totalCost = spans
-                  .filter((s) => s.costUsd !== null && s.costUsd !== undefined)
-                  .reduce((sum, s) => sum + (s.costUsd ?? 0), 0);
+                try {
+                  const { recorder, getSpans, buildTree } = createTraceRecorder(
+                    evalCase.id,
+                  );
 
-                const cacheHits = spans.filter((s) => s.cache?.status === 'hit').length;
-                const cacheMisses = spans.filter(
-                  (s) => s.cache && s.cache.status !== 'hit',
-                ).length;
-                const cacheStatus =
-                  cacheHits > 0 && cacheMisses === 0 ? 'hit' as const
-                  : cacheHits > 0 ? 'partial' as const
-                  : cacheMisses > 0 ? 'miss' as const
-                  : null;
+                  const runtimeCtx = {
+                    cacheMode: request.cacheMode,
+                    cache: cacheManager.createCacheRuntime(request.cacheMode),
+                    runId: runState.manifest.id,
+                    workspaceRoot,
+                    artifactsDir: join(runDir, 'artifacts', evalCase.id),
+                  };
 
-                const mergedColumns = {
-                  ...evalCase.columns,
-                  ...taskResult.columns,
-                };
+                  await mkdir(runtimeCtx.artifactsDir, { recursive: true });
 
-                let scores: CaseDetail['scores'] = [];
-                if (evalDef.scorers) {
-                  for (const scorer of evalDef.scorers) {
+                  const taskResult = await evalDef.task({
+                    case: evalCase,
+                    input: evalCase.input,
+                    signal: runState.abortController.signal,
+                    trace: recorder,
+                    runtime: runtimeCtx,
+                  });
+
+                  const elapsedMs = Date.now() - startTime;
+                  const traceTree = buildTree();
+                  const spans = getSpans();
+
+                  const totalCost = spans
+                    .filter((s) => s.costUsd !== null && s.costUsd !== undefined)
+                    .reduce((sum, s) => sum + (s.costUsd ?? 0), 0);
+
+                  const cacheHits = spans.filter(
+                    (s) => s.cache?.status === 'hit',
+                  ).length;
+                  const cacheMisses = spans.filter(
+                    (s) => s.cache && s.cache.status !== 'hit',
+                  ).length;
+                  const cacheStatus =
+                    cacheHits > 0 && cacheMisses === 0 ? ('hit' as const)
+                    : cacheHits > 0 ? ('partial' as const)
+                    : cacheMisses > 0 ? ('miss' as const)
+                    : null;
+
+                  const mergedColumns = {
+                    ...evalCase.columns,
+                    ...taskResult.columns,
+                  };
+
+                  const scores: CaseDetail['scores'] = [];
+                  if (evalDef.scorers) {
+                    for (const scorer of evalDef.scorers) {
+                      try {
+                        const scoreResult = await scorer({
+                          case: evalCase,
+                          input: evalCase.input,
+                          output: taskResult.output,
+                          trace: traceTree,
+                          runtime: runtimeCtx,
+                        });
+                        scores.push(scoreResult);
+                        if (scoreResult.columns) {
+                          Object.assign(mergedColumns, scoreResult.columns);
+                        }
+                      } catch (e) {
+                        scores.push({
+                          id: 'scorer-error',
+                          score: 0,
+                          reason: e instanceof Error ? e.message : String(e),
+                        });
+                      }
+                    }
+                  }
+
+                  const avgScore =
+                    scores.length > 0
+                      ? scores.reduce((sum, s) => sum + s.score, 0) /
+                        scores.length
+                      : null;
+
+                  let passed = true;
+                  if (
+                    evalDef.passThreshold !== null &&
+                    evalDef.passThreshold !== undefined
+                  ) {
+                    if (avgScore === null || avgScore < evalDef.passThreshold) {
+                      passed = false;
+                    }
+                  }
+
+                  if (evalDef.assert) {
                     try {
-                      const scoreResult = await scorer({
+                      await evalDef.assert({
                         case: evalCase,
                         input: evalCase.input,
                         output: taskResult.output,
                         trace: traceTree,
-                        runtime: runtimeCtx,
+                        scores,
+                        cost: {
+                          totalUsd: totalCost > 0 ? totalCost : null,
+                          uncachedUsd: null,
+                          savingsUsd: null,
+                        },
+                        columns: mergedColumns,
                       });
-                      scores.push(scoreResult);
-                      if (scoreResult.columns) {
-                        Object.assign(mergedColumns, scoreResult.columns);
-                      }
-                    } catch (e) {
-                      scores.push({
-                        id: 'scorer-error',
-                        score: 0,
-                        reason: e instanceof Error ? e.message : String(e),
-                      });
+                    } catch {
+                      passed = false;
                     }
                   }
-                }
 
-                const avgScore =
-                  scores.length > 0
-                    ? scores.reduce((sum, s) => sum + s.score, 0) / scores.length
-                    : null;
+                  caseRow.status = passed ? 'pass' : 'fail';
+                  caseRow.score = avgScore;
+                  caseRow.latencyMs = elapsedMs;
+                  caseRow.costUsd = totalCost > 0 ? totalCost : null;
+                  caseRow.cacheStatus = cacheStatus;
+                  caseRow.columns = mergedColumns;
 
-                let passed = true;
-                if (evalDef.passThreshold !== null && evalDef.passThreshold !== undefined) {
-                  if (avgScore === null || avgScore < evalDef.passThreshold) {
-                    passed = false;
+                  if (passed) {
+                    runState.summary.passedCases++;
+                  } else {
+                    runState.summary.failedCases++;
                   }
+
+                  const caseDetail: CaseDetail = {
+                    caseId: evalCase.id,
+                    evalId: evalMeta.id,
+                    status: caseRow.status,
+                    input: evalCase.input,
+                    displayInput: evalCase.displayInput,
+                    output: taskResult.output,
+                    displayOutput: taskResult.displayOutput ?? [],
+                    scores,
+                    trace: spans,
+                    cost: {
+                      totalUsd: totalCost > 0 ? totalCost : null,
+                      uncachedUsd: null,
+                      savingsUsd: null,
+                    },
+                    columns: mergedColumns,
+                    error: null,
+                    trial,
+                  };
+
+                  runState.caseDetails.set(evalCase.id, caseDetail);
+
+                  await writeFile(
+                    join(runDir, 'traces', `${evalCase.id}.json`),
+                    JSON.stringify(spans, null, 2),
+                  );
+                } catch (error) {
+                  caseRow.status = 'error';
+                  caseRow.latencyMs = Date.now() - startTime;
+                  runState.summary.errorCases++;
+
+                  const errorInfo =
+                    error instanceof Error
+                      ? {
+                          name: error.name,
+                          message: error.message,
+                          stack: error.stack,
+                        }
+                      : { message: String(error) };
+
+                  const caseDetail: CaseDetail = {
+                    caseId: evalCase.id,
+                    evalId: evalMeta.id,
+                    status: 'error',
+                    input: evalCase.input,
+                    displayInput: evalCase.displayInput,
+                    output: null,
+                    displayOutput: [],
+                    scores: [],
+                    trace: [],
+                    cost: { totalUsd: null, uncachedUsd: null, savingsUsd: null },
+                    columns: evalCase.columns ?? {},
+                    error: errorInfo,
+                    trial,
+                  };
+
+                  runState.caseDetails.set(evalCase.id, caseDetail);
                 }
 
-                if (evalDef.assert) {
-                  try {
-                    await evalDef.assert({
-                      case: evalCase,
-                      input: evalCase.input,
-                      output: taskResult.output,
-                      trace: traceTree,
-                      scores,
-                      cost: {
-                        totalUsd: totalCost > 0 ? totalCost : null,
-                        uncachedUsd: null,
-                        savingsUsd: null,
-                      },
-                      columns: mergedColumns,
-                    });
-                  } catch {
-                    passed = false;
-                  }
-                }
+                emitEvent(runState, {
+                  type: 'case.finished',
+                  runId: runState.manifest.id,
+                  timestamp: new Date().toISOString(),
+                  payload: caseRow,
+                });
 
-                caseRow.status = passed ? 'pass' : 'fail';
-                caseRow.score = avgScore;
-                caseRow.latencyMs = elapsedMs;
-                caseRow.costUsd = totalCost > 0 ? totalCost : null;
-                caseRow.cacheStatus = cacheStatus;
-                caseRow.columns = mergedColumns;
-
-                if (passed) {
-                  runState.summary.passedCases++;
-                } else {
-                  runState.summary.failedCases++;
-                }
-
-                const caseDetail: CaseDetail = {
-                  caseId: evalCase.id,
-                  evalId: evalMeta.id,
-                  status: caseRow.status,
-                  input: evalCase.input,
-                  displayInput: evalCase.displayInput,
-                  output: taskResult.output,
-                  displayOutput: taskResult.displayOutput ?? [],
-                  scores,
-                  trace: spans,
-                  cost: {
-                    totalUsd: totalCost > 0 ? totalCost : null,
-                    uncachedUsd: null,
-                    savingsUsd: null,
-                  },
-                  columns: mergedColumns,
-                  error: null,
-                  trial,
-                };
-
-                runState.caseDetails.set(evalCase.id, caseDetail);
-
-                await writeFile(
-                  join(runDir, 'traces', `${evalCase.id}.json`),
-                  JSON.stringify(spans, null, 2),
-                );
-              } catch (error) {
-                caseRow.status = 'error';
-                caseRow.latencyMs = Date.now() - startTime;
-                runState.summary.errorCases++;
-
-                const errorInfo = error instanceof Error
-                  ? { name: error.name, message: error.message, stack: error.stack }
-                  : { message: String(error) };
-
-                const caseDetail: CaseDetail = {
-                  caseId: evalCase.id,
-                  evalId: evalMeta.id,
-                  status: 'error',
-                  input: evalCase.input,
-                  displayInput: evalCase.displayInput,
-                  output: null,
-                  displayOutput: [],
-                  scores: [],
-                  trace: [],
-                  cost: { totalUsd: null, uncachedUsd: null, savingsUsd: null },
-                  columns: evalCase.columns ?? {},
-                  error: errorInfo,
-                  trial,
-                };
-
-                runState.caseDetails.set(evalCase.id, caseDetail);
+                allCaseRows.push(caseRow);
               }
-
-              emitEvent(runState, {
-                type: 'case.finished',
-                runId: runState.manifest.id,
-                timestamp: new Date().toISOString(),
-                payload: caseRow,
-              });
-
-              allCaseRows.push(caseRow);
             }
-          }
+          });
 
           lastRunStatusMap.set(
             evalMeta.id,

@@ -20,7 +20,7 @@ export function createTraceRecorder(caseId: string): {
   const recorder: EvalTraceRecorder = {
     async span(info, fn) {
       const id = generateSpanId();
-      const parentId = parentStack.length > 0 ? parentStack[parentStack.length - 1]! : null;
+      const parentId = parentStack.at(-1) ?? null;
 
       const span: EvalTraceSpan = {
         id,
@@ -94,7 +94,7 @@ export function createTraceRecorder(caseId: string): {
     checkpoint(name, data) {
       checkpoints.set(name, data);
       const id = generateSpanId();
-      const parentId = parentStack.length > 0 ? parentStack[parentStack.length - 1]! : null;
+      const parentId = parentStack.at(-1) ?? null;
       spans.push({
         id,
         parentId,

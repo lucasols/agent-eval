@@ -6,8 +6,8 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "tsc": "tsc --noEmit",
-    "lint": "tsc --noEmit && eslint ."
+    "tsc": "tsgo --noEmit",
+    "lint": "tsgo --noEmit && eslint ."
   },
   "dependencies": {
     "zod": "^4.1.11"

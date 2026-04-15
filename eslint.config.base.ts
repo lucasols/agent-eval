@@ -108,7 +108,10 @@ export function createBaseConfig({
         '@ls-stack/no-unused-type-props-in-args': ERROR,
         '@ls-stack/improved-no-unnecessary-condition': ERROR,
         '@ls-stack/no-default-export': ERROR,
-        '@ls-stack/no-unnecessary-casting': ERROR_IN_CI,
+        '@ls-stack/no-unnecessary-casting': [
+          ERROR_IN_CI,
+          { additionalCastFunctions: [] },
+        ],
         '@ls-stack/use-top-level-regex': ERROR,
 
         'unicorn/require-array-join-separator': ERROR,

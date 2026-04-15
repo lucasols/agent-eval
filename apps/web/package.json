@@ -4,10 +4,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsgo && vite build",
     "preview": "vite preview",
-    "tsc": "tsc --noEmit",
-    "lint": "tsc --noEmit && eslint ."
+    "tsc": "tsgo --noEmit",
+    "lint": "tsgo --noEmit && eslint ."
   },
   "dependencies": {
     "@agent-evals/shared": "workspace:*",
