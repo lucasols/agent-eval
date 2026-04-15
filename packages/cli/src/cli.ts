@@ -1,7 +1,7 @@
 import { createRunner } from '@agent-evals/runner';
 
 type CliArgs = {
-  command: 'dev' | 'list' | 'run' | 'help';
+  command: 'app' | 'list' | 'run' | 'help';
   evalIds: string[];
   caseIds: string[];
   noCache: boolean;
@@ -12,7 +12,7 @@ type CliArgs = {
 
 function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = {
-    command: 'dev',
+    command: 'help',
     evalIds: [],
     caseIds: [],
     noCache: false,
@@ -21,19 +21,17 @@ function parseArgs(argv: string[]): CliArgs {
     port: 4100,
   };
 
-  const first = argv[0];
-  let flagsStart = 0;
+  const command = argv[0];
   if (
-    first === 'dev' ||
-    first === 'list' ||
-    first === 'run' ||
-    first === 'help'
+    command === 'app' ||
+    command === 'list' ||
+    command === 'run' ||
+    command === 'help'
   ) {
-    args.command = first;
-    flagsStart = 1;
+    args.command = command;
   }
 
-  for (let i = flagsStart; i < argv.length; i++) {
+  for (let i = 1; i < argv.length; i++) {
     const arg = argv[i];
     const next = argv[i + 1];
 
@@ -63,8 +61,8 @@ export async function runCli(argv: string[]): Promise<void> {
   const args = parseArgs(argv);
 
   switch (args.command) {
-    case 'dev':
-      await commandDev(args);
+    case 'app':
+      await commandApp(args);
       break;
     case 'list':
       await commandList(args);
@@ -108,7 +106,7 @@ function isServerRunnerModule(
   return typeof mod.initRunner === 'function';
 }
 
-async function commandDev(args: CliArgs): Promise<void> {
+async function commandApp(args: CliArgs): Promise<void> {
   const { serve } = await import('@hono/node-server');
   const appModule = await importUnknown('../../../apps/server/src/app.ts');
   const runnerModule = await importUnknown(
@@ -124,7 +122,7 @@ async function commandDev(args: CliArgs): Promise<void> {
 
   await runnerModule.initRunner();
 
-  console.info(`Agent Evals dev server: http://localhost:${String(args.port)}`);
+  console.info(`Agent Evals app: http://localhost:${String(args.port)}`);
   serve({ fetch: appModule.app.fetch, port: args.port });
 }
 
@@ -242,7 +240,7 @@ function printHelp(): void {
 agent-evals - LLM/Agent eval runner
 
 Commands:
-  dev                Start dev server with UI (default)
+  app                Start server with UI
   list               List discovered evals
   run                Run evals
   help               Show this help

@@ -42,7 +42,7 @@ The runner resolves the workspace from `process.cwd()` (via `agent-evals.config.
 - **CLI** — from `examples/basic-agent`:
   - `pnpm eval list` — discover evals
   - `pnpm eval run` — run all (add `--eval <id>` / `--case <id>` / `--no-cache` as needed)
-  - `pnpm eval dev` — serve the UI against the example workspace
+  - `pnpm eval app` — serve the UI against the example workspace
 - **Server + web together** — when changing `apps/server` or `apps/web`, run the server with cwd in the example so the runner picks up its config, and start the web dev server in parallel:
   - `cd examples/basic-agent && pnpm --filter @agent-evals/server dev`
   - `pnpm dev:web` (separate terminal)
@@ -114,9 +114,7 @@ import { projectRoutes } from './routes/projects';
 const app = new Hono();
 
 // routes must be chained in order for hono rpc to work
-const routes_ = app
-  .route('/api', taskRoutes)
-  .route('/api', projectRoutes);
+const routes_ = app.route('/api', taskRoutes).route('/api', projectRoutes);
 
 export type AppType = typeof routes_;
 ```

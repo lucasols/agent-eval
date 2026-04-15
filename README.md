@@ -65,7 +65,7 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
    })
    ```
 
-3. **Open the UI** — `agent-evals` (or `agent-evals dev`) serves it at `http://localhost:4100` (override with `--port`). The UI gives you run controls, per-case results, trace drawer, cost, and per-run cache toggle.
+3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). The UI gives you run controls, per-case results, trace drawer, cost, and per-run cache toggle.
 
 4. **Or use the CLI**:
 
