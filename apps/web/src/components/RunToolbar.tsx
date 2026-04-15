@@ -1,6 +1,6 @@
 import { styled, css } from 'vindur';
-import { colors } from '#src/style/colors.ts';
-import { inline } from '#src/style/helpers.ts';
+import { colors } from '#src/style/colors';
+import { inline } from '#src/style/helpers';
 import { evalsStore } from '../stores/evalsStore.ts';
 import { runStore, startRun, cancelRun, setTrials } from '../stores/runStore.ts';
 
@@ -89,14 +89,14 @@ export function RunToolbar() {
       <PrimaryButton
         onClick={handleRunSelected}
         disabled={isRunning || selectedEvalIds.size === 0}
-        css={isRunning || selectedEvalIds.size === 0 ? disabledOpacity : undefined}
+        className={isRunning || selectedEvalIds.size === 0 ? disabledOpacity : undefined}
       >
         Run Selected
       </PrimaryButton>
       <SecondaryButton
         onClick={handleRunAll}
         disabled={isRunning}
-        css={isRunning ? disabledOpacity : undefined}
+        className={isRunning ? disabledOpacity : undefined}
       >
         Run All
       </SecondaryButton>

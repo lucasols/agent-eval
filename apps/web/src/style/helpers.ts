@@ -48,7 +48,7 @@ export const inline = vindurFn(
     : justify === 'right' ? 'flex-end'
     : justify
   };
-  ${gap ? `gap: ${String(gap)}px;` : ''}
+  ${gap ? `gap: ${gap}px;` : ''}
 `,
 );
 
@@ -80,7 +80,7 @@ export const stack = vindurFn(
     : justify === 'bottom' ? 'flex-end'
     : justify
   };
-  ${gap ? `gap: ${String(gap)}px;` : ''}
+  ${gap ? `gap: ${gap}px;` : ''}
 `,
 );
 

@@ -1,6 +1,6 @@
 import { styled } from 'vindur';
-import { colors } from '#src/style/colors.ts';
-import { inline, monoFont } from '#src/style/helpers.ts';
+import { colors } from '#src/style/colors';
+import { inline, monoFont } from '#src/style/helpers';
 
 type CostBadgeProps = {
   billedCost: number | null;

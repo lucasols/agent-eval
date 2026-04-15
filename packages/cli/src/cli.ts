@@ -12,7 +12,7 @@ type CliArgs = {
 
 function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = {
-    command: 'help',
+    command: 'dev',
     evalIds: [],
     caseIds: [],
     noCache: false,
@@ -21,12 +21,19 @@ function parseArgs(argv: string[]): CliArgs {
     port: 4100,
   };
 
-  const command = argv[0];
-  if (command === 'dev' || command === 'list' || command === 'run') {
-    args.command = command;
+  const first = argv[0];
+  let flagsStart = 0;
+  if (
+    first === 'dev' ||
+    first === 'list' ||
+    first === 'run' ||
+    first === 'help'
+  ) {
+    args.command = first;
+    flagsStart = 1;
   }
 
-  for (let i = 1; i < argv.length; i++) {
+  for (let i = flagsStart; i < argv.length; i++) {
     const arg = argv[i];
     const next = argv[i + 1];
 
@@ -103,8 +110,10 @@ function isServerRunnerModule(
 
 async function commandDev(args: CliArgs): Promise<void> {
   const { serve } = await import('@hono/node-server');
-  const appModule = await importUnknown('../../server/src/app.ts');
-  const runnerModule = await importUnknown('../../server/src/runner.ts');
+  const appModule = await importUnknown('../../../apps/server/src/app.ts');
+  const runnerModule = await importUnknown(
+    '../../../apps/server/src/runner.ts',
+  );
 
   if (!isHonoAppModule(appModule)) {
     throw new Error('Server app module is invalid');
@@ -233,9 +242,10 @@ function printHelp(): void {
 agent-evals - LLM/Agent eval runner
 
 Commands:
-  dev                Start dev server with UI
+  dev                Start dev server with UI (default)
   list               List discovered evals
   run                Run evals
+  help               Show this help
 
 Options:
   --eval <id>        Run specific eval(s) (comma-separated)

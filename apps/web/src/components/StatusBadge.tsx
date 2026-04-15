@@ -1,6 +1,6 @@
-import { styled, css } from 'vindur';
-import { colors } from '#src/style/colors.ts';
-import { inline } from '#src/style/helpers.ts';
+import { styled } from 'vindur';
+import { colors } from '#src/style/colors';
+import { inline } from '#src/style/helpers';
 
 type StatusBadgeProps = {
   status: string;
@@ -31,10 +31,10 @@ export function StatusBadge({ status }: StatusBadgeProps) {
 
   return (
     <Badge
-      css={css`
-        background: color-mix(in srgb, ${color} 15%, transparent);
-        color: ${color};
-      `}
+      style={{
+        background: `color-mix(in srgb, ${color} 15%, transparent)`,
+        color,
+      }}
     >
       {status}
     </Badge>

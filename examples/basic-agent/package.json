@@ -4,9 +4,9 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "eval": "node ../../packages/cli/src/bin.ts run",
-    "eval:list": "node ../../packages/cli/src/bin.ts list",
-    "eval:ui": "node ../../packages/cli/src/bin.ts dev"
+    "eval": "node ../../packages/cli/src/bin.ts",
+    "eval:run": "node ../../packages/cli/src/bin.ts run",
+    "eval:list": "node ../../packages/cli/src/bin.ts list"
   },
   "dependencies": {
     "@agent-evals/sdk": "workspace:*",

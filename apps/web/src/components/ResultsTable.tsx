@@ -1,6 +1,6 @@
 import { styled, css } from 'vindur';
-import { colors } from '#src/style/colors.ts';
-import { transition, monoFont } from '#src/style/helpers.ts';
+import { colors } from '#src/style/colors';
+import { transition, monoFont } from '#src/style/helpers';
 import { runStore, selectCase } from '../stores/runStore.ts';
 import { uiStore, setSortColumn } from '../stores/uiStore.ts';
 import { StatusBadge } from './StatusBadge.tsx';
@@ -157,21 +157,24 @@ export function ResultsTable() {
       <Table>
         <thead>
           <tr>
-            {visibleBuiltins.map((col) => (
+            {visibleBuiltins.map((col) => {
+              const align = col.align ?? 'left';
+              return (
               <Th
                 key={col.key}
                 onClick={() => setSortColumn(col.key)}
-                css={`text-align: ${col.align ?? 'left'};`}
+                style={{ textAlign: align }}
               >
                 {col.label}
                 {sortColumn === col.key ? (sortDirection === 'asc' ? ' \u25b2' : ' \u25bc') : ''}
               </Th>
-            ))}
+              );
+            })}
             {visibleCustomKeys.map((key) => (
               <Th
                 key={key}
                 onClick={() => setSortColumn(key)}
-                css="text-align: left;"
+                style={{ textAlign: 'left' }}
               >
                 {key}
                 {sortColumn === key ? (sortDirection === 'asc' ? ' \u25b2' : ' \u25bc') : ''}
@@ -188,7 +191,7 @@ export function ResultsTable() {
               {visibleBuiltins.map((col) => (
                 <Td
                   key={col.key}
-                  css={`text-align: ${col.align ?? 'left'};`}
+                  style={{ textAlign: col.align ?? 'left' }}
                 >
                   {col.render(row)}
                 </Td>

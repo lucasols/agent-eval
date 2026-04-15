@@ -1,7 +1,7 @@
 import type { EvalTraceSpan } from '@agent-evals/shared';
 import { styled } from 'vindur';
-import { colors } from '#src/style/colors.ts';
-import { inline, monoFont } from '#src/style/helpers.ts';
+import { colors } from '#src/style/colors';
+import { inline, monoFont } from '#src/style/helpers';
 import { DisplayBlockRenderer } from './DisplayBlockRenderer.tsx';
 
 const DetailRoot = styled.div`

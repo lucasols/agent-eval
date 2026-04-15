@@ -1,6 +1,6 @@
 import { styled, css } from 'vindur';
-import { colors } from '#src/style/colors.ts';
-import { inline, stack, ellipsis } from '#src/style/helpers.ts';
+import { colors } from '#src/style/colors';
+import { inline, stack, ellipsis } from '#src/style/helpers';
 import { evalsStore, toggleEvalSelection, refreshDiscovery } from '../stores/evalsStore.ts';
 
 const Sidebar = styled.aside`
@@ -128,7 +128,7 @@ export function SidebarEvalList() {
             <EvalButton
               key={ev.id}
               onClick={() => toggleEvalSelection(ev.id)}
-              cx={{ [selectedStyle]: selected }}
+              className={selected ? selectedStyle : undefined}
             >
               <Checkbox
                 type="checkbox"
@@ -158,5 +158,5 @@ function StatusDot({ status }: { status: string }) {
     : status === 'running' ? dotRunning
     : dotDefault;
 
-  return <Dot css={dotColor} />;
+  return <Dot className={dotColor} />;
 }

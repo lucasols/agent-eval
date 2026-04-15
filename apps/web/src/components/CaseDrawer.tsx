@@ -1,6 +1,6 @@
 import { styled, css } from 'vindur';
-import { colors } from '#src/style/colors.ts';
-import { inline, stack, monoFont } from '#src/style/helpers.ts';
+import { colors } from '#src/style/colors';
+import { inline, stack, monoFont } from '#src/style/helpers';
 import { runStore, closeCase } from '../stores/runStore.ts';
 import { DisplayBlockRenderer } from './DisplayBlockRenderer.tsx';
 import { TraceTree } from './TraceTree.tsx';
@@ -187,7 +187,7 @@ export function CaseDrawer() {
           <TabButton
             key={tab}
             onClick={() => setActiveTab(tab)}
-            css={activeTab === tab ? activeTabStyle : inactiveTabStyle}
+            className={activeTab === tab ? activeTabStyle : inactiveTabStyle}
           >
             {tab}
           </TabButton>

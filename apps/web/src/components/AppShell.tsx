@@ -1,5 +1,5 @@
 import { styled } from 'vindur';
-import { inline, stack } from '#src/style/helpers.ts';
+import { inline, stack } from '#src/style/helpers';
 import { fetchEvals } from '../stores/evalsStore.ts';
 import { runStore } from '../stores/runStore.ts';
 import { SidebarEvalList } from './SidebarEvalList.tsx';

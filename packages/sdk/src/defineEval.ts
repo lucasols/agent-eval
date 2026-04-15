@@ -1,4 +1,4 @@
-import { describe, it } from 'vitest';
+import type { describe as VitestDescribe, it as VitestIt } from 'vitest';
 import type { EvalDefinition } from './types.ts';
 
 export type EvalRegistryEntry = {
@@ -9,6 +9,15 @@ export type EvalRegistryEntry = {
 };
 
 const evalRegistry = new Map<string, EvalRegistryEntry>();
+
+let describeFn: typeof VitestDescribe | null = null;
+let itFn: typeof VitestIt | null = null;
+
+if (process.env.VITEST) {
+  const vitest = await import('vitest');
+  describeFn = vitest.describe;
+  itFn = vitest.it;
+}
 
 export function getEvalRegistry(): Map<string, EvalRegistryEntry> {
   return evalRegistry;
@@ -24,7 +33,11 @@ export function defineEval<TInput, TOutput>(
     use: (fn) => fn(definition),
   });
 
-  describe(definition.title ?? definition.id, () => {
-    it.todo(`eval: ${definition.id}`);
-  });
+  const describe = describeFn;
+  const it = itFn;
+  if (describe && it) {
+    describe(definition.title ?? definition.id, () => {
+      it.todo(`eval: ${definition.id}`);
+    });
+  }
 }

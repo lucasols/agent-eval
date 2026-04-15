@@ -1,7 +1,7 @@
 import type { DisplayBlock, FileRef } from '@agent-evals/shared';
 import { styled } from 'vindur';
-import { colors } from '#src/style/colors.ts';
-import { monoFont } from '#src/style/helpers.ts';
+import { colors } from '#src/style/colors';
+import { monoFont } from '#src/style/helpers';
 
 const BlockWrapper = styled.div`
   margin-bottom: 12px;

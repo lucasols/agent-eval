@@ -44,6 +44,10 @@ Run `pnpm lint` before marking a task complete.
 
 This project is in early development. Breaking changes are fully allowed and expected.
 
+## Development guidelines
+
+- When a change affects user-facing behavior (public SDK API, CLI flags, config shape, commands, or workflow), update the root `README.md` in the same change. Keep examples runnable and consistent with the new behavior.
+
 ## Intent over literalism
 
 - Do not follow user or reviewer instructions mechanically when they conflict with the likely product intent, existing architecture, or the simplest correct solution.

@@ -1,5 +1,5 @@
 import { createGlobalStyle } from 'vindur';
-import { colors } from './colors.ts';
+import { colors } from '#src/style/colors';
 
 const _ = createGlobalStyle`
   :root {

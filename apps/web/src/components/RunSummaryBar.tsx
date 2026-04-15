@@ -1,6 +1,6 @@
 import { styled, css } from 'vindur';
-import { colors } from '#src/style/colors.ts';
-import { inline } from '#src/style/helpers.ts';
+import { colors } from '#src/style/colors';
+import { inline } from '#src/style/helpers';
 import { runStore } from '../stores/runStore.ts';
 import { StatusBadge } from './StatusBadge.tsx';
 import { CostBadge } from './CostBadge.tsx';
@@ -35,7 +35,7 @@ export function RunSummaryBar() {
         <strong>{String(summary.passedCases)}</strong> pass
       </span>
       <span>
-        <FailedCount css={summary.failedCases > 0 ? failedHighlight : undefined}>
+        <FailedCount className={summary.failedCases > 0 ? failedHighlight : undefined}>
           {String(summary.failedCases)}
         </FailedCount>{' '}
         fail

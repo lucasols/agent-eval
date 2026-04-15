@@ -1,5 +1,12 @@
-import { expect } from 'vitest';
+import type { expect as VitestExpect } from 'vitest';
 import type { EvalTraceTree } from './types.ts';
+
+let expect: typeof VitestExpect | null = null;
+
+if (process.env.VITEST) {
+  const vitest = await import('vitest');
+  expect = vitest.expect;
+}
 
 function isTraceTree(value: unknown): value is EvalTraceTree {
   return (
@@ -12,6 +19,11 @@ function isTraceTree(value: unknown): value is EvalTraceTree {
 }
 
 export function installEvalMatchers(): void {
+  if (!expect) {
+    throw new Error(
+      'installEvalMatchers() must be called inside a Vitest test run',
+    );
+  }
   expect.extend({
     toCallSpan(received: unknown, name: string) {
       if (!isTraceTree(received)) {

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import type { EvalTraceSpan } from '@agent-evals/shared';
 import { styled, css } from 'vindur';
-import { colors } from '#src/style/colors.ts';
-import { inline, monoFont } from '#src/style/helpers.ts';
+import { colors } from '#src/style/colors';
+import { inline, monoFont } from '#src/style/helpers';
 import { SpanDetail } from './SpanDetail.tsx';
 
 const Root = styled.div`
@@ -152,20 +152,21 @@ function SpanNode({
       ? new Date(span.endedAt).getTime() - new Date(span.startedAt).getTime()
       : null;
 
-  const rowDynamicStyle = css`
-    padding: 4px 8px 4px ${String(depth * 20 + 8)}px;
-    background: ${selectedSpanId === span.id ? colors.surfaceHover.var : 'transparent'};
-  `;
+  const rowStyle = {
+    paddingLeft: depth * 20 + 8,
+    background:
+      selectedSpanId === span.id ? colors.surfaceHover.var : 'transparent',
+  };
 
-  const kindBadgeBgStyle = css`
-    background: ${kindColors[span.kind] ?? '#64748b'};
-  `;
+  const kindBadgeStyle = {
+    background: kindColors[span.kind] ?? '#64748b',
+  };
 
   return (
     <div>
       <SpanRow
         onClick={() => onSelect(span.id)}
-        css={rowDynamicStyle}
+        style={rowStyle}
       >
         {hasChildren ? (
           <ToggleButton
@@ -179,7 +180,7 @@ function SpanNode({
         ) : (
           <Spacer />
         )}
-        <KindBadge css={kindBadgeBgStyle}>
+        <KindBadge style={kindBadgeStyle}>
           {span.kind}
         </KindBadge>
         <SpanName>{span.name}</SpanName>
@@ -197,7 +198,7 @@ function SpanNode({
           </CostLabel>
         ) : null}
         {span.cache ? (
-          <CacheBadge css={span.cache.status === 'hit' ? cacheHitStyle : cacheMissStyle}>
+          <CacheBadge className={span.cache.status === 'hit' ? cacheHitStyle : cacheMissStyle}>
             {span.cache.status}
           </CacheBadge>
         ) : null}

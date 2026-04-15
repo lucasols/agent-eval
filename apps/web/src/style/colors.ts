@@ -16,5 +16,4 @@ export const colors = createStaticThemeColors({
   cost: '#f0c674',
   white: '#ffffff',
   black: '#000000',
-  transparent: 'transparent',
 });
