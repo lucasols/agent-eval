@@ -35,6 +35,19 @@ Each workspace exposes `tsc`, `eslint`, `lint`. Run `pnpm lint` before marking a
 - Web build is `tsgo && vite build`.
 - Default server port is `4100` (`PORT` env var).
 
+# Testing the app
+
+The runner resolves the workspace from `process.cwd()` (via `agent-evals.config.ts`). Use `examples/basic-agent` as the smoke-test workspace — never invent a new fixture.
+
+- **CLI** — from `examples/basic-agent`:
+  - `pnpm eval list` — discover evals
+  - `pnpm eval run` — run all (add `--eval <id>` / `--case <id>` / `--no-cache` as needed)
+  - `pnpm eval dev` — serve the UI against the example workspace
+- **Server + web together** — when changing `apps/server` or `apps/web`, run the server with cwd in the example so the runner picks up its config, and start the web dev server in parallel:
+  - `cd examples/basic-agent && pnpm --filter @agent-evals/server dev`
+  - `pnpm dev:web` (separate terminal)
+- **End-to-end UI check** — only when the user asks. Open `http://localhost:4100` (server) or the Vite URL (web dev) and exercise the changed flow. If you can't actually load the UI, say so instead of claiming it works. Otherwise, rely on `pnpm lint` and the CLI smoke test.
+
 # Intent over literalism
 
 - Infer the real goal behind a request, then implement the smallest change that solves it well.
