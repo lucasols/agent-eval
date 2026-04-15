@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "eval": "node ../../packages/cli/src/bin.ts run",
-    "eval:list": "node ../../packages/cli/src/bin.ts list"
+    "eval:list": "node ../../packages/cli/src/bin.ts list",
+    "eval:ui": "node ../../packages/cli/src/bin.ts dev"
   },
   "dependencies": {
     "@agent-evals/sdk": "workspace:*",
