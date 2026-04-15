@@ -9,6 +9,7 @@ import { runStore } from '../stores/runStore.ts';
 import { selectionStore } from '../stores/selectionStore.ts';
 import { Sidebar } from './Sidebar.tsx';
 import { CaseDrawer } from './CaseDrawer.tsx';
+import { RunDrawer } from './RunDrawer.tsx';
 import { SingleEvalView } from './SingleEvalView.tsx';
 import { FolderView } from './FolderView.tsx';
 import { EmptyState } from './EmptyState.tsx';
@@ -29,8 +30,9 @@ const MainPanel = styled.div`
 `;
 
 export function AppShell() {
-  const { selectedCaseId } = runStore.useSelectorRC((s) => ({
+  const { selectedCaseId, selectedRunId } = runStore.useSelectorRC((s) => ({
     selectedCaseId: s.selectedCaseId,
+    selectedRunId: s.selectedRunId,
   }));
 
   useEffect(() => {
@@ -45,6 +47,7 @@ export function AppShell() {
         <MainContent />
       </MainPanel>
       {selectedCaseId ? <CaseDrawer /> : null}
+      {selectedRunId ? <RunDrawer /> : null}
     </Root>
   );
 }

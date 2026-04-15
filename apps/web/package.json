@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@agent-evals/shared": "workspace:*",
+    "@ls-stack/react-utils": "^0.12.1",
     "@ls-stack/utils": "^3.75.0",
     "hono": "^4.9.9",
     "lucide-react": "^1.8.0",

@@ -25,14 +25,18 @@ const runErrorEnvelopeSchema = z.object({
   payload: z.object({ message: z.string() }),
 });
 
+export type RunDetail = {
+  manifest: RunManifest;
+  summary: RunSummary;
+  cases: CaseRow[];
+};
+
 type RunState = {
-  currentRun: {
-    manifest: RunManifest;
-    summary: RunSummary;
-    cases: CaseRow[];
-  } | null;
+  currentRun: RunDetail | null;
   selectedCaseId: string | null;
   selectedCaseDetail: CaseDetail | null;
+  selectedRunId: string | null;
+  selectedRunDetail: RunDetail | null;
   trials: number;
   eventSource: EventSource | null;
 };
@@ -42,6 +46,8 @@ export const runStore = new Store<RunState>({
     currentRun: null,
     selectedCaseId: null,
     selectedCaseDetail: null,
+    selectedRunId: null,
+    selectedRunDetail: null,
     trials: 1,
     eventSource: null,
   },
@@ -212,6 +218,8 @@ export async function selectCase(runId: string, caseId: string): Promise<void> {
   runStore.setPartialState({
     selectedCaseId: caseId,
     selectedCaseDetail: null,
+    selectedRunId: null,
+    selectedRunDetail: null,
   });
 
   const fetchResult = await resultify(() =>
@@ -228,6 +236,31 @@ export async function selectCase(runId: string, caseId: string): Promise<void> {
 
 export function closeCase(): void {
   runStore.setPartialState({ selectedCaseId: null, selectedCaseDetail: null });
+}
+
+export async function selectRun(runId: string): Promise<void> {
+  runStore.setPartialState({
+    selectedRunId: runId,
+    selectedRunDetail: null,
+    selectedCaseId: null,
+    selectedCaseDetail: null,
+  });
+
+  const fetchResult = await resultify(() => fetch(`/api/runs/${runId}`));
+  if (fetchResult.error) return;
+  const jsonResult = await resultify(() => fetchResult.value.json());
+  if (jsonResult.error) return;
+  const parseResult = resultify(() =>
+    createRunResponseSchema.parse(jsonResult.value),
+  );
+  if (parseResult.error) return;
+
+  if (runStore.state.selectedRunId !== runId) return;
+  runStore.setPartialState({ selectedRunDetail: parseResult.value });
+}
+
+export function closeRun(): void {
+  runStore.setPartialState({ selectedRunId: null, selectedRunDetail: null });
 }
 
 export function setTrials(trials: number): void {

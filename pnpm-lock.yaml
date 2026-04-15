@@ -72,6 +72,9 @@ importers:
       '@agent-evals/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@ls-stack/react-utils':
+        specifier: ^0.12.1
+        version: 0.12.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@ls-stack/utils':
         specifier: ^3.75.0
         version: 3.75.0
@@ -943,6 +946,13 @@ packages:
     resolution: {integrity: sha512-43/qtrDUokr7LJqoF2c3+RInu/t4zfrpYdoSDfYyhg52rwLV6TnOvdG4fXm7IkSB3wErkcmJS9iEhjVtOSEjjA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
+  '@evtmitter/react@0.1.0':
+    resolution: {integrity: sha512-5k0IoI8MUHnfJ9VFw7yS2BuCHGATMVbU3Z6M1bKFAY81ug4JOOLAVK5QkRiBhWO2Rw9xshOrE/hvfWdx1im9Dg==}
+    engines: {node: '>=14.6.0'}
+    peerDependencies:
+      react: ^18.3.1 || ^19.0.0
+      react-dom: ^18.3.1 || ^19.0.0
+
   '@hono/node-server@1.19.11':
     resolution: {integrity: sha512-dr8/3zEaB+p0D2n/IUrlPF1HZm586qgJNXK1a9fhg/PzdtkK7Ksd5l312tJX2yBuALqDYBlG20QEbayqPyxn+g==}
     engines: {node: '>=18.14.1'}
@@ -997,12 +1007,30 @@ packages:
   '@leeoniya/ufuzzy@1.0.19':
     resolution: {integrity: sha512-0pikDeYt0IHEUPza5RTCDXc/17S1pTrYnReEMp8Aa6k1ovzw5QdZLwicW8TjljwEZRb6oYag0xmALohrcq/yOQ==}
 
+  '@ls-stack/browser-utils@0.3.0':
+    resolution: {integrity: sha512-C+TeJc76A4Os4+mi4Oyi9QXLC4kUy8PY/1otWrt1vqyrOwT8GVwEgQjEOuWLUPdqMw3NO1VxozEAiB8uy34yWw==}
+    engines: {node: '>=20.0.0'}
+
   '@ls-stack/extended-lint@0.76.2':
     resolution: {integrity: sha512-Ft4itr7GsxwRdztL9Q9UDB4PvpCXPbrzsJO5TRaM7VfOoN1rCTUl0CZ4E02hxtcIol8TsZ/nK6pXQEshn1lZZQ==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       eslint: ^9.33.0
       typescript: ^5.9.2
+
+  '@ls-stack/react-utils@0.12.1':
+    resolution: {integrity: sha512-KO0gLgDHpc88tS6pHe8Jiz5ws83r3O61TboVa29sGUWycijeLSKGDhQuR5VJfutLS8gUt7+F0OGUQ67LHeIYxA==}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      react: '>=18.0.0||^19.0.0'
+
+  '@ls-stack/utils@3.36.0':
+    resolution: {integrity: sha512-07hSR0SSooobOov4lakqFkzL01dMWPZ3az1TUp2uq5z1LFVRQ7m2vDgdca3EPLmPTPyrlC96dRG91H0SqJENzg==}
+    engines: {node: '>=20.0.0'}
+
+  '@ls-stack/utils@3.73.1':
+    resolution: {integrity: sha512-DxtUXHMWXbzbk7iVSNkPaOJ53NTFT3X5zZ3AgXijj0FWl9a11+avC9SlZ7O14rnujeZOsCSExeFYa+jVWQN4PQ==}
+    engines: {node: '>=20.0.0'}
 
   '@ls-stack/utils@3.75.0':
     resolution: {integrity: sha512-IhVeWDjzMmPOu/4N0yE70/AAlkLm6++weJu2oMtsdbDEv82M0F4oMnlzZF9XB2boRX3T7a8GsUAMo92DoSKFbg==}
@@ -1836,6 +1864,13 @@ packages:
   eventemitter3@5.0.4:
     resolution: {integrity: sha512-mlsTRyGaPBjPedk6Bvw+aqbsXDtoAyAzm5MO7JgU+yVRyMQ5O8bD4Kcci7BS85f93veegeCPkL8R4GLClnjLFw==}
 
+  evtmitter@0.3.3:
+    resolution: {integrity: sha512-McEl41bI+g5gEU/vQQ7eJfTzdKtCeYGwrvow+ktEp47m9/OVVQyJy9E5lKhsMIZws9uURsXi4nyc8ZmL7dX7uQ==}
+    engines: {node: '>=14.6.0'}
+    peerDependencies:
+      react: ^18.2.0
+      react-dom: ^18.2.0
+
   evtmitter@1.0.2:
     resolution: {integrity: sha512-Y3LObkozuxG0aCdzhMFoxbZyl9osl86mK5B/mIYpRaVsYf7I5bssOFYNBCFnoAgq0A6PkFjxpuojGpZu01w8Nw==}
     engines: {node: '>=14.6.0'}
@@ -2663,6 +2698,10 @@ packages:
   supports-preserve-symlinks-flag@1.0.0:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
+
+  t-result@0.3.0:
+    resolution: {integrity: sha512-i8+5uNuxj9xV1SGBM10mRVc8zPmFYwqLoBpuHWtM16uelDy6Iox0lM2Ns+ZN76GGwYUF1bz5fKMOlqeiM6qVCQ==}
+    engines: {node: '>=23.0.0'}
 
   t-result@0.6.1:
     resolution: {integrity: sha512-a1aZsIAFYpjb0J51tZfrS93xxpTp4WY70EhZBCKcHylh/y/tF4uWXIyJUoDQKcg88lDdPlAcwuzE5JAC/4MVZg==}
@@ -3808,6 +3847,12 @@ snapshots:
       '@eslint/core': 0.17.0
       levn: 0.4.1
 
+  '@evtmitter/react@0.1.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+    dependencies:
+      evtmitter: 1.0.2
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
+
   '@hono/node-server@1.19.11(hono@4.12.9)':
     dependencies:
       hono: 4.12.9
@@ -3856,6 +3901,13 @@ snapshots:
 
   '@leeoniya/ufuzzy@1.0.19': {}
 
+  '@ls-stack/browser-utils@0.3.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+    dependencies:
+      '@ls-stack/utils': 3.36.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+    transitivePeerDependencies:
+      - react
+      - react-dom
+
   '@ls-stack/extended-lint@0.76.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)':
     dependencies:
       '@typescript-eslint/scope-manager': 8.57.2
@@ -3869,6 +3921,31 @@ snapshots:
       zod: 4.3.6
     transitivePeerDependencies:
       - supports-color
+
+  '@ls-stack/react-utils@0.12.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+    dependencies:
+      '@evtmitter/react': 0.1.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@ls-stack/browser-utils': 0.3.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@ls-stack/utils': 3.73.1
+      evtmitter: 1.0.2
+      react: 19.2.4
+      t-result: 0.6.1
+    transitivePeerDependencies:
+      - react-dom
+
+  '@ls-stack/utils@3.36.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+    dependencies:
+      evtmitter: 0.3.3(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      t-result: 0.3.0
+    transitivePeerDependencies:
+      - react
+      - react-dom
+
+  '@ls-stack/utils@3.73.1':
+    dependencies:
+      '@leeoniya/ufuzzy': 1.0.19
+      evtmitter: 1.0.2
+      t-result: 0.6.1
 
   '@ls-stack/utils@3.75.0':
     dependencies:
@@ -4795,6 +4872,11 @@ snapshots:
 
   eventemitter3@5.0.4: {}
 
+  evtmitter@0.3.3(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+    dependencies:
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
+
   evtmitter@1.0.2: {}
 
   expect-type@1.3.0: {}
@@ -5613,6 +5695,8 @@ snapshots:
       has-flag: 4.0.0
 
   supports-preserve-symlinks-flag@1.0.0: {}
+
+  t-result@0.3.0: {}
 
   t-result@0.6.1: {}
 

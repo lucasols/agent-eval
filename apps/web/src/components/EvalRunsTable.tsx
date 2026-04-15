@@ -8,7 +8,7 @@ import {
   tabularNums,
   transition,
 } from '#src/style/helpers';
-import { selectCase } from '../stores/runStore.ts';
+import { selectCase, selectRun } from '../stores/runStore.ts';
 import { StatusBadge, StatusDot } from './StatusBadge.tsx';
 import {
   formatCost,
@@ -86,10 +86,24 @@ const RunHeaderCell = styled.td`
   padding: 0;
 `;
 
-const RunHeaderBar = styled.div`
+const RunHeaderBar = styled.button`
   ${inline({ gap: 18, align: 'center' })}
+  ${transition({ property: 'background, border-color' })}
+  width: 100%;
   padding: 10px 14px;
   flex-wrap: wrap;
+  background: transparent;
+  border: none;
+  border-left: 2px solid transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+
+  &:hover {
+    background: ${colors.surfaceHover.var};
+    border-left-color: ${colors.accent.var};
+  }
 `;
 
 const RunTag = styled.span`
@@ -275,7 +289,7 @@ function RunGroup({
     <>
       <RunHeaderRow>
         <RunHeaderCell colSpan={totalCols}>
-          <RunHeaderBar>
+          <RunHeaderBar type="button" onClick={() => void selectRun(manifest.id)}>
             <RunTag>Run</RunTag>
             <RunTime>{formatTimestamp(manifest.startedAt)}</RunTime>
             <StatusBadge status={manifest.status} />

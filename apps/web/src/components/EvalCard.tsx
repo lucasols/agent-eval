@@ -233,6 +233,10 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
 
     const points = [...evalRuns]
       .reverse()
+      .filter(
+        (r) =>
+          r.manifest.status === 'completed' && r.summary.averageScore !== null,
+      )
       .map((r, idx) => ({
         index: idx + 1,
         startedAt: r.manifest.startedAt,

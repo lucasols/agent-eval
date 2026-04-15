@@ -164,6 +164,7 @@ export function createRunner(): EvalRunner {
         averageScore: null,
         totalDurationMs: null,
         cost: { totalUsd: null, uncachedUsd: null, savingsUsd: null },
+        errorMessage: null,
       };
 
       const abortController = new AbortController();
@@ -578,6 +579,10 @@ export function createRunner(): EvalRunner {
       runState.summary.status = finalStatus;
       runState.manifest.status = finalStatus;
       runState.manifest.endedAt = endTime.toISOString();
+      runState.summary.errorMessage =
+        evalErrors.length > 0
+          ? evalErrors.map((e) => `[${e.evalId}] ${e.message}`).join('\n')
+          : null;
 
       emitEvent(runState, {
         type: 'run.summary',
@@ -621,18 +626,27 @@ export function createRunner(): EvalRunner {
         .join('\n');
       await writeFile(join(runDir, 'cases.jsonl'), casesJsonl);
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       runState.manifest.status = 'error';
       runState.manifest.endedAt = new Date().toISOString();
       runState.summary.status = 'error';
+      runState.summary.errorMessage = message;
 
       emitEvent(runState, {
         type: 'run.error',
         runId: runState.manifest.id,
         timestamp: new Date().toISOString(),
-        payload: {
-          message: error instanceof Error ? error.message : String(error),
-        },
+        payload: { message },
       });
+
+      await writeFile(
+        join(runDir, 'summary.json'),
+        JSON.stringify(runState.summary, null, 2),
+      );
+      await writeFile(
+        join(runDir, 'run.json'),
+        JSON.stringify(runState.manifest, null, 2),
+      );
     }
   }
 

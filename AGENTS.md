@@ -43,10 +43,10 @@ The runner resolves the workspace from `process.cwd()` (via `agent-evals.config.
   - `pnpm eval list` — discover evals
   - `pnpm eval run` — run all (add `--eval <id>` / `--case <id>` / `--no-cache` as needed)
   - `pnpm eval app` — serve the UI against the example workspace
+- **End-to-end UI check** — only when the user asks. Open `http://localhost:4100` (server) or the Vite URL (web dev) and exercise the changed flow. If you can't actually load the UI, say so instead of claiming it works. Otherwise, rely on `pnpm lint` and the CLI smoke test.
 - **Server + web together** — when changing `apps/server` or `apps/web`, run the server with cwd in the example so the runner picks up its config, and start the web dev server in parallel:
   - `cd examples/basic-agent && pnpm --filter @agent-evals/server dev`
   - `pnpm dev:web` (separate terminal)
-- **End-to-end UI check** — only when the user asks. Open `http://localhost:4100` (server) or the Vite URL (web dev) and exercise the changed flow. If you can't actually load the UI, say so instead of claiming it works. Otherwise, rely on `pnpm lint` and the CLI smoke test.
 
 # Intent over literalism
 
@@ -207,7 +207,7 @@ Common anti-patterns to avoid:
 
 ## Async actions
 
-Use `useActionFn` from `t-state` instead of tracking progress with `useState`:
+Use `useActionFn` from `@ls-stack/react-utils` instead of tracking progress with `useState`:
 
 ```tsx
 const doSomething = useActionFn(async (...args) => {

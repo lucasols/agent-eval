@@ -26,5 +26,6 @@ export const runSummarySchema = z.object({
   averageScore: z.number().nullable(),
   totalDurationMs: z.number().nullable(),
   cost: evalCostSummarySchema,
+  errorMessage: z.string().nullable().default(null),
 });
 export type RunSummary = z.infer<typeof runSummarySchema>;
