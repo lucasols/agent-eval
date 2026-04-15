@@ -285,6 +285,7 @@ export function createRunner(): EvalRunner {
       });
 
       const allCaseRows: CaseRow[] = [];
+      const evalErrors: { evalId: string; message: string }[] = [];
 
       for (const evalMeta of targetEvals) {
         if (runState.abortController.signal.aborted) break;
@@ -297,7 +298,13 @@ export function createRunner(): EvalRunner {
           await import(evalFilePath);
 
           const entry = registry.get(evalMeta.id);
-          if (!entry) continue;
+          if (!entry) {
+            evalErrors.push({
+              evalId: evalMeta.id,
+              message: `Eval "${evalMeta.id}" was not registered after importing ${evalFilePath}`,
+            });
+            continue;
+          }
 
           await entry.use(async (evalDef) => {
             const cases =
@@ -536,6 +543,11 @@ export function createRunner(): EvalRunner {
           );
         } catch (error) {
           console.error(`Error running eval ${evalMeta.id}:`, error);
+          evalErrors.push({
+            evalId: evalMeta.id,
+            message: error instanceof Error ? error.message : String(error),
+          });
+          lastRunStatusMap.set(evalMeta.id, 'fail');
         }
       }
 
@@ -557,10 +569,14 @@ export function createRunner(): EvalRunner {
       const endTime = new Date();
       runState.summary.totalDurationMs =
         endTime.getTime() - new Date(runState.manifest.startedAt).getTime();
-      runState.summary.status = runState.abortController.signal.aborted
+
+      const finalStatus = runState.abortController.signal.aborted
         ? 'cancelled'
-        : 'completed';
-      runState.manifest.status = runState.summary.status;
+        : evalErrors.length > 0
+          ? 'error'
+          : 'completed';
+      runState.summary.status = finalStatus;
+      runState.manifest.status = finalStatus;
       runState.manifest.endedAt = endTime.toISOString();
 
       emitEvent(runState, {
@@ -570,12 +586,25 @@ export function createRunner(): EvalRunner {
         payload: runState.summary,
       });
 
-      emitEvent(runState, {
-        type: 'run.finished',
-        runId: runState.manifest.id,
-        timestamp: new Date().toISOString(),
-        payload: runState.summary,
-      });
+      if (finalStatus === 'error') {
+        emitEvent(runState, {
+          type: 'run.error',
+          runId: runState.manifest.id,
+          timestamp: new Date().toISOString(),
+          payload: {
+            message: evalErrors
+              .map((e) => `[${e.evalId}] ${e.message}`)
+              .join('\n'),
+          },
+        });
+      } else {
+        emitEvent(runState, {
+          type: 'run.finished',
+          runId: runState.manifest.id,
+          timestamp: new Date().toISOString(),
+          payload: runState.summary,
+        });
+      }
 
       await writeFile(
         join(runDir, 'summary.json'),

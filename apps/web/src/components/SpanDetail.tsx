@@ -59,7 +59,9 @@ const JsonSectionRoot = styled.div`
 const JsonSectionLabel = styled.div`
   font-weight: 600;
   font-size: 11px;
-  color: ${colors.textSecondary.var};
+  color: ${colors.textDim.var};
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   margin-bottom: 4px;
 `;
 

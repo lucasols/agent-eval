@@ -1,6 +1,7 @@
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import { inline, monoFont } from '#src/style/helpers';
+import { formatCost } from '../utils/formatters.ts';
 
 type CostBadgeProps = {
   billedCost: number | null;
@@ -8,35 +9,35 @@ type CostBadgeProps = {
   savings?: number | null;
 };
 
-function formatUsd(value: number | null): string {
-  if (value === null) return '\u2014';
-  if (value < 0.01) return `$${value.toFixed(4)}`;
-  return `$${value.toFixed(2)}`;
-}
-
 const CostContainer = styled.span`
   ${inline({ gap: 8 })}
+  ${monoFont}
   display: inline-flex;
   color: ${colors.cost.var};
-  font-weight: 600;
-  ${monoFont}
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 500;
 `;
 
 const SavingsLabel = styled.span`
+  ${monoFont}
   font-size: 11px;
   color: ${colors.success.var};
+  font-weight: 400;
 `;
 
-export function CostBadge({ billedCost, uncachedCost, savings }: CostBadgeProps) {
+export function CostBadge({
+  billedCost,
+  uncachedCost,
+  savings,
+}: CostBadgeProps) {
   return (
     <CostContainer>
-      <span title="Billed cost">{formatUsd(billedCost)}</span>
+      <span title="Billed cost">{formatCost(billedCost)}</span>
       {savings !== null && savings !== undefined && savings > 0 ? (
         <SavingsLabel
-          title={`Saved ${formatUsd(savings)} (uncached: ${formatUsd(uncachedCost ?? null)})`}
+          title={`Saved ${formatCost(savings)} (uncached: ${formatCost(uncachedCost ?? null)})`}
         >
-          saved {formatUsd(savings)}
+          -{formatCost(savings)}
         </SavingsLabel>
       ) : null}
     </CostContainer>

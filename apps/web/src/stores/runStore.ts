@@ -9,7 +9,9 @@ import {
   type RunSummary,
   type CaseDetail,
 } from '@agent-evals/shared';
+import { resultify } from 't-result';
 import { z } from 'zod/v4';
+import { refetchHistory } from './historyStore.ts';
 
 const createRunResponseSchema = z.object({
   manifest: runManifestSchema,
@@ -45,51 +47,83 @@ export const runStore = new Store<RunState>({
   },
 });
 
-export async function startRun(target: {
-  mode: 'all' | 'evalIds';
-  evalIds?: string[];
-}): Promise<void> {
+export type RunTarget =
+  | { mode: 'all' }
+  | { mode: 'evalIds'; evalIds: string[] };
+
+export async function startRun(target: RunTarget): Promise<void> {
   const { trials } = runStore.state;
 
-  const response = await fetch('/api/runs', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ target, trials }),
-  });
+  const fetchResult = await resultify(() =>
+    fetch('/api/runs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target, trials }),
+    }),
+  );
+  if (fetchResult.error) return;
 
-  const run = createRunResponseSchema.parse(await response.json());
+  const jsonResult = await resultify(() => fetchResult.value.json());
+  if (jsonResult.error) return;
+
+  const parseResult = resultify(() =>
+    createRunResponseSchema.parse(jsonResult.value),
+  );
+  if (parseResult.error) return;
+
   runStore.setPartialState({
-    currentRun: run,
+    currentRun: parseResult.value,
     selectedCaseId: null,
     selectedCaseDetail: null,
   });
 
-  subscribeToRunEvents(run.manifest.id);
+  subscribeToRunEvents(parseResult.value.manifest.id);
+}
+
+function safeJsonParse(raw: string): unknown {
+  const parsed = resultify((): unknown => JSON.parse(raw));
+  if (parsed.error) return null;
+  return parsed.value;
+}
+
+function safeParseJson<T>(
+  schema: z.ZodType<T>,
+  raw: string,
+): T | null {
+  const json = safeJsonParse(raw);
+  if (json === null) return null;
+  const parsed = schema.safeParse(json);
+  if (!parsed.success) return null;
+  return parsed.data;
 }
 
 function subscribeToRunEvents(runId: string): void {
   const existing = runStore.state.eventSource;
-  if (existing) {
-    existing.close();
-  }
+  if (existing) existing.close();
 
   const es = new EventSource(`/api/runs/${runId}/events`);
   runStore.setPartialState({ eventSource: es });
 
   es.addEventListener('run.summary', (e) => {
-    const envelope = runSummaryEnvelopeSchema.parse(JSON.parse(e.data));
+    const envelope = safeParseJson(runSummaryEnvelopeSchema, e.data);
+    if (!envelope) return;
     runStore.setState((prev) => {
       if (!prev.currentRun) return prev;
-      return { ...prev, currentRun: { ...prev.currentRun, summary: envelope.payload } };
+      return {
+        ...prev,
+        currentRun: { ...prev.currentRun, summary: envelope.payload },
+      };
     });
   });
 
-  es.addEventListener('case.updated', (e) => {
-    const envelope = caseRowEnvelopeSchema.parse(JSON.parse(e.data));
+  function applyCaseUpdate(envelopeData: string): void {
+    const envelope = safeParseJson(caseRowEnvelopeSchema, envelopeData);
+    if (!envelope) return;
     runStore.setState((prev) => {
       if (!prev.currentRun) return prev;
       const cases = prev.currentRun.cases.map((c) =>
-        c.caseId === envelope.payload.caseId && c.trial === envelope.payload.trial
+        c.caseId === envelope.payload.caseId &&
+        c.trial === envelope.payload.trial
           ? envelope.payload
           : c,
       );
@@ -106,36 +140,27 @@ function subscribeToRunEvents(runId: string): void {
         },
       };
     });
-  });
+  }
 
-  es.addEventListener('case.finished', (e) => {
-    const envelope = caseRowEnvelopeSchema.parse(JSON.parse(e.data));
-    runStore.setState((prev) => {
-      if (!prev.currentRun) return prev;
-      const cases = prev.currentRun.cases.map((c) =>
-        c.caseId === envelope.payload.caseId && c.trial === envelope.payload.trial
-          ? envelope.payload
-          : c,
-      );
-      return { ...prev, currentRun: { ...prev.currentRun, cases } };
-    });
-  });
+  es.addEventListener('case.updated', (e) => applyCaseUpdate(e.data));
+  es.addEventListener('case.finished', (e) => applyCaseUpdate(e.data));
 
   es.addEventListener('run.finished', (e) => {
-    const envelope = runSummaryEnvelopeSchema.parse(JSON.parse(e.data));
+    const envelope = safeParseJson(runSummaryEnvelopeSchema, e.data);
     runStore.setState((prev) => {
       if (!prev.currentRun) return prev;
       return {
         ...prev,
         currentRun: {
           ...prev.currentRun,
-          summary: envelope.payload,
+          summary: envelope?.payload ?? prev.currentRun.summary,
           manifest: { ...prev.currentRun.manifest, status: 'completed' },
         },
         eventSource: null,
       };
     });
     es.close();
+    void refetchHistory();
   });
 
   es.addEventListener('run.cancelled', () => {
@@ -151,11 +176,14 @@ function subscribeToRunEvents(runId: string): void {
       };
     });
     es.close();
+    void refetchHistory();
   });
 
   es.addEventListener('run.error', (e) => {
-    const envelope = runErrorEnvelopeSchema.parse(JSON.parse(e.data));
-    console.error('Run error:', envelope.payload.message);
+    const envelope = safeParseJson(runErrorEnvelopeSchema, e.data);
+    if (envelope) {
+      console.error('Run error:', envelope.payload.message);
+    }
     runStore.setState((prev) => {
       if (!prev.currentRun) return prev;
       return {
@@ -168,30 +196,34 @@ function subscribeToRunEvents(runId: string): void {
       };
     });
     es.close();
+    void refetchHistory();
   });
 }
 
 export async function cancelRun(): Promise<void> {
   const run = runStore.state.currentRun;
   if (!run) return;
-  await fetch(`/api/runs/${run.manifest.id}/cancel`, { method: 'POST' });
+  await resultify(() =>
+    fetch(`/api/runs/${run.manifest.id}/cancel`, { method: 'POST' }),
+  );
 }
 
-export async function selectCase(caseId: string): Promise<void> {
-  const run = runStore.state.currentRun;
-  if (!run) return;
+export async function selectCase(runId: string, caseId: string): Promise<void> {
+  runStore.setPartialState({
+    selectedCaseId: caseId,
+    selectedCaseDetail: null,
+  });
 
-  runStore.setPartialState({ selectedCaseId: caseId });
+  const fetchResult = await resultify(() =>
+    fetch(`/api/runs/${runId}/cases/${caseId}`),
+  );
+  if (fetchResult.error) return;
+  const jsonResult = await resultify(() => fetchResult.value.json());
+  if (jsonResult.error) return;
+  const parseResult = resultify(() => caseDetailSchema.parse(jsonResult.value));
+  if (parseResult.error) return;
 
-  try {
-    const response = await fetch(
-      `/api/runs/${run.manifest.id}/cases/${caseId}`,
-    );
-    const detail = caseDetailSchema.parse(await response.json());
-    runStore.setPartialState({ selectedCaseDetail: detail });
-  } catch {
-    runStore.setPartialState({ selectedCaseDetail: null });
-  }
+  runStore.setPartialState({ selectedCaseDetail: parseResult.value });
 }
 
 export function closeCase(): void {

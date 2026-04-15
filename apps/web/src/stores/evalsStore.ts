@@ -1,5 +1,6 @@
 import { Store } from 't-state';
 import { evalSummarySchema, type EvalSummary } from '@agent-evals/shared';
+import { resultify } from 't-result';
 import { z } from 'zod/v4';
 
 const evalSummariesSchema = z.array(evalSummarySchema);
@@ -7,58 +8,36 @@ const evalSummariesSchema = z.array(evalSummarySchema);
 type EvalsState = {
   evals: EvalSummary[];
   loading: boolean;
-  selectedEvalIds: Set<string>;
 };
 
 export const evalsStore = new Store<EvalsState>({
-  state: {
-    evals: [],
-    loading: false,
-    selectedEvalIds: new Set(),
-  },
+  state: { evals: [], loading: false },
 });
 
-export async function fetchEvals(): Promise<void> {
+async function loadEvals(url: string, init?: RequestInit): Promise<void> {
   evalsStore.setPartialState({ loading: true });
-  try {
-    const response = await fetch('/api/evals');
-    const data = evalSummariesSchema.parse(await response.json());
-    evalsStore.setPartialState({ evals: data, loading: false });
-  } catch {
+  const fetchResult = await resultify(() => fetch(url, init));
+  if (fetchResult.error) {
     evalsStore.setPartialState({ loading: false });
+    return;
   }
+  const jsonResult = await resultify(() => fetchResult.value.json());
+  if (jsonResult.error) {
+    evalsStore.setPartialState({ loading: false });
+    return;
+  }
+  const parseResult = resultify(() => evalSummariesSchema.parse(jsonResult.value));
+  if (parseResult.error) {
+    evalsStore.setPartialState({ loading: false });
+    return;
+  }
+  evalsStore.setPartialState({ evals: parseResult.value, loading: false });
+}
+
+export async function fetchEvals(): Promise<void> {
+  await loadEvals('/api/evals');
 }
 
 export async function refreshDiscovery(): Promise<void> {
-  evalsStore.setPartialState({ loading: true });
-  try {
-    const response = await fetch('/api/evals/refresh', { method: 'POST' });
-    const data = evalSummariesSchema.parse(await response.json());
-    evalsStore.setPartialState({ evals: data, loading: false });
-  } catch {
-    evalsStore.setPartialState({ loading: false });
-  }
-}
-
-export function toggleEvalSelection(evalId: string): void {
-  evalsStore.setState((prev) => {
-    const next = new Set(prev.selectedEvalIds);
-    if (next.has(evalId)) {
-      next.delete(evalId);
-    } else {
-      next.add(evalId);
-    }
-    return { ...prev, selectedEvalIds: next };
-  });
-}
-
-export function selectAllEvals(): void {
-  evalsStore.setState((prev) => ({
-    ...prev,
-    selectedEvalIds: new Set(prev.evals.map((e) => e.id)),
-  }));
-}
-
-export function clearEvalSelection(): void {
-  evalsStore.setPartialState({ selectedEvalIds: new Set() });
+  await loadEvals('/api/evals/refresh', { method: 'POST' });
 }

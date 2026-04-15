@@ -46,16 +46,67 @@ export const runsRoutes = new Hono()
     const runner = getRunnerInstance();
 
     return streamSSE(c, async (stream) => {
-      const cleanup = runner.subscribe(runId, (event) => {
-        void stream.writeSSE({
+      type SseEvent = {
+        type: string;
+        runId?: string;
+        timestamp: string;
+        payload: unknown;
+      };
+      const writeEvent = async (event: SseEvent) => {
+        await stream.writeSSE({
           event: event.type,
           data: JSON.stringify(event),
         });
-      });
+      };
 
+      const cleanup = runner.subscribe(runId, (event) => {
+        void writeEvent(event);
+      });
       stream.onAbort(() => {
         cleanup();
       });
+
+      const initial = runner.getRun(runId);
+      if (initial) {
+        const status = initial.manifest.status;
+        if (
+          status === 'completed' ||
+          status === 'cancelled' ||
+          status === 'error'
+        ) {
+          const now = new Date().toISOString();
+          for (const caseRow of initial.cases) {
+            await writeEvent({
+              type: 'case.updated',
+              runId,
+              timestamp: now,
+              payload: caseRow,
+            });
+          }
+          await writeEvent({
+            type: 'run.summary',
+            runId,
+            timestamp: now,
+            payload: initial.summary,
+          });
+          const terminalType =
+            status === 'completed'
+              ? 'run.finished'
+              : status === 'cancelled'
+                ? 'run.cancelled'
+                : 'run.error';
+          await writeEvent({
+            type: terminalType,
+            runId,
+            timestamp: now,
+            payload:
+              terminalType === 'run.error'
+                ? { message: 'Run ended with error' }
+                : initial.summary,
+          });
+          return;
+        }
+      }
 
       await new Promise<void>((resolve) => {
         const checkInterval = setInterval(() => {
@@ -69,7 +120,7 @@ export const runsRoutes = new Hono()
             clearInterval(checkInterval);
             resolve();
           }
-        }, 1000);
+        }, 250);
       });
     });
   });

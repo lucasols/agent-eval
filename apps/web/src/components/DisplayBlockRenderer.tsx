@@ -10,7 +10,9 @@ const BlockWrapper = styled.div`
 const BlockLabel = styled.div`
   font-size: 11px;
   font-weight: 600;
-  color: ${colors.textSecondary.var};
+  color: ${colors.textDim.var};
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   margin-bottom: 4px;
 `;
 

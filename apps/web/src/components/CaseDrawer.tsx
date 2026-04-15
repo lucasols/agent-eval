@@ -1,75 +1,95 @@
-import { styled, css } from 'vindur';
+import { useState } from 'react';
+import { styled } from 'vindur';
+import { X } from 'lucide-react';
 import { colors } from '#src/style/colors';
-import { inline, stack, monoFont } from '#src/style/helpers';
-import { runStore, closeCase } from '../stores/runStore.ts';
+import { inline, monoFont, sansFont, stack } from '#src/style/helpers';
+import { closeCase, runStore } from '../stores/runStore.ts';
 import { DisplayBlockRenderer } from './DisplayBlockRenderer.tsx';
 import { TraceTree } from './TraceTree.tsx';
 import { StatusBadge } from './StatusBadge.tsx';
-import { useState } from 'react';
+import { IconButton } from './IconButton.tsx';
 
 type Tab = 'inputs' | 'output' | 'scores' | 'trace' | 'raw' | 'error';
 
 const DrawerLoading = styled.div`
-  width: 480px;
+  width: 520px;
   border-left: 1px solid ${colors.border.var};
-  background: ${colors.surface.var};
-  padding: 16px;
+  background: ${colors.bgElevated.var};
   display: flex;
   align-items: center;
   justify-content: center;
-  color: ${colors.textMuted.var};
+  color: ${colors.textDim.var};
+  font-size: 12px;
 `;
 
 const DrawerRoot = styled.div`
-  width: 480px;
-  border-left: 1px solid ${colors.border.var};
-  background: ${colors.surface.var};
   ${stack()}
+  width: 520px;
+  border-left: 1px solid ${colors.border.var};
+  background: ${colors.bgElevated.var};
   overflow: hidden;
 `;
 
-const DrawerHeader = styled.div`
-  padding: 12px 16px;
+const Header = styled.div`
+  ${inline({ justify: 'space-between', align: 'center', gap: 8 })}
+  height: 44px;
+  padding: 0 12px 0 16px;
   border-bottom: 1px solid ${colors.border.var};
-  ${inline({ justify: 'space-between' })}
+  background: ${colors.bgElevated.var};
+  flex-shrink: 0;
 `;
 
 const HeaderLeft = styled.div`
-  ${inline({ gap: 8 })}
+  ${inline({ gap: 10, align: 'center' })}
+  min-width: 0;
 `;
 
-const CloseButton = styled.button`
-  background: none;
-  border: none;
-  color: ${colors.textMuted.var};
-  font-size: 18px;
+const CaseId = styled.span`
+  ${monoFont}
+  font-size: 12.5px;
+  color: ${colors.text.var};
+  font-weight: 500;
 `;
 
 const TabBar = styled.div`
-  display: flex;
+  ${inline({ gap: 0 })}
   border-bottom: 1px solid ${colors.border.var};
-  overflow: auto;
+  padding: 0 8px;
+  flex-shrink: 0;
+  overflow-x: auto;
 `;
 
-const activeTabStyle = css`
-  border-bottom: 2px solid ${colors.accent.var};
-  color: ${colors.text.var};
-  font-weight: 600;
-`;
-
-const inactiveTabStyle = css`
-  border-bottom: 2px solid transparent;
-  color: ${colors.textMuted.var};
-  font-weight: 400;
-`;
-
-const TabButton = styled.button`
-  padding: 8px 16px;
-  background: none;
+const TabButton = styled.button<{ active: boolean }>`
+  ${sansFont}
+  position: relative;
+  padding: 8px 12px;
+  background: transparent;
   border: none;
-  font-size: 13px;
-  text-transform: capitalize;
+  font-size: 12px;
+  font-weight: 500;
+  color: ${colors.textDim.var};
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
   white-space: nowrap;
+
+  &:hover {
+    color: ${colors.textMuted.var};
+  }
+
+  &.active {
+    color: ${colors.text.var};
+  }
+
+  &.active::after {
+    content: '';
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: -1px;
+    height: 1.5px;
+    background: ${colors.accent.var};
+    border-radius: 2px;
+  }
 `;
 
 const TabContent = styled.div`
@@ -80,34 +100,46 @@ const TabContent = styled.div`
 
 const OutputPre = styled.pre`
   ${monoFont}
-  font-size: 12px;
+  font-size: 11.5px;
   white-space: pre-wrap;
   word-break: break-all;
+  background: ${colors.surface.var};
+  border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-sm);
+  padding: 10px;
 `;
 
 const ScoresList = styled.div`
-  ${stack({ gap: 12 })}
+  ${stack({ gap: 10 })}
 `;
 
 const ScoreCard = styled.div`
   padding: 12px;
-  background: ${colors.bg.var};
+  background: ${colors.surface.var};
   border-radius: var(--radius-md);
   border: 1px solid ${colors.border.var};
 `;
 
 const ScoreHeader = styled.div`
-  ${inline({ justify: 'space-between' })}
-  margin-bottom: 4px;
+  ${inline({ justify: 'space-between', align: 'center' })}
+  margin-bottom: 6px;
 `;
 
-const ScoreValue = styled.span`
+const ScoreLabel = styled.strong`
+  font-size: 12.5px;
+  font-weight: 500;
+  color: ${colors.text.var};
+`;
+
+const ScoreValue = styled.span<{ pass: boolean; fail: boolean }>`
   ${monoFont}
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: ${colors.textMuted.var};
 
   &.pass {
     color: ${colors.success.var};
   }
-
   &.fail {
     color: ${colors.error.var};
   }
@@ -115,11 +147,12 @@ const ScoreValue = styled.span`
 
 const ScoreReason = styled.div`
   font-size: 12px;
-  color: ${colors.textSecondary.var};
+  color: ${colors.textMuted.var};
+  line-height: 1.5;
 `;
 
 const RawSections = styled.div`
-  ${stack({ gap: 16 })}
+  ${stack({ gap: 14 })}
 `;
 
 const ErrorContainer = styled.div`
@@ -136,13 +169,19 @@ const ErrorStack = styled.pre`
   font-size: 11px;
   white-space: pre-wrap;
   opacity: 0.8;
+  background: ${colors.surface.var};
+  border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-sm);
+  padding: 10px;
 `;
 
 const RawLabel = styled.div`
-  font-weight: 600;
-  font-size: 12px;
-  margin-bottom: 4px;
-  color: ${colors.textSecondary.var};
+  font-size: 10.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: ${colors.textDim.var};
+  margin-bottom: 6px;
 `;
 
 const RawPre = styled.pre`
@@ -150,11 +189,11 @@ const RawPre = styled.pre`
   font-size: 11px;
   white-space: pre-wrap;
   word-break: break-all;
-  background: ${colors.bg.var};
-  padding: 12px;
-  border-radius: var(--radius-md);
+  background: ${colors.surface.var};
+  padding: 10px;
+  border-radius: var(--radius-sm);
   border: 1px solid ${colors.border.var};
-  max-height: 300px;
+  max-height: 320px;
   overflow: auto;
 `;
 
@@ -165,7 +204,7 @@ export function CaseDrawer() {
   const [activeTab, setActiveTab] = useState<Tab>('inputs');
 
   if (!selectedCaseDetail) {
-    return <DrawerLoading>Loading...</DrawerLoading>;
+    return <DrawerLoading>Loading case...</DrawerLoading>;
   }
 
   const d = selectedCaseDetail;
@@ -174,20 +213,22 @@ export function CaseDrawer() {
 
   return (
     <DrawerRoot>
-      <DrawerHeader>
+      <Header>
         <HeaderLeft>
-          <strong>{d.caseId}</strong>
+          <CaseId>{d.caseId}</CaseId>
           <StatusBadge status={d.status} />
         </HeaderLeft>
-        <CloseButton onClick={closeCase}>x</CloseButton>
-      </DrawerHeader>
+        <IconButton onClick={closeCase} aria-label="Close">
+          <X />
+        </IconButton>
+      </Header>
 
       <TabBar>
         {tabs.map((tab) => (
           <TabButton
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={activeTab === tab ? activeTabStyle : inactiveTabStyle}
+            active={activeTab === tab}
           >
             {tab}
           </TabButton>
@@ -210,31 +251,30 @@ export function CaseDrawer() {
                 <DisplayBlockRenderer key={i} block={block} />
               ))
             ) : (
-              <OutputPre>
-                {JSON.stringify(d.output, null, 2)}
-              </OutputPre>
+              <OutputPre>{JSON.stringify(d.output, null, 2)}</OutputPre>
             )}
           </div>
         ) : null}
 
         {activeTab === 'scores' ? (
           <ScoresList>
-            {d.scores.map((s) => (
-              <ScoreCard key={s.id}>
-                <ScoreHeader>
-                  <strong>{s.label ?? s.id}</strong>
-                  <ScoreValue className={s.score >= 0.5 ? 'pass' : 'fail'}>
-                    {s.score.toFixed(2)}
-                  </ScoreValue>
-                </ScoreHeader>
-                {s.reason ? (
-                  <ScoreReason>{s.reason}</ScoreReason>
-                ) : null}
-                {s.display?.map((block, i) => (
-                  <DisplayBlockRenderer key={i} block={block} />
-                ))}
-              </ScoreCard>
-            ))}
+            {d.scores.map((s) => {
+              const pass = s.pass ?? s.score >= 0.5;
+              return (
+                <ScoreCard key={s.id}>
+                  <ScoreHeader>
+                    <ScoreLabel>{s.label ?? s.id}</ScoreLabel>
+                    <ScoreValue pass={pass} fail={!pass}>
+                      {s.score.toFixed(2)}
+                    </ScoreValue>
+                  </ScoreHeader>
+                  {s.reason ? <ScoreReason>{s.reason}</ScoreReason> : null}
+                  {s.display?.map((block, i) => (
+                    <DisplayBlockRenderer key={i} block={block} />
+                  ))}
+                </ScoreCard>
+              );
+            })}
           </ScoresList>
         ) : null}
 
@@ -254,9 +294,7 @@ export function CaseDrawer() {
             <ErrorTitle>
               {d.error.name ?? 'Error'}: {d.error.message}
             </ErrorTitle>
-            {d.error.stack ? (
-              <ErrorStack>{d.error.stack}</ErrorStack>
-            ) : null}
+            {d.error.stack ? <ErrorStack>{d.error.stack}</ErrorStack> : null}
           </ErrorContainer>
         ) : null}
       </TabContent>

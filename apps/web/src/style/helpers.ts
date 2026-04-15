@@ -102,5 +102,19 @@ export const transition = vindurFn(
 );
 
 export const monoFont = css`
-  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', monospace;
+  font-family:
+    'JetBrains Mono', 'SF Mono', 'Fira Code', 'Fira Mono', ui-monospace,
+    monospace;
+  font-feature-settings: 'tnum', 'cv02';
+`;
+
+export const sansFont = css`
+  font-family:
+    'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui,
+    sans-serif;
+  font-feature-settings: 'ss01', 'cv01';
+`;
+
+export const tabularNums = css`
+  font-variant-numeric: tabular-nums;
 `;

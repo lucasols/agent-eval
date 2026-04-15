@@ -1,88 +1,179 @@
 import { useState } from 'react';
 import type { EvalTraceSpan } from '@agent-evals/shared';
-import { styled, css } from 'vindur';
+import { styled } from 'vindur';
+import { ChevronRight } from 'lucide-react';
 import { colors } from '#src/style/colors';
-import { inline, monoFont } from '#src/style/helpers';
+import { inline, monoFont, transition } from '#src/style/helpers';
 import { SpanDetail } from './SpanDetail.tsx';
 
 const Root = styled.div`
-  ${inline({ gap: 16 })}
+  ${inline({ gap: 12 })}
   height: 100%;
+  align-items: stretch;
 `;
 
 const TreePane = styled.div`
   flex: 1;
+  min-width: 0;
   overflow: auto;
+  border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-md);
+  background: ${colors.surface.var};
+  padding: 4px 0;
 `;
 
 const DetailPane = styled.div`
   flex: 1;
+  min-width: 0;
   overflow: auto;
 `;
 
-const SpanRow = styled.div`
-  ${inline({ gap: 6 })}
+const SpanRow = styled.div<{ active: boolean }>`
+  ${inline({ gap: 6, align: 'center' })}
+  ${transition({ property: 'background, color' })}
   cursor: pointer;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
+  font-size: 11.5px;
+  height: 24px;
+  padding-right: 8px;
+  border-left: 2px solid transparent;
+  color: ${colors.textMuted.var};
+
+  &:hover {
+    background: ${colors.surfaceHover.var};
+    color: ${colors.text.var};
+  }
+
+  &.active {
+    background: ${colors.surfaceActive.var};
+    color: ${colors.text.var};
+    border-left-color: ${colors.accent.var};
+  }
 `;
 
-const ToggleButton = styled.button`
+const ToggleButton = styled.button<{ open: boolean }>`
+  ${transition({ property: 'transform' })}
   background: none;
   border: none;
-  color: ${colors.textMuted.var};
-  font-size: 10px;
-  width: 16px;
   padding: 0;
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  align-items: center;
+  justify-content: center;
+  color: ${colors.textDim.var};
+  flex-shrink: 0;
+
+  & > svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  &.open > svg {
+    transform: rotate(90deg);
+  }
 `;
 
 const Spacer = styled.span`
-  width: 16px;
+  width: 14px;
+  flex-shrink: 0;
 `;
 
-const KindBadge = styled.span`
-  padding: 1px 6px;
+const KindBadge = styled.span<{
+  agent: boolean;
+  llm: boolean;
+  tool: boolean;
+  retrieval: boolean;
+  scorer: boolean;
+  checkpoint: boolean;
+  evalKind: boolean;
+}>`
+  ${monoFont}
+  padding: 1px 5px;
   border-radius: 3px;
-  font-size: 10px;
-  font-weight: 600;
-  color: ${colors.white.var};
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: ${colors.text.var};
+  background: ${colors.borderStrong.var};
+  flex-shrink: 0;
+
+  &.agent {
+    background: ${colors.accent.alpha(0.15)};
+    color: ${colors.accent.var};
+  }
+  &.llm {
+    background: rgba(99, 156, 255, 0.15);
+    color: #9bb8ff;
+  }
+  &.tool {
+    background: ${colors.success.alpha(0.15)};
+    color: ${colors.success.var};
+  }
+  &.retrieval {
+    background: ${colors.warning.alpha(0.15)};
+    color: ${colors.warning.var};
+  }
+  &.scorer {
+    background: rgba(236, 72, 153, 0.15);
+    color: #f0a4cf;
+  }
+  &.checkpoint {
+    background: rgba(99, 102, 241, 0.15);
+    color: #b1b3ff;
+  }
+  &.evalKind {
+    background: ${colors.borderStrong.var};
+    color: ${colors.textMuted.var};
+  }
 `;
 
 const SpanName = styled.span`
   font-weight: 500;
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
 `;
 
 const ErrorLabel = styled.span`
+  ${monoFont}
   color: ${colors.error.var};
   font-size: 10px;
+  flex-shrink: 0;
 `;
 
 const DurationLabel = styled.span`
-  color: ${colors.textMuted.var};
-  font-size: 11px;
-  margin-left: auto;
+  ${monoFont}
+  color: ${colors.textDim.var};
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 `;
 
 const CostLabel = styled.span`
-  color: ${colors.cost.var};
-  font-size: 11px;
   ${monoFont}
+  color: ${colors.cost.var};
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 `;
 
-const CacheBadge = styled.span`
-  font-size: 10px;
-  padding: 1px 4px;
-  border-radius: 3px;
-`;
+const CacheBadge = styled.span<{ hit: boolean; miss: boolean }>`
+  ${monoFont}
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+  color: ${colors.textDim.var};
 
-const cacheHitStyle = css`
-  background: rgba(74, 222, 128, 0.2);
-  color: ${colors.success.var};
-`;
-
-const cacheMissStyle = css`
-  background: rgba(248, 113, 113, 0.2);
-  color: ${colors.error.var};
+  &.hit {
+    color: ${colors.success.var};
+  }
+  &.miss {
+    color: ${colors.error.var};
+  }
 `;
 
 type TraceTreeProps = {
@@ -92,8 +183,9 @@ type TraceTreeProps = {
 export function TraceTree({ spans }: TraceTreeProps) {
   const [selectedSpanId, setSelectedSpanId] = useState<string | null>(null);
   const rootSpans = spans.filter((s) => s.parentId === null);
-  const selectedSpan = selectedSpanId
-    ? spans.find((s) => s.id === selectedSpanId) ?? null
+  const selectedSpan =
+    selectedSpanId ?
+      (spans.find((s) => s.id === selectedSpanId) ?? null)
     : null;
 
   return (
@@ -119,17 +211,6 @@ export function TraceTree({ spans }: TraceTreeProps) {
   );
 }
 
-const kindColors: Record<string, string> = {
-  agent: '#8b5cf6',
-  llm: '#3b82f6',
-  tool: '#10b981',
-  retrieval: '#f59e0b',
-  scorer: '#ec4899',
-  checkpoint: '#6366f1',
-  eval: '#64748b',
-  custom: '#94a3b8',
-};
-
 function SpanNode({
   span,
   spans,
@@ -148,73 +229,76 @@ function SpanNode({
   const hasChildren = children.length > 0;
 
   const durationMs =
-    span.startedAt && span.endedAt
-      ? new Date(span.endedAt).getTime() - new Date(span.startedAt).getTime()
-      : null;
-
-  const rowStyle = {
-    paddingLeft: depth * 20 + 8,
-    background:
-      selectedSpanId === span.id ? colors.surfaceHover.var : 'transparent',
-  };
-
-  const kindBadgeStyle = {
-    background: kindColors[span.kind] ?? '#64748b',
-  };
+    span.startedAt && span.endedAt ?
+      new Date(span.endedAt).getTime() - new Date(span.startedAt).getTime()
+    : null;
 
   return (
     <div>
       <SpanRow
         onClick={() => onSelect(span.id)}
-        style={rowStyle}
+        active={selectedSpanId === span.id}
+        style={{ paddingLeft: depth * 14 + 8 }}
       >
-        {hasChildren ? (
+        {hasChildren ?
           <ToggleButton
+            type="button"
+            open={expanded}
             onClick={(e) => {
               e.stopPropagation();
               setExpanded(!expanded);
             }}
           >
-            {expanded ? '\u25bc' : '\u25b6'}
+            <ChevronRight />
           </ToggleButton>
-        ) : (
-          <Spacer />
-        )}
-        <KindBadge style={kindBadgeStyle}>
+        : <Spacer />}
+        <KindBadge
+          agent={span.kind === 'agent'}
+          llm={span.kind === 'llm'}
+          tool={span.kind === 'tool'}
+          retrieval={span.kind === 'retrieval'}
+          scorer={span.kind === 'scorer'}
+          checkpoint={span.kind === 'checkpoint'}
+          evalKind={span.kind === 'eval'}
+        >
           {span.kind}
         </KindBadge>
         <SpanName>{span.name}</SpanName>
-        {span.status === 'error' ? (
-          <ErrorLabel>ERR</ErrorLabel>
-        ) : null}
+        {span.status === 'error' ? <ErrorLabel>err</ErrorLabel> : null}
         {durationMs !== null ? (
           <DurationLabel>
-            {durationMs}ms
+            {formatSpanDuration(durationMs)}
           </DurationLabel>
         ) : null}
         {span.costUsd !== null && span.costUsd !== undefined ? (
-          <CostLabel>
-            ${span.costUsd.toFixed(4)}
-          </CostLabel>
+          <CostLabel>${span.costUsd.toFixed(4)}</CostLabel>
         ) : null}
         {span.cache ? (
-          <CacheBadge className={span.cache.status === 'hit' ? cacheHitStyle : cacheMissStyle}>
+          <CacheBadge
+            hit={span.cache.status === 'hit'}
+            miss={span.cache.status !== 'hit'}
+          >
             {span.cache.status}
           </CacheBadge>
         ) : null}
       </SpanRow>
-      {expanded && hasChildren
-        ? children.map((child) => (
-            <SpanNode
-              key={child.id}
-              span={child}
-              spans={spans}
-              depth={depth + 1}
-              selectedSpanId={selectedSpanId}
-              onSelect={onSelect}
-            />
-          ))
-        : null}
+      {expanded && hasChildren ?
+        children.map((child) => (
+          <SpanNode
+            key={child.id}
+            span={child}
+            spans={spans}
+            depth={depth + 1}
+            selectedSpanId={selectedSpanId}
+            onSelect={onSelect}
+          />
+        ))
+      : null}
     </div>
   );
+}
+
+function formatSpanDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(2)}s`;
 }
