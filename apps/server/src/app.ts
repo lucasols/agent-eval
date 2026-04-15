@@ -8,26 +8,32 @@ import { evalsRoutes } from './routes/evals.ts';
 import { runsRoutes } from './routes/runs.ts';
 import { assetsRoutes } from './routes/assets.ts';
 
-export const app = new Hono();
+const baseApp = new Hono();
 
-app.use('/*', cors());
+baseApp.use('/*', cors());
 
-app.route('/api/evals', evalsRoutes);
-app.route('/api/runs', runsRoutes);
-app.route('/api', assetsRoutes);
+// routes must be chained in order for hono rpc to work
+const routes_ = baseApp
+  .route('/api/evals', evalsRoutes)
+  .route('/api/runs', runsRoutes)
+  .route('/api', assetsRoutes);
+
+export type AppType = typeof routes_;
 
 const serverDir = dirname(fileURLToPath(import.meta.url));
 const webDist = resolve(serverDir, '../../web/dist');
 const webDistExists = existsSync(webDist);
 
 if (webDistExists) {
-  app.use('/*', serveStatic({ root: webDist }));
-  app.get('/*', serveStatic({ root: webDist, path: 'index.html' }));
+  baseApp.use('/*', serveStatic({ root: webDist }));
+  baseApp.get('/*', serveStatic({ root: webDist, path: 'index.html' }));
 } else {
-  app.get('/*', (c) =>
+  baseApp.get('/*', (c) =>
     c.text(
       `Web UI not built. Run "pnpm --filter @agent-evals/web build" first.\nExpected: ${webDist}`,
       503,
     ),
   );
 }
+
+export const app = baseApp;
