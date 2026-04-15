@@ -74,31 +74,44 @@ function doSomething(input: string): Result<string, Error> {
 
 Use Hono as the web framework. Use Hono RPC for end-to-end type-safe API calls.
 
+Split routes by resource into their own files, then mount them on the root app via chained `.route()` calls. Routes must be chained in a single expression for RPC inference to work — export `typeof routes_` (the chained value), not `typeof app`. Keep handler implementations in separate files and have the route file only wire validation + call the handler.
+
 ```ts
+// routes/tasks.ts
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { z } from 'zod';
+import { createTaskHandler, getTasksHandler } from './tasks.handlers';
+import { taskCreateSchema, taskQuerySchema } from './tasks.schemas';
 
-const app = new Hono()
-  .get('/api/tasks', async (c) => {
-    // Return tasks
-    return c.json({ tasks: [] });
+export const taskRoutes = new Hono()
+  .get('/tasks', zValidator('query', taskQuerySchema), async (c) => {
+    return getTasksHandler(c, c.req.valid('query'));
   })
-  .post(
-    '/api/tasks',
-    zValidator('json', z.object({ title: z.string() })),
-    async (c) => {
-      const data = c.req.valid('json');
-      return c.json({ success: true });
-    },
-  );
-
-export type AppType = typeof app;
+  .post('/tasks', zValidator('json', taskCreateSchema), async (c) => {
+    return createTaskHandler(c, c.req.valid('json'));
+  });
 ```
 
 ```ts
+// index.ts
+import { Hono } from 'hono';
+import { taskRoutes } from './routes/tasks';
+import { projectRoutes } from './routes/projects';
+
+const app = new Hono();
+
+// routes must be chained in order for hono rpc to work
+const routes_ = app
+  .route('/api', taskRoutes)
+  .route('/api', projectRoutes);
+
+export type AppType = typeof routes_;
+```
+
+```ts
+// client
 import { hc } from 'hono/client';
-import type { AppType } from '../backend/app';
+import type { AppType } from '../backend/src';
 
 const client = hc<AppType>('http://localhost:4100');
 const res = await client.api.tasks.$post({ json: { title: 'New Task' } });
