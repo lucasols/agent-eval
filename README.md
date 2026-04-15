@@ -1,52 +1,45 @@
 # agent-eval
 
-Local-first, UI-first eval tool for LLM/agent systems. Evals are authored in strict TypeScript in `*.eval.ts` files and executed via Vitest, with a minimal UI and CLI for running them manually, inspecting traces, cost, inputs/outputs, and a file-based, commit-friendly cache.
+Local-first, UI-first eval tool for LLM/agent systems. Author evals in strict TypeScript inside `*.eval.ts` files, run them manually from a minimal UI or the CLI, and inspect trajectory, cost, inputs/outputs, and cache usage. The cache is file-based and commit-friendly so eval runs stay reproducible and diffable.
 
-## Stack
+## Why
 
-- **Runtime:** Vitest (`vi.mock`, `vi.spyOn`, `expect` work natively)
-- **Server:** Hono (RPC + SSE)
-- **Web:** React 19 + Vite 7 + Vindur + t-state
-- **Toolchain:** pnpm workspaces, TypeScript (strict), `tsgo` for typecheck/build, Prettier, ESLint
+- **Real TypeScript evals** — `defineEval(...)`, `expect(...)`, `vi.mock(...)` all work the way you expect because evals run on Vitest.
+- **Manual runs by default** — no background re-runs on file save. You trigger runs from the UI or CLI.
+- **Inspectable cache** — LLM calls cache to files you can read, diff, and commit. Flip cache mode per run from the UI.
+- **Cost + trace visibility** — per-case cost, token usage, and a tree/detail view of the agent's trajectory.
 
-## Layout
-
-```
-apps/
-  server/        Hono backend
-  web/           React + Vite frontend
-packages/
-  cli/           CLI binary
-  runner/        Core eval runner (Vitest + chokidar)
-  sdk/           Public SDK: defineEval, matchers, blocks, pricing
-  shared/        Shared Zod schemas / types
-examples/
-  basic-agent/   Demo evals
-```
-
-## Getting started
+## Install
 
 ```sh
-pnpm install
-pnpm dev:all        # server + web
+pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
 ```
 
-Individual apps: `pnpm dev` (server only), `pnpm dev:web` (web only). Server defaults to port `4100` (override with `PORT`).
+## Quick start
 
-## Common commands
+1. Add an `agent-evals.config.ts` at your project root.
+2. Write evals in `*.eval.ts` files:
 
-| Command         | Purpose                                    |
-| --------------- | ------------------------------------------ |
-| `pnpm dev:all`  | Run server + web in parallel               |
-| `pnpm build`    | Build all workspaces                       |
-| `pnpm tsc`      | Typecheck all workspaces (`tsgo --noEmit`) |
-| `pnpm lint`     | ESLint all workspaces                      |
-| `pnpm format`   | Prettier write                             |
+   ```ts
+   import { defineEval } from '@agent-evals/sdk'
 
-Workspace-scoped: `pnpm --filter @agent-evals/<pkg> <script>`.
+   defineEval('summarizes correctly', async ({ expect }) => {
+     const out = await myAgent({ input: 'hello' })
+     expect(out).toContain('hi')
+   })
+   ```
 
-## Writing evals
+3. List and run them:
 
-Evals live in `*.eval.ts` files and are configured via `agent-evals.config.ts`. See [`examples/basic-agent`](./examples/basic-agent) for a working reference.
+   ```sh
+   agent-evals list
+   agent-evals run
+   ```
 
-Runs are **manual only** — triggered from the UI or via the CLI (`pnpm --filter @agent-evals/example-basic-agent eval`).
+4. Or open the UI for the full experience — run controls, per-case results, trace drawer, cost, and cache controls.
+
+See [`examples/basic-agent`](./examples/basic-agent) for a working setup.
+
+## Status
+
+v1 — local-first, single-user. No cloud sync, no dashboards, no collaboration in this version.
