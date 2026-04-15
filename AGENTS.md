@@ -25,10 +25,11 @@ Package manager is pnpm 10. Use `pnpm --filter <pkg>` or `pnpm -r`; do not invok
 - `pnpm dev` / `pnpm dev:web` / `pnpm dev:all` — run server / web / everything
 - `pnpm build` — build all workspaces
 - `pnpm tsc` — typecheck all workspaces (recursive)
-- `pnpm lint` — ESLint all workspaces (recursive)
+- `pnpm lint` — ESLint + tsc all workspaces (recursive)
+- `pnpm eslint` — ESLint all workspaces (recursive)
 - `pnpm format` — prettier write
 
-Each workspace also exposes `tsc` and `lint` scripts that run `tsgo --noEmit` (optionally followed by `eslint .`).
+Each workspace also exposes `tsc`, `eslint` and `lint` scripts.
 
 Run `pnpm lint` before marking a task complete.
 
