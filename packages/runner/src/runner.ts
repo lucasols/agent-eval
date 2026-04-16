@@ -40,6 +40,10 @@ export type EvalRunner = {
   getArtifactPath(artifactId: string): string | undefined;
 };
 
+type CreateRunnerOptions = {
+  watchForChanges?: boolean;
+};
+
 type EvalMeta = {
   id: string;
   title?: string;
@@ -58,7 +62,9 @@ type RunState = {
   abortController: AbortController;
 };
 
-export function createRunner(): EvalRunner {
+export function createRunner({
+  watchForChanges = true,
+}: CreateRunnerOptions = {}): EvalRunner {
   let config: AgentEvalsConfig;
   let workspaceRoot: string;
   let localStateDir: string;
@@ -80,7 +86,9 @@ export function createRunner(): EvalRunner {
       await mkdir(join(localStateDir, 'cache'), { recursive: true });
 
       await runner.refreshDiscovery();
-      setupWatcher();
+      if (watchForChanges) {
+        setupWatcher();
+      }
     },
 
     getEvals() {
@@ -675,17 +683,19 @@ export function createRunner(): EvalRunner {
   return runner;
 }
 
-const defineEvalRegex = /defineEval\s*\(\s*\{/;
-const idMatchRegex = /id\s*:\s*['"]([^'"]+)['"]/;
-const titleMatchRegex = /title\s*:\s*['"]([^'"]+)['"]/;
+const defineEvalRegex = /defineEval(?:<[\s\S]*?>)?\s*\(\s*\{/;
+const evalIdMatchRegex =
+  /defineEval(?:<[\s\S]*?>)?\s*\(\s*\{[\s\S]*?\bid\s*:\s*['"]([^'"]+)['"]/;
+const evalTitleMatchRegex =
+  /defineEval(?:<[\s\S]*?>)?\s*\(\s*\{[\s\S]*?\btitle\s*:\s*['"]([^'"]+)['"]/;
 
 function parseEvalMeta(filePath: string, content: string): EvalMeta | null {
   if (!defineEvalRegex.test(content)) return null;
 
-  const idMatch = idMatchRegex.exec(content);
+  const idMatch = evalIdMatchRegex.exec(content);
   if (!idMatch?.[1]) return null;
 
-  const titleMatch = titleMatchRegex.exec(content);
+  const titleMatch = evalTitleMatchRegex.exec(content);
 
   const result: EvalMeta = {
     id: idMatch[1],

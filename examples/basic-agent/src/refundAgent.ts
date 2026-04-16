@@ -1,6 +1,6 @@
 import { track } from './analytics.ts';
 
-type RefundRequest = {
+export type RefundRequest = {
   message: string;
   locale?: string;
   receiptImage?: string;
@@ -13,7 +13,7 @@ type RefundResult = {
   approved: boolean;
 };
 
-export async function runRefundAgent(request: RefundRequest): Promise<RefundResult> {
+export function runRefundAgent(request: RefundRequest): RefundResult {
   track('refund.started', { locale: request.locale ?? 'en-US' });
 
   const toolCalls = request.receiptImage ? 3 : 2;

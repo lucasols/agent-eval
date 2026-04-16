@@ -6,7 +6,10 @@
   "scripts": {
     "eval": "node ../../packages/cli/src/bin.ts",
     "eval:run": "node ../../packages/cli/src/bin.ts run",
-    "eval:list": "node ../../packages/cli/src/bin.ts list"
+    "eval:list": "node ../../packages/cli/src/bin.ts list",
+    "tsc": "tsgo --noEmit",
+    "lint": "tsgo --noEmit && eslint .",
+    "eslint": "eslint ."
   },
   "dependencies": {
     "@agent-evals/sdk": "workspace:*",

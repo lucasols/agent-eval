@@ -127,7 +127,7 @@ async function commandApp(args: CliArgs): Promise<void> {
 }
 
 async function commandList(args_: CliArgs): Promise<void> {
-  const runner = createRunner();
+  const runner = createRunner({ watchForChanges: false });
   await runner.init();
 
   const evals = runner.getEvals();
@@ -152,7 +152,7 @@ async function commandList(args_: CliArgs): Promise<void> {
 }
 
 async function commandRun(args: CliArgs): Promise<void> {
-  const runner = createRunner();
+  const runner = createRunner({ watchForChanges: false });
   await runner.init();
 
   const target =

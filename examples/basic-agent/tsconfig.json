@@ -6,14 +6,10 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "noEmit": true,
-    "baseUrl": ".",
+    "allowImportingTsExtensions": true,
     "paths": {
       "#src/*": ["./src/*"]
     }
   },
-  "include": ["src", "evals"],
-  "references": [
-    { "path": "../../packages/shared" },
-    { "path": "../../packages/sdk" }
-  ]
+  "include": ["src", "evals", "agent-evals.config.ts"]
 }

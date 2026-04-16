@@ -70,7 +70,7 @@ export type EvalTraceRecorder = {
       name: string;
       attributes?: Record<string, unknown>;
     },
-    fn: (span: EvalTraceActiveSpan) => Promise<T>,
+    fn: (span: EvalTraceActiveSpan) => Promise<T> | T,
   ): Promise<T>;
   checkpoint(name: string, data: unknown): void;
 };
