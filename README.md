@@ -4,7 +4,7 @@ Local-first, UI-first eval tool for LLM/agent systems. Author evals in strict Ty
 
 ## Why
 
-- **Real TypeScript evals** — `defineEval(...)`, `expect(...)`, `vi.mock(...)` all work the way you expect because evals run on Vitest.
+- **Real TypeScript evals** — author evals with `defineEval(...)`, normal TypeScript, scorers, and thrown-error assertions.
 - **Manual runs by default** — no background re-runs on file save. You trigger runs from the UI or CLI.
 - **Inspectable cache** — LLM calls cache to files you can read, diff, and commit; disable per run when you need fresh output.
 - **Cost + trace visibility** — per-case cost, token usage, a tree/detail view of the agent's trajectory, and custom result columns.
@@ -39,7 +39,6 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
 
    ```ts
    import { defineEval, blocks } from '@agent-evals/sdk'
-   import { expect } from 'vitest'
    import { myAgent } from '../src/agent'
 
    defineEval({
@@ -60,7 +59,7 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
        return { output }
      },
      assert: ({ output }) => {
-       expect(output).toBeTruthy()
+       if (!output) throw new Error('Expected an output')
      },
    })
    ```

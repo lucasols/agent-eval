@@ -1,11 +1,10 @@
-import { defineEval, blocks, repoFile, installEvalMatchers, estimateCost, createPriceRegistry } from '@agent-evals/sdk';
-import { expect, vi } from 'vitest';
-
-installEvalMatchers();
-
-vi.mock('../src/analytics', () => ({
-  track: vi.fn(),
-}));
+import {
+  defineEval,
+  blocks,
+  estimateCost,
+  createPriceRegistry,
+} from '@agent-evals/sdk';
+import { runRefundAgent } from '../src/refundAgent.ts';
 
 const pricing = createPriceRegistry({
   'gpt-4o': {
@@ -75,31 +74,34 @@ defineEval({
       async (span) => {
         span.setInput(input);
 
-        const agentResult = await trace.span(
+        await trace.span(
           { kind: 'llm', name: 'plan-refund' },
           async (llmSpan) => {
             llmSpan.setInput({ prompt: input.message });
             llmSpan.setUsage({ inputTokens: 150, outputTokens: 50 });
-            const cost = estimateCost('gpt-4o', { inputTokens: 150, outputTokens: 50 }, pricing);
+            const cost = estimateCost(
+              'gpt-4o',
+              { inputTokens: 150, outputTokens: 50 },
+              pricing,
+            );
             llmSpan.setCostUsd(cost);
             llmSpan.setOutput({ plan: 'approve refund' });
             return { plan: 'approve refund' };
           },
         );
 
-        const toolResult = await trace.span(
+        const agentResult = await trace.span(
           { kind: 'tool', name: 'process-refund' },
           async (toolSpan) => {
-            toolSpan.setInput({ action: 'refund', orderId: '#123' });
-            toolSpan.setOutput({ success: true });
-            return { success: true };
+            toolSpan.setInput({ action: 'refund', request: input });
+            const output = await runRefundAgent(input);
+            toolSpan.setOutput(output);
+            return output;
           },
         );
 
-        const finalText = `Approved refund for: ${input.message}`;
-        span.setOutput({ finalText, toolCalls: 2 });
-
-        return { finalText, toolCalls: 2 };
+        span.setOutput(agentResult);
+        return agentResult;
       },
     );
 
@@ -125,10 +127,25 @@ defineEval({
     }),
   ],
   assert: ({ output, trace, cost }) => {
-    expect(output).toMatch(/refund/i);
-    expect(trace).toCallSpan('refund-agent');
-    expect(trace).toUseAtMostTurns(6);
-    expect((cost.totalUsd ?? 0) < 0.10).toBe(true);
+    assertEvalCondition(/refund/i.test(output), 'Output should mention refund');
+    assertEvalCondition(
+      trace.findSpan('refund-agent') !== undefined,
+      'Trace should include the refund-agent span',
+    );
+    assertEvalCondition(
+      trace.findSpansByKind('llm').length <= 6,
+      'Trace should use at most 6 LLM turns',
+    );
+    assertEvalCondition(
+      (cost.totalUsd ?? 0) < 0.10,
+      'Eval cost should stay under $0.10',
+    );
   },
   passThreshold: 0.5,
 });
+
+function assertEvalCondition(condition: boolean, message: string): void {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
