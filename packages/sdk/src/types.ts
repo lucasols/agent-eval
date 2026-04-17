@@ -5,12 +5,14 @@ import type {
   TraceDisplayInputConfig,
 } from '@agent-evals/shared';
 
+/** Single authored eval case with its stable identifier and input payload. */
 export type EvalCase<TInput> = {
   id: string;
   input: TInput;
   tags?: string[];
 };
 
+/** UI overrides for a derived or scored column emitted by an eval. */
 export type EvalColumnOverride = {
   label?: string;
   format?: ColumnFormat;
@@ -21,8 +23,10 @@ export type EvalColumnOverride = {
   kind?: ColumnKind;
 };
 
+/** Column override map keyed by output or score field name. */
 export type EvalColumns = Record<string, EvalColumnOverride>;
 
+/** Query helpers built from the flattened trace recorded for one eval case. */
 export type EvalTraceTree = {
   spans: EvalTraceSpan[];
   rootSpans: EvalTraceSpan[];
@@ -32,27 +36,32 @@ export type EvalTraceTree = {
   checkpoints: Map<string, unknown>;
 };
 
+/** Context passed to an eval's `execute` function for a single case run. */
 export type EvalExecuteContext<TInput> = {
   input: TInput;
   signal: AbortSignal;
 };
 
+/** Context passed to `deriveFromTracing` after execution has completed. */
 export type EvalDeriveContext<TInput> = {
   trace: EvalTraceTree;
   input: TInput;
   case: EvalCase<TInput>;
 };
 
+/** Context passed to score functions after outputs have been collected. */
 export type EvalScoreContext<TInput> = {
   input: TInput;
   outputs: Record<string, unknown>;
   case: EvalCase<TInput>;
 };
 
+/** Score callback that computes a numeric result for one case. */
 export type EvalScoreFn<TInput> = (
   ctx: EvalScoreContext<TInput>,
 ) => number | Promise<number>;
 
+/** Score definition accepted by `defineEval`, with optional UI metadata. */
 export type EvalScoreDef<TInput> =
   | EvalScoreFn<TInput>
   | {
@@ -61,6 +70,7 @@ export type EvalScoreDef<TInput> =
       label?: string;
     };
 
+/** Complete authored eval definition consumed by `defineEval`. */
 export type EvalDefinition<TInput = unknown> = {
   id: string;
   title?: string;

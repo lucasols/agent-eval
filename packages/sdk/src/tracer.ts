@@ -164,6 +164,7 @@ async function traceSpan<T>(
  * execution.
  */
 export const tracer = {
+  /** Run a callback inside a new trace span and record its lifecycle. */
   span: traceSpan,
 
   /** Record a named point-in-time value alongside the trace. */

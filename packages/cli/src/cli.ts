@@ -57,6 +57,11 @@ function parseArgs(argv: string[]): CliArgs {
   return args;
 }
 
+/**
+ * Run the Agent Evals CLI against the current workspace.
+ *
+ * @param argv Raw command-line arguments excluding the executable name.
+ */
 export async function runCli(argv: string[]): Promise<void> {
   const args = parseArgs(argv);
 

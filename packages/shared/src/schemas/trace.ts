@@ -1,11 +1,13 @@
 import { z } from 'zod/v4';
 
+/** Schema for the semantic categories used to classify trace spans. */
 export const traceSpanKindSchema = z.enum([
   'eval', 'agent', 'llm', 'tool', 'retrieval', 'scorer', 'checkpoint', 'custom',
 ]);
 /** Semantic category used to classify a trace span in the UI. */
 export type TraceSpanKind = z.infer<typeof traceSpanKindSchema>;
 
+/** Schema for the supported presentation formats of trace attributes. */
 export const traceAttributeDisplayFormatSchema = z.enum([
   'string',
   'number',
@@ -22,6 +24,7 @@ export type TraceAttributeDisplayFormat = z.infer<
   typeof traceAttributeDisplayFormatSchema
 >;
 
+/** Schema for the UI locations where a trace attribute can appear. */
 export const traceAttributeDisplayPlacementSchema = z.enum([
   'tree',
   'detail',
@@ -32,6 +35,7 @@ export type TraceAttributeDisplayPlacement = z.infer<
   typeof traceAttributeDisplayPlacementSchema
 >;
 
+/** Schema for resolved trace display rules sent to the UI. */
 export const traceAttributeDisplaySchema = z.object({
   key: z.string().optional(),
   path: z.string(),
@@ -50,6 +54,7 @@ export const traceAttributeDisplaySchema = z.object({
  */
 export type TraceAttributeDisplay = z.infer<typeof traceAttributeDisplaySchema>;
 
+/** Schema for trace display config after transforms have been resolved. */
 export const traceDisplayConfigSchema = z.object({
   attributes: z.array(traceAttributeDisplaySchema).optional(),
 });
@@ -70,6 +75,7 @@ export type TraceAttributeTransform = (
   ctx: TraceAttributeTransformContext,
 ) => unknown;
 
+/** Schema for authored trace display rules accepted from user config. */
 export const traceAttributeDisplayInputSchema = z.object({
   key: z.string().optional(),
   path: z.string(),
@@ -94,12 +100,14 @@ export type TraceAttributeDisplayInput = z.infer<
   typeof traceAttributeDisplayInputSchema
 >;
 
+/** Schema for authored trace display config in eval or workspace config. */
 export const traceDisplayInputConfigSchema = z.object({
   attributes: z.array(traceAttributeDisplayInputSchema).optional(),
 });
 /** Trace display configuration authored by users in config or eval files. */
 export type TraceDisplayInputConfig = z.infer<typeof traceDisplayInputConfigSchema>;
 
+/** Schema for a persisted trace span captured during case execution. */
 export const traceSpanSchema = z.object({
   id: z.string(),
   parentId: z.string().nullable(),

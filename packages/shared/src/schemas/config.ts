@@ -5,6 +5,7 @@ import {
   type TraceDisplayInputConfig,
 } from './trace.ts';
 
+/** Top-level config authored in `agent-evals.config.ts`. */
 export type AgentEvalsConfig = {
   /** Root directory used to resolve all relative paths. Defaults to `process.cwd()`. */
   workspaceRoot?: string;
@@ -25,6 +26,7 @@ export type AgentEvalsConfig = {
   traceDisplay?: TraceDisplayInputConfig;
 };
 
+/** Zod schema for validating `agent-evals.config.ts` input. */
 export const agentEvalsConfigSchema = z.object({
   workspaceRoot: z.string().optional(),
   include: z.array(z.string()),

@@ -32,6 +32,7 @@ import {
   resolveTracePresentation,
 } from './traceDisplay.ts';
 
+/** Imperative runner interface used by the server and CLI. */
 export type EvalRunner = {
   init(): Promise<void>;
   getEvals(): EvalSummary[];
@@ -75,6 +76,12 @@ type RunState = {
   abortController: AbortController;
 };
 
+/**
+ * Create an in-memory eval runner bound to the current workspace config.
+ *
+ * @param options Runtime options controlling discovery watchers.
+ * @returns A runner instance used by the CLI and server.
+ */
 export function createRunner({
   watchForChanges = true,
 }: CreateRunnerOptions = {}): EvalRunner {
