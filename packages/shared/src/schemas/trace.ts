@@ -3,6 +3,7 @@ import { z } from 'zod/v4';
 export const traceSpanKindSchema = z.enum([
   'eval', 'agent', 'llm', 'tool', 'retrieval', 'scorer', 'checkpoint', 'custom',
 ]);
+/** Semantic category used to classify a trace span in the UI. */
 export type TraceSpanKind = z.infer<typeof traceSpanKindSchema>;
 
 export const traceAttributeDisplayFormatSchema = z.enum([
@@ -12,6 +13,11 @@ export const traceAttributeDisplayFormatSchema = z.enum([
   'duration',
   'json',
 ]);
+/**
+ * Formatting hint for trace attribute values rendered by the UI.
+ *
+ * This affects presentation only and does not change the stored value.
+ */
 export type TraceAttributeDisplayFormat = z.infer<
   typeof traceAttributeDisplayFormatSchema
 >;
@@ -21,6 +27,7 @@ export const traceAttributeDisplayPlacementSchema = z.enum([
   'detail',
   'section',
 ]);
+/** UI locations where a trace attribute may be rendered. */
 export type TraceAttributeDisplayPlacement = z.infer<
   typeof traceAttributeDisplayPlacementSchema
 >;
@@ -34,18 +41,31 @@ export const traceAttributeDisplaySchema = z.object({
   scope: z.enum(['self', 'subtree']).optional(),
   mode: z.enum(['all', 'last', 'sum']).optional(),
 });
+/**
+ * Resolved trace display rule consumed by the UI.
+ *
+ * `path` points at the attribute to render on each span. `scope` and `mode`
+ * control whether the value comes from the current span only or from the full
+ * subtree, and how multiple matches are combined.
+ */
 export type TraceAttributeDisplay = z.infer<typeof traceAttributeDisplaySchema>;
 
 export const traceDisplayConfigSchema = z.object({
   attributes: z.array(traceAttributeDisplaySchema).optional(),
 });
+/** UI-ready trace display configuration attached to case details. */
 export type TraceDisplayConfig = z.infer<typeof traceDisplayConfigSchema>;
 
+/** Context passed to a `traceDisplay` transform while resolving a span value. */
 export type TraceAttributeTransformContext = {
   value: unknown;
   span: EvalTraceSpan;
 };
 
+/**
+ * Runner-side transform used to derive a display value from a raw trace
+ * attribute.
+ */
 export type TraceAttributeTransform = (
   ctx: TraceAttributeTransformContext,
 ) => unknown;
@@ -63,6 +83,13 @@ export const traceAttributeDisplayInputSchema = z.object({
     { message: 'Expected a transform function' },
   ).optional(),
 });
+/**
+ * Authored trace display rule accepted in eval definitions and config files.
+ *
+ * `key` allows the same source `path` to be displayed multiple ways, such as
+ * USD and BRL views of a single `costUsd` attribute. `transform` runs in the
+ * runner before the UI receives the resolved trace payload.
+ */
 export type TraceAttributeDisplayInput = z.infer<
   typeof traceAttributeDisplayInputSchema
 >;
@@ -70,6 +97,7 @@ export type TraceAttributeDisplayInput = z.infer<
 export const traceDisplayInputConfigSchema = z.object({
   attributes: z.array(traceAttributeDisplayInputSchema).optional(),
 });
+/** Trace display configuration authored by users in config or eval files. */
 export type TraceDisplayInputConfig = z.infer<typeof traceDisplayInputConfigSchema>;
 
 export const traceSpanSchema = z.object({
@@ -88,4 +116,5 @@ export const traceSpanSchema = z.object({
     stack: z.string().optional(),
   }).optional(),
 });
+/** Persisted trace span shape stored for each eval case run. */
 export type EvalTraceSpan = z.infer<typeof traceSpanSchema>;

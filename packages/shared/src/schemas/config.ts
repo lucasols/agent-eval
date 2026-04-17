@@ -16,7 +16,12 @@ export type AgentEvalsConfig = {
   pricing?: Record<string, z.infer<typeof modelPricingSchema>>;
   /** Maximum number of cases executed in parallel. Defaults to `2`. */
   concurrency?: number;
-  /** Global trace attribute display config for the UI. */
+  /**
+   * Global trace attribute display config for the UI.
+   *
+   * These rules are merged with per-eval `traceDisplay` rules, with the eval
+   * definition taking precedence for matching `key` or `path` entries.
+   */
   traceDisplay?: TraceDisplayInputConfig;
 };
 

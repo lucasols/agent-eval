@@ -2,9 +2,18 @@ import type { EvalTraceSpan } from '@agent-evals/shared';
 import { getCurrentScope } from './runtime.ts';
 import type { EvalTraceTree } from './types.ts';
 
+/**
+ * Mutable handle for the current span.
+ *
+ * Prefer the ambient `span` export for most code so helpers deeper in the call
+ * stack can annotate the active span without receiving an injected argument.
+ */
 export type TraceActiveSpan = {
+  /** Rename the active span after it has been created. */
   setName(value: string): void;
+  /** Set a single attribute on the active span. Later writes replace the same key. */
   setAttribute(key: string, value: unknown): void;
+  /** Merge multiple attributes into the active span. */
   setAttributes(value: Record<string, unknown>): void;
 };
 
@@ -53,6 +62,11 @@ function createSpanHandle(span: EvalTraceSpan): TraceActiveSpan {
   };
 }
 
+/**
+ * Ambient handle for the active span in the current async context.
+ *
+ * Calls are no-ops when executed outside of `tracer.span(...)`.
+ */
 export const span: TraceActiveSpan = {
   setName(value) {
     updateCurrentSpan((currentSpan) => {
@@ -145,9 +159,14 @@ async function traceSpan<T>(
   }
 }
 
+/**
+ * Trace builder used to create hierarchical spans and checkpoints during eval
+ * execution.
+ */
 export const tracer = {
   span: traceSpan,
 
+  /** Record a named point-in-time value alongside the trace. */
   checkpoint(name: string, data: unknown): void {
     const scope = getCurrentScope();
     if (!scope) return;
@@ -168,6 +187,7 @@ export const tracer = {
   },
 };
 
+/** Build a queryable trace tree helper from a flat span list and checkpoints. */
 export function buildTraceTree(
   spans: EvalTraceSpan[],
   checkpoints: Map<string, unknown>,

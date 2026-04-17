@@ -67,6 +67,13 @@ export type EvalDefinition<TInput = unknown> = {
   description?: string;
   cases?: EvalCase<TInput>[] | (() => Promise<EvalCase<TInput>[]>);
   columns?: EvalColumns;
+  /**
+   * Per-eval trace attribute display rules for the UI.
+   *
+   * These are merged with the global `AgentEvalsConfig.traceDisplay` rules.
+   * Matching entries override the global rule by `key`, or by `path` when no
+   * `key` is provided.
+   */
   traceDisplay?: TraceDisplayInputConfig;
   execute: (ctx: EvalExecuteContext<TInput>) => Promise<void> | void;
   deriveFromTracing?: (
