@@ -30,12 +30,12 @@ type EvalCardProps = {
 
 const Card = styled.section<{ stacked: boolean; single: boolean }>`
   ${stack({ gap: 0 })}
-  background: ${colors.bg.var};
+  background: transparent;
 
   &.stacked {
     border: 1px solid ${colors.border.var};
-    border-radius: var(--radius-md);
     overflow: hidden;
+    background: ${colors.bgElevated.alpha(0.6)};
   }
 
   &.single {
@@ -45,10 +45,27 @@ const Card = styled.section<{ stacked: boolean; single: boolean }>`
 `;
 
 const Header = styled.header<{ collapsible: boolean; sticky: boolean }>`
-  ${inline({ justify: 'space-between', align: 'center', gap: 12 })}
-  padding: 14px 18px;
+  ${stack({ gap: 0 })}
+  padding: 28px 32px 22px;
   border-bottom: 1px solid ${colors.border.var};
-  background: ${colors.bgElevated.var};
+  background: ${colors.bgElevated.alpha(0.5)};
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(
+      90deg,
+      ${colors.accent.var} 0%,
+      ${colors.accent.var} 80px,
+      transparent 80px,
+      transparent 100%
+    );
+  }
 
   &.sticky {
     position: sticky;
@@ -58,46 +75,72 @@ const Header = styled.header<{ collapsible: boolean; sticky: boolean }>`
 
   &.collapsible {
     cursor: pointer;
+    padding: 18px 24px;
   }
 `;
 
-const HeaderLeft = styled.div`
+const HeaderTopRow = styled.div`
+  ${inline({ justify: 'space-between', align: 'center', gap: 12 })}
+  width: 100%;
+`;
+
+const Meta = styled.div`
   ${inline({ gap: 10, align: 'center' })}
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: ${colors.textDim.var};
+  margin-bottom: 10px;
+`;
+
+const MetaDivider = styled.span`
+  width: 18px;
+  height: 1px;
+  background: ${colors.borderStrong.var};
+`;
+
+const MetaAccent = styled.span`
+  color: ${colors.accent.var};
+`;
+
+const HeaderLeft = styled.div`
+  ${inline({ gap: 12, align: 'center' })}
   min-width: 0;
   flex: 1;
 `;
 
 const TitleBlock = styled.div`
-  ${stack({ gap: 2 })}
+  ${stack({ gap: 6 })}
   min-width: 0;
 `;
 
 const TitleRow = styled.div`
-  ${inline({ gap: 8, align: 'center' })}
+  ${inline({ gap: 10, align: 'center' })}
   min-width: 0;
 `;
 
 const Title = styled.h2<{ large: boolean }>`
   ${ellipsis}
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
   color: ${colors.text.var};
   letter-spacing: -0.01em;
 
   &.large {
-    font-size: 18px;
-    font-weight: 600;
-    letter-spacing: -0.015em;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    line-height: 1.05;
   }
 `;
 
 const StaleBadge = styled.span`
-  font-size: 10px;
-  font-weight: 500;
+  font-size: 9px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 2px 6px;
-  border-radius: 3px;
+  letter-spacing: 0.16em;
+  padding: 3px 7px;
   color: ${colors.warning.var};
   background: ${colors.warning.alpha(0.1)};
   border: 1px solid ${colors.warning.alpha(0.3)};
@@ -106,8 +149,15 @@ const StaleBadge = styled.span`
 const FilePath = styled.div`
   ${monoFont}
   ${ellipsis}
-  font-size: 11.5px;
+  font-size: 11px;
   color: ${colors.textDim.var};
+  padding-left: 0;
+  letter-spacing: 0;
+`;
+
+const FilePathPrefix = styled.span`
+  color: ${colors.accent.alpha(0.6)};
+  margin-right: 6px;
 `;
 
 const HeaderRight = styled.div`
@@ -136,8 +186,7 @@ const Chevron = styled.span<{ open: boolean }>`
 `;
 
 const Body = styled.div<{ scroll: boolean }>`
-  ${stack({ gap: 16 })}
-  padding: 18px;
+  ${stack({ gap: 0 })}
 
   &.scroll {
     flex: 1;
@@ -145,59 +194,85 @@ const Body = styled.div<{ scroll: boolean }>`
   }
 `;
 
-const StatsBar = styled.div`
-  ${inline({ gap: 24, align: 'center' })}
-  flex-wrap: wrap;
+const StatsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  border-bottom: 1px solid ${colors.border.var};
 `;
 
 const Stat = styled.div`
-  ${stack({ gap: 2 })}
+  ${stack({ gap: 6 })}
+  padding: 18px 22px;
+  border-right: 1px solid ${colors.border.alpha(0.6)};
+  position: relative;
+
+  &:last-child {
+    border-right: none;
+  }
 `;
 
 const StatLabel = styled.div`
-  font-size: 10.5px;
-  font-weight: 500;
+  font-size: 9.5px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.22em;
   color: ${colors.textDim.var};
 `;
 
-const StatValue = styled.div<{ accent: boolean; mono: boolean }>`
-  font-size: 14px;
-  font-weight: 500;
+const StatValue = styled.div<{ accent: boolean; cost: boolean }>`
+  ${monoFont}
+  ${tabularNums}
+  font-size: 22px;
+  font-weight: 700;
   color: ${colors.text.var};
-
-  &.mono {
-    ${monoFont}
-    ${tabularNums}
-  }
+  letter-spacing: -0.02em;
+  line-height: 1;
 
   &.accent {
     color: ${colors.accent.var};
+  }
+  &.cost {
+    color: ${colors.cost.var};
+  }
+`;
+
+const Section = styled.div`
+  ${stack({ gap: 0 })}
+  padding: 18px 32px 24px;
+  border-bottom: 1px solid ${colors.border.alpha(0.5)};
+
+  &:last-child {
+    border-bottom: none;
   }
 `;
 
 const SectionLabel = styled.div`
   ${inline({ justify: 'space-between', align: 'center' })}
-  font-size: 11px;
-  font-weight: 500;
+  font-size: 10px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: ${colors.textDim.var};
-  margin-bottom: -4px;
-`;
+  letter-spacing: 0.22em;
+  color: ${colors.textMuted.var};
+  margin-bottom: 14px;
 
-const SectionContent = styled.div`
-  margin-top: 8px;
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: ${colors.border.var};
+    margin-left: 12px;
+  }
 `;
 
 const SectionMeta = styled.span`
   ${monoFont}
-  font-size: 11px;
-  color: ${colors.textDim.var};
-  font-weight: 400;
-  letter-spacing: 0;
-  text-transform: none;
+  font-size: 10px;
+  color: ${colors.accent.var};
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  order: 3;
+  margin-left: 12px;
 `;
 
 export function EvalCard({ evalSummary, mode }: EvalCardProps) {
@@ -267,6 +342,9 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     setCollapsed((v) => !v);
   }
 
+  const pathSegments = evalSummary.filePath.split('/');
+  const filename = pathSegments[pathSegments.length - 1] ?? evalSummary.filePath;
+
   return (
     <Card stacked={isStacked} single={isSingle}>
       <Header
@@ -274,57 +352,76 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
         sticky={isSingle}
         onClick={onHeaderClick}
       >
-        <HeaderLeft>
-          {isStacked ? (
-            <Chevron open={!collapsed}>
-              <ChevronDown />
-            </Chevron>
-          ) : null}
-          <TitleBlock>
-            <TitleRow>
-              <Title large={isSingle}>
-                {evalSummary.title ?? evalSummary.id}
-              </Title>
-              {evalSummary.stale ? <StaleBadge>stale</StaleBadge> : null}
-            </TitleRow>
-            <FilePath title={evalSummary.filePath}>
-              {evalSummary.filePath}
-            </FilePath>
-          </TitleBlock>
-        </HeaderLeft>
-        <HeaderRight onClick={(e) => e.stopPropagation()}>
-          <Button
-            variant="primary"
-            onClick={handleRun}
-            disabled={isRunning}
-            leftIcon={<Play />}
-          >
-            {isRunning ? 'Running' : 'Run'}
-          </Button>
-          <IconButton aria-label="More">
-            <MoreHorizontal />
-          </IconButton>
-        </HeaderRight>
+        {isSingle ? (
+          <Meta>
+            <MetaAccent>Eval</MetaAccent>
+            <MetaDivider />
+            {evalSummary.caseCount !== null ? (
+              <>
+                <span>
+                  {evalSummary.caseCount}{' '}
+                  {evalSummary.caseCount === 1 ? 'case' : 'cases'}
+                </span>
+                <MetaDivider />
+              </>
+            ) : null}
+            <span>{filename}</span>
+          </Meta>
+        ) : null}
+        <HeaderTopRow>
+          <HeaderLeft>
+            {isStacked ? (
+              <Chevron open={!collapsed}>
+                <ChevronDown />
+              </Chevron>
+            ) : null}
+            <TitleBlock>
+              <TitleRow>
+                <Title large={isSingle}>
+                  {evalSummary.title ?? evalSummary.id}
+                </Title>
+                {evalSummary.stale ? <StaleBadge>stale</StaleBadge> : null}
+              </TitleRow>
+              <FilePath title={evalSummary.filePath}>
+                <FilePathPrefix>›</FilePathPrefix>
+                {evalSummary.filePath}
+              </FilePath>
+            </TitleBlock>
+          </HeaderLeft>
+          <HeaderRight onClick={(e) => e.stopPropagation()}>
+            <Button
+              variant="primary"
+              onClick={handleRun}
+              disabled={isRunning}
+              leftIcon={<Play />}
+            >
+              {isRunning ? 'Running' : 'Run'}
+            </Button>
+            <IconButton aria-label="More">
+              <MoreHorizontal />
+            </IconButton>
+          </HeaderRight>
+        </HeaderTopRow>
       </Header>
 
       {showBody ? (
         <Body scroll={isSingle}>
-          <StatsBar>
+          <StatsGrid>
             <Stat>
               <StatLabel>Cases</StatLabel>
-              <StatValue mono={true} accent={false}>
+              <StatValue accent={false} cost={false}>
                 {evalSummary.caseCount ?? '\u2014'}
               </StatValue>
             </Stat>
             <Stat>
               <StatLabel>Avg score</StatLabel>
-              <StatValue mono={true} accent={true}>
+              <StatValue accent={true} cost={false}>
                 {formatScore(latestSummary?.averageScore ?? null)}
               </StatValue>
             </Stat>
             <Stat>
               <StatLabel>Pass / Fail</StatLabel>
-              <StatValue mono={true} accent={false}>
+              <StatValue accent={false} cost={false}>
                 {latestSummary
                   ? `${latestSummary.passedCases}/${latestSummary.failedCases + latestSummary.errorCases}`
                   : '\u2014'}
@@ -332,46 +429,44 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
             </Stat>
             <Stat>
               <StatLabel>Duration</StatLabel>
-              <StatValue mono={true} accent={false}>
+              <StatValue accent={false} cost={false}>
                 {formatDuration(latestSummary?.totalDurationMs ?? null)}
               </StatValue>
             </Stat>
             <Stat>
               <StatLabel>Cost</StatLabel>
-              <StatValue mono={true} accent={false}>
+              <StatValue accent={false} cost={true}>
                 {formatCost(latestSummary?.cost.totalUsd ?? null)}
               </StatValue>
             </Stat>
-          </StatsBar>
+          </StatsGrid>
 
-          <div>
+          <Section>
             <SectionLabel>
               Score history
               <SectionMeta>
-                {chartData.length > 0 ? `${chartData.length} runs` : ''}
+                {chartData.length > 0
+                  ? `${chartData.length} ${chartData.length === 1 ? 'run' : 'runs'}`
+                  : 'no data'}
               </SectionMeta>
             </SectionLabel>
-            <SectionContent>
-              <EvalRunsChart data={chartData} />
-            </SectionContent>
-          </div>
+            <EvalRunsChart data={chartData} />
+          </Section>
 
-          <div>
+          <Section>
             <SectionLabel>
               Runs
               <SectionMeta>
                 {runRows.length > 0
                   ? `${runRows.length} ${runRows.length === 1 ? 'run' : 'runs'}`
-                  : ''}
+                  : 'no runs'}
               </SectionMeta>
             </SectionLabel>
-            <SectionContent>
-              <EvalRunsTable
-                runs={runRows}
-                columnDefs={evalSummary.columnDefs}
-              />
-            </SectionContent>
-          </div>
+            <EvalRunsTable
+              runs={runRows}
+              columnDefs={evalSummary.columnDefs}
+            />
+          </Section>
         </Body>
       ) : null}
     </Card>

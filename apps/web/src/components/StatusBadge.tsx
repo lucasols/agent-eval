@@ -8,14 +8,43 @@ type StatusBadgeProps = {
 
 type Tone = 'pass' | 'fail' | 'running' | 'pending' | 'cancelled';
 
-const Badge = styled.span`
-  ${inline({ gap: 6 })}
+const Badge = styled.span<{
+  pass: boolean;
+  fail: boolean;
+  running: boolean;
+  cancelled: boolean;
+}>`
+  ${inline({ gap: 6, align: 'center' })}
   display: inline-flex;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 3px 7px 3px 8px;
+  border: 1px solid ${colors.borderStrong.var};
   color: ${colors.textMuted.var};
-  text-transform: lowercase;
+  background: ${colors.surface.var};
+
+  &.pass {
+    color: ${colors.success.var};
+    border-color: ${colors.success.alpha(0.4)};
+    background: ${colors.success.alpha(0.08)};
+  }
+  &.fail {
+    color: ${colors.error.var};
+    border-color: ${colors.error.alpha(0.4)};
+    background: ${colors.error.alpha(0.08)};
+  }
+  &.running {
+    color: ${colors.accent.var};
+    border-color: ${colors.accent.alpha(0.4)};
+    background: ${colors.accent.alpha(0.08)};
+  }
+  &.cancelled {
+    color: ${colors.warning.var};
+    border-color: ${colors.warning.alpha(0.4)};
+    background: ${colors.warning.alpha(0.08)};
+  }
 `;
 
 const Dot = styled.span<{
@@ -26,15 +55,16 @@ const Dot = styled.span<{
 }>`
   width: 6px;
   height: 6px;
-  border-radius: 50%;
   flex-shrink: 0;
   background: ${colors.textDim.var};
 
   &.pass {
     background: ${colors.success.var};
+    box-shadow: 0 0 6px ${colors.success.alpha(0.6)};
   }
   &.fail {
     background: ${colors.error.var};
+    box-shadow: 0 0 6px ${colors.error.alpha(0.6)};
   }
   &.running {
     background: ${colors.accent.var};
@@ -48,34 +78,12 @@ const Dot = styled.span<{
     0%,
     100% {
       opacity: 1;
-      box-shadow: 0 0 0 0 ${colors.accent.alpha(0.5)};
+      box-shadow: 0 0 0 0 ${colors.accent.alpha(0.6)};
     }
     50% {
-      opacity: 0.65;
+      opacity: 0.6;
       box-shadow: 0 0 0 5px ${colors.accent.alpha(0)};
     }
-  }
-`;
-
-const Label = styled.span<{
-  pass: boolean;
-  fail: boolean;
-  running: boolean;
-  cancelled: boolean;
-}>`
-  color: ${colors.textMuted.var};
-
-  &.pass {
-    color: ${colors.success.var};
-  }
-  &.fail {
-    color: ${colors.error.var};
-  }
-  &.running {
-    color: ${colors.accent.var};
-  }
-  &.cancelled {
-    color: ${colors.warning.var};
   }
 `;
 
@@ -90,21 +98,19 @@ function getTone(status: string): Tone {
 export function StatusBadge({ status }: StatusBadgeProps) {
   const tone = getTone(status);
   return (
-    <Badge>
+    <Badge
+      pass={tone === 'pass'}
+      fail={tone === 'fail'}
+      running={tone === 'running'}
+      cancelled={tone === 'cancelled'}
+    >
       <Dot
         pass={tone === 'pass'}
         fail={tone === 'fail'}
         running={tone === 'running'}
         cancelled={tone === 'cancelled'}
       />
-      <Label
-        pass={tone === 'pass'}
-        fail={tone === 'fail'}
-        running={tone === 'running'}
-        cancelled={tone === 'cancelled'}
-      >
-        {status}
-      </Label>
+      {status}
     </Badge>
   );
 }

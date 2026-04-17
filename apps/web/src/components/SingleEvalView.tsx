@@ -5,6 +5,7 @@ import { EvalCard } from './EvalCard.tsx';
 const Root = styled.div`
   height: 100%;
   overflow: hidden;
+  background: transparent;
 `;
 
 type SingleEvalViewProps = {

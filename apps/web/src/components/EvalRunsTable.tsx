@@ -29,37 +29,37 @@ type EvalRunsTableProps = {
 };
 
 const Empty = styled.div`
-  padding: 24px;
+  padding: 32px 24px;
   border: 1px dashed ${colors.border.var};
-  border-radius: var(--radius-md);
   text-align: center;
   color: ${colors.textDim.var};
-  font-size: 12px;
-  background: ${colors.bgElevated.var};
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  background: transparent;
 `;
 
 const TableWrap = styled.div`
   border: 1px solid ${colors.border.var};
-  border-radius: var(--radius-md);
-  background: ${colors.bgElevated.var};
+  background: ${colors.bgElevated.alpha(0.4)};
   overflow: hidden;
 `;
 
 const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: 12px;
   table-layout: auto;
 `;
 
 const Th = styled.th<{ rightAlign: boolean; indent: boolean }>`
-  padding: 8px 12px;
+  padding: 10px 14px;
   background: ${colors.surface.var};
   border-bottom: 1px solid ${colors.border.var};
-  font-size: 10.5px;
-  font-weight: 500;
+  font-size: 9.5px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.2em;
   color: ${colors.textDim.var};
   text-align: left;
   white-space: nowrap;
@@ -68,12 +68,12 @@ const Th = styled.th<{ rightAlign: boolean; indent: boolean }>`
     text-align: right;
   }
   &.indent {
-    padding-left: 28px;
+    padding-left: 32px;
   }
 `;
 
 const RunHeaderRow = styled.tr`
-  border-top: 1px solid ${colors.border.var};
+  border-top: 1px solid ${colors.borderStrong.var};
   border-bottom: 1px solid ${colors.border.var};
   background: ${colors.surface.var};
 
@@ -87,10 +87,10 @@ const RunHeaderCell = styled.td`
 `;
 
 const RunHeaderBar = styled.button`
-  ${inline({ gap: 18, align: 'center' })}
+  ${inline({ gap: 20, align: 'center' })}
   ${transition({ property: 'background, border-color' })}
   width: 100%;
-  padding: 10px 14px;
+  padding: 12px 16px 12px 14px;
   flex-wrap: wrap;
   background: transparent;
   border: none;
@@ -107,42 +107,42 @@ const RunHeaderBar = styled.button`
 `;
 
 const RunTag = styled.span`
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.26em;
   text-transform: uppercase;
-  color: ${colors.accent.var};
-  padding: 2px 8px;
-  border: 1px solid ${colors.accent.alpha(0.35)};
-  border-radius: 3px;
-  background: ${colors.accent.alpha(0.08)};
+  color: ${colors.accentInk.var};
+  background: ${colors.accent.var};
+  padding: 4px 8px 4px 10px;
 `;
 
 const RunTime = styled.span`
-  font-size: 12.5px;
-  font-weight: 500;
+  ${monoFont}
+  font-size: 12px;
+  font-weight: 600;
   color: ${colors.text.var};
   ${tabularNums}
 `;
 
 const RunStat = styled.div`
-  ${inline({ gap: 6, align: 'center' })}
-  font-size: 12px;
+  ${inline({ gap: 8, align: 'center' })}
+  font-size: 11px;
   color: ${colors.textMuted.var};
   ${tabularNums}
 `;
 
 const RunStatLabel = styled.span`
-  font-size: 10.5px;
-  font-weight: 500;
+  font-size: 9px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.2em;
   color: ${colors.textDim.var};
 `;
 
 const RunStatValue = styled.span<{ accent: boolean; cost: boolean }>`
   ${monoFont}
   font-size: 12px;
+  font-weight: 600;
   color: ${colors.text.var};
 
   &.accent {
@@ -156,18 +156,23 @@ const RunStatValue = styled.span<{ accent: boolean; cost: boolean }>`
 const CaseRowEl = styled.tr`
   ${transition({ property: 'background' })}
   cursor: pointer;
-  border-bottom: 1px solid ${colors.border.alpha(0.5)};
+  border-bottom: 1px solid ${colors.border.alpha(0.4)};
 
   &:hover {
-    background: ${colors.surfaceHover.var};
+    background: ${colors.surfaceHover.alpha(0.5)};
+  }
+
+  &:hover td:first-child {
+    color: ${colors.accent.var};
   }
 `;
 
 const CaseTd = styled.td<{ rightAlign: boolean; mono: boolean; indent: boolean }>`
-  padding: 8px 12px;
+  padding: 10px 14px;
   vertical-align: middle;
   white-space: nowrap;
   color: ${colors.text.var};
+  ${transition({ property: 'color' })}
 
   &.rightAlign {
     text-align: right;
@@ -175,10 +180,10 @@ const CaseTd = styled.td<{ rightAlign: boolean; mono: boolean; indent: boolean }
   &.mono {
     ${monoFont}
     ${tabularNums}
-    font-size: 12px;
+    font-size: 11.5px;
   }
   &.indent {
-    padding-left: 28px;
+    padding-left: 32px;
   }
 `;
 
@@ -186,8 +191,10 @@ const CaseId = styled.div`
   ${ellipsis}
   ${monoFont}
   font-size: 12px;
+  font-weight: 500;
   color: ${colors.text.var};
-  max-width: 240px;
+  max-width: 260px;
+  ${transition({ property: 'color' })}
 `;
 
 const CostText = styled.span`
@@ -199,20 +206,21 @@ const Dim = styled.span`
 `;
 
 const PlaceholderRow = styled.tr`
-  border-bottom: 1px solid ${colors.border.alpha(0.5)};
+  border-bottom: 1px solid ${colors.border.alpha(0.4)};
 `;
 
 const PlaceholderCell = styled.td`
-  padding: 14px;
+  padding: 18px;
   text-align: center;
-  font-size: 12px;
+  font-size: 10px;
   color: ${colors.textDim.var};
-  font-style: italic;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
 `;
 
 export function EvalRunsTable({ runs, columnDefs }: EvalRunsTableProps) {
   if (runs.length === 0) {
-    return <Empty>Run this eval to see results.</Empty>;
+    return <Empty>Run this eval to see results</Empty>;
   }
 
   const customColumns = columnDefs.filter((c) =>
@@ -323,7 +331,7 @@ function RunGroup({
       {cases.length === 0 ? (
         <PlaceholderRow>
           <PlaceholderCell colSpan={totalCols}>
-            No cases recorded for this run.
+            No cases recorded for this run
           </PlaceholderCell>
         </PlaceholderRow>
       ) : (

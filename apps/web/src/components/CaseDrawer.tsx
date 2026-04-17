@@ -12,64 +12,80 @@ import { IconButton } from './IconButton.tsx';
 type Tab = 'inputs' | 'output' | 'scores' | 'trace' | 'raw' | 'error';
 
 const DrawerLoading = styled.div`
-  width: 520px;
+  width: 540px;
   border-left: 1px solid ${colors.border.var};
   background: ${colors.bgElevated.var};
   display: flex;
   align-items: center;
   justify-content: center;
   color: ${colors.textDim.var};
-  font-size: 12px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
 `;
 
 const DrawerRoot = styled.div`
   ${stack()}
-  width: 520px;
+  width: 540px;
   border-left: 1px solid ${colors.border.var};
   background: ${colors.bgElevated.var};
   overflow: hidden;
+  box-shadow: -16px 0 40px -20px ${colors.black.alpha(0.15)};
 `;
 
 const Header = styled.div`
-  ${inline({ justify: 'space-between', align: 'center', gap: 8 })}
-  height: 44px;
-  padding: 0 12px 0 16px;
+  ${inline({ justify: 'space-between', align: 'center', gap: 10 })}
+  height: 52px;
+  padding: 0 14px 0 20px;
   border-bottom: 1px solid ${colors.border.var};
   background: ${colors.bgElevated.var};
   flex-shrink: 0;
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: ${colors.accent.var};
+  }
 `;
 
 const HeaderLeft = styled.div`
-  ${inline({ gap: 10, align: 'center' })}
+  ${inline({ gap: 12, align: 'center' })}
   min-width: 0;
 `;
 
 const CaseId = styled.span`
   ${monoFont}
-  font-size: 12.5px;
+  font-size: 13px;
   color: ${colors.text.var};
-  font-weight: 500;
+  font-weight: 700;
+  letter-spacing: -0.005em;
 `;
 
 const TabBar = styled.div`
   ${inline({ gap: 0 })}
   border-bottom: 1px solid ${colors.border.var};
-  padding: 0 8px;
+  padding: 0 12px;
   flex-shrink: 0;
   overflow-x: auto;
+  background: ${colors.bg.alpha(0.3)};
 `;
 
 const TabButton = styled.button<{ active: boolean }>`
   ${sansFont}
   position: relative;
-  padding: 8px 12px;
+  padding: 11px 14px;
   background: transparent;
   border: none;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 10px;
+  font-weight: 700;
   color: ${colors.textDim.var};
-  text-transform: lowercase;
-  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
   white-space: nowrap;
 
   &:hover {
@@ -77,18 +93,17 @@ const TabButton = styled.button<{ active: boolean }>`
   }
 
   &.active {
-    color: ${colors.text.var};
+    color: ${colors.accent.var};
   }
 
   &.active::after {
     content: '';
     position: absolute;
-    left: 8px;
-    right: 8px;
+    left: 14px;
+    right: 14px;
     bottom: -1px;
-    height: 1.5px;
+    height: 2px;
     background: ${colors.accent.var};
-    border-radius: 2px;
   }
 `;
 

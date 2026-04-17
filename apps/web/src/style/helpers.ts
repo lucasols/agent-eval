@@ -110,11 +110,25 @@ export const monoFont = css`
 
 export const sansFont = css`
   font-family:
-    'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui,
-    sans-serif;
-  font-feature-settings: 'ss01', 'cv01';
+    'JetBrains Mono', 'SF Mono', 'Fira Code', 'Fira Mono', ui-monospace,
+    monospace;
+  font-feature-settings: 'tnum', 'ss01';
+`;
+
+export const displayFont = css`
+  font-family:
+    'JetBrains Mono', 'SF Mono', 'Fira Code', 'Fira Mono', ui-monospace,
+    monospace;
+  font-feature-settings: 'ss01', 'zero';
+  letter-spacing: -0.02em;
 `;
 
 export const tabularNums = css`
   font-variant-numeric: tabular-nums;
+`;
+
+export const caps = css`
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 500;
 `;

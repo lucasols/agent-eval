@@ -13,31 +13,45 @@ import {
 } from '../utils/formatters.ts';
 
 const DrawerLoading = styled.div`
-  width: 520px;
+  width: 540px;
   border-left: 1px solid ${colors.border.var};
   background: ${colors.bgElevated.var};
   display: flex;
   align-items: center;
   justify-content: center;
   color: ${colors.textDim.var};
-  font-size: 12px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
 `;
 
 const DrawerRoot = styled.div`
   ${stack()}
-  width: 520px;
+  width: 540px;
   border-left: 1px solid ${colors.border.var};
   background: ${colors.bgElevated.var};
   overflow: hidden;
+  box-shadow: -16px 0 40px -20px ${colors.black.alpha(0.15)};
 `;
 
 const Header = styled.div`
-  ${inline({ justify: 'space-between', align: 'center', gap: 8 })}
-  height: 44px;
-  padding: 0 12px 0 16px;
+  ${inline({ justify: 'space-between', align: 'center', gap: 10 })}
+  height: 52px;
+  padding: 0 14px 0 20px;
   border-bottom: 1px solid ${colors.border.var};
   background: ${colors.bgElevated.var};
   flex-shrink: 0;
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: ${colors.accent.var};
+  }
 `;
 
 const HeaderLeft = styled.div`
@@ -46,15 +60,13 @@ const HeaderLeft = styled.div`
 `;
 
 const RunTag = styled.span`
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.26em;
   text-transform: uppercase;
-  color: ${colors.accent.var};
-  padding: 2px 8px;
-  border: 1px solid ${colors.accent.alpha(0.35)};
-  border-radius: 3px;
-  background: ${colors.accent.alpha(0.08)};
+  color: ${colors.accentInk.var};
+  padding: 4px 9px;
+  background: ${colors.accent.var};
 `;
 
 const RunTime = styled.span`

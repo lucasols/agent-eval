@@ -136,7 +136,7 @@ Vindur is a compile-time CSS-in-JS framework. Place styles at the top of compone
 
 - Import theme colors from `#src/style/colors` and layout helpers from `#src/style/helpers`. Never use hardcoded colors.
 - Never use `style={{}}` for static styles — use `styled` components or `css` props.
-- Dark mode only.
+- Light mode only.
 
 ```tsx
 import { styled } from 'vindur';

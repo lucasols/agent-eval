@@ -20,13 +20,16 @@ import { runStore } from '../stores/runStore.ts';
 import { StatusDot } from './StatusBadge.tsx';
 
 const Root = styled.div`
-  padding: 4px 0 12px;
+  padding: 6px 0 16px;
 `;
 
 const Empty = styled.div`
-  padding: 16px;
+  padding: 20px;
   color: ${colors.textDim.var};
-  font-size: 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  text-align: center;
 `;
 
 const RowBase = styled.button<{
@@ -36,7 +39,7 @@ const RowBase = styled.button<{
   depth2: boolean;
   depth3: boolean;
 }>`
-  ${inline({ gap: 6, align: 'center' })}
+  ${inline({ gap: 8, align: 'center' })}
   ${transition({ property: 'background, color, border-color' })}
   position: relative;
   width: 100%;
@@ -45,21 +48,24 @@ const RowBase = styled.button<{
   border-left: 2px solid transparent;
   text-align: left;
   color: ${colors.textMuted.var};
-  font-size: 12.5px;
-  height: 26px;
-  padding-right: 12px;
+  font-size: 12px;
+  min-height: 28px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  padding-right: 14px;
+  overflow: hidden;
 
   &.depth0 {
-    padding-left: 10px;
+    padding-left: 14px;
   }
   &.depth1 {
-    padding-left: 24px;
+    padding-left: 28px;
   }
   &.depth2 {
-    padding-left: 38px;
+    padding-left: 42px;
   }
   &.depth3 {
-    padding-left: 52px;
+    padding-left: 56px;
   }
 
   &:hover {
@@ -68,9 +74,20 @@ const RowBase = styled.button<{
   }
 
   &.active {
-    background: ${colors.surfaceActive.var};
+    background: ${colors.accent.alpha(0.18)};
     color: ${colors.text.var};
     border-left-color: ${colors.accent.var};
+  }
+
+  &.active::before {
+    content: '';
+    position: absolute;
+    left: -2px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 2px;
+    height: 14px;
+    background: ${colors.accentDim.var};
   }
 
   & > svg {
@@ -81,15 +98,15 @@ const RowBase = styled.button<{
   }
 
   &.active > svg {
-    color: ${colors.textMuted.var};
+    color: ${colors.accentDim.var};
   }
 `;
 
 const ChevronIcon = styled.span<{ open: boolean }>`
   ${transition({ property: 'transform' })}
   display: inline-flex;
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   align-items: center;
   justify-content: center;
   color: ${colors.textDim.var};
@@ -99,8 +116,8 @@ const ChevronIcon = styled.span<{ open: boolean }>`
   }
 
   & > svg {
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
   }
 `;
 
@@ -108,25 +125,40 @@ const RowLabel = styled.span`
   ${ellipsis}
   flex: 1;
   font-weight: 500;
-  font-size: 12.5px;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+`;
+
+const FolderLabel = styled.span`
+  ${ellipsis}
+  flex: 1;
+  font-weight: 700;
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 `;
 
 const FilenameHint = styled.span`
   ${monoFont}
   ${ellipsis}
-  font-size: 11px;
+  font-size: 10px;
   color: ${colors.textDim.var};
   font-weight: 400;
   flex: 0 1 auto;
-  max-width: 50%;
+  max-width: 38%;
+  opacity: 0.65;
+  white-space: nowrap;
 `;
 
 const StaleTag = styled.span`
-  font-size: 10px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: ${colors.warning.var};
-  padding: 1px 4px;
+  padding: 1px 5px;
   border: 1px solid ${colors.warning.alpha(0.4)};
-  border-radius: 3px;
+  background: ${colors.warning.alpha(0.08)};
   flex-shrink: 0;
 `;
 
@@ -143,7 +175,7 @@ export function EvalTree() {
   }));
 
   if (evals.length === 0) {
-    return <Empty>No evals discovered.</Empty>;
+    return <Empty>No evals discovered</Empty>;
   }
 
   const tree = buildEvalTree(evals);
@@ -218,7 +250,7 @@ function FolderRow({
           <ChevronRight />
         </ChevronIcon>
         {isOpen ? <FolderOpen /> : <Folder />}
-        <RowLabel>{folder.name}</RowLabel>
+        <FolderLabel>{folder.name}</FolderLabel>
       </RowBase>
       {isOpen
         ? folder.children.map((child) => (

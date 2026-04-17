@@ -18,44 +18,56 @@ const Root = styled.button<{
   ghost: boolean;
   danger: boolean;
 }>`
-  ${inline({ align: 'center', gap: 6 })}
-  ${transition({ property: 'background, border-color, color' })}
+  ${inline({ align: 'center', gap: 8 })}
+  ${transition({ property: 'background, border-color, color, box-shadow' })}
   display: inline-flex;
   height: 28px;
-  padding: 0 12px;
-  border-radius: var(--radius-sm);
+  padding: 0 14px;
+  border-radius: 0;
   border: 1px solid transparent;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
   line-height: 1;
   white-space: nowrap;
   user-select: none;
-  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
 
   &:disabled {
     cursor: not-allowed;
     opacity: 0.4;
   }
 
+  & > svg {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+  }
+
   &.primary {
     background: ${colors.accent.var};
     color: ${colors.accentInk.var};
+    box-shadow: 0 0 0 1px ${colors.accentDim.var},
+      0 6px 16px -8px ${colors.accent.alpha(0.55)};
   }
   &.primary:hover:not(:disabled) {
     background: ${colors.accentHover.var};
+    box-shadow: 0 0 0 1px ${colors.accentDim.var},
+      0 8px 20px -6px ${colors.accent.alpha(0.7)};
   }
   &.primary:active:not(:disabled) {
     background: ${colors.accentDim.var};
   }
 
   &.secondary {
-    background: ${colors.surface.var};
+    background: transparent;
     color: ${colors.text.var};
-    border-color: ${colors.border.var};
+    border-color: ${colors.borderStrong.var};
   }
   &.secondary:hover:not(:disabled) {
     background: ${colors.surfaceHover.var};
-    border-color: ${colors.borderStrong.var};
+    border-color: ${colors.accent.alpha(0.4)};
+    color: ${colors.accent.var};
   }
 
   &.ghost {

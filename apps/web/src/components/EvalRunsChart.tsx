@@ -24,53 +24,81 @@ type EvalRunsChartProps = {
 };
 
 const ChartFrame = styled.div`
-  height: 180px;
-  padding: 8px 8px 4px;
+  height: 200px;
+  padding: 12px 12px 4px;
   border: 1px solid ${colors.border.var};
-  border-radius: var(--radius-md);
-  background: ${colors.bgElevated.var};
+  background: ${colors.bgElevated.alpha(0.5)};
+  position: relative;
+
+  &::before {
+    content: 'SCORE · 0.0 → 1.0';
+    position: absolute;
+    top: 10px;
+    left: 14px;
+    font-family:
+      'JetBrains Mono', 'SF Mono', 'Fira Code', 'Fira Mono', ui-monospace,
+      monospace;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    color: ${colors.textDim.var};
+    z-index: 1;
+    pointer-events: none;
+  }
 `;
 
 const Placeholder = styled.div`
   ${centerContent}
-  ${stack({ align: 'center', gap: 6 })}
-  height: 180px;
-  border: 1px dashed ${colors.border.var};
-  border-radius: var(--radius-md);
-  color: ${colors.textDim.var};
-  font-size: 12px;
-  background: ${colors.bgElevated.var};
+  ${stack({ align: 'center', gap: 8 })}
+  height: 200px;
+  border: 1px dashed ${colors.borderStrong.alpha(0.6)};
+  color: ${colors.textMuted.var};
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
+  background: ${colors.bgElevated.alpha(0.6)};
+`;
+
+const PlaceholderGlyph = styled.div`
+  font-size: 28px;
+  color: ${colors.accent.alpha(0.5)};
+  letter-spacing: 0;
 `;
 
 const TooltipBox = styled.div`
   ${monoFont}
-  background: ${colors.surface.var};
-  border: 1px solid ${colors.borderStrong.var};
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
-  font-size: 11px;
+  background: ${colors.bg.var};
+  border: 1px solid ${colors.accent.alpha(0.4)};
+  padding: 10px 12px;
+  font-size: 10.5px;
   color: ${colors.text.var};
-  min-width: 140px;
+  min-width: 160px;
+  box-shadow: 0 10px 30px -10px ${colors.black.alpha(0.18)};
 `;
 
 const TooltipRow = styled.div`
   display: flex;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
 
   & + & {
-    margin-top: 2px;
+    margin-top: 4px;
   }
 `;
 
 const TooltipKey = styled.span`
   color: ${colors.textDim.var};
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 9px;
 `;
 
 const tickStyle = {
   fill: colors.textDim.var,
-  fontSize: 10,
+  fontSize: 9,
   fontFamily: 'JetBrains Mono, monospace',
+  letterSpacing: '0.1em',
 };
 
 function CustomTooltip({
@@ -103,7 +131,12 @@ function CustomTooltip({
 
 export function EvalRunsChart({ data }: EvalRunsChartProps) {
   if (data.length <= 1) {
-    return <Placeholder>No run history yet</Placeholder>;
+    return (
+      <Placeholder>
+        <PlaceholderGlyph>∿</PlaceholderGlyph>
+        No run history yet
+      </Placeholder>
+    );
   }
 
   return (
@@ -111,17 +144,17 @@ export function EvalRunsChart({ data }: EvalRunsChartProps) {
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart
           data={data}
-          margin={{ top: 8, right: 12, bottom: 4, left: 0 }}
+          margin={{ top: 18, right: 12, bottom: 4, left: 0 }}
         >
           <defs>
             <linearGradient id="evalScoreFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={colors.accent.var} stopOpacity={0.35} />
+              <stop offset="0%" stopColor={colors.accent.var} stopOpacity={0.45} />
               <stop offset="100%" stopColor={colors.accent.var} stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid
             stroke={colors.border.var}
-            strokeDasharray="2 4"
+            strokeDasharray="2 5"
             horizontal
             vertical={false}
           />
@@ -140,26 +173,26 @@ export function EvalRunsChart({ data }: EvalRunsChartProps) {
             stroke={colors.border.var}
             tickLine={false}
             axisLine={false}
-            width={28}
+            width={30}
           />
           <Tooltip
             content={<CustomTooltip />}
-            cursor={{ stroke: colors.borderStrong.var, strokeWidth: 1 }}
+            cursor={{ stroke: colors.accent.alpha(0.5), strokeWidth: 1, strokeDasharray: '3 3' }}
           />
           <Area
             type="monotone"
             dataKey="score"
             stroke={colors.accent.var}
-            strokeWidth={1.5}
+            strokeWidth={1.75}
             fill="url(#evalScoreFill)"
             dot={{
-              r: 2.5,
-              fill: colors.accent.var,
-              stroke: colors.bg.var,
-              strokeWidth: 1,
+              r: 3,
+              fill: colors.bg.var,
+              stroke: colors.accent.var,
+              strokeWidth: 1.5,
             }}
             activeDot={{
-              r: 4,
+              r: 5,
               fill: colors.accent.var,
               stroke: colors.bg.var,
               strokeWidth: 2,

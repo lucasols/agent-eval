@@ -10,23 +10,24 @@ type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 const Root = styled.button<{ md: boolean }>`
   ${centerContent}
-  ${transition({ property: 'background, color' })}
-  width: 24px;
-  height: 24px;
-  border-radius: var(--radius-sm);
-  border: none;
+  ${transition({ property: 'background, color, border-color' })}
+  width: 26px;
+  height: 26px;
+  border-radius: 0;
+  border: 1px solid transparent;
   background: transparent;
   color: ${colors.textMuted.var};
   flex-shrink: 0;
 
   &.md {
-    width: 28px;
-    height: 28px;
+    width: 30px;
+    height: 30px;
   }
 
   &:hover:not(:disabled) {
     background: ${colors.surfaceHover.var};
-    color: ${colors.text.var};
+    color: ${colors.accent.var};
+    border-color: ${colors.borderStrong.var};
   }
 
   &:disabled {
