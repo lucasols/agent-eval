@@ -32,12 +32,25 @@ export const displayBlockSchema = z.discriminatedUnion('kind', [
 ]);
 export type DisplayBlock = z.infer<typeof displayBlockSchema>;
 
+export const columnKindSchema = z.enum(['string', 'number', 'boolean', 'blocks']);
+export type ColumnKind = z.infer<typeof columnKindSchema>;
+
+export const columnFormatSchema = z.enum(['usd', 'duration', 'percent', 'number']);
+export type ColumnFormat = z.infer<typeof columnFormatSchema>;
+
 export const columnDefSchema = z.object({
   key: z.string(),
   label: z.string(),
-  kind: z.enum(['string', 'number', 'boolean']),
+  kind: columnKindSchema,
+  format: columnFormatSchema.optional(),
+  primary: z.boolean().optional(),
+  isScore: z.boolean().optional(),
+  passThreshold: z.number().optional(),
   defaultVisible: z.boolean().optional(),
   sortable: z.boolean().optional(),
   align: z.enum(['left', 'center', 'right']).optional(),
 });
 export type ColumnDef = z.infer<typeof columnDefSchema>;
+
+export const cellValueSchema = z.union([scalarCellSchema, z.array(displayBlockSchema)]);
+export type CellValue = z.infer<typeof cellValueSchema>;

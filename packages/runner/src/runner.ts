@@ -11,11 +11,21 @@ import type {
   SseEnvelope,
   CreateRunRequest,
   AgentEvalsConfig,
+  ColumnDef,
+  CellValue,
+  ColumnKind,
 } from '@agent-evals/shared';
-import { getEvalRegistry, createTraceRecorder } from '@agent-evals/sdk';
+import { cellValueSchema } from '@agent-evals/shared';
+import {
+  getEvalRegistry,
+  runInEvalScope,
+  buildTraceTree,
+  EvalAssertionError,
+  type EvalColumnOverride,
+  type EvalDefinition,
+  type EvalScoreDef,
+} from '@agent-evals/sdk';
 import { loadConfig } from './config.ts';
-import { createCacheManager } from './cache.ts';
-import type { CacheManager } from './cache.ts';
 
 export type EvalRunner = {
   init(): Promise<void>;
@@ -28,11 +38,9 @@ export type EvalRunner = {
     cases: CaseRow[];
   }>;
   getRuns(): RunManifest[];
-  getRun(id: string): {
-    manifest: RunManifest;
-    summary: RunSummary;
-    cases: CaseRow[];
-  } | undefined;
+  getRun(id: string):
+    | { manifest: RunManifest; summary: RunSummary; cases: CaseRow[] }
+    | undefined;
   cancelRun(id: string): void;
   getCaseDetail(runId: string, caseId: string): CaseDetail | undefined;
   subscribe(runId: string, listener: (event: SseEnvelope) => void): () => void;
@@ -49,7 +57,7 @@ type EvalMeta = {
   title?: string;
   description?: string;
   filePath: string;
-  columnDefs: EvalSummary['columnDefs'];
+  columnDefs: ColumnDef[];
   caseCount: number | null;
 };
 
@@ -68,7 +76,6 @@ export function createRunner({
   let config: AgentEvalsConfig;
   let workspaceRoot: string;
   let localStateDir: string;
-  let cacheManager: CacheManager;
   const evals = new Map<string, EvalMeta>();
   const staleEvals = new Set<string>();
   const runs = new Map<string, RunState>();
@@ -79,11 +86,9 @@ export function createRunner({
       config = await loadConfig();
       workspaceRoot = config.workspaceRoot ?? process.cwd();
       localStateDir = resolve(workspaceRoot, '.agent-evals');
-      cacheManager = createCacheManager(join(localStateDir, 'cache'));
 
       await mkdir(localStateDir, { recursive: true });
       await mkdir(join(localStateDir, 'runs'), { recursive: true });
-      await mkdir(join(localStateDir, 'cache'), { recursive: true });
 
       await runner.refreshDiscovery();
       if (watchForChanges) {
@@ -303,7 +308,6 @@ export function createRunner({
 
         try {
           const registry = getEvalRegistry();
-
           await import(evalFilePath);
 
           const entry = registry.get(evalMeta.id);
@@ -317,11 +321,13 @@ export function createRunner({
 
           await entry.use(async (evalDef) => {
             const cases =
-              typeof evalDef.data === 'function'
-                ? await evalDef.data()
-                : evalDef.data;
+              typeof evalDef.cases === 'function'
+                ? await evalDef.cases()
+                : evalDef.cases ?? [];
 
             runState.summary.totalCases += cases.length * request.trials;
+
+            const accumulatedColumns = new Map<string, ColumnDef>();
 
             for (let trial = 0; trial < request.trials; trial++) {
               for (const evalCase of cases) {
@@ -335,7 +341,7 @@ export function createRunner({
                   latencyMs: null,
                   costUsd: null,
                   cacheStatus: null,
-                  columns: evalCase.columns ?? {},
+                  columns: {},
                   trial,
                 };
 
@@ -350,187 +356,37 @@ export function createRunner({
 
                 const startTime = Date.now();
 
-                try {
-                  const { recorder, getSpans, buildTree } = createTraceRecorder(
-                    evalCase.id,
-                  );
+                const { caseDetail, caseRowUpdate } = await runCase({
+                  evalDef,
+                  evalId: evalMeta.id,
+                  evalCase,
+                  trial,
+                  signal: runState.abortController.signal,
+                  startTime,
+                });
 
-                  const runtimeCtx = {
-                    cache: cacheManager.createCacheRuntime(
-                      request.disableCache ?? false,
-                    ),
-                    runId: runState.manifest.id,
-                    workspaceRoot,
-                    artifactsDir: join(runDir, 'artifacts', evalCase.id),
-                  };
+                Object.assign(caseRow, caseRowUpdate);
+                runState.caseDetails.set(evalCase.id, caseDetail);
 
-                  await mkdir(runtimeCtx.artifactsDir, { recursive: true });
+                mergeColumnDefs(
+                  accumulatedColumns,
+                  caseDetail.columns,
+                  evalDef.columns,
+                  evalDef.scores,
+                );
 
-                  const taskResult = await evalDef.task({
-                    case: evalCase,
-                    input: evalCase.input,
-                    signal: runState.abortController.signal,
-                    trace: recorder,
-                    runtime: runtimeCtx,
-                  });
-
-                  const elapsedMs = Date.now() - startTime;
-                  const traceTree = buildTree();
-                  const spans = getSpans();
-
-                  const totalCost = spans
-                    .filter((s) => s.costUsd !== null && s.costUsd !== undefined)
-                    .reduce((sum, s) => sum + (s.costUsd ?? 0), 0);
-
-                  const cacheHits = spans.filter(
-                    (s) => s.cache?.status === 'hit',
-                  ).length;
-                  const cacheMisses = spans.filter(
-                    (s) => s.cache && s.cache.status !== 'hit',
-                  ).length;
-                  const cacheStatus =
-                    cacheHits > 0 && cacheMisses === 0 ? ('hit' as const)
-                    : cacheHits > 0 ? ('partial' as const)
-                    : cacheMisses > 0 ? ('miss' as const)
-                    : null;
-
-                  const mergedColumns = {
-                    ...evalCase.columns,
-                    ...taskResult.columns,
-                  };
-
-                  const scores: CaseDetail['scores'] = [];
-                  if (evalDef.scorers) {
-                    for (const scorer of evalDef.scorers) {
-                      try {
-                        const scoreResult = await scorer({
-                          case: evalCase,
-                          input: evalCase.input,
-                          output: taskResult.output,
-                          trace: traceTree,
-                          runtime: runtimeCtx,
-                        });
-                        scores.push(scoreResult);
-                        if (scoreResult.columns) {
-                          Object.assign(mergedColumns, scoreResult.columns);
-                        }
-                      } catch (e) {
-                        scores.push({
-                          id: 'scorer-error',
-                          score: 0,
-                          reason: e instanceof Error ? e.message : String(e),
-                        });
-                      }
-                    }
-                  }
-
-                  const avgScore =
-                    scores.length > 0
-                      ? scores.reduce((sum, s) => sum + s.score, 0) /
-                        scores.length
-                      : null;
-
-                  let passed = true;
-                  if (
-                    evalDef.passThreshold !== null &&
-                    evalDef.passThreshold !== undefined
-                  ) {
-                    if (avgScore === null || avgScore < evalDef.passThreshold) {
-                      passed = false;
-                    }
-                  }
-
-                  if (evalDef.assert) {
-                    try {
-                      await evalDef.assert({
-                        case: evalCase,
-                        input: evalCase.input,
-                        output: taskResult.output,
-                        trace: traceTree,
-                        scores,
-                        cost: {
-                          totalUsd: totalCost > 0 ? totalCost : null,
-                          uncachedUsd: null,
-                          savingsUsd: null,
-                        },
-                        columns: mergedColumns,
-                      });
-                    } catch {
-                      passed = false;
-                    }
-                  }
-
-                  caseRow.status = passed ? 'pass' : 'fail';
-                  caseRow.score = avgScore;
-                  caseRow.latencyMs = elapsedMs;
-                  caseRow.costUsd = totalCost > 0 ? totalCost : null;
-                  caseRow.cacheStatus = cacheStatus;
-                  caseRow.columns = mergedColumns;
-
-                  if (passed) {
-                    runState.summary.passedCases++;
-                  } else {
-                    runState.summary.failedCases++;
-                  }
-
-                  const caseDetail: CaseDetail = {
-                    caseId: evalCase.id,
-                    evalId: evalMeta.id,
-                    status: caseRow.status,
-                    input: evalCase.input,
-                    displayInput: evalCase.displayInput,
-                    output: taskResult.output,
-                    displayOutput: taskResult.displayOutput ?? [],
-                    scores,
-                    trace: spans,
-                    cost: {
-                      totalUsd: totalCost > 0 ? totalCost : null,
-                      uncachedUsd: null,
-                      savingsUsd: null,
-                    },
-                    columns: mergedColumns,
-                    error: null,
-                    trial,
-                  };
-
-                  runState.caseDetails.set(evalCase.id, caseDetail);
-
-                  await writeFile(
-                    join(runDir, 'traces', `${evalCase.id}.json`),
-                    JSON.stringify(spans, null, 2),
-                  );
-                } catch (error) {
-                  caseRow.status = 'error';
-                  caseRow.latencyMs = Date.now() - startTime;
+                if (caseRow.status === 'pass') {
+                  runState.summary.passedCases++;
+                } else if (caseRow.status === 'error') {
                   runState.summary.errorCases++;
-
-                  const errorInfo =
-                    error instanceof Error
-                      ? {
-                          name: error.name,
-                          message: error.message,
-                          stack: error.stack,
-                        }
-                      : { message: String(error) };
-
-                  const caseDetail: CaseDetail = {
-                    caseId: evalCase.id,
-                    evalId: evalMeta.id,
-                    status: 'error',
-                    input: evalCase.input,
-                    displayInput: evalCase.displayInput,
-                    output: null,
-                    displayOutput: [],
-                    scores: [],
-                    trace: [],
-                    cost: { totalUsd: null, uncachedUsd: null, savingsUsd: null },
-                    columns: evalCase.columns ?? {},
-                    error: errorInfo,
-                    trial,
-                  };
-
-                  runState.caseDetails.set(evalCase.id, caseDetail);
+                } else {
+                  runState.summary.failedCases++;
                 }
+
+                await writeFile(
+                  join(runDir, 'traces', `${evalCase.id}.json`),
+                  JSON.stringify(caseDetail.trace, null, 2),
+                );
 
                 emitEvent(runState, {
                   type: 'case.finished',
@@ -542,6 +398,8 @@ export function createRunner({
                 allCaseRows.push(caseRow);
               }
             }
+
+            evalMeta.columnDefs = [...accumulatedColumns.values()];
           });
 
           lastRunStatusMap.set(
@@ -629,9 +487,7 @@ export function createRunner({
         JSON.stringify(runState.manifest, null, 2),
       );
 
-      const casesJsonl = allCaseRows
-        .map((c) => JSON.stringify(c))
-        .join('\n');
+      const casesJsonl = allCaseRows.map((c) => JSON.stringify(c)).join('\n');
       await writeFile(join(runDir, 'cases.jsonl'), casesJsonl);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -681,6 +537,251 @@ export function createRunner({
   }
 
   return runner;
+}
+
+async function runCase<TInput>(params: {
+  evalDef: EvalDefinition<TInput>;
+  evalId: string;
+  evalCase: { id: string; input: TInput; tags?: string[] };
+  trial: number;
+  signal: AbortSignal;
+  startTime: number;
+}): Promise<{
+  caseDetail: CaseDetail;
+  caseRowUpdate: Partial<CaseRow>;
+}> {
+  const { evalDef, evalId, evalCase, trial, signal, startTime } = params;
+
+  const { scope, error: executeError } = await runInEvalScope(
+    evalCase.id,
+    async () => {
+      await evalDef.execute({ input: evalCase.input, signal });
+    },
+  );
+
+  const elapsedMs = Date.now() - startTime;
+  const traceTree = buildTraceTree(scope.spans, scope.checkpoints);
+
+  const nonAssertError =
+    executeError && !(executeError instanceof EvalAssertionError)
+      ? executeError
+      : null;
+
+  if (!nonAssertError && evalDef.deriveFromTracing) {
+    try {
+      const derived = await evalDef.deriveFromTracing({
+        trace: traceTree,
+        input: evalCase.input,
+        case: evalCase,
+      });
+      for (const [key, value] of Object.entries(derived)) {
+        if (!(key in scope.outputs)) {
+          scope.outputs[key] = value;
+        }
+      }
+    } catch (e) {
+      scope.assertionFailures.push(
+        `deriveFromTracing threw: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  const scoreResults = new Map<
+    string,
+    { value: number; passThreshold: number | undefined; label: string | undefined }
+  >();
+
+  if (!nonAssertError && evalDef.scores) {
+    for (const [key, def] of Object.entries(evalDef.scores)) {
+      const { compute, passThreshold, label } = normalizeScoreDef(def);
+      try {
+        const value = await compute({
+          input: evalCase.input,
+          outputs: scope.outputs,
+          case: evalCase,
+        });
+        scope.outputs[key] = value;
+        scoreResults.set(key, { value, passThreshold, label });
+      } catch (e) {
+        scope.assertionFailures.push(
+          `score "${key}" threw: ${e instanceof Error ? e.message : String(e)}`,
+        );
+        scope.outputs[key] = 0;
+        scoreResults.set(key, { value: 0, passThreshold, label });
+      }
+    }
+  }
+
+  const scoreValues = [...scoreResults.values()].map((s) => s.value);
+  const avgScore =
+    scoreValues.length > 0
+      ? scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length
+      : null;
+
+  let passed = scope.assertionFailures.length === 0 && !nonAssertError;
+  if (passed) {
+    for (const [, scoreEntry] of scoreResults) {
+      if (
+        scoreEntry.passThreshold !== undefined &&
+        scoreEntry.value < scoreEntry.passThreshold
+      ) {
+        passed = false;
+        break;
+      }
+    }
+  }
+
+  const status: CaseRow['status'] = nonAssertError
+    ? 'error'
+    : passed
+      ? 'pass'
+      : 'fail';
+
+  const columns: Record<string, CellValue> = {};
+  for (const [key, value] of Object.entries(scope.outputs)) {
+    const cell = toCellValue(value);
+    if (cell !== undefined) {
+      columns[key] = cell;
+    }
+  }
+
+  const costUsdRaw = scope.outputs['costUsd'];
+  const costUsd = typeof costUsdRaw === 'number' ? costUsdRaw : null;
+
+  const cacheHits = scope.spans.filter((s) => s.cache?.status === 'hit').length;
+  const cacheMisses = scope.spans.filter(
+    (s) => s.cache && s.cache.status !== 'hit',
+  ).length;
+  const cacheStatus: CaseRow['cacheStatus'] =
+    cacheHits > 0 && cacheMisses === 0
+      ? 'hit'
+      : cacheHits > 0
+        ? 'partial'
+        : cacheMisses > 0
+          ? 'miss'
+          : null;
+
+  const errorInfo = nonAssertError
+    ? {
+        name: nonAssertError.name,
+        message: nonAssertError.message,
+        stack: nonAssertError.stack,
+      }
+    : null;
+
+  const caseDetail: CaseDetail = {
+    caseId: evalCase.id,
+    evalId,
+    status,
+    input: evalCase.input,
+    trace: scope.spans,
+    cost: {
+      totalUsd: costUsd,
+      uncachedUsd: null,
+      savingsUsd: null,
+    },
+    columns,
+    assertionFailures: scope.assertionFailures,
+    error: errorInfo,
+    trial,
+  };
+
+  const caseRowUpdate: Partial<CaseRow> = {
+    status,
+    score: avgScore,
+    latencyMs: elapsedMs,
+    costUsd,
+    cacheStatus,
+    columns,
+  };
+
+  return { caseDetail, caseRowUpdate };
+}
+
+function normalizeScoreDef<TInput>(
+  def: EvalScoreDef<TInput>,
+): {
+  compute: (ctx: {
+    input: TInput;
+    outputs: Record<string, unknown>;
+    case: { id: string; input: TInput; tags?: string[] };
+  }) => number | Promise<number>;
+  passThreshold: number | undefined;
+  label: string | undefined;
+} {
+  if (typeof def === 'function') {
+    return { compute: def, passThreshold: undefined, label: undefined };
+  }
+  return {
+    compute: def.compute,
+    passThreshold: def.passThreshold,
+    label: def.label,
+  };
+}
+
+function mergeColumnDefs<TInput>(
+  target: Map<string, ColumnDef>,
+  columns: Record<string, CellValue>,
+  overrides: Record<string, EvalColumnOverride> | undefined,
+  scores: Record<string, EvalScoreDef<TInput>> | undefined,
+): void {
+  const scoreKeys = new Set(Object.keys(scores ?? {}));
+  const overrideMap = overrides ?? {};
+
+  for (const [key, value] of Object.entries(columns)) {
+    if (target.has(key)) continue;
+    const override = overrideMap[key];
+    const kind: ColumnKind = override?.kind ?? inferKind(value);
+    const def: ColumnDef = {
+      key,
+      label: override?.label ?? key,
+      kind,
+    };
+    if (override?.format !== undefined) def.format = override.format;
+    if (override?.primary !== undefined) def.primary = override.primary;
+    if (override?.defaultVisible !== undefined)
+      def.defaultVisible = override.defaultVisible;
+    if (override?.sortable !== undefined) def.sortable = override.sortable;
+    if (override?.align !== undefined) def.align = override.align;
+    if (scoreKeys.has(key)) {
+      def.isScore = true;
+      const scoreDef = scores?.[key];
+      if (scoreDef && typeof scoreDef !== 'function') {
+        if (scoreDef.passThreshold !== undefined) {
+          def.passThreshold = scoreDef.passThreshold;
+        }
+        if (scoreDef.label !== undefined && override?.label === undefined) {
+          def.label = scoreDef.label;
+        }
+      }
+    }
+    target.set(key, def);
+  }
+}
+
+function inferKind(value: unknown): ColumnKind {
+  if (typeof value === 'number') return 'number';
+  if (typeof value === 'boolean') return 'boolean';
+  if (Array.isArray(value)) return 'blocks';
+  return 'string';
+}
+
+function toCellValue(value: unknown): CellValue | undefined {
+  if (value === null) return null;
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean'
+  ) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    const parsed = cellValueSchema.safeParse(value);
+    if (parsed.success) return parsed.data;
+    return JSON.stringify(value);
+  }
+  if (value === undefined) return undefined;
+  return JSON.stringify(value);
 }
 
 const defineEvalRegex = /defineEval(?:<[\s\S]*?>)?\s*\(\s*\{/;

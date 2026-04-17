@@ -1,5 +1,5 @@
 import { styled } from 'vindur';
-import type { CaseRow, ColumnDef, RunManifest, RunSummary } from '@agent-evals/shared';
+import type { CaseRow, CellValue, ColumnDef, RunManifest, RunSummary } from '@agent-evals/shared';
 import { colors } from '#src/style/colors';
 import {
   ellipsis,
@@ -13,6 +13,7 @@ import { StatusBadge, StatusDot } from './StatusBadge.tsx';
 import {
   formatCost,
   formatDuration,
+  formatPercent,
   formatScore,
   formatTimestamp,
 } from '../utils/formatters.ts';
@@ -218,13 +219,32 @@ const PlaceholderCell = styled.td`
   letter-spacing: 0.18em;
 `;
 
+function isNumericColumn(c: ColumnDef): boolean {
+  return c.kind === 'number';
+}
+
+function formatCellValue(c: ColumnDef, value: CellValue | undefined): string {
+  if (value === null || value === undefined) return '\u2014';
+  if (Array.isArray(value)) return `${String(value.length)} block(s)`;
+  if (typeof value === 'number') {
+    if (c.format === 'usd') return formatCost(value);
+    if (c.format === 'duration') return formatDuration(value);
+    if (c.format === 'percent') return formatPercent(value);
+    if (c.isScore) return formatScore(value);
+    return String(value);
+  }
+  return String(value);
+}
+
 export function EvalRunsTable({ runs, columnDefs }: EvalRunsTableProps) {
   if (runs.length === 0) {
     return <Empty>Run this eval to see results</Empty>;
   }
 
-  const customColumns = columnDefs.filter((c) =>
-    runs.some((r) => r.cases.some((row) => row.columns[c.key] !== undefined)),
+  const customColumns = columnDefs.filter(
+    (c) =>
+      !c.primary &&
+      runs.some((r) => r.cases.some((row) => row.columns[c.key] !== undefined)),
   );
   const totalCols = 5 + customColumns.length;
 
@@ -369,12 +389,11 @@ function RunGroup({
             </CaseTd>
             {customColumns.map((c) => {
               const v = row.columns[c.key];
-              const display =
-                v === null || v === undefined ? '\u2014' : String(v);
+              const display = formatCellValue(c, v);
               return (
                 <CaseTd
                   key={c.key}
-                  rightAlign={c.align === 'right'}
+                  rightAlign={c.align === 'right' || isNumericColumn(c)}
                   mono={true}
                   indent={false}
                 >

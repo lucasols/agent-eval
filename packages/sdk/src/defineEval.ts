@@ -5,7 +5,7 @@ export type EvalRegistryEntry = {
   id: string;
   title?: string;
   description?: string;
-  use: <R>(fn: <TInput, TOutput>(def: EvalDefinition<TInput, TOutput>) => R) => R;
+  use: <R>(fn: <TInput>(def: EvalDefinition<TInput>) => R) => R;
 };
 
 const evalRegistry = new Map<string, EvalRegistryEntry>();
@@ -23,9 +23,7 @@ export function getEvalRegistry(): Map<string, EvalRegistryEntry> {
   return evalRegistry;
 }
 
-export function defineEval<TInput, TOutput>(
-  definition: EvalDefinition<TInput, TOutput>,
-): void {
+export function defineEval<TInput>(definition: EvalDefinition<TInput>): void {
   evalRegistry.set(definition.id, {
     id: definition.id,
     title: definition.title,

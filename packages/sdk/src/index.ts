@@ -1,19 +1,26 @@
 export { defineEval, getEvalRegistry } from './defineEval.ts';
 export { blocks } from './blocks.ts';
 export { repoFile } from './repoFile.ts';
-export { createScorer } from './scorer.ts';
-export { installEvalMatchers } from './matchers.ts';
-export { createPriceRegistry, estimateCost } from './pricing.ts';
-export { createTraceRecorder } from './trace.ts';
+export {
+  setOutput,
+  incrementOutput,
+  evalAssert,
+  EvalAssertionError,
+  runInEvalScope,
+  getCurrentScope,
+  type EvalCaseScope,
+} from './runtime.ts';
+export { tracer, buildTraceTree, type TraceActiveSpan } from './tracer.ts';
+export type { DisplayBlock, FileRef } from '@agent-evals/shared';
 export type {
   EvalCase,
-  EvalTaskResult,
-  ScoreResult,
-  EvalTaskContext,
-  EvalAssertContext,
-  EvalDefinition,
-  EvalRuntimeContext,
-  CacheRuntime,
-  EvalTraceRecorder,
+  EvalColumnOverride,
+  EvalColumns,
   EvalTraceTree,
+  EvalExecuteContext,
+  EvalDeriveContext,
+  EvalScoreContext,
+  EvalScoreFn,
+  EvalScoreDef,
+  EvalDefinition,
 } from './types.ts';

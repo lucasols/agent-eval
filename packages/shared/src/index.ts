@@ -1,4 +1,4 @@
-export { displayBlockSchema, columnDefSchema, type DisplayBlock, type ColumnDef, type ScalarCell, type FileRef, type RepoFileRef, type RunArtifactRef } from './schemas/display.ts';
+export { displayBlockSchema, columnDefSchema, columnKindSchema, columnFormatSchema, cellValueSchema, type DisplayBlock, type ColumnDef, type ColumnKind, type ColumnFormat, type CellValue, type ScalarCell, type FileRef, type RepoFileRef, type RunArtifactRef } from './schemas/display.ts';
 export { traceSpanSchema, traceSpanKindSchema, type EvalTraceSpan, type TraceSpanKind } from './schemas/trace.ts';
 export { evalSummarySchema, caseRowSchema, caseDetailSchema, type EvalSummary, type CaseRow, type CaseDetail } from './schemas/eval.ts';
 export { runManifestSchema, runSummarySchema, type RunManifest, type RunSummary } from './schemas/run.ts';

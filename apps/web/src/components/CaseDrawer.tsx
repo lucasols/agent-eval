@@ -1,15 +1,23 @@
 import { useState } from 'react';
 import { styled } from 'vindur';
 import { X } from 'lucide-react';
+import type { CellValue, ColumnDef, DisplayBlock } from '@agent-evals/shared';
 import { colors } from '#src/style/colors';
 import { inline, monoFont, sansFont, stack } from '#src/style/helpers';
 import { closeCase, runStore } from '../stores/runStore.ts';
+import { evalsStore } from '../stores/evalsStore.ts';
 import { DisplayBlockRenderer } from './DisplayBlockRenderer.tsx';
 import { TraceTree } from './TraceTree.tsx';
 import { StatusBadge } from './StatusBadge.tsx';
 import { IconButton } from './IconButton.tsx';
+import {
+  formatCost,
+  formatDuration,
+  formatPercent,
+  formatScore,
+} from '../utils/formatters.ts';
 
-type Tab = 'inputs' | 'output' | 'scores' | 'trace' | 'raw' | 'error';
+type Tab = 'input' | 'output' | 'trace' | 'raw' | 'failures' | 'error';
 
 const DrawerLoading = styled.div`
   width: 540px;
@@ -124,52 +132,6 @@ const OutputPre = styled.pre`
   padding: 10px;
 `;
 
-const ScoresList = styled.div`
-  ${stack({ gap: 10 })}
-`;
-
-const ScoreCard = styled.div`
-  padding: 12px;
-  background: ${colors.surface.var};
-  border-radius: var(--radius-md);
-  border: 1px solid ${colors.border.var};
-`;
-
-const ScoreHeader = styled.div`
-  ${inline({ justify: 'space-between', align: 'center' })}
-  margin-bottom: 6px;
-`;
-
-const ScoreLabel = styled.strong`
-  font-size: 12.5px;
-  font-weight: 500;
-  color: ${colors.text.var};
-`;
-
-const ScoreValue = styled.span<{ pass: boolean; fail: boolean }>`
-  ${monoFont}
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  color: ${colors.textMuted.var};
-
-  &.pass {
-    color: ${colors.success.var};
-  }
-  &.fail {
-    color: ${colors.error.var};
-  }
-`;
-
-const ScoreReason = styled.div`
-  font-size: 12px;
-  color: ${colors.textMuted.var};
-  line-height: 1.5;
-`;
-
-const RawSections = styled.div`
-  ${stack({ gap: 14 })}
-`;
-
 const ErrorContainer = styled.div`
   color: ${colors.error.var};
 `;
@@ -188,6 +150,10 @@ const ErrorStack = styled.pre`
   border: 1px solid ${colors.border.var};
   border-radius: var(--radius-sm);
   padding: 10px;
+`;
+
+const RawSections = styled.div`
+  ${stack({ gap: 14 })}
 `;
 
 const RawLabel = styled.div`
@@ -212,18 +178,70 @@ const RawPre = styled.pre`
   overflow: auto;
 `;
 
+const ColumnsGrid = styled.div`
+  ${stack({ gap: 8 })}
+  margin-top: 12px;
+`;
+
+const ColumnRow = styled.div`
+  ${inline({ justify: 'space-between', align: 'center', gap: 12 })}
+  padding: 8px 10px;
+  background: ${colors.surface.var};
+  border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-sm);
+`;
+
+const ColumnLabel = styled.div`
+  font-size: 11px;
+  font-weight: 600;
+  color: ${colors.textDim.var};
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+`;
+
+const ColumnValueText = styled.div`
+  ${monoFont}
+  font-size: 12px;
+  color: ${colors.text.var};
+  text-align: right;
+  max-width: 60%;
+  word-break: break-all;
+`;
+
+const ScoreFail = styled.span`
+  color: ${colors.error.var};
+`;
+
+const ScorePass = styled.span`
+  color: ${colors.success.var};
+`;
+
+const FailureList = styled.ul`
+  ${stack({ gap: 6 })}
+  list-style: disc inside;
+  color: ${colors.error.var};
+  font-size: 12.5px;
+  line-height: 1.5;
+`;
+
 export function CaseDrawer() {
   const { selectedCaseDetail } = runStore.useSelectorRC((s) => ({
     selectedCaseDetail: s.selectedCaseDetail,
   }));
-  const [activeTab, setActiveTab] = useState<Tab>('inputs');
+  const { evals } = evalsStore.useSelectorRC((s) => ({ evals: s.evals }));
+  const [activeTab, setActiveTab] = useState<Tab>('input');
 
   if (!selectedCaseDetail) {
     return <DrawerLoading>Loading case...</DrawerLoading>;
   }
 
   const d = selectedCaseDetail;
-  const tabs: Tab[] = ['inputs', 'output', 'scores', 'trace', 'raw'];
+  const evalSummary = evals.find((e) => e.id === d.evalId);
+  const columnDefs = evalSummary?.columnDefs ?? [];
+  const primaryCol = columnDefs.find((c) => c.primary);
+
+  const tabs: Tab[] = ['input', 'output', 'trace', 'raw'];
+  if (d.assertionFailures.length > 0) tabs.push('failures');
   if (d.error) tabs.push('error');
 
   return (
@@ -251,46 +269,23 @@ export function CaseDrawer() {
       </TabBar>
 
       <TabContent>
-        {activeTab === 'inputs' ? (
-          <div>
-            {d.displayInput.map((block, i) => (
-              <DisplayBlockRenderer key={i} block={block} />
-            ))}
-          </div>
+        {activeTab === 'input' ? (
+          <OutputPre>{JSON.stringify(d.input, null, 2)}</OutputPre>
         ) : null}
 
         {activeTab === 'output' ? (
           <div>
-            {d.displayOutput.length > 0 ? (
-              d.displayOutput.map((block, i) => (
-                <DisplayBlockRenderer key={i} block={block} />
-              ))
-            ) : (
-              <OutputPre>{JSON.stringify(d.output, null, 2)}</OutputPre>
-            )}
+            {primaryCol ? (
+              <PrimaryBlocks value={d.columns[primaryCol.key]} />
+            ) : null}
+            <ColumnsGrid>
+              {columnDefs
+                .filter((c) => !c.primary)
+                .map((c) => (
+                  <ColumnCell key={c.key} def={c} value={d.columns[c.key]} />
+                ))}
+            </ColumnsGrid>
           </div>
-        ) : null}
-
-        {activeTab === 'scores' ? (
-          <ScoresList>
-            {d.scores.map((s) => {
-              const pass = s.pass ?? s.score >= 0.5;
-              return (
-                <ScoreCard key={s.id}>
-                  <ScoreHeader>
-                    <ScoreLabel>{s.label ?? s.id}</ScoreLabel>
-                    <ScoreValue pass={pass} fail={!pass}>
-                      {s.score.toFixed(2)}
-                    </ScoreValue>
-                  </ScoreHeader>
-                  {s.reason ? <ScoreReason>{s.reason}</ScoreReason> : null}
-                  {s.display?.map((block, i) => (
-                    <DisplayBlockRenderer key={i} block={block} />
-                  ))}
-                </ScoreCard>
-              );
-            })}
-          </ScoresList>
         ) : null}
 
         {activeTab === 'trace' ? <TraceTree spans={d.trace} /> : null}
@@ -298,10 +293,17 @@ export function CaseDrawer() {
         {activeTab === 'raw' ? (
           <RawSections>
             <RawSection label="Input" data={d.input} />
-            <RawSection label="Output" data={d.output} />
-            <RawSection label="Scores" data={d.scores} />
+            <RawSection label="Columns" data={d.columns} />
             <RawSection label="Trace" data={d.trace} />
           </RawSections>
+        ) : null}
+
+        {activeTab === 'failures' ? (
+          <FailureList>
+            {d.assertionFailures.map((msg, i) => (
+              <li key={i}>{msg}</li>
+            ))}
+          </FailureList>
         ) : null}
 
         {activeTab === 'error' && d.error ? (
@@ -315,6 +317,63 @@ export function CaseDrawer() {
       </TabContent>
     </DrawerRoot>
   );
+}
+
+function PrimaryBlocks({ value }: { value: CellValue | undefined }) {
+  if (!Array.isArray(value)) {
+    return (
+      <OutputPre>{value === undefined ? '\u2014' : JSON.stringify(value, null, 2)}</OutputPre>
+    );
+  }
+  return (
+    <div>
+      {value.map((block: DisplayBlock, i) => (
+        <DisplayBlockRenderer key={i} block={block} />
+      ))}
+    </div>
+  );
+}
+
+function ColumnCell({
+  def,
+  value,
+}: {
+  def: ColumnDef;
+  value: CellValue | undefined;
+}) {
+  return (
+    <ColumnRow>
+      <ColumnLabel>{def.label}</ColumnLabel>
+      <ColumnValueText>{renderCellValue(def, value)}</ColumnValueText>
+    </ColumnRow>
+  );
+}
+
+function renderCellValue(def: ColumnDef, value: CellValue | undefined) {
+  if (value === undefined || value === null) return '\u2014';
+
+  if (def.isScore && typeof value === 'number') {
+    const passed =
+      def.passThreshold === undefined ? true : value >= def.passThreshold;
+    return passed ? (
+      <ScorePass>{formatScore(value)}</ScorePass>
+    ) : (
+      <ScoreFail>{formatScore(value)}</ScoreFail>
+    );
+  }
+
+  if (typeof value === 'number') {
+    if (def.format === 'usd') return formatCost(value);
+    if (def.format === 'duration') return formatDuration(value);
+    if (def.format === 'percent') return formatPercent(value);
+    return formatScore(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `${String(value.length)} block(s)`;
+  }
+
+  return String(value);
 }
 
 function RawSection({ label, data }: { label: string; data: unknown }) {
