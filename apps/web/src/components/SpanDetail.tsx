@@ -125,6 +125,10 @@ export function SpanDetail({ span }: SpanDetailProps) {
         <JsonSection label="Output" data={span.output} />
       ) : null}
 
+      {span.attributes !== undefined ? (
+        <JsonSection label="Attributes" data={span.attributes} />
+      ) : null}
+
       {span.error ? (
         <ErrorContainer>
           <ErrorTitle>

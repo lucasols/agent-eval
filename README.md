@@ -38,28 +38,31 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
 2. **Write an eval** in `evals/my-agent.eval.ts`:
 
    ```ts
-   import { defineEval, blocks } from '@agent-evals/sdk'
+   import { defineEval, setOutput, span, tracer } from '@agent-evals/sdk'
    import { myAgent } from '../src/agent'
 
    defineEval({
      id: 'my-agent',
      title: 'My Agent',
-     data: [
+     cases: [
        { id: 'greeting', input: { message: 'hello' } },
        { id: 'farewell', input: { message: 'bye' } },
      ],
-     task: async ({ input, trace }) => {
-       const output = await trace.span(
+     execute: async ({ input }) => {
+       await tracer.span(
          { kind: 'agent', name: 'my-agent' },
-         async (span) => {
+         async () => {
            span.setInput(input)
-           return myAgent(input)
+           const output = await myAgent(input)
+           span.setOutput(output)
+           setOutput('output', output)
          },
        )
-       return { output }
      },
-     assert: ({ output }) => {
-       if (!output) throw new Error('Expected an output')
+     scores: {
+       hasOutput: ({ outputs }) => {
+         return outputs.output !== undefined ? 1 : 0
+       },
      },
    })
    ```
@@ -96,73 +99,68 @@ A complete working example lives at [`examples/basic-agent`](./examples/basic-ag
 | `id`            | yes      | Unique eval id                                                                   |
 | `title`         |          | Display title                                                                    |
 | `description`   |          | Free-text description                                                            |
-| `data`          | yes      | `EvalCase[]` or `() => Promise<EvalCase[]>` (async loader for dynamic datasets)  |
-| `task`          | yes      | `async ({ case, input, signal, trace, runtime }) => ({ output, ... })`           |
-| `scorers`       |          | Array of scoring functions returning `{ id, score, ... }`                        |
-| `assert`        |          | Vitest-style assertions run against `{ output, trace, cost, ... }`               |
-| `columnDefs`    |          | Custom columns shown in the results table                                        |
+| `cases`         | yes      | `EvalCase[]` or `() => Promise<EvalCase[]>` (async loader for dynamic datasets)  |
+| `execute`       | yes      | `async ({ input, signal }) => { ... }`                                           |
+| `deriveFromTracing` |      | Derive output columns from the finished trace tree                               |
+| `scores`        |          | Record of scoring functions returning `0..1`                                     |
+| `columns`       |          | Custom columns shown in the results table                                        |
 | `passThreshold` |          | Minimum average score for a case to pass                                         |
 
 ### Cases
 
 ```ts
-data: [
+cases: [
   {
     id: 'simple-text',
     input: { message: 'I want a refund', locale: 'en-US' },
-    displayInput: [blocks.markdown('**Request:** I want a refund')],
-    columns: { locale: 'en-US', priority: 'normal' },
   },
 ]
 ```
 
-`displayInput` controls what the UI shows; `columns` populates your custom columns.
+`columns` populates your custom columns.
 
-### Task and tracing
+### Execute and tracing
 
-`task` receives a `trace` recorder. Wrap work in spans to get a trajectory tree in the UI:
+Wrap work in `tracer.span(...)` to get a trajectory tree in the UI. Span mutation is ambient, so helpers deeper in your call stack can write to the current span without threading a callback-local handle through your code:
 
 ```ts
-task: async ({ input, trace }) => {
-  const result = await trace.span(
+execute: async ({ input }) => {
+  await tracer.span(
     { kind: 'agent', name: 'refund-agent' },
-    async (span) => {
+    async () => {
       span.setInput(input)
-      const out = await agent(input)
-      span.setOutput(out)
-      return out
+      const result = await agent(input)
+      span.setAttribute('model', 'gpt-4.1')
+      span.setOutput(result)
+      setOutput('output', result)
     },
   )
-  trace.checkpoint('final-state', { approved: true })
-  return {
-    output: result.finalText,
-    displayOutput: [blocks.markdown(result.finalText)],
-    columns: { toolCalls: result.toolCalls },
-  }
+  tracer.checkpoint('final-state', { approved: true })
 }
 ```
 
 ### Scorers
 
 ```ts
-scorers: [
-  async ({ output }) => ({
-    id: 'mentions-refund',
-    score: /refund/i.test(output) ? 1 : 0,
-  }),
-]
+scores: {
+  mentionsRefund: ({ outputs }) => {
+    return typeof outputs.output === 'string' && /refund/i.test(outputs.output) ?
+      1
+    : 0
+  },
+}
 ```
 
 ### Custom columns
 
 ```ts
-columnDefs: [
-  { key: 'locale', label: 'Locale', kind: 'string', defaultVisible: true },
-  { key: 'toolCalls', label: 'Tool Calls', kind: 'number', defaultVisible: true },
-]
+columns: {
+  locale: { label: 'Locale', kind: 'string', defaultVisible: true },
+  toolCalls: { label: 'Tool Calls', kind: 'number', defaultVisible: true },
+}
 ```
 
-Populate values in the case (`columns`) and/or the task result (`columns`).
+Populate values in `deriveFromTracing(...)` and/or from runtime outputs.
 
 ## Display blocks
 

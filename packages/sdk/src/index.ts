@@ -10,7 +10,7 @@ export {
   getCurrentScope,
   type EvalCaseScope,
 } from './runtime.ts';
-export { tracer, buildTraceTree, type TraceActiveSpan } from './tracer.ts';
+export { tracer, span, buildTraceTree, type TraceActiveSpan } from './tracer.ts';
 export type { DisplayBlock, FileRef } from '@agent-evals/shared';
 export type {
   EvalCase,

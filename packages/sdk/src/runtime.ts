@@ -8,6 +8,7 @@ export type EvalCaseScope = {
   spans: EvalTraceSpan[];
   checkpoints: Map<string, unknown>;
   spanStack: string[];
+  activeSpanStack: EvalTraceSpan[];
 };
 
 const scopeStorage = new AsyncLocalStorage<EvalCaseScope>();
@@ -38,6 +39,7 @@ export async function runInEvalScope<T>(
     spans: [],
     checkpoints: new Map(),
     spanStack: [],
+    activeSpanStack: [],
   };
   return scopeStorage.run(scope, async () => {
     try {
