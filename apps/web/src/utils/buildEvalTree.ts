@@ -10,6 +10,7 @@ export type TreeFolder = {
 export type TreeLeaf = {
   kind: 'leaf';
   path: string;
+  filePath: string;
   evalSummary: EvalSummary;
 };
 
@@ -75,7 +76,8 @@ export function buildEvalTree(evals: EvalSummary[]): TreeNode[] {
     const parent = ensureFolder(segments);
     parent.children.push({
       kind: 'leaf',
-      path: ev.filePath,
+      path: `${ev.filePath}#${ev.id}`,
+      filePath: ev.filePath,
       evalSummary: ev,
     });
   }

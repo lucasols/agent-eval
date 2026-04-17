@@ -427,6 +427,147 @@ describe('CLI eval features', () => {
       `);
     });
   });
+
+  test('treats score failures and assertion failures as failed cases while allowing silent no-trace cases', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const result = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'score-threshold-demo,assertion-failure-demo,silent-pass-demo,silent-assertion-demo',
+      ]);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toBe('');
+
+      const artifacts = await readSingleRunArtifacts(workspacePath);
+      const scoreThresholdCase = requireCase(
+        artifacts.cases,
+        'score-threshold-miss',
+      );
+      const assertionFailureCase = requireCase(
+        artifacts.cases,
+        'assertion-failure-visible-output',
+      );
+      const silentPassCase = requireCase(artifacts.cases, 'silent-pass-no-output');
+      const silentAssertionCase = requireCase(
+        artifacts.cases,
+        'silent-assertion-no-output',
+      );
+
+      expect(artifacts.summary.status).toBe('completed');
+      expect(artifacts.summary.failedCases).toBe(3);
+      expect(artifacts.summary.errorCases).toBe(0);
+      expect(artifacts.summary.passedCases).toBe(1);
+
+      expect(scoreThresholdCase.status).toBe('fail');
+      expect(scoreThresholdCase.score).toBe(0);
+      expect(assertionFailureCase.status).toBe('fail');
+      expect(assertionFailureCase.score).toBe(null);
+      expect(silentPassCase.status).toBe('pass');
+      expect(silentPassCase.score).toBe(null);
+      expect(silentAssertionCase.status).toBe('fail');
+      expect(silentAssertionCase.score).toBe(null);
+
+      expect(silentPassCase.columns).toEqual({});
+      expect(silentAssertionCase.columns).toEqual({});
+      expect(requireTrace(artifacts.traces, 'silent-pass-no-output.json')).toEqual(
+        [],
+      );
+      expect(
+        requireTrace(artifacts.traces, 'silent-assertion-no-output.json'),
+      ).toEqual([]);
+
+      expect(
+        normalizeSnapshotValue(workspacePath, {
+          summary: artifacts.summary,
+          cases: artifacts.cases.map((caseRow) => ({
+            caseId: caseRow.caseId,
+            columns: caseRow.columns,
+            evalId: caseRow.evalId,
+            score: caseRow.score,
+            status: caseRow.status,
+          })),
+          traces: {
+            'silent-assertion-no-output.json': summarizeTrace(
+              requireTrace(artifacts.traces, 'silent-assertion-no-output.json'),
+            ),
+            'silent-pass-no-output.json': summarizeTrace(
+              requireTrace(artifacts.traces, 'silent-pass-no-output.json'),
+            ),
+          },
+        }),
+      ).toMatchInlineSnapshot(`
+        {
+          "cases": [
+            {
+              "caseId": "score-threshold-miss",
+              "columns": {
+                "matchesGoldAnswer": 0,
+                "response": [
+                  {
+                    "kind": "markdown",
+                    "text": "Borderline result for: Review the refund summary against the gold answer.",
+                  },
+                ],
+              },
+              "evalId": "score-threshold-demo",
+              "score": 0,
+              "status": "fail",
+            },
+            {
+              "caseId": "assertion-failure-visible-output",
+              "columns": {
+                "response": [
+                  {
+                    "kind": "markdown",
+                    "text": "Missing audit note for ticket T-441.",
+                  },
+                ],
+              },
+              "evalId": "assertion-failure-demo",
+              "score": null,
+              "status": "fail",
+            },
+            {
+              "caseId": "silent-pass-no-output",
+              "columns": {},
+              "evalId": "silent-pass-demo",
+              "score": null,
+              "status": "pass",
+            },
+            {
+              "caseId": "silent-assertion-no-output",
+              "columns": {},
+              "evalId": "silent-assertion-demo",
+              "score": null,
+              "status": "fail",
+            },
+          ],
+          "summary": {
+            "averageScore": 0,
+            "cancelledCases": 0,
+            "cost": {
+              "savingsUsd": null,
+              "totalUsd": null,
+              "uncachedUsd": null,
+            },
+            "errorCases": 0,
+            "errorMessage": null,
+            "failedCases": 3,
+            "passedCases": 1,
+            "runId": "<run-id>",
+            "status": "completed",
+            "totalCases": 4,
+            "totalDurationMs": "<totalDurationMs>",
+          },
+          "traces": {
+            "silent-assertion-no-output.json": [],
+            "silent-pass-no-output.json": [],
+          },
+        }
+      `);
+    });
+  });
 });
 
 function requireCase<TCase extends { caseId: string }>(

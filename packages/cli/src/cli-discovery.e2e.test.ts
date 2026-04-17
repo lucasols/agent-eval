@@ -15,6 +15,11 @@ describe('CLI discovery', () => {
       expect(result.stdout).toContain('High Value Refund');
       expect(result.stdout).toContain('high-value-refund');
       expect(result.stdout).toContain('Receipt Audit');
+      expect(result.stdout).toContain('Receipt Fraud Review');
+      expect(result.stdout).toContain('Score Threshold Demo');
+      expect(result.stdout).toContain('Assertion Failure Demo');
+      expect(result.stdout).toContain('Silent Pass Demo');
+      expect(result.stdout).toContain('Silent Assertion Demo');
       expect(result.stdout).toContain('Voice Return Follow-up');
       expect(result.stdout).toContain('Refund Workflow');
       expect(result.stdout).toContain('refund-workflow');
@@ -34,6 +39,26 @@ describe('CLI discovery', () => {
           Receipt Audit
             id: receipt-audit
             file: <workspace>/evals/support/refunds/receipt-audit.eval.ts
+
+          Receipt Fraud Review
+            id: receipt-fraud-review
+            file: <workspace>/evals/support/refunds/receipt-audit.eval.ts
+
+          Score Threshold Demo
+            id: score-threshold-demo
+            file: <workspace>/evals/support/quality/outcome-behavior.eval.ts
+
+          Assertion Failure Demo
+            id: assertion-failure-demo
+            file: <workspace>/evals/support/quality/outcome-behavior.eval.ts
+
+          Silent Pass Demo
+            id: silent-pass-demo
+            file: <workspace>/evals/support/quality/outcome-behavior.eval.ts
+
+          Silent Assertion Demo
+            id: silent-assertion-demo
+            file: <workspace>/evals/support/quality/outcome-behavior.eval.ts
 
           High Value Refund
             id: high-value-refund

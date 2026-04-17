@@ -110,6 +110,138 @@ describe('CLI run targeting', () => {
     });
   });
 
+  test('runs evals discovered from files that register multiple evals', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const result = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'receipt-fraud-review',
+      ]);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe('');
+      expect(result.stdout).toContain('Total: 1');
+
+      const artifacts = await readSingleRunArtifacts(workspacePath);
+
+      expect(artifacts.manifest.target.mode).toBe('evalIds');
+      expect(artifacts.manifest.target.evalIds).toEqual(['receipt-fraud-review']);
+      expect(artifacts.traceFiles).toEqual(['tampered-total.json']);
+      expect(artifacts.cases.map((caseRow) => caseRow.caseId)).toEqual([
+        'tampered-total',
+      ]);
+
+      expect(
+        normalizeSnapshotValue(workspacePath, {
+          commandOutput: normalizeTextSnapshot(workspacePath, result.stdout),
+          persistedCases: artifacts.cases.map((caseRow) => ({
+            caseId: caseRow.caseId,
+            evalId: caseRow.evalId,
+            reviewQueue: caseRow.columns.reviewQueue,
+            riskLevel: caseRow.columns.riskLevel,
+            response: caseRow.columns.response,
+            score: caseRow.score,
+            status: caseRow.status,
+            toolCalls: caseRow.columns.toolCalls,
+          })),
+          target: artifacts.manifest.target,
+        }),
+      ).toMatchInlineSnapshot(`
+        {
+          "commandOutput": "Run started: <run-id>
+        Trials: 1
+
+        --- Run Summary ---
+        Status: completed
+        Total: 1
+        Passed: 1
+        Failed: 0
+        Errors: 0
+        Avg Score: 1.00
+        Duration: <duration>
+        Cost: $0.0015",
+          "persistedCases": [
+            {
+              "caseId": "tampered-total",
+              "evalId": "receipt-fraud-review",
+              "response": [
+                {
+                  "kind": "markdown",
+                  "text": "Opened a risk review for order #RISK-12 after detecting receipt tampering signals.",
+                },
+              ],
+              "reviewQueue": "risk-ops",
+              "riskLevel": "high",
+              "score": 1,
+              "status": "pass",
+              "toolCalls": 2,
+            },
+          ],
+          "target": {
+            "evalIds": [
+              "receipt-fraud-review",
+            ],
+            "mode": "evalIds",
+          },
+        }
+      `);
+    });
+  });
+
+  test('runs voice follow-up workflow with scenario-specific outputs', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const result = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'voice-return-follow-up',
+        '--case',
+        'pt-br-defect',
+      ]);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe('');
+      expect(result.stdout).toContain('Total: 1');
+
+      const artifacts = await readSingleRunArtifacts(workspacePath);
+
+      expect(artifacts.manifest.target.evalIds).toEqual([
+        'voice-return-follow-up',
+      ]);
+      expect(artifacts.traceFiles).toEqual(['pt-br-defect.json']);
+
+      expect(
+        normalizeSnapshotValue(workspacePath, {
+          persistedCases: artifacts.cases.map((caseRow) => ({
+            caseId: caseRow.caseId,
+            detectedLocale: caseRow.columns.detectedLocale,
+            followUpChannel: caseRow.columns.followUpChannel,
+            llmTurns: caseRow.columns.llmTurns,
+            response: caseRow.columns.response,
+            score: caseRow.score,
+          })),
+        }),
+      ).toMatchInlineSnapshot(`
+        {
+          "persistedCases": [
+            {
+              "caseId": "pt-br-defect",
+              "detectedLocale": "pt-BR",
+              "followUpChannel": "sms",
+              "llmTurns": 2,
+              "response": [
+                {
+                  "kind": "markdown",
+                  "text": "Prepared a sms follow-up with return steps for order #RET-44.",
+                },
+              ],
+              "score": 1,
+            },
+          ],
+        }
+      `);
+    });
+  });
+
   test('runs evals discovered inside nested folders', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const result = await runExampleCli(workspacePath, [
@@ -136,8 +268,10 @@ describe('CLI run targeting', () => {
           commandOutput: normalizeTextSnapshot(workspacePath, result.stdout),
           persistedCases: artifacts.cases.map((caseRow) => ({
             caseId: caseRow.caseId,
+            escalationQueue: caseRow.columns.escalationQueue,
             evalId: caseRow.evalId,
             response: caseRow.columns.response,
+            riskLevel: caseRow.columns.riskLevel,
             score: caseRow.score,
             status: caseRow.status,
             toolCalls: caseRow.columns.toolCalls,
@@ -157,17 +291,19 @@ describe('CLI run targeting', () => {
         Errors: 0
         Avg Score: 1.00
         Duration: <duration>
-        Cost: $0.0009",
+        Cost: $0.0014",
           "persistedCases": [
             {
               "caseId": "espresso-machine",
+              "escalationQueue": "finance-review",
               "evalId": "high-value-refund",
               "response": [
                 {
                   "kind": "markdown",
-                  "text": "Approved refund for: Refund the damaged espresso machine from order #9001",
+                  "text": "Escalated a $1299.00 refund for order #9001 to finance review.",
                 },
               ],
+              "riskLevel": "high",
               "score": 1,
               "status": "pass",
               "toolCalls": 2,

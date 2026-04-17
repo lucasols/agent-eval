@@ -31,6 +31,7 @@ import {
   getSpanCacheStatus,
   resolveTracePresentation,
 } from './traceDisplay.ts';
+import { parseEvalMetas } from './discovery.ts';
 
 /** Imperative runner interface used by the server and CLI. */
 export type EvalRunner = {
@@ -155,9 +156,15 @@ export function createRunner({
       for (const filePath of discovered) {
         try {
           const content = await readFile(filePath, 'utf-8');
-          const meta = parseEvalMeta(filePath, content);
-          if (meta) {
-            evals.set(meta.id, meta);
+          const discoveredMetas = parseEvalMetas(filePath, content);
+          for (const meta of discoveredMetas) {
+            evals.set(meta.id, {
+              id: meta.id,
+              title: meta.title,
+              filePath: meta.filePath,
+              columnDefs: [],
+              caseCount: null,
+            });
           }
         } catch {
           // skip files that can't be parsed
@@ -836,35 +843,6 @@ function toCellValue(value: unknown): CellValue | undefined {
   }
   if (value === undefined) return undefined;
   return JSON.stringify(value);
-}
-
-const defineEvalRegex = /defineEval(?:<[\s\S]*?>)?\s*\(\s*\{/;
-const evalIdMatchRegex =
-  /defineEval(?:<[\s\S]*?>)?\s*\(\s*\{[\s\S]*?\bid\s*:\s*['"]([^'"]+)['"]/;
-const evalTitleMatchRegex =
-  /defineEval(?:<[\s\S]*?>)?\s*\(\s*\{[\s\S]*?\btitle\s*:\s*['"]([^'"]+)['"]/;
-
-function parseEvalMeta(filePath: string, content: string): EvalMeta | null {
-  if (!defineEvalRegex.test(content)) return null;
-
-  const idMatch = evalIdMatchRegex.exec(content);
-  if (!idMatch?.[1]) return null;
-
-  const titleMatch = evalTitleMatchRegex.exec(content);
-
-  const result: EvalMeta = {
-    id: idMatch[1],
-    filePath,
-    columnDefs: [],
-    caseCount: null,
-  };
-
-  const title = titleMatch?.[1];
-  if (title !== undefined) {
-    result.title = title;
-  }
-
-  return result;
 }
 
 function generateRunId(): string {

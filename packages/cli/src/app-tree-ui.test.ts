@@ -20,6 +20,11 @@ const exampleEvals: EvalSummary[] = [
     `${exampleWorkspace}/evals/support/refunds/receipt-audit.eval.ts`,
   ),
   createEvalSummary(
+    'receipt-fraud-review',
+    'Receipt Fraud Review',
+    `${exampleWorkspace}/evals/support/refunds/receipt-audit.eval.ts`,
+  ),
+  createEvalSummary(
     'high-value-refund',
     'High Value Refund',
     `${exampleWorkspace}/evals/support/refunds/escalations/high-value-refund.eval.ts`,
@@ -29,6 +34,26 @@ const exampleEvals: EvalSummary[] = [
     'Voice Return Follow-up',
     `${exampleWorkspace}/evals/support/returns/voice-follow-up.eval.ts`,
   ),
+  createEvalSummary(
+    'score-threshold-demo',
+    'Score Threshold Demo',
+    `${exampleWorkspace}/evals/support/quality/outcome-behavior.eval.ts`,
+  ),
+  createEvalSummary(
+    'assertion-failure-demo',
+    'Assertion Failure Demo',
+    `${exampleWorkspace}/evals/support/quality/outcome-behavior.eval.ts`,
+  ),
+  createEvalSummary(
+    'silent-pass-demo',
+    'Silent Pass Demo',
+    `${exampleWorkspace}/evals/support/quality/outcome-behavior.eval.ts`,
+  ),
+  createEvalSummary(
+    'silent-assertion-demo',
+    'Silent Assertion Demo',
+    `${exampleWorkspace}/evals/support/quality/outcome-behavior.eval.ts`,
+  ),
 ];
 
 describe('app tree ui', () => {
@@ -37,6 +62,33 @@ describe('app tree ui', () => {
       [
         {
           "children": [
+            {
+              "children": [
+                {
+                  "id": "assertion-failure-demo",
+                  "kind": "leaf",
+                  "title": "Assertion Failure Demo",
+                },
+                {
+                  "id": "score-threshold-demo",
+                  "kind": "leaf",
+                  "title": "Score Threshold Demo",
+                },
+                {
+                  "id": "silent-assertion-demo",
+                  "kind": "leaf",
+                  "title": "Silent Assertion Demo",
+                },
+                {
+                  "id": "silent-pass-demo",
+                  "kind": "leaf",
+                  "title": "Silent Pass Demo",
+                },
+              ],
+              "kind": "folder",
+              "name": "quality",
+              "path": "support/quality",
+            },
             {
               "children": [
                 {
@@ -55,6 +107,11 @@ describe('app tree ui', () => {
                   "id": "receipt-audit",
                   "kind": "leaf",
                   "title": "Receipt Audit",
+                },
+                {
+                  "id": "receipt-fraud-review",
+                  "kind": "leaf",
+                  "title": "Receipt Fraud Review",
                 },
               ],
               "kind": "folder",
@@ -92,17 +149,33 @@ describe('app tree ui', () => {
       collectEvalsInFolder(exampleEvals, 'support/refunds')
         .map((ev) => ev.id)
         .sort(),
-    ).toEqual(['high-value-refund', 'receipt-audit']);
+    ).toEqual([
+      'high-value-refund',
+      'receipt-audit',
+      'receipt-fraud-review',
+    ]);
 
     expect(
       collectEvalsInFolder(exampleEvals, 'support')
         .map((ev) => ev.id)
         .sort(),
     ).toEqual([
+      'assertion-failure-demo',
       'high-value-refund',
       'receipt-audit',
+      'receipt-fraud-review',
+      'score-threshold-demo',
+      'silent-assertion-demo',
+      'silent-pass-demo',
       'voice-return-follow-up',
     ]);
+  });
+
+  test('creates unique leaf paths for multiple evals in one file', () => {
+    const tree = buildEvalTree(exampleEvals);
+    const leafPaths = collectLeafPaths(tree);
+
+    expect(new Set(leafPaths).size).toBe(leafPaths.length);
   });
 });
 
@@ -140,4 +213,19 @@ function simplifyTree(nodes: TreeNode[]): unknown[] {
       title: node.evalSummary.title,
     };
   });
+}
+
+function collectLeafPaths(nodes: TreeNode[]): string[] {
+  const result: string[] = [];
+
+  for (const node of nodes) {
+    if (node.kind === 'folder') {
+      result.push(...collectLeafPaths(node.children));
+      continue;
+    }
+
+    result.push(node.path);
+  }
+
+  return result;
 }
