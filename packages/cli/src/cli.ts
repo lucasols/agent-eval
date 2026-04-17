@@ -161,8 +161,14 @@ async function commandRun(args: CliArgs): Promise<void> {
   await runner.init();
 
   const target =
-    args.evalIds.length > 0
-      ? { mode: 'evalIds' as const, evalIds: args.evalIds }
+    args.caseIds.length > 0
+      ? {
+          mode: 'caseIds' as const,
+          caseIds: args.caseIds,
+          evalIds: args.evalIds.length > 0 ? args.evalIds : undefined,
+        }
+      : args.evalIds.length > 0
+        ? { mode: 'evalIds' as const, evalIds: args.evalIds }
       : { mode: 'all' as const };
 
   const run = await runner.startRun({

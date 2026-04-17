@@ -43,6 +43,7 @@ The runner resolves the workspace from `process.cwd()` (via `agent-evals.config.
   - `pnpm eval list` — discover evals
   - `pnpm eval run` — run all (add `--eval <id>` / `--case <id>` / `--no-cache` as needed)
   - `pnpm eval app` — serve the UI against the example workspace
+- **CLI end-to-end tests** — prefer adding or updating automated CLI tests around `examples/basic-agent` whenever the changed behavior can be covered that way. Cover both the CLI commands and the eval data reachable through the CLI flow (run summaries, outputs, columns, traces, persisted artifacts), and pair narrow assertions with inline snapshots of the full output/artifact payload so reviewers can inspect the result quickly.
 - **End-to-end UI check** — only when the user asks. Open `http://localhost:4100` (server) or the Vite URL (web dev) and exercise the changed flow. If you can't actually load the UI, say so instead of claiming it works. Otherwise, rely on `pnpm lint` and the CLI smoke test.
 - **Server + web together** — when changing `apps/server` or `apps/web`, run the server with cwd in the example so the runner picks up its config, and start the web dev server in parallel:
   - `cd examples/basic-agent && pnpm --filter @agent-evals/server dev`
@@ -54,7 +55,7 @@ Once the implementation is in place, complete the following before marking the t
 
 - Run `pnpm lint` at the repo root and in every affected sub-package to surface ESLint and `tsgo` issues. Fix them at the source — no `eslint-disable`, `@ts-expect-error`, or `@ts-ignore`.
 - Make sure `examples/basic-agent` exercises the new feature/adjustment. If coverage is missing, extend the example. Examples must reflect real production flows — no fake, synthetic, or placeholder scenarios.
-- Smoke-test the example via the CLI (`pnpm eval list`, `pnpm eval run`, and `pnpm eval app` when the UI is affected) to confirm the feature behaves as intended end-to-end.
+- Add or update CLI tests against `examples/basic-agent` when the change can be covered automatically. If that is not practical, smoke-test the example via the CLI (`pnpm eval list`, `pnpm eval run`, and `pnpm eval app` when the UI is affected) to confirm the feature behaves as intended end-to-end.
 - Update the root `README.md` whenever user-facing behavior, APIs, CLI flags, config, or commands change.
 - Add or update JSDoc on every public API touched (exports from `packages/sdk`, `packages/shared`, `packages/runner`, and `packages/cli`). Document intent, parameters, return values, and notable edge cases.
 

@@ -333,9 +333,14 @@ export function createRunner({
 
           await entry.use(async (evalDef) => {
             const cases =
-              typeof evalDef.cases === 'function'
-                ? await evalDef.cases()
-                : evalDef.cases ?? [];
+              filterEvalCases(
+                typeof evalDef.cases === 'function'
+                  ? await evalDef.cases()
+                  : evalDef.cases ?? [],
+                request.target.evalIds,
+                request.target.caseIds,
+                evalMeta.id,
+              );
 
             runState.summary.totalCases += cases.length * request.trials;
 
@@ -528,10 +533,7 @@ export function createRunner({
   }
 
   function getTargetEvals(request: CreateRunRequest): EvalMeta[] {
-    if (request.target.mode === 'all') {
-      return [...evals.values()];
-    }
-    if (request.target.mode === 'evalIds' && request.target.evalIds) {
+    if (request.target.evalIds && request.target.evalIds.length > 0) {
       return request.target.evalIds
         .map((id) => evals.get(id))
         .filter((e): e is EvalMeta => e !== undefined);
@@ -550,6 +552,24 @@ export function createRunner({
   }
 
   return runner;
+}
+
+function filterEvalCases<TInput>(
+  cases: { id: string; input: TInput; tags?: string[] }[],
+  evalIds: string[] | undefined,
+  caseIds: string[] | undefined,
+  evalId: string,
+): { id: string; input: TInput; tags?: string[] }[] {
+  if (evalIds && evalIds.length > 0 && !evalIds.includes(evalId)) {
+    return [];
+  }
+
+  if (!caseIds || caseIds.length === 0) {
+    return cases;
+  }
+
+  const selectedCaseIds = new Set(caseIds);
+  return cases.filter((evalCase) => selectedCaseIds.has(evalCase.id));
 }
 
 async function runCase<TInput>(params: {
