@@ -1,8 +1,11 @@
-import type { EvalTraceSpan } from '@agent-evals/shared';
+import type { EvalTraceSpan, TraceDisplayConfig } from '@agent-evals/shared';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import { inline, monoFont } from '#src/style/helpers';
-import { DisplayBlockRenderer } from './DisplayBlockRenderer.tsx';
+import {
+  formatTraceAttributeValue,
+  getTraceAttributeItems,
+} from '#src/utils/traceAttributes';
 
 const DetailRoot = styled.div`
   padding: 12px;
@@ -79,13 +82,27 @@ const JsonSectionPre = styled.pre`
 
 type SpanDetailProps = {
   span: EvalTraceSpan;
+  spans: EvalTraceSpan[];
+  traceDisplay: TraceDisplayConfig;
 };
 
-export function SpanDetail({ span }: SpanDetailProps) {
+export function SpanDetail({ span, spans, traceDisplay }: SpanDetailProps) {
   const durationMs =
     span.startedAt && span.endedAt
       ? new Date(span.endedAt).getTime() - new Date(span.startedAt).getTime()
       : null;
+  const detailItems = getTraceAttributeItems(
+    span,
+    spans,
+    traceDisplay,
+    'detail',
+  );
+  const sectionItems = getTraceAttributeItems(
+    span,
+    spans,
+    traceDisplay,
+    'section',
+  );
 
   return (
     <DetailRoot>
@@ -95,38 +112,26 @@ export function SpanDetail({ span }: SpanDetailProps) {
         <DetailItem label="Kind" value={span.kind} />
         <DetailItem label="Status" value={span.status} />
         {durationMs !== null ? <DetailItem label="Duration" value={`${String(durationMs)}ms`} /> : null}
-        {span.usage ? (
-          <>
-            {span.usage.inputTokens !== undefined ? (
-              <DetailItem label="Input tokens" value={String(span.usage.inputTokens)} />
-            ) : null}
-            {span.usage.outputTokens !== undefined ? (
-              <DetailItem label="Output tokens" value={String(span.usage.outputTokens)} />
-            ) : null}
-          </>
-        ) : null}
-        {span.costUsd !== null && span.costUsd !== undefined ? (
-          <DetailItem label="Cost" value={`$${span.costUsd.toFixed(4)}`} />
-        ) : null}
-        {span.cache ? (
-          <DetailItem label="Cache status" value={span.cache.status} />
-        ) : null}
+        {detailItems.map((item) => (
+          <DetailItem
+            key={item.config.path}
+            label={item.config.label ?? item.config.path}
+            value={formatTraceAttributeValue(item.value, item.config.format)}
+          />
+        ))}
       </DetailItems>
 
-      {span.display?.map((block, i) => (
-        <DisplayBlockRenderer key={i} block={block} />
+      {sectionItems.map((item) => (
+        <JsonSection
+          key={item.config.path}
+          label={item.config.label ?? item.config.path}
+          data={item.value}
+          asJson={item.config.format === 'json'}
+        />
       ))}
 
-      {span.input !== undefined ? (
-        <JsonSection label="Input" data={span.input} />
-      ) : null}
-
-      {span.output !== undefined ? (
-        <JsonSection label="Output" data={span.output} />
-      ) : null}
-
       {span.attributes !== undefined ? (
-        <JsonSection label="Attributes" data={span.attributes} />
+        <JsonSection label="Attributes" data={span.attributes} asJson />
       ) : null}
 
       {span.error ? (
@@ -154,14 +159,22 @@ function DetailItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function JsonSection({ label, data }: { label: string; data: unknown }) {
+function JsonSection({
+  label,
+  data,
+  asJson = false,
+}: {
+  label: string;
+  data: unknown;
+  asJson?: boolean;
+}) {
   return (
     <JsonSectionRoot>
       <JsonSectionLabel>
         {label}
       </JsonSectionLabel>
       <JsonSectionPre>
-        {JSON.stringify(data, null, 2)}
+        {asJson ? JSON.stringify(data, null, 2) : String(data)}
       </JsonSectionPre>
     </JsonSectionRoot>
   );

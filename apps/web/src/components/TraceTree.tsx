@@ -1,9 +1,13 @@
 import { useState } from 'react';
-import type { EvalTraceSpan } from '@agent-evals/shared';
+import type { EvalTraceSpan, TraceDisplayConfig } from '@agent-evals/shared';
 import { styled } from 'vindur';
 import { ChevronRight } from 'lucide-react';
 import { colors } from '#src/style/colors';
 import { inline, monoFont, transition } from '#src/style/helpers';
+import {
+  formatTraceAttributeValue,
+  getTraceAttributeItems,
+} from '#src/utils/traceAttributes';
 import { SpanDetail } from './SpanDetail.tsx';
 
 const Root = styled.div`
@@ -153,34 +157,20 @@ const DurationLabel = styled.span`
   flex-shrink: 0;
 `;
 
-const CostLabel = styled.span`
-  ${monoFont}
-  color: ${colors.cost.var};
-  font-size: 10.5px;
-  font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
-`;
-
-const CacheBadge = styled.span<{ hit: boolean; miss: boolean }>`
+const TreeAttributeLabel = styled.span`
   ${monoFont}
   font-size: 9.5px;
   letter-spacing: 0.04em;
   flex-shrink: 0;
   color: ${colors.textDim.var};
-
-  &.hit {
-    color: ${colors.success.var};
-  }
-  &.miss {
-    color: ${colors.error.var};
-  }
 `;
 
 type TraceTreeProps = {
   spans: EvalTraceSpan[];
+  traceDisplay: TraceDisplayConfig;
 };
 
-export function TraceTree({ spans }: TraceTreeProps) {
+export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
   const [selectedSpanId, setSelectedSpanId] = useState<string | null>(null);
   const rootSpans = spans.filter((s) => s.parentId === null);
   const selectedSpan =
@@ -197,6 +187,7 @@ export function TraceTree({ spans }: TraceTreeProps) {
             span={span}
             spans={spans}
             depth={0}
+            traceDisplay={traceDisplay}
             selectedSpanId={selectedSpanId}
             onSelect={setSelectedSpanId}
           />
@@ -204,7 +195,11 @@ export function TraceTree({ spans }: TraceTreeProps) {
       </TreePane>
       {selectedSpan ? (
         <DetailPane>
-          <SpanDetail span={selectedSpan} />
+          <SpanDetail
+            span={selectedSpan}
+            spans={spans}
+            traceDisplay={traceDisplay}
+          />
         </DetailPane>
       ) : null}
     </Root>
@@ -215,18 +210,26 @@ function SpanNode({
   span,
   spans,
   depth,
+  traceDisplay,
   selectedSpanId,
   onSelect,
 }: {
   span: EvalTraceSpan;
   spans: EvalTraceSpan[];
   depth: number;
+  traceDisplay: TraceDisplayConfig;
   selectedSpanId: string | null;
   onSelect: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const children = spans.filter((s) => s.parentId === span.id);
   const hasChildren = children.length > 0;
+  const treeAttributeItems = getTraceAttributeItems(
+    span,
+    spans,
+    traceDisplay,
+    'tree',
+  );
 
   const durationMs =
     span.startedAt && span.endedAt ?
@@ -270,17 +273,11 @@ function SpanNode({
             {formatSpanDuration(durationMs)}
           </DurationLabel>
         ) : null}
-        {span.costUsd !== null && span.costUsd !== undefined ? (
-          <CostLabel>${span.costUsd.toFixed(4)}</CostLabel>
-        ) : null}
-        {span.cache ? (
-          <CacheBadge
-            hit={span.cache.status === 'hit'}
-            miss={span.cache.status !== 'hit'}
-          >
-            {span.cache.status}
-          </CacheBadge>
-        ) : null}
+        {treeAttributeItems.map((item) => (
+          <TreeAttributeLabel key={item.config.path}>
+            {formatTraceAttributeValue(item.value, item.config.format)}
+          </TreeAttributeLabel>
+        ))}
       </SpanRow>
       {expanded && hasChildren ?
         children.map((child) => (
@@ -289,6 +286,7 @@ function SpanNode({
             span={child}
             spans={spans}
             depth={depth + 1}
+            traceDisplay={traceDisplay}
             selectedSpanId={selectedSpanId}
             onSelect={onSelect}
           />

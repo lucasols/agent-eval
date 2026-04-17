@@ -14,6 +14,7 @@ import type {
   ColumnDef,
   CellValue,
   ColumnKind,
+  TraceDisplayInputConfig,
 } from '@agent-evals/shared';
 import { cellValueSchema } from '@agent-evals/shared';
 import {
@@ -26,6 +27,10 @@ import {
   type EvalScoreDef,
 } from '@agent-evals/sdk';
 import { loadConfig } from './config.ts';
+import {
+  getSpanCacheStatus,
+  resolveTracePresentation,
+} from './traceDisplay.ts';
 
 export type EvalRunner = {
   init(): Promise<void>;
@@ -360,6 +365,7 @@ export function createRunner({
                   evalDef,
                   evalId: evalMeta.id,
                   evalCase,
+                  globalTraceDisplay: config.traceDisplay,
                   trial,
                   signal: runState.abortController.signal,
                   startTime,
@@ -543,6 +549,7 @@ async function runCase<TInput>(params: {
   evalDef: EvalDefinition<TInput>;
   evalId: string;
   evalCase: { id: string; input: TInput; tags?: string[] };
+  globalTraceDisplay: TraceDisplayInputConfig | undefined;
   trial: number;
   signal: AbortSignal;
   startTime: number;
@@ -550,7 +557,15 @@ async function runCase<TInput>(params: {
   caseDetail: CaseDetail;
   caseRowUpdate: Partial<CaseRow>;
 }> {
-  const { evalDef, evalId, evalCase, trial, signal, startTime } = params;
+  const {
+    evalDef,
+    evalId,
+    evalCase,
+    globalTraceDisplay,
+    trial,
+    signal,
+    startTime,
+  } = params;
 
   const { scope, error: executeError } = await runInEvalScope(
     evalCase.id,
@@ -637,6 +652,12 @@ async function runCase<TInput>(params: {
       ? 'pass'
       : 'fail';
 
+  const { trace: displayTrace, traceDisplay } = resolveTracePresentation(
+    scope.spans,
+    globalTraceDisplay,
+    evalDef.traceDisplay,
+  );
+
   const columns: Record<string, CellValue> = {};
   for (const [key, value] of Object.entries(scope.outputs)) {
     const cell = toCellValue(value);
@@ -648,9 +669,14 @@ async function runCase<TInput>(params: {
   const costUsdRaw = scope.outputs['costUsd'];
   const costUsd = typeof costUsdRaw === 'number' ? costUsdRaw : null;
 
-  const cacheHits = scope.spans.filter((s) => s.cache?.status === 'hit').length;
+  const cacheHits = scope.spans.filter(
+    (s) => getSpanCacheStatus(s) === 'hit',
+  ).length;
   const cacheMisses = scope.spans.filter(
-    (s) => s.cache && s.cache.status !== 'hit',
+    (s) => {
+      const cacheStatus = getSpanCacheStatus(s);
+      return cacheStatus !== undefined && cacheStatus !== 'hit';
+    },
   ).length;
   const cacheStatus: CaseRow['cacheStatus'] =
     cacheHits > 0 && cacheMisses === 0
@@ -674,7 +700,8 @@ async function runCase<TInput>(params: {
     evalId,
     status,
     input: evalCase.input,
-    trace: scope.spans,
+    trace: displayTrace,
+    traceDisplay,
     cost: {
       totalUsd: costUsd,
       uncachedUsd: null,

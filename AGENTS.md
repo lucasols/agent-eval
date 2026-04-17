@@ -26,7 +26,7 @@ pnpm 10 workspaces (do not invoke npm or yarn):
 - `pnpm lint` — ESLint + tsc recursively
 - `pnpm eslint` / `pnpm format` — ESLint / Prettier
 
-Each workspace exposes `tsc`, `eslint`, `lint`. Run `pnpm lint` before marking a task complete.
+Each workspace exposes `tsc`, `eslint`, `lint`.
 
 # Toolchain
 
@@ -48,13 +48,22 @@ The runner resolves the workspace from `process.cwd()` (via `agent-evals.config.
   - `cd examples/basic-agent && pnpm --filter @agent-evals/server dev`
   - `pnpm dev:web` (separate terminal)
 
+# After implementing a feature or adjustment
+
+Once the implementation is in place, complete the following before marking the task done:
+
+- Run `pnpm lint` at the repo root and in every affected sub-package to surface ESLint and `tsgo` issues. Fix them at the source — no `eslint-disable`, `@ts-expect-error`, or `@ts-ignore`.
+- Make sure `examples/basic-agent` exercises the new feature/adjustment. If coverage is missing, extend the example. Examples must reflect real production flows — no fake, synthetic, or placeholder scenarios.
+- Smoke-test the example via the CLI (`pnpm eval list`, `pnpm eval run`, and `pnpm eval app` when the UI is affected) to confirm the feature behaves as intended end-to-end.
+- Update the root `README.md` whenever user-facing behavior, APIs, CLI flags, config, or commands change.
+- Add or update JSDoc on every public API touched (exports from `packages/sdk`, `packages/shared`, `packages/runner`, and `packages/cli`). Document intent, parameters, return values, and notable edge cases.
+
 # Intent over literalism
 
 - Infer the real goal behind a request, then implement the smallest change that solves it well.
 - Don't follow instructions mechanically when they conflict with product intent, existing architecture, or the simplest correct solution.
 - Avoid instruction-shaped overengineering: no new abstractions, configs, or refactors unless the actual problem requires them.
 - Ask a focused clarifying question only when ambiguity materially affects scope or risk; otherwise make the reasonable assumption and proceed.
-- When user-facing behavior changes (SDK API, CLI flags, config, commands), update the root `README.md` in the same change.
 
 # Code style
 

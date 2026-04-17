@@ -1,7 +1,7 @@
 import { z } from 'zod/v4';
 import { cellValueSchema, columnDefSchema } from './display.ts';
 import { evalCostSummarySchema } from './cost.ts';
-import { traceSpanSchema } from './trace.ts';
+import { traceDisplayConfigSchema, traceSpanSchema } from './trace.ts';
 
 export const evalSummarySchema = z.object({
   id: z.string(),
@@ -34,6 +34,7 @@ export const caseDetailSchema = z.object({
   status: z.enum(['pending', 'running', 'pass', 'fail', 'error', 'cancelled']),
   input: z.unknown(),
   trace: z.array(traceSpanSchema),
+  traceDisplay: traceDisplayConfigSchema,
   cost: evalCostSummarySchema,
   columns: z.record(z.string(), cellValueSchema),
   assertionFailures: z.array(z.string()),

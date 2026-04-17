@@ -13,6 +13,12 @@ const defaultConfig: AgentEvalsConfig = {
   include: ['**/*.eval.ts'],
   defaultTrials: 1,
   concurrency: 2,
+  traceDisplay: {
+    attributes: [
+      { path: 'input', label: 'Input', format: 'json', placements: ['section'] },
+      { path: 'output', label: 'Output', format: 'json', placements: ['section'] },
+    ],
+  },
 };
 
 export async function loadConfig(): Promise<AgentEvalsConfig> {

@@ -5,6 +5,7 @@ import {
 } from '../src/workflows/triggerWorkflow.ts';
 
 const REFUND_REGEX = /refund/i;
+const USD_TO_BRL = 5.7;
 
 function isTextBlock(
   value: unknown,
@@ -49,6 +50,36 @@ defineEval<WorkflowInput>({
     costUsd: { label: 'Cost', format: 'usd' },
     toolCalls: { label: 'Tool Calls' },
     llmTurns: { label: 'LLM Turns' },
+  },
+  traceDisplay: {
+    attributes: [
+      { path: 'model', label: 'Model', placements: ['detail'] },
+      { path: 'usage.inputTokens', label: 'Input tokens', format: 'number', placements: ['detail'] },
+      { path: 'usage.outputTokens', label: 'Output tokens', format: 'number', placements: ['detail'] },
+      {
+        path: 'costUsd',
+        label: 'Cost',
+        format: 'usd',
+        placements: ['tree', 'detail'],
+        scope: 'subtree',
+        mode: 'sum',
+      },
+      {
+        key: 'costBrl',
+        path: 'costUsd',
+        label: 'Cost (BRL)',
+        placements: ['detail'],
+        scope: 'subtree',
+        mode: 'sum',
+        transform: ({ value }) =>
+          typeof value === 'number'
+            ? new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+              }).format(value * USD_TO_BRL)
+            : value,
+      },
+    ],
   },
   execute: async ({ input }) => {
     await triggerWorkflow(input);

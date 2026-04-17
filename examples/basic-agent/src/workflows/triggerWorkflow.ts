@@ -27,7 +27,7 @@ export async function triggerWorkflow(
   input: WorkflowInput,
 ): Promise<WorkflowResult> {
   return tracer.span({ kind: 'agent', name: 'refund-workflow' }, async () => {
-    span.setInput(input);
+    span.setAttribute('input', input);
 
     await tracer.span({ kind: 'llm', name: 'plan-refund' }, () => {
       const usage = { inputTokens: 150, outputTokens: 50 };
@@ -35,28 +35,34 @@ export async function triggerWorkflow(
         (usage.inputTokens / 1_000_000) * INPUT_PRICE_PER_MILLION +
         (usage.outputTokens / 1_000_000) * OUTPUT_PRICE_PER_MILLION;
 
-      span.setInput({ prompt: input.message });
-      span.setAttribute('model', 'gpt-4o-mini');
-      span.setUsage(usage);
-      span.setCostUsd(costUsd);
-      span.setOutput({ plan: 'approve refund' });
+      span.setAttributes({
+        input: { prompt: input.message },
+        model: 'gpt-4o-mini',
+        usage,
+        costUsd,
+        output: { plan: 'approve refund' },
+      });
 
       incrementOutput('costUsd', costUsd);
     });
 
     if (input.receiptImage) {
       await tracer.span({ kind: 'tool', name: 'inspect-receipt' }, () => {
-        span.setInput({ path: input.receiptImage });
-        span.setOutput({ verified: true });
+        span.setAttributes({
+          input: { path: input.receiptImage },
+          output: { verified: true },
+        });
       });
     }
 
     const result = await tracer.span(
       { kind: 'tool', name: 'process-refund' },
       () => {
-        span.setInput({ message: input.message });
         const final = `Approved refund for: ${input.message}`;
-        span.setOutput({ finalText: final, approved: true });
+        span.setAttributes({
+          input: { message: input.message },
+          output: { finalText: final, approved: true },
+        });
         return { finalText: final, approved: true };
       },
     );
@@ -69,7 +75,7 @@ export async function triggerWorkflow(
       'workflow output should mention refund',
     );
 
-    span.setOutput(result);
+    span.setAttribute('output', result);
     return result;
   });
 }

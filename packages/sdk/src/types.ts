@@ -2,6 +2,7 @@ import type {
   ColumnFormat,
   ColumnKind,
   EvalTraceSpan,
+  TraceDisplayInputConfig,
 } from '@agent-evals/shared';
 
 export type EvalCase<TInput> = {
@@ -66,6 +67,7 @@ export type EvalDefinition<TInput = unknown> = {
   description?: string;
   cases?: EvalCase<TInput>[] | (() => Promise<EvalCase<TInput>[]>);
   columns?: EvalColumns;
+  traceDisplay?: TraceDisplayInputConfig;
   execute: (ctx: EvalExecuteContext<TInput>) => Promise<void> | void;
   deriveFromTracing?: (
     ctx: EvalDeriveContext<TInput>,

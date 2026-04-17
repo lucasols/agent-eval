@@ -14,4 +14,10 @@ export const config: AgentEvalsConfig = {
     },
   },
   concurrency: 2,
+  traceDisplay: {
+    attributes: [
+      { path: 'input', label: 'Input', format: 'json', placements: ['section'] },
+      { path: 'output', label: 'Output', format: 'json', placements: ['section'] },
+    ],
+  },
 };

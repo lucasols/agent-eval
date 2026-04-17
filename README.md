@@ -52,9 +52,9 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
        await tracer.span(
          { kind: 'agent', name: 'my-agent' },
          async () => {
-           span.setInput(input)
+           span.setAttribute('input', input)
            const output = await myAgent(input)
-           span.setOutput(output)
+           span.setAttribute('output', output)
            setOutput('output', output)
          },
        )
@@ -89,6 +89,7 @@ A complete working example lives at [`examples/basic-agent`](./examples/basic-ag
 | `defaultTrials`  | `number?`                                      | Trials per case when not overridden (default: `1`)               |
 | `concurrency`    | `number?`                                      | Max parallel case executions (default: `2`)                      |
 | `pricing`        | `Record<string, { inputPerMillionUsd, outputPerMillionUsd }>?` | Per-model pricing used to compute cost |
+| `traceDisplay`   | `TraceDisplayConfig?`                          | Global trace attribute display config for the UI                 |
 
 ## Writing evals
 
@@ -101,6 +102,7 @@ A complete working example lives at [`examples/basic-agent`](./examples/basic-ag
 | `description`   |          | Free-text description                                                            |
 | `cases`         | yes      | `EvalCase[]` or `() => Promise<EvalCase[]>` (async loader for dynamic datasets)  |
 | `execute`       | yes      | `async ({ input, signal }) => { ... }`                                           |
+| `traceDisplay`  |          | Per-eval trace attribute display overrides for the UI                             |
 | `deriveFromTracing` |      | Derive output columns from the finished trace tree                               |
 | `scores`        |          | Record of scoring functions returning `0..1`                                     |
 | `columns`       |          | Custom columns shown in the results table                                        |
@@ -128,16 +130,57 @@ execute: async ({ input }) => {
   await tracer.span(
     { kind: 'agent', name: 'refund-agent' },
     async () => {
-      span.setInput(input)
+      span.setAttribute('input', input)
       const result = await agent(input)
-      span.setAttribute('model', 'gpt-4.1')
-      span.setOutput(result)
+      span.setAttributes({
+        model: 'gpt-4.1',
+        output: result,
+      })
       setOutput('output', result)
     },
   )
   tracer.checkpoint('final-state', { approved: true })
 }
 ```
+
+Use `traceDisplay` to tell the UI which attributes to promote in the trace tree and detail pane:
+
+```ts
+traceDisplay: {
+  attributes: [
+    { path: 'input', label: 'Input', format: 'json', placements: ['section'] },
+    { path: 'output', label: 'Output', format: 'json', placements: ['section'] },
+    { path: 'model', label: 'Model', placements: ['detail'] },
+    {
+      path: 'costUsd',
+      label: 'Cost',
+      format: 'usd',
+      placements: ['tree', 'detail'],
+      scope: 'subtree',
+      mode: 'sum',
+    },
+    {
+      key: 'costBrl',
+      path: 'costUsd',
+      label: 'Cost (BRL)',
+      placements: ['detail'],
+      scope: 'subtree',
+      mode: 'sum',
+      transform: ({ value }) =>
+        typeof value === 'number'
+          ? new Intl.NumberFormat('pt-BR', {
+              style: 'currency',
+              currency: 'BRL',
+            }).format(value * 5.7)
+          : value,
+    },
+  ],
+}
+```
+
+Use `key` when you want to display the same source attribute more than once, such as USD and BRL views of the same `costUsd` value. `transform` runs in the runner and the UI receives the transformed result as plain data.
+
+`scope` controls whether a value is read from the current span only (`'self'`) or from the whole span subtree (`'subtree'`). `mode` controls how multiple matching values are resolved: `'all'`, `'last'`, or `'sum'`.
 
 ### Scorers
 

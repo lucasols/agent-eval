@@ -1,5 +1,9 @@
 import { z } from 'zod/v4';
 import { modelPricingSchema } from './cost.ts';
+import {
+  traceDisplayInputConfigSchema,
+  type TraceDisplayInputConfig,
+} from './trace.ts';
 
 export type AgentEvalsConfig = {
   /** Root directory used to resolve all relative paths. Defaults to `process.cwd()`. */
@@ -12,6 +16,8 @@ export type AgentEvalsConfig = {
   pricing?: Record<string, z.infer<typeof modelPricingSchema>>;
   /** Maximum number of cases executed in parallel. Defaults to `2`. */
   concurrency?: number;
+  /** Global trace attribute display config for the UI. */
+  traceDisplay?: TraceDisplayInputConfig;
 };
 
 export const agentEvalsConfigSchema = z.object({
@@ -20,4 +26,5 @@ export const agentEvalsConfigSchema = z.object({
   defaultTrials: z.number().optional(),
   pricing: z.record(z.string(), modelPricingSchema).optional(),
   concurrency: z.number().optional(),
+  traceDisplay: traceDisplayInputConfigSchema.optional(),
 });

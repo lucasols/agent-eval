@@ -288,7 +288,9 @@ export function CaseDrawer() {
           </div>
         ) : null}
 
-        {activeTab === 'trace' ? <TraceTree spans={d.trace} /> : null}
+        {activeTab === 'trace' ? (
+          <TraceTree spans={d.trace} traceDisplay={d.traceDisplay} />
+        ) : null}
 
         {activeTab === 'raw' ? (
           <RawSections>

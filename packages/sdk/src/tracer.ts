@@ -1,24 +1,11 @@
-import type { DisplayBlock, EvalTraceSpan } from '@agent-evals/shared';
+import type { EvalTraceSpan } from '@agent-evals/shared';
 import { getCurrentScope } from './runtime.ts';
 import type { EvalTraceTree } from './types.ts';
 
 export type TraceActiveSpan = {
   setName(value: string): void;
-  setInput(value: unknown): void;
-  setOutput(value: unknown): void;
-  setDisplay(blocks: DisplayBlock[]): void;
   setAttribute(key: string, value: unknown): void;
   setAttributes(value: Record<string, unknown>): void;
-  setUsage(value: {
-    inputTokens?: number;
-    outputTokens?: number;
-    totalTokens?: number;
-  }): void;
-  setCostUsd(value: number | null): void;
-  setCache(value: {
-    status: 'hit' | 'miss' | 'write' | 'bypass';
-    key?: string;
-  }): void;
 };
 
 let spanIdCounter = 0;
@@ -40,14 +27,8 @@ function updateCurrentSpan(
 function noopActiveSpan(): TraceActiveSpan {
   return {
     setName() {},
-    setInput() {},
-    setOutput() {},
-    setDisplay() {},
     setAttribute() {},
     setAttributes() {},
-    setUsage() {},
-    setCostUsd() {},
-    setCache() {},
   };
 }
 
@@ -63,29 +44,11 @@ function createSpanHandle(span: EvalTraceSpan): TraceActiveSpan {
     setName(value) {
       span.name = value;
     },
-    setInput(value) {
-      span.input = value;
-    },
-    setOutput(value) {
-      span.output = value;
-    },
-    setDisplay(blocks) {
-      span.display = blocks;
-    },
     setAttribute(key, value) {
       mergeSpanAttributes(span, { [key]: value });
     },
     setAttributes(value) {
       mergeSpanAttributes(span, value);
-    },
-    setUsage(value) {
-      span.usage = value;
-    },
-    setCostUsd(value) {
-      span.costUsd = value;
-    },
-    setCache(value) {
-      span.cache = value;
     },
   };
 }
@@ -96,21 +59,6 @@ export const span: TraceActiveSpan = {
       currentSpan.name = value;
     });
   },
-  setInput(value) {
-    updateCurrentSpan((currentSpan) => {
-      currentSpan.input = value;
-    });
-  },
-  setOutput(value) {
-    updateCurrentSpan((currentSpan) => {
-      currentSpan.output = value;
-    });
-  },
-  setDisplay(blocks) {
-    updateCurrentSpan((currentSpan) => {
-      currentSpan.display = blocks;
-    });
-  },
   setAttribute(key, value) {
     updateCurrentSpan((currentSpan) => {
       mergeSpanAttributes(currentSpan, { [key]: value });
@@ -119,21 +67,6 @@ export const span: TraceActiveSpan = {
   setAttributes(value) {
     updateCurrentSpan((currentSpan) => {
       mergeSpanAttributes(currentSpan, value);
-    });
-  },
-  setUsage(value) {
-    updateCurrentSpan((currentSpan) => {
-      currentSpan.usage = value;
-    });
-  },
-  setCostUsd(value) {
-    updateCurrentSpan((currentSpan) => {
-      currentSpan.costUsd = value;
-    });
-  },
-  setCache(value) {
-    updateCurrentSpan((currentSpan) => {
-      currentSpan.cache = value;
     });
   },
 };
@@ -230,7 +163,7 @@ export const tracer = {
       startedAt: new Date().toISOString(),
       endedAt: new Date().toISOString(),
       status: 'ok',
-      output: data,
+      attributes: { value: data },
     });
   },
 };
