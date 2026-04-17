@@ -67,7 +67,7 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
    })
    ```
 
-3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). The UI gives you run controls, per-case results, trace drawer, cost, and per-run cache toggle.
+3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). The command prepares the UI automatically, so you do not need to start a separate web dev server. The UI gives you run controls, per-case results, trace drawer, cost, and per-run cache toggle. The eval explorer updates automatically when matching `*.eval.ts` files are added, removed, or edited.
 
 4. **Or use the CLI**:
 
@@ -80,6 +80,17 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
    Run artifacts are persisted under `.agent-evals/runs/<run-id>/` with `run.json`, `summary.json`, per-case `cases.jsonl`, and trace JSON files for the executed cases.
 
 A complete working example lives at [`examples/basic-agent`](./examples/basic-agent).
+
+## Local development
+
+From `examples/basic-agent`, run `pnpm eval app` for the same single-command flow a library user gets.
+
+From the repo root, `pnpm dev` is still available when you specifically want separate server + Vite processes for faster frontend iteration:
+
+- Server: `http://localhost:4100`
+- Web app: `http://localhost:4200`
+
+The dev command keeps both ports fixed and fails fast if either port is already in use.
 
 ## Configuration
 

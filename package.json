@@ -3,9 +3,10 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "pnpm --filter @agent-evals/server dev",
+    "dev": "node ./scripts/dev.mjs",
+    "dev:server": "pnpm --dir ./examples/basic-agent --filter @agent-evals/server dev",
     "dev:web": "pnpm --filter @agent-evals/web dev",
-    "dev:all": "pnpm -r --parallel dev",
+    "dev:all": "node ./scripts/dev.mjs",
     "build": "pnpm -r build",
     "build:web": "pnpm --filter @agent-evals/web build",
     "build:server": "pnpm --filter @agent-evals/server build",

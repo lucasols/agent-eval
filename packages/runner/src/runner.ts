@@ -35,23 +35,35 @@ import { parseEvalMetas } from './discovery.ts';
 
 /** Imperative runner interface used by the server and CLI. */
 export type EvalRunner = {
+  /** Load workspace config, discover evals, and start file watching when enabled. */
   init(): Promise<void>;
+  /** Return the currently discovered eval summaries for the active workspace. */
   getEvals(): EvalSummary[];
+  /** Look up one discovered eval by id. */
   getEval(id: string): EvalSummary | undefined;
+  /** Re-scan configured eval files and emit a discovery update to listeners. */
   refreshDiscovery(): Promise<void>;
   startRun(request: CreateRunRequest): Promise<{
     manifest: RunManifest;
     summary: RunSummary;
     cases: CaseRow[];
   }>;
+  /** Return run manifests tracked in the current process. */
   getRuns(): RunManifest[];
   getRun(id: string):
     | { manifest: RunManifest; summary: RunSummary; cases: CaseRow[] }
     | undefined;
+  /** Request cancellation for an in-flight run. */
   cancelRun(id: string): void;
+  /** Return full details for a single case in a run, when available. */
   getCaseDetail(runId: string, caseId: string): CaseDetail | undefined;
+  /** Subscribe to streamed events for a specific run. */
   subscribe(runId: string, listener: (event: SseEnvelope) => void): () => void;
+  /** Subscribe to discovery updates triggered by file changes or manual refresh. */
+  subscribeDiscovery(listener: (event: SseEnvelope) => void): () => void;
+  /** Resolve the workspace root backing this runner instance. */
   getWorkspaceRoot(): string;
+  /** Resolve a persisted artifact path when artifact storage is supported. */
   getArtifactPath(artifactId: string): string | undefined;
 };
 
@@ -93,6 +105,7 @@ export function createRunner({
   const staleEvals = new Set<string>();
   const runs = new Map<string, RunState>();
   const lastRunStatusMap = new Map<string, EvalSummary['lastRunStatus']>();
+  const discoveryListeners = new Set<(event: SseEnvelope) => void>();
 
   const runner: EvalRunner = {
     async init() {
@@ -170,6 +183,8 @@ export function createRunner({
           // skip files that can't be parsed
         }
       }
+
+      emitDiscoveryEvent();
     },
 
     async startRun(request) {
@@ -271,6 +286,13 @@ export function createRunner({
       };
     },
 
+    subscribeDiscovery(listener) {
+      discoveryListeners.add(listener);
+      return () => {
+        discoveryListeners.delete(listener);
+      };
+    },
+
     getWorkspaceRoot() {
       return workspaceRoot;
     },
@@ -288,9 +310,7 @@ export function createRunner({
     });
 
     watcher.on('change', () => {
-      for (const id of evals.keys()) {
-        staleEvals.add(id);
-      }
+      void runner.refreshDiscovery();
     });
 
     watcher.on('add', () => {
@@ -300,6 +320,17 @@ export function createRunner({
     watcher.on('unlink', () => {
       void runner.refreshDiscovery();
     });
+  }
+
+  function emitDiscoveryEvent() {
+    const event: SseEnvelope = {
+      type: 'discovery.updated',
+      timestamp: new Date().toISOString(),
+      payload: runner.getEvals(),
+    };
+    for (const listener of discoveryListeners) {
+      listener(event);
+    }
   }
 
   async function executeRun(

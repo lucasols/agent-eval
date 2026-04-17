@@ -1,10 +1,8 @@
 import { styled } from 'vindur';
-import { RefreshCw } from 'lucide-react';
 import { colors } from '#src/style/colors';
 import { inline, stack } from '#src/style/helpers';
-import { evalsStore, refreshDiscovery } from '../stores/evalsStore.ts';
+import { evalsStore } from '../stores/evalsStore.ts';
 import { EvalTree } from './EvalTree.tsx';
-import { IconButton } from './IconButton.tsx';
 
 const Root = styled.aside`
   ${stack()}
@@ -74,16 +72,6 @@ const Wordmark = styled.div`
   color: ${colors.text.var};
 `;
 
-const Tagline = styled.div`
-  font-size: 9.5px;
-  font-weight: 500;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: ${colors.textDim.var};
-  margin-top: 6px;
-  padding-left: 32px;
-`;
-
 const SectionHeader = styled.div`
   ${inline({ justify: 'space-between', align: 'center' })}
   padding: 14px 20px 8px;
@@ -104,32 +92,13 @@ const SectionCounter = styled.span`
   font-weight: 700;
 `;
 
-const Spinner = styled.span`
-  display: inline-flex;
-  animation: spin 0.8s linear infinite;
-
-  & > svg {
-    width: 14px;
-    height: 14px;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-`;
-
 const ScrollArea = styled.div`
   flex: 1;
   overflow: auto;
 `;
 
 export function Sidebar() {
-  const { loading, evals } = evalsStore.useSelectorRC((s) => ({
-    loading: s.loading,
-    evals: s.evals,
-  }));
+  const { evals } = evalsStore.useSelectorRC((s) => ({ evals: s.evals }));
 
   return (
     <Root>
@@ -140,25 +109,11 @@ export function Sidebar() {
             <Wordmark>Agentevals</Wordmark>
           </Brand>
         </MastheadTop>
-        <Tagline>Local · Deterministic · Observable</Tagline>
       </Masthead>
       <SectionHeader>
         <SectionLabel>
           Evals <SectionCounter>[{String(evals.length).padStart(2, '0')}]</SectionCounter>
         </SectionLabel>
-        <IconButton
-          onClick={() => void refreshDiscovery()}
-          disabled={loading}
-          aria-label="Refresh evals"
-        >
-          {loading ? (
-            <Spinner>
-              <RefreshCw />
-            </Spinner>
-          ) : (
-            <RefreshCw />
-          )}
-        </IconButton>
       </SectionHeader>
       <ScrollArea>
         <EvalTree />

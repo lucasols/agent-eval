@@ -40,6 +40,17 @@ export function AppShell() {
     void refetchHistory();
   }, []);
 
+  useEffect(() => {
+    const eventSource = new EventSource('/api/evals/events');
+    eventSource.addEventListener('discovery.updated', () => {
+      void fetchEvals();
+    });
+
+    return () => {
+      eventSource.close();
+    };
+  }, []);
+
   return (
     <Root>
       <Sidebar />
@@ -86,4 +97,3 @@ function PendingState() {
     />
   );
 }
-

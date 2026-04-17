@@ -1,7 +1,7 @@
 import { styled } from 'vindur';
 import { ChevronRight, FileCode, Folder, FolderOpen } from 'lucide-react';
 import { colors } from '#src/style/colors';
-import { ellipsis, inline, monoFont, transition } from '#src/style/helpers';
+import { ellipsis, inline, monoFont, stack, transition } from '#src/style/helpers';
 import {
   selectionStore,
   selectEval,
@@ -25,11 +25,32 @@ const Root = styled.div`
 
 const Empty = styled.div`
   padding: 20px;
+  ${stack({ gap: 10, align: 'left' })}
+`;
+
+const EmptyTitle = styled.div`
   color: ${colors.textDim.var};
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.14em;
-  text-align: center;
+`;
+
+const EmptyBody = styled.div`
+  color: ${colors.textMuted.var};
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+`;
+
+const CommandHint = styled.code`
+  ${monoFont}
+  display: block;
+  width: 100%;
+  overflow: auto;
+  color: ${colors.text.var};
+  background: ${colors.bgElevated.var};
+  border: 1px solid ${colors.border.var};
+  padding: 10px 12px;
 `;
 
 const RowBase = styled.button<{
@@ -168,14 +189,50 @@ function getFilename(filePath: string): string {
 }
 
 export function EvalTree() {
-  const { evals } = evalsStore.useSelectorRC((s) => ({ evals: s.evals }));
+  const { evals, hasLoaded, error } = evalsStore.useSelectorRC((s) => ({
+    evals: s.evals,
+    hasLoaded: s.hasLoaded,
+    error: s.error,
+  }));
   const { selection, expandedFolders } = selectionStore.useSelectorRC((s) => ({
     selection: s.selection,
     expandedFolders: s.expandedFolders,
   }));
 
+  if (!hasLoaded) {
+    return (
+      <Empty>
+        <EmptyTitle>Loading evals</EmptyTitle>
+        <EmptyBody>Waiting for the sidebar tree to load.</EmptyBody>
+      </Empty>
+    );
+  }
+
+  if (error && evals.length === 0) {
+    return (
+      <Empty>
+        <EmptyTitle>Could not load evals</EmptyTitle>
+        <EmptyBody>{error}</EmptyBody>
+        <CommandHint>pnpm dev</CommandHint>
+      </Empty>
+    );
+  }
+
   if (evals.length === 0) {
-    return <Empty>No evals discovered</Empty>;
+    return (
+      <Empty>
+        <EmptyTitle>No evals discovered</EmptyTitle>
+        <EmptyBody>
+          The web app is up, but the backend did not discover any `*.eval.ts`
+          files.
+          {'\n'}
+          {'\n'}
+          In this repo, start the server from the example workspace so the tree
+          can populate.
+        </EmptyBody>
+        <CommandHint>pnpm dev</CommandHint>
+      </Empty>
+    );
   }
 
   const tree = buildEvalTree(evals);

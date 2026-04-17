@@ -1,3 +1,7 @@
+import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createRunner } from '@agent-evals/runner';
 
 type CliArgs = {
@@ -84,9 +88,55 @@ export async function runCli(argv: string[]): Promise<void> {
 
 type HonoAppLike = { fetch: (...args: unknown[]) => Response };
 
+const currentDir = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(currentDir, '../../..');
+const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+
 async function importUnknown(specifier: string): Promise<unknown> {
   const mod: unknown = await import(specifier);
   return mod;
+}
+
+function hasRepoWebWorkspace(): boolean {
+  return existsSync(resolve(repoRoot, 'apps/web/package.json'));
+}
+
+async function ensureWebUiIsBuilt(): Promise<void> {
+  if (!hasRepoWebWorkspace()) {
+    return;
+  }
+
+  console.info('Preparing web UI...');
+  await new Promise<void>((resolvePromise, rejectPromise) => {
+    const child = spawn(
+      pnpmCommand,
+      ['--filter', '@agent-evals/web', 'build'],
+      {
+        cwd: repoRoot,
+        stdio: 'inherit',
+      },
+    );
+
+    child.once('error', (error) => {
+      rejectPromise(error);
+    });
+
+    child.once('exit', (code, signal) => {
+      if (signal) {
+        rejectPromise(new Error(`Web UI build stopped with signal ${signal}.`));
+        return;
+      }
+
+      if (code !== 0) {
+        rejectPromise(
+          new Error(`Web UI build failed with exit code ${String(code)}.`),
+        );
+        return;
+      }
+
+      resolvePromise();
+    });
+  });
 }
 
 function isHonoAppModule(mod: unknown): mod is { app: HonoAppLike } {
@@ -112,6 +162,8 @@ function isServerRunnerModule(
 }
 
 async function commandApp(args: CliArgs): Promise<void> {
+  await ensureWebUiIsBuilt();
+
   const { serve } = await import('@hono/node-server');
   const appModule = await importUnknown('../../../apps/server/src/app.ts');
   const runnerModule = await importUnknown(
@@ -228,7 +280,7 @@ async function waitForRunCompletion(
   runner: ReturnType<typeof createRunner>,
   runId: string,
 ): Promise<void> {
-  return new Promise((resolve) => {
+  return new Promise((resolvePromise) => {
     const check = () => {
       const run = runner.getRun(runId);
       if (
@@ -237,7 +289,7 @@ async function waitForRunCompletion(
         run.manifest.status === 'cancelled' ||
         run.manifest.status === 'error'
       ) {
-        resolve();
+        resolvePromise();
         return;
       }
       setTimeout(check, 200);

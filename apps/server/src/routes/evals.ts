@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { streamSSE } from 'hono/streaming';
 import { getRunnerInstance } from '../runner.ts';
 
 export const evalsRoutes = new Hono()
@@ -12,6 +13,28 @@ export const evalsRoutes = new Hono()
     await runner.refreshDiscovery();
     const evals = runner.getEvals();
     return c.json(evals, 200);
+  })
+  .get('/events', (c) => {
+    const runner = getRunnerInstance();
+
+    return streamSSE(c, async (stream) => {
+      const cleanup = runner.subscribeDiscovery((event) => {
+        void stream.writeSSE({
+          event: event.type,
+          data: JSON.stringify(event),
+        });
+      });
+
+      stream.onAbort(() => {
+        cleanup();
+      });
+
+      await new Promise<void>((resolve) => {
+        stream.onAbort(() => {
+          resolve();
+        });
+      });
+    });
   })
   .get('/:evalId', (c) => {
     const runner = getRunnerInstance();
