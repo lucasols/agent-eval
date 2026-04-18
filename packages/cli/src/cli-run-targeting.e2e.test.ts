@@ -9,7 +9,7 @@ import {
 } from './cliTestUtils.ts';
 
 describe('CLI run targeting', () => {
-  test('supports eval filters, comma-separated case filters, and no-cache mode', async () => {
+  test('supports eval filters and comma-separated case filters', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const result = await runExampleCli(workspacePath, [
         'run',
@@ -17,12 +17,10 @@ describe('CLI run targeting', () => {
         'refund-workflow',
         '--case',
         'simple-text,with-image',
-        '--no-cache',
       ]);
 
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toBe('');
-      expect(result.stdout).toContain('Cache: disabled');
       expect(result.stdout).toContain('Total: 2');
 
       const artifacts = await readSingleRunArtifacts(workspacePath);
@@ -57,7 +55,6 @@ describe('CLI run targeting', () => {
       ).toMatchInlineSnapshot(`
         {
           "commandOutput": "Run started: <run-id>
-        Cache: disabled
         Trials: 1
 
         --- Run Summary ---
@@ -364,9 +361,7 @@ describe('CLI run targeting', () => {
             "averageScore": 0.8200000000000001,
             "cancelledCases": 0,
             "cost": {
-              "savingsUsd": null,
               "totalUsd": 0.0017499999999999998,
-              "uncachedUsd": null,
             },
             "errorCases": 0,
             "errorMessage": null,

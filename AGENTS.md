@@ -41,7 +41,7 @@ The runner resolves the workspace from `process.cwd()` (via `agent-evals.config.
 
 - **CLI** — from `examples/basic-agent`:
   - `pnpm eval list` — discover evals
-  - `pnpm eval run` — run all (add `--eval <id>` / `--case <id>` / `--no-cache` as needed)
+  - `pnpm eval run` — run all (add `--eval <id>` / `--case <id>` as needed)
 - **CLI end-to-end tests** — prefer adding or updating automated CLI tests around `examples/basic-agent` whenever the changed behavior can be covered that way. Cover both the CLI commands and the eval data reachable through the CLI flow (run summaries, outputs, columns, traces, persisted artifacts), and pair narrow assertions with inline snapshots of the full output/artifact payload so reviewers can inspect the result quickly.
 - **End-to-end UI check** — only when the user asks. Run `pnpm dev` from the repo root, then open `http://localhost:4200` and exercise the changed flow there. `pnpm dev` starts the server against `examples/basic-agent` on port `4100` and the web UI on port `4200`. If you can't actually load the UI, say so instead of claiming it works. Otherwise, rely on `pnpm lint` and the CLI smoke test.
 - **Server + web together** — use `pnpm dev` from the repo root. Do not use `pnpm eval app` for UI testing.
