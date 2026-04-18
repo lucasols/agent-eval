@@ -85,9 +85,9 @@ A complete working example lives at [`examples/basic-agent`](./examples/basic-ag
 
 From `examples/basic-agent`, run `pnpm eval app` for the same single-command flow a library user gets.
 
-From the repo root, `pnpm dev` now runs that same example app command on `http://localhost:4100` by default and restarts it when relevant web/server/runner/example files change. Use `pnpm dev:web` only when you explicitly want the standalone Vite server for frontend-only work.
+From the repo root, `pnpm dev` now starts the example-backed Hono server on `http://localhost:4100` together with the Vite web dev server on `http://localhost:4200`, so frontend changes get full HMR while `/api` stays pointed at the example workspace.
 
-The dev command defaults to port `4100` and fails fast if the selected port is already in use. You can override it with `PORT=<n> pnpm dev`.
+Use `pnpm dev:app` when you want to smoke-test the built app flow that `pnpm eval app` uses, and `pnpm dev:server` when you only need the backend. These repo-local dev scripts always use fixed ports so the server is consistently on `4100` and the Vite app is consistently on `4200`.
 
 ## Configuration
 
