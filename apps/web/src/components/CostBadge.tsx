@@ -5,8 +5,6 @@ import { formatCost } from '../utils/formatters.ts';
 
 type CostBadgeProps = {
   billedCost: number | null;
-  uncachedCost?: number | null;
-  savings?: number | null;
 };
 
 const CostContainer = styled.span`
@@ -18,28 +16,10 @@ const CostContainer = styled.span`
   font-weight: 500;
 `;
 
-const SavingsLabel = styled.span`
-  ${monoFont}
-  font-size: 11px;
-  color: ${colors.success.var};
-  font-weight: 400;
-`;
-
-export function CostBadge({
-  billedCost,
-  uncachedCost,
-  savings,
-}: CostBadgeProps) {
+export function CostBadge({ billedCost }: CostBadgeProps) {
   return (
     <CostContainer>
       <span title="Billed cost">{formatCost(billedCost)}</span>
-      {savings !== null && savings !== undefined && savings > 0 ? (
-        <SavingsLabel
-          title={`Saved ${formatCost(savings)} (uncached: ${formatCost(uncachedCost ?? null)})`}
-        >
-          -{formatCost(savings)}
-        </SavingsLabel>
-      ) : null}
     </CostContainer>
   );
 }

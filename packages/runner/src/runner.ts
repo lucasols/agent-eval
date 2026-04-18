@@ -27,10 +27,7 @@ import {
   type EvalScoreDef,
 } from '@agent-evals/sdk';
 import { loadConfig } from './config.ts';
-import {
-  getSpanCacheStatus,
-  resolveTracePresentation,
-} from './traceDisplay.ts';
+import { resolveTracePresentation } from './traceDisplay.ts';
 import { parseEvalMetas } from './discovery.ts';
 
 /** Imperative runner interface used by the server and CLI. */
@@ -210,7 +207,7 @@ export function createRunner({
         cancelledCases: 0,
         averageScore: null,
         totalDurationMs: null,
-        cost: { totalUsd: null, uncachedUsd: null, savingsUsd: null },
+        cost: { totalUsd: null },
         errorMessage: null,
       };
 
@@ -395,7 +392,6 @@ export function createRunner({
                   score: null,
                   latencyMs: null,
                   costUsd: null,
-                  cacheStatus: null,
                   columns: {},
                   trial,
                 };
@@ -734,24 +730,6 @@ async function runCase<TInput>(params: {
   const costUsdRaw = scope.outputs['costUsd'];
   const costUsd = typeof costUsdRaw === 'number' ? costUsdRaw : null;
 
-  const cacheHits = scope.spans.filter(
-    (s) => getSpanCacheStatus(s) === 'hit',
-  ).length;
-  const cacheMisses = scope.spans.filter(
-    (s) => {
-      const cacheStatus = getSpanCacheStatus(s);
-      return cacheStatus !== undefined && cacheStatus !== 'hit';
-    },
-  ).length;
-  const cacheStatus: CaseRow['cacheStatus'] =
-    cacheHits > 0 && cacheMisses === 0
-      ? 'hit'
-      : cacheHits > 0
-        ? 'partial'
-        : cacheMisses > 0
-          ? 'miss'
-          : null;
-
   const errorInfo = nonAssertError
     ? {
         name: nonAssertError.name,
@@ -769,8 +747,6 @@ async function runCase<TInput>(params: {
     traceDisplay,
     cost: {
       totalUsd: costUsd,
-      uncachedUsd: null,
-      savingsUsd: null,
     },
     columns,
     assertionFailures: scope.assertionFailures,
@@ -783,7 +759,6 @@ async function runCase<TInput>(params: {
     score: avgScore,
     latencyMs: elapsedMs,
     costUsd,
-    cacheStatus,
     columns,
   };
 

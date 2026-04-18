@@ -25,7 +25,6 @@ export const caseRowSchema = z.object({
   score: z.number().nullable(),
   latencyMs: z.number().nullable(),
   costUsd: z.number().nullable(),
-  cacheStatus: z.enum(['hit', 'miss', 'partial', 'bypass']).nullable(),
   columns: z.record(z.string(), cellValueSchema),
   trial: z.number(),
 });

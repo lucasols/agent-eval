@@ -7,7 +7,6 @@ export const createRunRequestSchema = z.object({
     evalIds: z.array(z.string()).optional(),
     caseIds: z.array(z.string()).optional(),
   }),
-  disableCache: z.boolean().optional(),
   trials: z.number().min(1),
 });
 /** Request payload accepted by the run creation endpoint. */

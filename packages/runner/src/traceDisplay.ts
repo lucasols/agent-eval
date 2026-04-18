@@ -118,29 +118,3 @@ export function resolveTracePresentation(
     },
   };
 }
-
-export function getSpanCacheStatus(
-  span: EvalTraceSpan,
-): 'hit' | 'miss' | 'write' | 'bypass' | undefined {
-  const nestedStatus = getNestedAttribute(span.attributes, 'cache.status');
-  if (
-    nestedStatus === 'hit' ||
-    nestedStatus === 'miss' ||
-    nestedStatus === 'write' ||
-    nestedStatus === 'bypass'
-  ) {
-    return nestedStatus;
-  }
-
-  const flatStatus = getNestedAttribute(span.attributes, 'cacheStatus');
-  if (
-    flatStatus === 'hit' ||
-    flatStatus === 'miss' ||
-    flatStatus === 'write' ||
-    flatStatus === 'bypass'
-  ) {
-    return flatStatus;
-  }
-
-  return undefined;
-}

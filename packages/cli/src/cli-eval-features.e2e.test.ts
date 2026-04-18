@@ -193,9 +193,7 @@ describe('CLI eval features', () => {
             "averageScore": 0.9066666666666666,
             "cancelledCases": 0,
             "cost": {
-              "savingsUsd": null,
               "totalUsd": 0.0026249999999999997,
-              "uncachedUsd": null,
             },
             "errorCases": 0,
             "errorMessage": null,
@@ -551,9 +549,7 @@ describe('CLI eval features', () => {
             "averageScore": 0,
             "cancelledCases": 0,
             "cost": {
-              "savingsUsd": null,
               "totalUsd": null,
-              "uncachedUsd": null,
             },
             "errorCases": 0,
             "errorMessage": null,
