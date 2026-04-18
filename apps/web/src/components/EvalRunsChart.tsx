@@ -9,7 +9,7 @@ import {
   YAxis,
 } from 'recharts';
 import { colors } from '#src/style/colors';
-import { centerContent, monoFont, stack } from '#src/style/helpers';
+import { monoFont } from '#src/style/helpers';
 import { formatCost, formatTimestamp } from '../utils/formatters.ts';
 
 type ChartPoint = {
@@ -45,24 +45,6 @@ const ChartFrame = styled.div`
     z-index: 1;
     pointer-events: none;
   }
-`;
-
-const Placeholder = styled.div`
-  ${centerContent}
-  ${stack({ align: 'center', gap: 8 })}
-  height: 200px;
-  border: 1px dashed ${colors.borderStrong.alpha(0.6)};
-  color: ${colors.textMuted.var};
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.24em;
-  background: ${colors.bgElevated.alpha(0.6)};
-`;
-
-const PlaceholderGlyph = styled.div`
-  font-size: 28px;
-  color: ${colors.accent.alpha(0.5)};
-  letter-spacing: 0;
 `;
 
 const TooltipBox = styled.div`
@@ -130,15 +112,6 @@ function CustomTooltip({
 }
 
 export function EvalRunsChart({ data }: EvalRunsChartProps) {
-  if (data.length <= 1) {
-    return (
-      <Placeholder>
-        <PlaceholderGlyph>∿</PlaceholderGlyph>
-        No run history yet
-      </Placeholder>
-    );
-  }
-
   return (
     <ChartFrame>
       <ResponsiveContainer width="100%" height="100%">

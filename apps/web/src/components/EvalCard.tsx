@@ -329,6 +329,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const isRunning =
     currentRun?.manifest.status === 'running' &&
     runTargetsEvalLocal(currentRun.manifest.target, evalSummary.id);
+  const hasScoreHistory = chartData.length > 1;
 
   function handleRun(e: React.MouseEvent) {
     e.stopPropagation();
@@ -441,17 +442,17 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
             </Stat>
           </StatsGrid>
 
-          <Section>
-            <SectionLabel>
-              Score history
-              <SectionMeta>
-                {chartData.length > 0
-                  ? `${chartData.length} ${chartData.length === 1 ? 'run' : 'runs'}`
-                  : 'no data'}
-              </SectionMeta>
-            </SectionLabel>
-            <EvalRunsChart data={chartData} />
-          </Section>
+          {hasScoreHistory ? (
+            <Section>
+              <SectionLabel>
+                Score history
+                <SectionMeta>
+                  {chartData.length} {chartData.length === 1 ? 'run' : 'runs'}
+                </SectionMeta>
+              </SectionLabel>
+              <EvalRunsChart data={chartData} />
+            </Section>
+          ) : null}
 
           <Section>
             <SectionLabel>
