@@ -6,6 +6,7 @@ import {
   span,
   tracer,
 } from '@agent-evals/sdk';
+import { waitForWorkflowDelay } from './simulatedDelay.ts';
 import { calculateWorkflowCostUsd } from './workflowCost.ts';
 
 export type VoiceReturnFollowUpInput = {
@@ -32,7 +33,9 @@ export async function runVoiceReturnFollowUpWorkflow(
 
       const detectedLocale = input.locale ?? 'en-US';
 
-      await tracer.span({ kind: 'llm', name: 'transcribe-voice-note' }, () => {
+      await tracer.span({ kind: 'llm', name: 'transcribe-voice-note' }, async () => {
+        await waitForWorkflowDelay('transcribeVoiceNote');
+
         const usage = { inputTokens: 130, outputTokens: 90 };
         const costUsd = calculateWorkflowCostUsd(usage);
 
@@ -50,7 +53,9 @@ export async function runVoiceReturnFollowUpWorkflow(
         incrementOutput('costUsd', costUsd);
       });
 
-      await tracer.span({ kind: 'tool', name: 'draft-follow-up' }, () => {
+      await tracer.span({ kind: 'tool', name: 'draft-follow-up' }, async () => {
+        await waitForWorkflowDelay('draftFollowUp');
+
         span.setAttributes({
           input: {
             orderId: input.orderId,
@@ -65,7 +70,9 @@ export async function runVoiceReturnFollowUpWorkflow(
 
       const result = await tracer.span(
         { kind: 'llm', name: 'localize-follow-up' },
-        () => {
+        async () => {
+          await waitForWorkflowDelay('localizeFollowUp');
+
           const usage = { inputTokens: 110, outputTokens: 70 };
           const costUsd = calculateWorkflowCostUsd(usage);
           const finalText = `Prepared a ${input.preferredChannel} follow-up with return steps for order ${input.orderId}.`;

@@ -6,6 +6,7 @@ import {
   span,
   tracer,
 } from '@agent-evals/sdk';
+import { waitForWorkflowDelay } from './simulatedDelay.ts';
 
 export type WorkflowInput = {
   message: string;
@@ -29,7 +30,9 @@ export async function triggerWorkflow(
   return tracer.span({ kind: 'agent', name: 'refund-workflow' }, async () => {
     span.setAttribute('input', input);
 
-    await tracer.span({ kind: 'llm', name: 'plan-refund' }, () => {
+    await tracer.span({ kind: 'llm', name: 'plan-refund' }, async () => {
+      await waitForWorkflowDelay('planRefund');
+
       const usage = { inputTokens: 150, outputTokens: 50 };
       const costUsd =
         (usage.inputTokens / 1_000_000) * INPUT_PRICE_PER_MILLION +
@@ -47,7 +50,9 @@ export async function triggerWorkflow(
     });
 
     if (input.receiptImage) {
-      await tracer.span({ kind: 'tool', name: 'inspect-receipt' }, () => {
+      await tracer.span({ kind: 'tool', name: 'inspect-receipt' }, async () => {
+        await waitForWorkflowDelay('inspectReceipt');
+
         span.setAttributes({
           input: { path: input.receiptImage },
           output: { verified: true },
@@ -57,7 +62,9 @@ export async function triggerWorkflow(
 
     const result = await tracer.span(
       { kind: 'tool', name: 'process-refund' },
-      () => {
+      async () => {
+        await waitForWorkflowDelay('processRefund');
+
         const final = `Approved refund for: ${input.message}`;
         span.setAttributes({
           input: { message: input.message },

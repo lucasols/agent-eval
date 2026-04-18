@@ -32,8 +32,10 @@ describe('CLI eval features', () => {
         const responseBlocks = displayBlocksSchema.parse(caseRow.columns.response);
 
         expect(caseRow.status).toBe('pass');
-        expect(caseRow.score).toBe(1);
+        expect(typeof caseRow.score).toBe('number');
+        expect(caseRow.score).toBeGreaterThan(0.8);
         expect(caseRow.columns.mentionsRefund).toBe(1);
+        expect(typeof caseRow.columns.reviewConfidence).toBe('number');
         expect(caseRow.columns.llmTurns).toBe(1);
         expect(typeof caseRow.columns.costUsd).toBe('number');
         expect(responseBlocks).toHaveLength(1);
@@ -77,7 +79,7 @@ describe('CLI eval features', () => {
                 "text": "Approved refund for: I want a refund for order #123",
               },
             ],
-            "score": 1,
+            "score": 0.8200000000000001,
             "status": "pass",
             "toolCalls": 1,
           },
@@ -92,7 +94,7 @@ describe('CLI eval features', () => {
                 "text": "Approved refund for: Please refund this damaged item",
               },
             ],
-            "score": 1,
+            "score": 0.9199999999999999,
             "status": "pass",
             "toolCalls": 2,
           },
@@ -107,7 +109,7 @@ describe('CLI eval features', () => {
                 "text": "Approved refund for: I need to return this product",
               },
             ],
-            "score": 1,
+            "score": 0.98,
             "status": "pass",
             "toolCalls": 1,
           },
@@ -164,6 +166,8 @@ describe('CLI eval features', () => {
       expect(
         readDisplayString(withImagePlan.attributes?.__display, 'costBrl'),
       ).toBe('R$ 0,00');
+      expect(getDurationMs(simpleTextAgent)).toBeGreaterThanOrEqual(400);
+      expect(getDurationMs(withImagePlan)).toBeGreaterThanOrEqual(180);
 
       let totalCaseCost = 0;
       for (const caseRow of artifacts.cases) {
@@ -186,7 +190,7 @@ describe('CLI eval features', () => {
       ).toMatchInlineSnapshot(`
         {
           "summary": {
-            "averageScore": 1,
+            "averageScore": 0.9066666666666666,
             "cancelledCases": 0,
             "cost": {
               "savingsUsd": null,
@@ -612,6 +616,16 @@ function readDisplayString(
   return typeof displayValue === 'string'
     ? displayValue.replaceAll('\u00A0', ' ')
     : undefined;
+}
+
+function getDurationMs(span: EvalTraceSpan): number {
+  if (span.endedAt === null) {
+    throw new Error(`Expected completed span ${span.name}`);
+  }
+
+  return (
+    new Date(span.endedAt).getTime() - new Date(span.startedAt).getTime()
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

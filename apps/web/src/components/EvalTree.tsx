@@ -213,7 +213,7 @@ export function EvalTree() {
       <Empty>
         <EmptyTitle>Could not load evals</EmptyTitle>
         <EmptyBody>{error}</EmptyBody>
-        <CommandHint>pnpm dev</CommandHint>
+        <CommandHint>agent-evals app</CommandHint>
       </Empty>
     );
   }
@@ -227,10 +227,10 @@ export function EvalTree() {
           files.
           {'\n'}
           {'\n'}
-          In this repo, start the server from the example workspace so the tree
+          Start the app from the workspace that contains your evals so the tree
           can populate.
         </EmptyBody>
-        <CommandHint>pnpm dev</CommandHint>
+        <CommandHint>agent-evals app</CommandHint>
       </Empty>
     );
   }

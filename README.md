@@ -85,12 +85,9 @@ A complete working example lives at [`examples/basic-agent`](./examples/basic-ag
 
 From `examples/basic-agent`, run `pnpm eval app` for the same single-command flow a library user gets.
 
-From the repo root, `pnpm dev` is still available when you specifically want separate server + Vite processes for faster frontend iteration:
+From the repo root, `pnpm dev` now runs that same example app command on `http://localhost:4100` by default and restarts it when relevant web/server/runner/example files change. Use `pnpm dev:web` only when you explicitly want the standalone Vite server for frontend-only work.
 
-- Server: `http://localhost:4100`
-- Web app: `http://localhost:4200`
-
-The dev command keeps both ports fixed and fails fast if either port is already in use.
+The dev command defaults to port `4100` and fails fast if the selected port is already in use. You can override it with `PORT=<n> pnpm dev`.
 
 ## Configuration
 

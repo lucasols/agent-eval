@@ -6,6 +6,7 @@ import {
   span,
   tracer,
 } from '@agent-evals/sdk';
+import { waitForWorkflowDelay } from './simulatedDelay.ts';
 import { calculateWorkflowCostUsd } from './workflowCost.ts';
 
 export type ReceiptFraudReviewInput = {
@@ -29,17 +30,24 @@ export async function runReceiptFraudReviewWorkflow(
     async () => {
       span.setAttribute('input', input);
 
-      await tracer.span({ kind: 'tool', name: 'extract-receipt-metadata' }, () => {
-        span.setAttributes({
-          input: { path: input.receiptImage },
-          output: {
-            orderId: input.orderId,
-            claimedAmountUsd: input.claimedAmountUsd,
-          },
-        });
-      });
+      await tracer.span(
+        { kind: 'tool', name: 'extract-receipt-metadata' },
+        async () => {
+          await waitForWorkflowDelay('extractReceiptMetadata');
 
-      await tracer.span({ kind: 'llm', name: 'flag-tampering-signals' }, () => {
+          span.setAttributes({
+            input: { path: input.receiptImage },
+            output: {
+              orderId: input.orderId,
+              claimedAmountUsd: input.claimedAmountUsd,
+            },
+          });
+        },
+      );
+
+      await tracer.span({ kind: 'llm', name: 'flag-tampering-signals' }, async () => {
+        await waitForWorkflowDelay('flagTamperingSignals');
+
         const usage = { inputTokens: 240, outputTokens: 90 };
         const costUsd = calculateWorkflowCostUsd(usage);
 
@@ -62,7 +70,9 @@ export async function runReceiptFraudReviewWorkflow(
 
       const result = await tracer.span(
         { kind: 'tool', name: 'open-risk-case' },
-        () => {
+        async () => {
+          await waitForWorkflowDelay('openRiskCase');
+
           const finalText = `Opened a risk review for order ${input.orderId} after detecting receipt tampering signals.`;
           span.setAttributes({
             input: { orderId: input.orderId },

@@ -6,6 +6,7 @@ import {
   span,
   tracer,
 } from '@agent-evals/sdk';
+import { waitForWorkflowDelay } from './simulatedDelay.ts';
 import { calculateWorkflowCostUsd } from './workflowCost.ts';
 
 export type HighValueRefundInput = {
@@ -28,7 +29,9 @@ export async function runHighValueRefundWorkflow(
   return tracer.span({ kind: 'agent', name: 'high-value-refund' }, async () => {
     span.setAttribute('input', input);
 
-    await tracer.span({ kind: 'llm', name: 'assess-refund-risk' }, () => {
+    await tracer.span({ kind: 'llm', name: 'assess-refund-risk' }, async () => {
+      await waitForWorkflowDelay('assessRefundRisk');
+
       const usage = { inputTokens: 260, outputTokens: 80 };
       const costUsd = calculateWorkflowCostUsd(usage);
 
@@ -50,19 +53,26 @@ export async function runHighValueRefundWorkflow(
       incrementOutput('costUsd', costUsd);
     });
 
-    await tracer.span({ kind: 'tool', name: 'inspect-premium-receipt' }, () => {
-      span.setAttributes({
-        input: { path: input.receiptImage },
-        output: {
-          orderId: input.orderId,
-          purchaseVerified: true,
-        },
-      });
-    });
+    await tracer.span(
+      { kind: 'tool', name: 'inspect-premium-receipt' },
+      async () => {
+        await waitForWorkflowDelay('inspectPremiumReceipt');
+
+        span.setAttributes({
+          input: { path: input.receiptImage },
+          output: {
+            orderId: input.orderId,
+            purchaseVerified: true,
+          },
+        });
+      },
+    );
 
     const result = await tracer.span(
       { kind: 'tool', name: 'open-finance-escalation' },
-      () => {
+      async () => {
+        await waitForWorkflowDelay('openFinanceEscalation');
+
         const finalText = `Escalated a $${input.requestedRefundUsd.toFixed(2)} refund for order ${input.orderId} to finance review.`;
         span.setAttributes({
           input: { orderId: input.orderId },

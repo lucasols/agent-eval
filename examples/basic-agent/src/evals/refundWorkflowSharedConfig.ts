@@ -9,6 +9,16 @@ export type { WorkflowInput } from '../workflows/triggerWorkflow.ts';
 const REFUND_REGEX = /refund/i;
 const USD_TO_BRL = 5.7;
 
+function sampleReviewConfidence(seed: string): number {
+  let hash = 0;
+  for (const char of seed) {
+    hash = (hash * 31 + char.charCodeAt(0)) % 10_000;
+  }
+
+  // Keep example scores varied without making test runs flaky.
+  return Math.round((0.6 + (hash / 10_000) * 0.39) * 100) / 100;
+}
+
 function isTextBlock(
   value: unknown,
 ): value is { kind: 'text' | 'markdown'; text: string } {
@@ -34,6 +44,7 @@ export const refundWorkflowSharedConfig: Pick<
     costUsd: { label: 'Cost', format: 'usd' },
     toolCalls: { label: 'Tool Calls' },
     llmTurns: { label: 'LLM Turns' },
+    reviewConfidence: { label: 'Review Confidence' },
   },
   traceDisplay: {
     attributes: [
@@ -94,6 +105,13 @@ export const refundWorkflowSharedConfig: Pick<
           .map((block) => block.text)
           .join(' ');
         return REFUND_REGEX.test(text) ? 1 : 0;
+      },
+    },
+    reviewConfidence: {
+      label: 'Review Confidence',
+      passThreshold: 0.6,
+      compute: ({ case: evalCase }) => {
+        return sampleReviewConfidence(evalCase.id);
       },
     },
   },

@@ -20,6 +20,7 @@ describe('CLI discovery', () => {
       expect(result.stdout).toContain('Assertion Failure Demo');
       expect(result.stdout).toContain('Silent Pass Demo');
       expect(result.stdout).toContain('Silent Assertion Demo');
+      expect(result.stdout).toContain('Randomized Lab');
       expect(result.stdout).toContain('Voice Return Follow-up');
       expect(result.stdout).toContain('Refund Workflow');
       expect(result.stdout).toContain('refund-workflow');
@@ -59,6 +60,10 @@ describe('CLI discovery', () => {
           Silent Assertion Demo
             id: silent-assertion-demo
             file: <workspace>/evals/support/quality/outcome-behavior.eval.ts
+
+          Randomized Lab
+            id: randomized-lab
+            file: <workspace>/evals/support/playground/randomized-lab.eval.ts
 
           High Value Refund
             id: high-value-refund

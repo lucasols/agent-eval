@@ -66,7 +66,7 @@ describe('CLI run targeting', () => {
         Passed: 2
         Failed: 0
         Errors: 0
-        Avg Score: 1.00
+        Avg Score: 0.87
         Duration: <duration>
         Cost: $0.0017",
           "persistedCases": [
@@ -78,7 +78,7 @@ describe('CLI run targeting', () => {
                   "text": "Approved refund for: I want a refund for order #123",
                 },
               ],
-              "score": 1,
+              "score": 0.8200000000000001,
               "status": "pass",
               "toolCalls": 1,
             },
@@ -90,7 +90,7 @@ describe('CLI run targeting', () => {
                   "text": "Approved refund for: Please refund this damaged item",
                 },
               ],
-              "score": 1,
+              "score": 0.9199999999999999,
               "status": "pass",
               "toolCalls": 2,
             },
@@ -361,7 +361,7 @@ describe('CLI run targeting', () => {
       ).toMatchInlineSnapshot(`
         {
           "jsonSummary": {
-            "averageScore": 1,
+            "averageScore": 0.8200000000000001,
             "cancelledCases": 0,
             "cost": {
               "savingsUsd": null,
@@ -386,7 +386,7 @@ describe('CLI run targeting', () => {
                   "text": "Approved refund for: I want a refund for order #123",
                 },
               ],
-              "score": 1,
+              "score": 0.8200000000000001,
               "trial": 0,
             },
             {
@@ -397,7 +397,7 @@ describe('CLI run targeting', () => {
                   "text": "Approved refund for: I want a refund for order #123",
                 },
               ],
-              "score": 1,
+              "score": 0.8200000000000001,
               "trial": 1,
             },
           ],

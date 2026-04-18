@@ -6,6 +6,7 @@ import {
   span,
   tracer,
 } from '@agent-evals/sdk';
+import { waitForWorkflowDelay } from './simulatedDelay.ts';
 import { calculateWorkflowCostUsd } from './workflowCost.ts';
 
 export type ReceiptAuditInput = {
@@ -27,7 +28,9 @@ export async function runReceiptAuditWorkflow(
   return tracer.span({ kind: 'agent', name: 'receipt-audit' }, async () => {
     span.setAttribute('input', input);
 
-    await tracer.span({ kind: 'tool', name: 'ocr-receipt' }, () => {
+    await tracer.span({ kind: 'tool', name: 'ocr-receipt' }, async () => {
+      await waitForWorkflowDelay('ocrReceipt');
+
       span.setAttributes({
         input: { path: input.receiptImage },
         output: {
@@ -37,30 +40,37 @@ export async function runReceiptAuditWorkflow(
       });
     });
 
-    await tracer.span({ kind: 'llm', name: 'compare-claim-against-receipt' }, () => {
-      const usage = { inputTokens: 190, outputTokens: 60 };
-      const costUsd = calculateWorkflowCostUsd(usage);
+    await tracer.span(
+      { kind: 'llm', name: 'compare-claim-against-receipt' },
+      async () => {
+        await waitForWorkflowDelay('compareClaimAgainstReceipt');
 
-      span.setAttributes({
-        input: {
-          customerMessage: input.customerMessage,
-          expectedTotalUsd: input.expectedTotalUsd,
-        },
-        model: 'gpt-4o-mini',
-        usage,
-        costUsd,
-        output: {
-          auditStatus: 'verified',
-          discrepancyCount: 0,
-        },
-      });
+        const usage = { inputTokens: 190, outputTokens: 60 };
+        const costUsd = calculateWorkflowCostUsd(usage);
 
-      incrementOutput('costUsd', costUsd);
-    });
+        span.setAttributes({
+          input: {
+            customerMessage: input.customerMessage,
+            expectedTotalUsd: input.expectedTotalUsd,
+          },
+          model: 'gpt-4o-mini',
+          usage,
+          costUsd,
+          output: {
+            auditStatus: 'verified',
+            discrepancyCount: 0,
+          },
+        });
+
+        incrementOutput('costUsd', costUsd);
+      },
+    );
 
     const result = await tracer.span(
       { kind: 'tool', name: 'publish-audit-summary' },
-      () => {
+      async () => {
+        await waitForWorkflowDelay('publishAuditSummary');
+
         const finalText = `Verified receipt for order ${input.orderId} and matched it to the customer report.`;
         span.setAttributes({
           input: { orderId: input.orderId },

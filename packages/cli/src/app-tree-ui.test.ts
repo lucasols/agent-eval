@@ -54,6 +54,11 @@ const exampleEvals: EvalSummary[] = [
     'Silent Assertion Demo',
     `${exampleWorkspace}/evals/support/quality/outcome-behavior.eval.ts`,
   ),
+  createEvalSummary(
+    'randomized-lab',
+    'Randomized Lab',
+    `${exampleWorkspace}/evals/support/playground/randomized-lab.eval.ts`,
+  ),
 ];
 
 describe('app tree ui', () => {
@@ -62,6 +67,18 @@ describe('app tree ui', () => {
       [
         {
           "children": [
+            {
+              "children": [
+                {
+                  "id": "randomized-lab",
+                  "kind": "leaf",
+                  "title": "Randomized Lab",
+                },
+              ],
+              "kind": "folder",
+              "name": "playground",
+              "path": "support/playground",
+            },
             {
               "children": [
                 {
@@ -162,6 +179,7 @@ describe('app tree ui', () => {
     ).toEqual([
       'assertion-failure-demo',
       'high-value-refund',
+      'randomized-lab',
       'receipt-audit',
       'receipt-fraud-review',
       'score-threshold-demo',

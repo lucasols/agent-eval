@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "node ./scripts/dev.mjs",
-    "dev:server": "pnpm --dir ./examples/basic-agent --filter @agent-evals/server dev",
+    "dev:server": "pnpm --dir ./examples/basic-agent eval app",
     "dev:web": "pnpm --filter @agent-evals/web dev",
     "dev:all": "node ./scripts/dev.mjs",
     "build": "pnpm -r build",
