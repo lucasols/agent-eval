@@ -1,5 +1,6 @@
 import { glob } from 'glob';
 import { watch } from 'chokidar';
+import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import type {
@@ -11,6 +12,8 @@ import type {
   SseEnvelope,
   CreateRunRequest,
   AgentEvalsConfig,
+  CacheListItem,
+  CacheMode,
   ColumnDef,
   CellValue,
   ColumnKind,
@@ -29,6 +32,11 @@ import {
 import { loadConfig } from './config.ts';
 import { resolveTracePresentation } from './traceDisplay.ts';
 import { parseEvalMetas } from './discovery.ts';
+import {
+  createFsCacheStore,
+  type CacheClearFilter,
+  type FsCacheStore,
+} from './cacheStore.ts';
 
 /** Imperative runner interface used by the server and CLI. */
 export type EvalRunner = {
@@ -47,7 +55,9 @@ export type EvalRunner = {
   }>;
   /** Return run manifests tracked in the current process. */
   getRuns(): RunManifest[];
-  getRun(id: string):
+  getRun(
+    id: string,
+  ):
     | { manifest: RunManifest; summary: RunSummary; cases: CaseRow[] }
     | undefined;
   /** Request cancellation for an in-flight run. */
@@ -62,6 +72,13 @@ export type EvalRunner = {
   getWorkspaceRoot(): string;
   /** Resolve a persisted artifact path when artifact storage is supported. */
   getArtifactPath(artifactId: string): string | undefined;
+  /** Return summaries for every persisted cache entry in the workspace. */
+  listCache(): Promise<CacheListItem[]>;
+  /**
+   * Remove cache entries matching `filter`, or all entries when no filter is
+   * supplied.
+   */
+  clearCache(filter?: CacheClearFilter): Promise<void>;
 };
 
 type CreateRunnerOptions = {
@@ -98,6 +115,7 @@ export function createRunner({
   let config: AgentEvalsConfig;
   let workspaceRoot: string;
   let localStateDir: string;
+  let cacheStore: FsCacheStore;
   const evals = new Map<string, EvalMeta>();
   const staleEvals = new Set<string>();
   const runs = new Map<string, RunState>();
@@ -113,10 +131,23 @@ export function createRunner({
       await mkdir(localStateDir, { recursive: true });
       await mkdir(join(localStateDir, 'runs'), { recursive: true });
 
+      cacheStore = createFsCacheStore({
+        workspaceRoot,
+        dir: config.cache?.dir,
+      });
+
       await runner.refreshDiscovery();
       if (watchForChanges) {
         setupWatcher();
       }
+    },
+
+    async listCache() {
+      return cacheStore.list();
+    },
+
+    async clearCache(filter) {
+      await cacheStore.clear(filter);
     },
 
     getEvals() {
@@ -156,7 +187,10 @@ export function createRunner({
       const discovered: string[] = [];
 
       for (const pattern of patterns) {
-        const files = await glob(pattern, { cwd: workspaceRoot, absolute: true });
+        const files = await glob(pattern, {
+          cwd: workspaceRoot,
+          absolute: true,
+        });
         discovered.push(...files);
       }
 
@@ -187,6 +221,7 @@ export function createRunner({
     async startRun(request) {
       const runId = generateRunId();
       const now = new Date().toISOString();
+      const cacheMode: CacheMode = request.cache?.mode ?? 'use';
 
       const manifest: RunManifest = {
         id: runId,
@@ -195,6 +230,7 @@ export function createRunner({
         endedAt: null,
         target: request.target,
         trials: request.trials,
+        cacheMode,
       };
 
       const summary: RunSummary = {
@@ -347,11 +383,20 @@ export function createRunner({
 
       const allCaseRows: CaseRow[] = [];
       const evalErrors: { evalId: string; message: string }[] = [];
+      const cacheMode: CacheMode = runState.manifest.cacheMode ?? 'use';
+      const cacheEnabled = config.cache?.enabled !== false;
 
       for (const evalMeta of targetEvals) {
         if (runState.abortController.signal.aborted) break;
 
         const evalFilePath = evalMeta.filePath;
+        let codeFingerprint = '';
+        try {
+          const source = await readFile(evalFilePath, 'utf-8');
+          codeFingerprint = createHash('sha256').update(source).digest('hex');
+        } catch {
+          codeFingerprint = '';
+        }
 
         try {
           const registry = getEvalRegistry();
@@ -367,15 +412,14 @@ export function createRunner({
           }
 
           await entry.use(async (evalDef) => {
-            const cases =
-              filterEvalCases(
-                typeof evalDef.cases === 'function'
-                  ? await evalDef.cases()
-                  : evalDef.cases ?? [],
-                request.target.evalIds,
-                request.target.caseIds,
-                evalMeta.id,
-              );
+            const cases = filterEvalCases(
+              typeof evalDef.cases === 'function' ?
+                await evalDef.cases()
+              : (evalDef.cases ?? []),
+              request.target.evalIds,
+              request.target.caseIds,
+              evalMeta.id,
+            );
 
             runState.summary.totalCases += cases.length * request.trials;
 
@@ -415,6 +459,9 @@ export function createRunner({
                   trial,
                   signal: runState.abortController.signal,
                   startTime,
+                  cacheAdapter: cacheEnabled ? cacheStore : null,
+                  cacheMode,
+                  codeFingerprint,
                 });
 
                 Object.assign(caseRow, caseRowUpdate);
@@ -456,9 +503,12 @@ export function createRunner({
 
           lastRunStatusMap.set(
             evalMeta.id,
-            runState.summary.failedCases > 0 || runState.summary.errorCases > 0
-              ? 'fail'
-              : 'pass',
+            (
+              runState.summary.failedCases > 0
+                || runState.summary.errorCases > 0
+            ) ?
+              'fail'
+            : 'pass',
           );
         } catch (error) {
           console.error(`Error running eval ${evalMeta.id}:`, error);
@@ -474,9 +524,9 @@ export function createRunner({
         .map((c) => c.score)
         .filter((s): s is number => s !== null);
       runState.summary.averageScore =
-        allScores.length > 0
-          ? allScores.reduce((a, b) => a + b, 0) / allScores.length
-          : null;
+        allScores.length > 0 ?
+          allScores.reduce((a, b) => a + b, 0) / allScores.length
+        : null;
 
       const totalCostUsd = allCaseRows
         .map((c) => c.costUsd)
@@ -489,18 +539,17 @@ export function createRunner({
       runState.summary.totalDurationMs =
         endTime.getTime() - new Date(runState.manifest.startedAt).getTime();
 
-      const finalStatus = runState.abortController.signal.aborted
-        ? 'cancelled'
-        : evalErrors.length > 0
-          ? 'error'
-          : 'completed';
+      const finalStatus =
+        runState.abortController.signal.aborted ? 'cancelled'
+        : evalErrors.length > 0 ? 'error'
+        : 'completed';
       runState.summary.status = finalStatus;
       runState.manifest.status = finalStatus;
       runState.manifest.endedAt = endTime.toISOString();
       runState.summary.errorMessage =
-        evalErrors.length > 0
-          ? evalErrors.map((e) => `[${e.evalId}] ${e.message}`).join('\n')
-          : null;
+        evalErrors.length > 0 ?
+          evalErrors.map((e) => `[${e.evalId}] ${e.message}`).join('\n')
+        : null;
 
       emitEvent(runState, {
         type: 'run.summary',
@@ -614,6 +663,9 @@ async function runCase<TInput>(params: {
   trial: number;
   signal: AbortSignal;
   startTime: number;
+  cacheAdapter: FsCacheStore | null;
+  cacheMode: CacheMode;
+  codeFingerprint: string;
 }): Promise<{
   caseDetail: CaseDetail;
   caseRowUpdate: Partial<CaseRow>;
@@ -626,6 +678,9 @@ async function runCase<TInput>(params: {
     trial,
     signal,
     startTime,
+    cacheAdapter,
+    cacheMode,
+    codeFingerprint,
   } = params;
 
   const { scope, error: executeError } = await runInEvalScope(
@@ -633,15 +688,26 @@ async function runCase<TInput>(params: {
     async () => {
       await evalDef.execute({ input: evalCase.input, signal });
     },
+    {
+      cacheContext:
+        cacheAdapter ?
+          {
+            adapter: cacheAdapter,
+            mode: cacheMode,
+            evalId,
+            codeFingerprint,
+          }
+        : undefined,
+    },
   );
 
   const elapsedMs = Date.now() - startTime;
   const traceTree = buildTraceTree(scope.spans, scope.checkpoints);
 
   const nonAssertError =
-    executeError && !(executeError instanceof EvalAssertionError)
-      ? executeError
-      : null;
+    executeError && !(executeError instanceof EvalAssertionError) ?
+      executeError
+    : null;
 
   if (!nonAssertError && evalDef.deriveFromTracing) {
     try {
@@ -664,7 +730,11 @@ async function runCase<TInput>(params: {
 
   const scoreResults = new Map<
     string,
-    { value: number; passThreshold: number | undefined; label: string | undefined }
+    {
+      value: number;
+      passThreshold: number | undefined;
+      label: string | undefined;
+    }
   >();
 
   if (!nonAssertError && evalDef.scores) {
@@ -690,16 +760,16 @@ async function runCase<TInput>(params: {
 
   const scoreValues = [...scoreResults.values()].map((s) => s.value);
   const avgScore =
-    scoreValues.length > 0
-      ? scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length
-      : null;
+    scoreValues.length > 0 ?
+      scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length
+    : null;
 
   let passed = scope.assertionFailures.length === 0 && !nonAssertError;
   if (passed) {
     for (const [, scoreEntry] of scoreResults) {
       if (
-        scoreEntry.passThreshold !== undefined &&
-        scoreEntry.value < scoreEntry.passThreshold
+        scoreEntry.passThreshold !== undefined
+        && scoreEntry.value < scoreEntry.passThreshold
       ) {
         passed = false;
         break;
@@ -707,11 +777,10 @@ async function runCase<TInput>(params: {
     }
   }
 
-  const status: CaseRow['status'] = nonAssertError
-    ? 'error'
-    : passed
-      ? 'pass'
-      : 'fail';
+  const status: CaseRow['status'] =
+    nonAssertError ? 'error'
+    : passed ? 'pass'
+    : 'fail';
 
   const { trace: displayTrace, traceDisplay } = resolveTracePresentation(
     scope.spans,
@@ -730,8 +799,9 @@ async function runCase<TInput>(params: {
   const costUsdRaw = scope.outputs['costUsd'];
   const costUsd = typeof costUsdRaw === 'number' ? costUsdRaw : null;
 
-  const errorInfo = nonAssertError
-    ? {
+  const errorInfo =
+    nonAssertError ?
+      {
         name: nonAssertError.name,
         message: nonAssertError.message,
         stack: nonAssertError.stack,
@@ -765,9 +835,7 @@ async function runCase<TInput>(params: {
   return { caseDetail, caseRowUpdate };
 }
 
-function normalizeScoreDef<TInput>(
-  def: EvalScoreDef<TInput>,
-): {
+function normalizeScoreDef<TInput>(def: EvalScoreDef<TInput>): {
   compute: (ctx: {
     input: TInput;
     outputs: Record<string, unknown>;
@@ -836,9 +904,9 @@ function inferKind(value: unknown): ColumnKind {
 function toCellValue(value: unknown): CellValue | undefined {
   if (value === null) return null;
   if (
-    typeof value === 'string' ||
-    typeof value === 'number' ||
-    typeof value === 'boolean'
+    typeof value === 'string'
+    || typeof value === 'number'
+    || typeof value === 'boolean'
   ) {
     return value;
   }

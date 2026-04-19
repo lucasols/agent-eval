@@ -7,6 +7,7 @@ import { existsSync } from 'node:fs';
 import { evalsRoutes } from './routes/evals.ts';
 import { runsRoutes } from './routes/runs.ts';
 import { assetsRoutes } from './routes/assets.ts';
+import { cacheRoutes } from './routes/cache.ts';
 
 const baseApp = new Hono();
 
@@ -16,6 +17,7 @@ baseApp.use('/*', cors());
 const routes_ = baseApp
   .route('/api/evals', evalsRoutes)
   .route('/api/runs', runsRoutes)
+  .route('/api/cache', cacheRoutes)
   .route('/api', assetsRoutes);
 
 export type AppType = typeof routes_;

@@ -1,5 +1,6 @@
 import { z } from 'zod/v4';
 import { evalCostSummarySchema } from './cost.ts';
+import { cacheModeSchema } from './cache.ts';
 
 /** Schema for persisted metadata about a single run invocation. */
 export const runManifestSchema = z.object({
@@ -13,6 +14,8 @@ export const runManifestSchema = z.object({
     caseIds: z.array(z.string()).optional(),
   }),
   trials: z.number(),
+  /** Cache mode used for this run. Defaults to `use` when absent. */
+  cacheMode: cacheModeSchema.optional(),
 });
 /** Persisted lifecycle metadata for a single eval run. */
 export type RunManifest = z.infer<typeof runManifestSchema>;

@@ -215,6 +215,82 @@ columns: {
 
 Populate values in `deriveFromTracing(...)` and/or from runtime outputs.
 
+## Caching costly operations
+
+Wrap a costly span (LLM call, remote tool, etc.) with `cache: { key }` to skip
+execution on subsequent runs. The cache records every observable effect inside
+the span — sub-spans, checkpoints, `setOutput` / `incrementOutput` calls,
+final attributes — and replays them verbatim on hits, so traces, outputs, and
+cost totals look identical to a fresh run.
+
+```ts
+await tracer.span(
+  {
+    kind: 'llm',
+    name: 'plan-refund',
+    cache: { key: { prompt: input.message, model: 'gpt-4o-mini' } },
+  },
+  async () => {
+    const result = await llm.complete(input.message)
+    span.setAttributes({ model: 'gpt-4o-mini', output: result })
+    incrementOutput('costUsd', computeCost(result))
+    return result
+  },
+)
+```
+
+Cached spans get `cache.status` in their attributes (`hit`, `miss`, `refresh`,
+or `bypass`) plus `cache.key`, `cache.storedAt`, and `cache.age` (on hit).
+These show as coloured badges in the trace tree.
+
+### Cache controls
+
+CLI:
+
+- `--cache <use|bypass|refresh>` — mode for this run (default `use`).
+- `--no-cache` — shortcut for `--cache bypass`.
+- `--refresh-cache` — shortcut for `--cache refresh`.
+- `--clear-cache` — wipe cache entries before the run starts.
+- `pnpm eval cache list` — dump persisted entries (add `--json` for JSON).
+- `pnpm eval cache clear --eval <id>` — drop entries for one eval.
+- `pnpm eval cache clear --all` — drop every entry.
+
+UI: every `EvalCard` has a split button next to **Run** with a chevron menu
+containing the same four run modes plus a danger-toned "Clear cache for this
+eval".
+
+Server API (`/api/cache`):
+
+- `GET /api/cache` — list entries.
+- `DELETE /api/cache` — clear everything.
+- `DELETE /api/cache/:namespace` — clear one namespace.
+- `DELETE /api/cache/:namespace/:key` — drop a single entry.
+
+### How it works
+
+- Default namespace is `${evalId}__${spanName}`; override per-call with
+  `cache.namespace` for sharing across evals.
+- Entries live under `<workspaceRoot>/.agent-evals/cache/<namespace>/<sha256>.json`.
+- The cache key folds in a `codeFingerprint` — the sha256 of the eval file's
+  source — so editing the eval produces a miss instead of a stale hit.
+- Modes: `bypass` never reads or writes; `refresh` skips the read and always
+  writes; `use` reads on hit and writes on miss.
+- Only SDK-mediated side effects replay (`tracer.span`, `tracer.checkpoint`,
+  `setOutput`, `incrementOutput`, span attributes). External side effects
+  (network, DB writes) do *not* replay on cache hits — use caching only for
+  pure functions of their key.
+- Return values are JSON round-tripped before storage; return JSON-safe values
+  or carry richer data through `setOutput`.
+
+Disable caching globally from `agent-evals.config.ts`:
+
+```ts
+export const config: AgentEvalsConfig = {
+  include: ['evals/**/*.eval.ts'],
+  cache: { enabled: false },
+}
+```
+
 ## Display blocks
 
 `blocks` helpers build rich content for `displayInput` / `displayOutput`:
@@ -243,16 +319,23 @@ displayInput: [
 agent-evals <command> [flags]
 
 Commands:
-  dev                 Start dev server with the UI (http://localhost:4100)
-  list                List discovered evals
-  run                 Run evals (all by default)
+  app                        Start server with the UI (http://localhost:4100)
+  list                       List discovered evals
+  run                        Run evals (all by default)
+  cache list                 List cached operation entries
+  cache clear --eval <id>    Clear cache entries for one eval
+  cache clear --all          Clear every cached entry
 
 Flags:
-  --eval <id[,id]>    Run specific evals only
-  --case <id[,id]>    Run specific cases only
-  --trials <n>        Override trials per case
-  --json              Emit run summary as JSON (run)
-  --port <n>          Server port (dev, default: 4100)
+  --eval <id[,id]>           Run specific evals only
+  --case <id[,id]>           Run specific cases only
+  --trials <n>               Override trials per case
+  --json                     Emit run summary or cache listing as JSON
+  --port <n>                 Server port (app, default: 4100)
+  --cache <use|bypass|refresh>  Cache mode for this run (default: use)
+  --no-cache                 Shortcut for --cache bypass
+  --refresh-cache            Shortcut for --cache refresh
+  --clear-cache              Clear the cache before starting the run
 ```
 
 `run` exits non-zero if any case fails or errors, making it CI-friendly.

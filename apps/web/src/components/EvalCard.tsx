@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { styled } from 'vindur';
-import { ChevronDown, MoreHorizontal, Play } from 'lucide-react';
+import { ChevronDown, Play } from 'lucide-react';
 import type { EvalSummary } from '@agent-evals/shared';
 import { colors } from '#src/style/colors';
 import {
@@ -11,12 +11,11 @@ import {
   tabularNums,
   transition,
 } from '#src/style/helpers';
-import { Button } from './Button.tsx';
-import { IconButton } from './IconButton.tsx';
 import { EvalRunsChart } from './EvalRunsChart.tsx';
 import { EvalRunsTable } from './EvalRunsTable.tsx';
+import { SplitButton, type SplitButtonMenuEntry } from './SplitButton.tsx';
 import { historyStore, getRunsForEval } from '../stores/historyStore.ts';
-import { runStore, startRun } from '../stores/runStore.ts';
+import { clearCacheForEval, runStore, startRun } from '../stores/runStore.ts';
 import {
   formatCost,
   formatDuration,
@@ -288,10 +287,12 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const { runRows, chartData, latestSummary } = useMemo(() => {
     const evalRuns = getRunsForEval(runs, evalSummary.id);
     const liveRun =
-      currentRun &&
-      runTargetsEvalLocal(currentRun.manifest.target, evalSummary.id)
-        ? currentRun
-        : null;
+      (
+        currentRun
+        && runTargetsEvalLocal(currentRun.manifest.target, evalSummary.id)
+      ) ?
+        currentRun
+      : null;
 
     const merged = evalRuns.filter(
       (r) => r.manifest.id !== liveRun?.manifest.id,
@@ -327,14 +328,60 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   }, [runs, currentRun, evalSummary.id]);
 
   const isRunning =
-    currentRun?.manifest.status === 'running' &&
-    runTargetsEvalLocal(currentRun.manifest.target, evalSummary.id);
+    currentRun?.manifest.status === 'running'
+    && runTargetsEvalLocal(currentRun.manifest.target, evalSummary.id);
   const hasScoreHistory = chartData.length > 1;
 
   function handleRun(e: React.MouseEvent) {
     e.stopPropagation();
     void startRun({ mode: 'evalIds', evalIds: [evalSummary.id] });
   }
+
+  const cacheMenu: SplitButtonMenuEntry[] = [
+    {
+      id: 'run-default',
+      label: 'Run (use cache)',
+      description: 'Read on hit, write on miss.',
+      onSelect: () => {
+        void startRun(
+          { mode: 'evalIds', evalIds: [evalSummary.id] },
+          { cacheMode: 'use' },
+        );
+      },
+    },
+    {
+      id: 'run-no-cache',
+      label: 'Run without cache',
+      description: 'Skip reads and writes for this run.',
+      onSelect: () => {
+        void startRun(
+          { mode: 'evalIds', evalIds: [evalSummary.id] },
+          { cacheMode: 'bypass' },
+        );
+      },
+    },
+    {
+      id: 'run-refresh',
+      label: 'Refresh cache',
+      description: 'Force re-execution and overwrite entries.',
+      onSelect: () => {
+        void startRun(
+          { mode: 'evalIds', evalIds: [evalSummary.id] },
+          { cacheMode: 'refresh' },
+        );
+      },
+    },
+    { kind: 'separator' },
+    {
+      id: 'clear-cache',
+      label: 'Clear cache for this eval',
+      description: 'Remove every cached span entry tied to this eval id.',
+      tone: 'danger',
+      onSelect: () => {
+        void clearCacheForEval(evalSummary.id);
+      },
+    },
+  ];
 
   const showBody = !isStacked || !collapsed;
 
@@ -344,20 +391,24 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   }
 
   const pathSegments = evalSummary.filePath.split('/');
-  const filename = pathSegments[pathSegments.length - 1] ?? evalSummary.filePath;
+  const filename =
+    pathSegments[pathSegments.length - 1] ?? evalSummary.filePath;
 
   return (
-    <Card stacked={isStacked} single={isSingle}>
+    <Card
+      stacked={isStacked}
+      single={isSingle}
+    >
       <Header
         collapsible={isStacked}
         sticky={isSingle}
         onClick={onHeaderClick}
       >
-        {isSingle ? (
+        {isSingle ?
           <Meta>
             <MetaAccent>Eval</MetaAccent>
             <MetaDivider />
-            {evalSummary.caseCount !== null ? (
+            {evalSummary.caseCount !== null ?
               <>
                 <span>
                   {evalSummary.caseCount}{' '}
@@ -365,23 +416,25 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
                 </span>
                 <MetaDivider />
               </>
-            ) : null}
+            : null}
             <span>{filename}</span>
           </Meta>
-        ) : null}
+        : null}
         <HeaderTopRow>
           <HeaderLeft>
-            {isStacked ? (
+            {isStacked ?
               <Chevron open={!collapsed}>
                 <ChevronDown />
               </Chevron>
-            ) : null}
+            : null}
             <TitleBlock>
               <TitleRow>
                 <Title large={isSingle}>
                   {evalSummary.title ?? evalSummary.id}
                 </Title>
-                {evalSummary.stale ? <StaleBadge>stale</StaleBadge> : null}
+                {evalSummary.stale ?
+                  <StaleBadge>stale</StaleBadge>
+                : null}
               </TitleRow>
               <FilePath title={evalSummary.filePath}>
                 <FilePathPrefix>›</FilePathPrefix>
@@ -390,59 +443,71 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
             </TitleBlock>
           </HeaderLeft>
           <HeaderRight onClick={(e) => e.stopPropagation()}>
-            <Button
-              variant="primary"
-              onClick={handleRun}
-              disabled={isRunning}
+            <SplitButton
+              label={isRunning ? 'Running' : 'Run'}
               leftIcon={<Play />}
-            >
-              {isRunning ? 'Running' : 'Run'}
-            </Button>
-            <IconButton aria-label="More">
-              <MoreHorizontal />
-            </IconButton>
+              onPrimaryClick={handleRun}
+              disabled={isRunning}
+              menu={cacheMenu}
+              aria-label="Run"
+            />
           </HeaderRight>
         </HeaderTopRow>
       </Header>
 
-      {showBody ? (
+      {showBody ?
         <Body scroll={isSingle}>
           <StatsGrid>
             <Stat>
               <StatLabel>Cases</StatLabel>
-              <StatValue accent={false} cost={false}>
+              <StatValue
+                accent={false}
+                cost={false}
+              >
                 {evalSummary.caseCount ?? '\u2014'}
               </StatValue>
             </Stat>
             <Stat>
               <StatLabel>Avg score</StatLabel>
-              <StatValue accent={true} cost={false}>
+              <StatValue
+                accent={true}
+                cost={false}
+              >
                 {formatScore(latestSummary?.averageScore ?? null)}
               </StatValue>
             </Stat>
             <Stat>
               <StatLabel>Pass / Fail</StatLabel>
-              <StatValue accent={false} cost={false}>
-                {latestSummary
-                  ? `${latestSummary.passedCases}/${latestSummary.failedCases + latestSummary.errorCases}`
-                  : '\u2014'}
+              <StatValue
+                accent={false}
+                cost={false}
+              >
+                {latestSummary ?
+                  `${latestSummary.passedCases}/${latestSummary.failedCases + latestSummary.errorCases}`
+                : '\u2014'}
               </StatValue>
             </Stat>
             <Stat>
               <StatLabel>Duration</StatLabel>
-              <StatValue accent={false} cost={false}>
+              <StatValue
+                accent={false}
+                cost={false}
+              >
                 {formatDuration(latestSummary?.totalDurationMs ?? null)}
               </StatValue>
             </Stat>
             <Stat>
               <StatLabel>Cost</StatLabel>
-              <StatValue accent={false} cost={true}>
+              <StatValue
+                accent={false}
+                cost={true}
+              >
                 {formatCost(latestSummary?.cost.totalUsd ?? null)}
               </StatValue>
             </Stat>
           </StatsGrid>
 
-          {hasScoreHistory ? (
+          {hasScoreHistory ?
             <Section>
               <SectionLabel>
                 Score history
@@ -452,15 +517,15 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
               </SectionLabel>
               <EvalRunsChart data={chartData} />
             </Section>
-          ) : null}
+          : null}
 
           <Section>
             <SectionLabel>
               Runs
               <SectionMeta>
-                {runRows.length > 0
-                  ? `${runRows.length} ${runRows.length === 1 ? 'run' : 'runs'}`
-                  : 'no runs'}
+                {runRows.length > 0 ?
+                  `${runRows.length} ${runRows.length === 1 ? 'run' : 'runs'}`
+                : 'no runs'}
               </SectionMeta>
             </SectionLabel>
             <EvalRunsTable
@@ -469,7 +534,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
             />
           </Section>
         </Body>
-      ) : null}
+      : null}
     </Card>
   );
 }

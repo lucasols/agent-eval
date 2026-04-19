@@ -142,6 +142,41 @@ const SpanName = styled.span`
   min-width: 0;
 `;
 
+const CacheBadge = styled.span<{
+  hit: boolean;
+  miss: boolean;
+  refresh: boolean;
+  bypass: boolean;
+}>`
+  ${monoFont}
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  background: ${colors.borderStrong.var};
+  color: ${colors.textMuted.var};
+
+  &.hit {
+    background: ${colors.success.alpha(0.15)};
+    color: ${colors.success.var};
+  }
+  &.miss {
+    background: ${colors.warning.alpha(0.15)};
+    color: ${colors.warning.var};
+  }
+  &.refresh {
+    background: ${colors.accent.alpha(0.15)};
+    color: ${colors.accent.var};
+  }
+  &.bypass {
+    background: ${colors.borderStrong.var};
+    color: ${colors.textMuted.var};
+  }
+`;
+
 const ErrorLabel = styled.span`
   ${monoFont}
   color: ${colors.error.var};
@@ -193,7 +228,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
           />
         ))}
       </TreePane>
-      {selectedSpan ? (
+      {selectedSpan ?
         <DetailPane>
           <SpanDetail
             span={selectedSpan}
@@ -201,7 +236,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
             traceDisplay={traceDisplay}
           />
         </DetailPane>
-      ) : null}
+      : null}
     </Root>
   );
 }
@@ -267,12 +302,13 @@ function SpanNode({
           {span.kind}
         </KindBadge>
         <SpanName>{span.name}</SpanName>
-        {span.status === 'error' ? <ErrorLabel>err</ErrorLabel> : null}
-        {durationMs !== null ? (
-          <DurationLabel>
-            {formatSpanDuration(durationMs)}
-          </DurationLabel>
-        ) : null}
+        {renderCacheBadge(span)}
+        {span.status === 'error' ?
+          <ErrorLabel>err</ErrorLabel>
+        : null}
+        {durationMs !== null ?
+          <DurationLabel>{formatSpanDuration(durationMs)}</DurationLabel>
+        : null}
         {treeAttributeItems.map((item) => (
           <TreeAttributeLabel key={item.config.path}>
             {formatTraceAttributeValue(item.value, item.config.format)}
@@ -299,4 +335,26 @@ function SpanNode({
 function formatSpanDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   return `${(ms / 1000).toFixed(2)}s`;
+}
+
+function renderCacheBadge(span: EvalTraceSpan) {
+  const status = span.attributes?.['cache.status'];
+  if (
+    status !== 'hit'
+    && status !== 'miss'
+    && status !== 'refresh'
+    && status !== 'bypass'
+  ) {
+    return null;
+  }
+  return (
+    <CacheBadge
+      hit={status === 'hit'}
+      miss={status === 'miss'}
+      refresh={status === 'refresh'}
+      bypass={status === 'bypass'}
+    >
+      cache {status}
+    </CacheBadge>
+  );
 }
