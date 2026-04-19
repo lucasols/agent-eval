@@ -1,7 +1,7 @@
 import { glob } from 'glob';
 import { watch } from 'chokidar';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { resolve, join } from 'node:path';
+import { resolve, join, relative } from 'node:path';
 import type {
   EvalSummary,
   RunManifest,
@@ -73,6 +73,7 @@ type EvalMeta = {
   title?: string;
   description?: string;
   filePath: string;
+  sourceFilePath: string;
   columnDefs: ColumnDef[];
   caseCount: number | null;
 };
@@ -104,6 +105,16 @@ export function createRunner({
   const lastRunStatusMap = new Map<string, EvalSummary['lastRunStatus']>();
   const discoveryListeners = new Set<(event: SseEnvelope) => void>();
 
+  function toWorkspaceRelativePath(filePath: string): string {
+    return relative(workspaceRoot, filePath).replaceAll('\\', '/');
+  }
+
+  function getSortedEvalMetas(): EvalMeta[] {
+    return [...evals.values()].toSorted((a, b) =>
+      a.filePath.localeCompare(b.filePath),
+    );
+  }
+
   const runner: EvalRunner = {
     async init() {
       config = await loadConfig();
@@ -121,7 +132,7 @@ export function createRunner({
 
     getEvals() {
       const result: EvalSummary[] = [];
-      for (const meta of evals.values()) {
+      for (const meta of getSortedEvalMetas()) {
         result.push({
           id: meta.id,
           title: meta.title,
@@ -171,7 +182,8 @@ export function createRunner({
             evals.set(meta.id, {
               id: meta.id,
               title: meta.title,
-              filePath: meta.filePath,
+              filePath: toWorkspaceRelativePath(meta.filePath),
+              sourceFilePath: meta.filePath,
               columnDefs: [],
               caseCount: null,
             });
@@ -351,7 +363,7 @@ export function createRunner({
       for (const evalMeta of targetEvals) {
         if (runState.abortController.signal.aborted) break;
 
-        const evalFilePath = evalMeta.filePath;
+        const evalFilePath = evalMeta.sourceFilePath;
 
         try {
           const registry = getEvalRegistry();
@@ -572,7 +584,7 @@ export function createRunner({
         .map((id) => evals.get(id))
         .filter((e): e is EvalMeta => e !== undefined);
     }
-    return [...evals.values()];
+    return getSortedEvalMetas();
   }
 
   function emitEvent(runState: RunState, event: SseEnvelope) {

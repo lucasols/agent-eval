@@ -1,7 +1,11 @@
-import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  childIsRunning,
+  spawnManaged,
+  terminateProcessTree,
+} from './process-tree.mjs';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const exampleWorkspace = resolve(repoRoot, 'examples/basic-agent');
@@ -46,6 +50,12 @@ function assertPortAvailable(port, serviceName) {
 const managedChildren = [];
 let isShuttingDown = false;
 
+process.once('exit', () => {
+  for (const { child } of managedChildren) {
+    terminateProcessTree(child, 'SIGKILL');
+  }
+});
+
 process.once('SIGINT', () => shutdown(0));
 process.once('SIGTERM', () => shutdown(0));
 
@@ -61,7 +71,7 @@ startServer();
 startWeb();
 
 function startServer() {
-  const child = spawn(
+  const child = spawnManaged(
     process.execPath,
     ['--watch', resolve(repoRoot, 'apps/server/src/index.ts')],
     {
@@ -78,7 +88,7 @@ function startServer() {
 }
 
 function startWeb() {
-  const child = spawn(
+  const child = spawnManaged(
     pnpmCommand,
     [
       '--filter',
@@ -140,12 +150,16 @@ function shutdown(exitCode) {
   isShuttingDown = true;
 
   for (const { child } of managedChildren) {
-    if (!child.killed) {
-      child.kill('SIGTERM');
-    }
+    terminateProcessTree(child, 'SIGTERM');
   }
 
   setTimeout(() => {
+    for (const { child } of managedChildren) {
+      if (childIsRunning(child)) {
+        terminateProcessTree(child, 'SIGKILL');
+      }
+    }
+
     process.exit(exitCode);
-  }, 50).unref();
+  }, 1_000);
 }

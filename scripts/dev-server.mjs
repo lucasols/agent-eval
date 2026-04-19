@@ -1,7 +1,11 @@
-import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  childIsRunning,
+  spawnManaged,
+  terminateProcessTree,
+} from './process-tree.mjs';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const exampleWorkspace = resolve(repoRoot, 'examples/basic-agent');
@@ -36,7 +40,7 @@ await assertPortAvailable(serverPort);
 
 console.info(`Starting Agent Evals server on http://localhost:${String(serverPort)}`);
 
-const child = spawn(
+const child = spawnManaged(
   process.execPath,
   ['--watch', resolve(repoRoot, 'apps/server/src/index.ts')],
   {
@@ -48,6 +52,10 @@ const child = spawn(
     stdio: 'inherit',
   },
 );
+
+process.once('exit', () => {
+  terminateProcessTree(child, 'SIGKILL');
+});
 
 process.once('SIGINT', () => shutdown(0));
 process.once('SIGTERM', () => shutdown(0));
@@ -70,11 +78,13 @@ child.once('exit', (code, signal) => {
  * @param {number} exitCode
  */
 function shutdown(exitCode) {
-  if (!child.killed) {
-    child.kill('SIGTERM');
-  }
+  terminateProcessTree(child, 'SIGTERM');
 
   setTimeout(() => {
+    if (childIsRunning(child)) {
+      terminateProcessTree(child, 'SIGKILL');
+    }
+
     process.exit(exitCode);
-  }, 50).unref();
+  }, 1_000);
 }

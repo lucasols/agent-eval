@@ -31,43 +31,43 @@ describe('CLI discovery', () => {
 
           Refund Workflow
             id: refund-workflow
-            file: <workspace>/evals/refund-workflow.eval.ts
-
-          Voice Return Follow-up
-            id: voice-return-follow-up
-            file: <workspace>/evals/support/returns/voice-follow-up.eval.ts
-
-          Receipt Audit
-            id: receipt-audit
-            file: <workspace>/evals/support/refunds/receipt-audit.eval.ts
-
-          Receipt Fraud Review
-            id: receipt-fraud-review
-            file: <workspace>/evals/support/refunds/receipt-audit.eval.ts
-
-          Score Threshold Demo
-            id: score-threshold-demo
-            file: <workspace>/evals/support/quality/outcome-behavior.eval.ts
-
-          Assertion Failure Demo
-            id: assertion-failure-demo
-            file: <workspace>/evals/support/quality/outcome-behavior.eval.ts
-
-          Silent Pass Demo
-            id: silent-pass-demo
-            file: <workspace>/evals/support/quality/outcome-behavior.eval.ts
-
-          Silent Assertion Demo
-            id: silent-assertion-demo
-            file: <workspace>/evals/support/quality/outcome-behavior.eval.ts
+            file: evals/refund-workflow.eval.ts
 
           Randomized Lab
             id: randomized-lab
-            file: <workspace>/evals/support/playground/randomized-lab.eval.ts
+            file: evals/support/playground/randomized-lab.eval.ts
+
+          Score Threshold Demo
+            id: score-threshold-demo
+            file: evals/support/quality/outcome-behavior.eval.ts
+
+          Assertion Failure Demo
+            id: assertion-failure-demo
+            file: evals/support/quality/outcome-behavior.eval.ts
+
+          Silent Pass Demo
+            id: silent-pass-demo
+            file: evals/support/quality/outcome-behavior.eval.ts
+
+          Silent Assertion Demo
+            id: silent-assertion-demo
+            file: evals/support/quality/outcome-behavior.eval.ts
 
           High Value Refund
             id: high-value-refund
-            file: <workspace>/evals/support/refunds/escalations/high-value-refund.eval.ts"
+            file: evals/support/refunds/escalations/high-value-refund.eval.ts
+
+          Receipt Audit
+            id: receipt-audit
+            file: evals/support/refunds/receipt-audit.eval.ts
+
+          Receipt Fraud Review
+            id: receipt-fraud-review
+            file: evals/support/refunds/receipt-audit.eval.ts
+
+          Voice Return Follow-up
+            id: voice-return-follow-up
+            file: evals/support/returns/voice-follow-up.eval.ts"
       `);
     });
   });

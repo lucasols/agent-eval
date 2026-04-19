@@ -76,6 +76,8 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
    agent-evals run --eval my-agent --case greeting --json
    ```
 
+   Discovered eval file paths are shown relative to the active workspace root in both the CLI and UI.
+
    Run artifacts are persisted under `.agent-evals/runs/<run-id>/` with `run.json`, `summary.json`, per-case `cases.jsonl`, and trace JSON files for the executed cases.
 
 A complete working example lives at [`examples/basic-agent`](./examples/basic-agent).

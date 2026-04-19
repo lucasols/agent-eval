@@ -1,8 +1,12 @@
-import { spawn } from 'node:child_process';
 import { existsSync, lstatSync, watch } from 'node:fs';
 import { createServer } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  childIsRunning,
+  spawnManaged,
+  terminateProcessTree,
+} from './process-tree.mjs';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const exampleWorkspace = resolve(repoRoot, 'examples/basic-agent');
@@ -59,6 +63,15 @@ let pendingRestartReason = null;
 const watchers = [];
 let isShuttingDown = false;
 
+process.once('exit', () => {
+  if (appProcess) {
+    terminateProcessTree(appProcess, 'SIGKILL');
+  }
+});
+
+/**
+ * @param {number} exitCode
+ */
 function shutdown(exitCode) {
   if (isShuttingDown) {
     return;
@@ -74,13 +87,17 @@ function shutdown(exitCode) {
     watcher_.close();
   }
 
-  if (appProcess && !appProcess.killed) {
-    appProcess.kill('SIGTERM');
+  if (appProcess) {
+    terminateProcessTree(appProcess, 'SIGTERM');
   }
 
   setTimeout(() => {
+    if (appProcess && childIsRunning(appProcess)) {
+      terminateProcessTree(appProcess, 'SIGKILL');
+    }
+
     process.exit(exitCode);
-  }, 50).unref();
+  }, 1_000);
 }
 
 process.once('SIGINT', () => shutdown(0));
@@ -95,7 +112,7 @@ startWatchers();
 
 function startApp() {
   console.info('Running `pnpm eval app`...');
-  const child = spawn(pnpmCommand, ['eval', 'app', '--port', String(serverPort)], {
+  const child = spawnManaged(pnpmCommand, ['eval', 'app', '--port', String(serverPort)], {
     cwd: exampleWorkspace,
     stdio: 'inherit',
   });
@@ -177,6 +194,6 @@ function requestRestart(reason) {
     }
 
     console.info(`Change detected, restarting example app... (${pendingRestartReason})`);
-    appProcess.kill('SIGTERM');
+    terminateProcessTree(appProcess, 'SIGTERM');
   }, 150);
 }
