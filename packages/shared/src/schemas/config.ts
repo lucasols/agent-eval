@@ -24,6 +24,16 @@ export type AgentEvalsConfig = {
    * definition taking precedence for matching `key` or `path` entries.
    */
   traceDisplay?: TraceDisplayInputConfig;
+  /**
+   * Optional controls for the operation cache. When omitted, the cache is
+   * enabled and stored under `<workspaceRoot>/.agent-evals/cache`.
+   */
+  cache?: {
+    /** Disable the cache entirely; spans with `cache` options execute as if uncached. */
+    enabled?: boolean;
+    /** Override the directory used to persist cache entries. */
+    dir?: string;
+  };
 };
 
 /** Zod schema for validating `agent-evals.config.ts` input. */
@@ -34,4 +44,10 @@ export const agentEvalsConfigSchema = z.object({
   pricing: z.record(z.string(), modelPricingSchema).optional(),
   concurrency: z.number().optional(),
   traceDisplay: traceDisplayInputConfigSchema.optional(),
+  cache: z
+    .object({
+      enabled: z.boolean().optional(),
+      dir: z.string().optional(),
+    })
+    .optional(),
 });

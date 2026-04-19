@@ -30,24 +30,31 @@ export async function triggerWorkflow(
   return tracer.span({ kind: 'agent', name: 'refund-workflow' }, async () => {
     span.setAttribute('input', input);
 
-    await tracer.span({ kind: 'llm', name: 'plan-refund' }, async () => {
-      await waitForWorkflowDelay('planRefund');
+    await tracer.span(
+      {
+        kind: 'llm',
+        name: 'plan-refund',
+        cache: { key: { prompt: input.message, locale: input.locale } },
+      },
+      async () => {
+        await waitForWorkflowDelay('planRefund');
 
-      const usage = { inputTokens: 150, outputTokens: 50 };
-      const costUsd =
-        (usage.inputTokens / 1_000_000) * INPUT_PRICE_PER_MILLION +
-        (usage.outputTokens / 1_000_000) * OUTPUT_PRICE_PER_MILLION;
+        const usage = { inputTokens: 150, outputTokens: 50 };
+        const costUsd =
+          (usage.inputTokens / 1_000_000) * INPUT_PRICE_PER_MILLION
+          + (usage.outputTokens / 1_000_000) * OUTPUT_PRICE_PER_MILLION;
 
-      span.setAttributes({
-        input: { prompt: input.message },
-        model: 'gpt-4o-mini',
-        usage,
-        costUsd,
-        output: { plan: 'approve refund' },
-      });
+        span.setAttributes({
+          input: { prompt: input.message },
+          model: 'gpt-4o-mini',
+          usage,
+          costUsd,
+          output: { plan: 'approve refund' },
+        });
 
-      incrementOutput('costUsd', costUsd);
-    });
+        incrementOutput('costUsd', costUsd);
+      },
+    );
 
     if (input.receiptImage) {
       await tracer.span({ kind: 'tool', name: 'inspect-receipt' }, async () => {
