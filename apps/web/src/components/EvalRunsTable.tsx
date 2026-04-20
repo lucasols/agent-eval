@@ -107,31 +107,15 @@ const RunHeaderBar = styled.button`
   }
 `;
 
-const LatestTag = styled.span`
-  ${monoFont}
-  font-size: 9.5px;
-  font-weight: 600;
-  padding: 2px 7px;
-  border-radius: 4px;
-  color: ${colors.accentInk.var};
-  background: ${colors.accent.var};
-`;
-
-const RunIdTag = styled.span`
-  ${monoFont}
-  font-size: 10px;
-  font-weight: 500;
-  padding: 2px 7px;
-  border-radius: 4px;
-  color: ${colors.textMuted.var};
-  background: ${colors.surface.var};
-`;
-
-const RunTime = styled.span`
+const RunTime = styled.span<{ latest: boolean }>`
   font-size: 12.5px;
   font-weight: 500;
   color: ${colors.text.var};
   letter-spacing: -0.005em;
+
+  &.latest {
+    color: ${colors.accentDim.var};
+  }
 `;
 
 const RunStat = styled.div`
@@ -409,12 +393,9 @@ function RunGroup({
             type="button"
             onClick={() => void selectRun(manifest.id)}
           >
-            {isLatest ? (
-              <LatestTag>LATEST</LatestTag>
-            ) : (
-              <RunIdTag>#{manifest.id.slice(0, 6)}</RunIdTag>
-            )}
-            <RunTime>{formatTimestamp(manifest.startedAt)}</RunTime>
+            <RunTime latest={isLatest}>
+              {formatTimestamp(manifest.startedAt)}
+            </RunTime>
             <StatusBadge status={manifest.status} />
             <RunStat>
               <RunStatLabel>Cases</RunStatLabel>

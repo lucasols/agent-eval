@@ -28,7 +28,7 @@ const _ = createGlobalStyle`
     font-feature-settings: 'ss01', 'ss03', 'cv11';
     background: ${colors.bg.var};
     color: ${colors.text.var};
-    font-size: 13px;
+    font-size: 16px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
