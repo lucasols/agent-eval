@@ -6,6 +6,7 @@ import { colors } from '#src/style/colors';
 import {
   ellipsis,
   inline,
+  kicker,
   monoFont,
   stack,
   tabularNums,
@@ -30,8 +31,9 @@ const Card = styled.section<{ stacked: boolean; single: boolean }>`
 
   &.stacked {
     border: 1px solid ${colors.border.var};
+    border-radius: var(--radius-lg);
     overflow: hidden;
-    background: ${colors.bgElevated.alpha(0.6)};
+    background: ${colors.bg.var};
   }
 
   &.single {
@@ -42,26 +44,9 @@ const Card = styled.section<{ stacked: boolean; single: boolean }>`
 
 const Header = styled.header<{ collapsible: boolean; sticky: boolean }>`
   ${stack({ gap: 0 })}
-  padding: 28px 32px 22px;
+  padding: 22px 32px;
   border-bottom: 1px solid ${colors.border.var};
-  background: ${colors.bgElevated.alpha(0.5)};
-  position: relative;
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: linear-gradient(
-      90deg,
-      ${colors.accent.var} 0%,
-      ${colors.accent.var} 80px,
-      transparent 80px,
-      transparent 100%
-    );
-  }
+  background: ${colors.bg.var};
 
   &.sticky {
     position: sticky;
@@ -71,7 +56,7 @@ const Header = styled.header<{ collapsible: boolean; sticky: boolean }>`
 
   &.collapsible {
     cursor: pointer;
-    padding: 18px 24px;
+    padding: 16px 24px;
   }
 `;
 
@@ -80,30 +65,20 @@ const HeaderTopRow = styled.div`
   width: 100%;
 `;
 
-const Meta = styled.div`
-  ${inline({ gap: 10, align: 'center' })}
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: ${colors.textDim.var};
-  margin-bottom: 10px;
-`;
-
-const MetaDivider = styled.span`
-  width: 18px;
-  height: 1px;
-  background: ${colors.borderStrong.var};
-`;
-
-const MetaAccent = styled.span`
-  color: ${colors.accent.var};
-`;
-
-const MetaPath = styled.span`
+const Breadcrumb = styled.div`
+  ${inline({ gap: 8, align: 'center' })}
   ${monoFont}
-  ${ellipsis}
-  min-width: 0;
+  font-size: 11.5px;
+  color: ${colors.textMuted.var};
+  margin-bottom: 14px;
+`;
+
+const BreadcrumbSep = styled.span`
+  color: ${colors.textDim.var};
+`;
+
+const BreadcrumbCurrent = styled.span`
+  color: ${colors.text.var};
 `;
 
 const HeaderLeft = styled.div`
@@ -113,57 +88,58 @@ const HeaderLeft = styled.div`
 `;
 
 const TitleBlock = styled.div`
-  ${stack({ gap: 6 })}
+  ${stack({ gap: 8 })}
   min-width: 0;
+  flex: 1;
 `;
 
 const TitleRow = styled.div`
-  ${inline({ gap: 10, align: 'center' })}
+  ${inline({ gap: 12, align: 'center' })}
   min-width: 0;
 `;
 
 const Title = styled.h2<{ large: boolean }>`
   ${ellipsis}
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 600;
   color: ${colors.text.var};
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
+  margin: 0;
 
   &.large {
-    font-size: 28px;
-    font-weight: 800;
-    letter-spacing: -0.035em;
-    line-height: 1.05;
+    font-size: 30px;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
   }
 `;
 
+const Description = styled.div`
+  font-size: 12.5px;
+  color: ${colors.textMuted.var};
+  max-width: 720px;
+  line-height: 1.5;
+`;
+
 const StaleBadge = styled.span`
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  padding: 3px 7px;
+  ${monoFont}
+  font-size: 10px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 20px;
   color: ${colors.warning.var};
   background: ${colors.warning.alpha(0.1)};
-  border: 1px solid ${colors.warning.alpha(0.3)};
 `;
 
 const FilePath = styled.div`
   ${monoFont}
   ${ellipsis}
-  font-size: 11px;
-  color: ${colors.textDim.var};
-  padding-left: 0;
-  letter-spacing: 0;
-`;
-
-const FilePathPrefix = styled.span`
-  color: ${colors.accent.alpha(0.6)};
-  margin-right: 6px;
+  font-size: 11.5px;
+  color: ${colors.textMuted.var};
 `;
 
 const HeaderRight = styled.div`
-  ${inline({ gap: 6, align: 'center' })}
+  ${inline({ gap: 8, align: 'center' })}
   flex-shrink: 0;
 `;
 
@@ -199,39 +175,32 @@ const Body = styled.div<{ scroll: boolean }>`
 const StatsGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(5, 1fr);
+  gap: 1px;
+  background: ${colors.border.var};
   border-bottom: 1px solid ${colors.border.var};
 `;
 
 const Stat = styled.div`
-  ${stack({ gap: 6 })}
-  padding: 18px 22px;
-  border-right: 1px solid ${colors.border.alpha(0.6)};
-  position: relative;
-
-  &:last-child {
-    border-right: none;
-  }
+  ${stack({ gap: 10 })}
+  padding: 18px 22px 20px;
+  background: ${colors.bg.var};
 `;
 
 const StatLabel = styled.div`
-  font-size: 9.5px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.22em;
-  color: ${colors.textDim.var};
+  ${kicker}
+  color: ${colors.textMuted.var};
 `;
 
 const StatValue = styled.div<{ accent: boolean; cost: boolean }>`
-  ${monoFont}
   ${tabularNums}
-  font-size: 22px;
-  font-weight: 700;
+  font-size: 30px;
+  font-weight: 500;
   color: ${colors.text.var};
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
   line-height: 1;
 
   &.accent {
-    color: ${colors.accent.var};
+    color: ${colors.accentDim.var};
   }
   &.cost {
     color: ${colors.cost.var};
@@ -240,41 +209,29 @@ const StatValue = styled.div<{ accent: boolean; cost: boolean }>`
 
 const Section = styled.div`
   ${stack({ gap: 0 })}
-  padding: 18px 32px 24px;
-  border-bottom: 1px solid ${colors.border.alpha(0.5)};
+  padding: 20px 32px 24px;
 
-  &:last-child {
-    border-bottom: none;
+  &:not(:last-child) {
+    border-bottom: 1px solid ${colors.border.var};
   }
 `;
 
 const SectionLabel = styled.div`
   ${inline({ justify: 'space-between', align: 'center' })}
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.22em;
-  color: ${colors.textMuted.var};
   margin-bottom: 14px;
+`;
 
-  &::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: ${colors.border.var};
-    margin-left: 12px;
-  }
+const SectionLabelText = styled.span`
+  font-size: 13.5px;
+  font-weight: 600;
+  color: ${colors.text.var};
+  letter-spacing: -0.01em;
 `;
 
 const SectionMeta = styled.span`
   ${monoFont}
-  font-size: 10px;
-  color: ${colors.accent.var};
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  order: 3;
-  margin-left: 12px;
+  font-size: 10.5px;
+  color: ${colors.textMuted.var};
 `;
 
 export function EvalCard({ evalSummary, mode }: EvalCardProps) {
@@ -394,10 +351,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const pathSegments = evalSummary.filePath.split('/');
   const filename =
     pathSegments[pathSegments.length - 1] ?? evalSummary.filePath;
-  const parentFolder = pathSegments[pathSegments.length - 2];
-  const compactFilePath = parentFolder
-    ? `${parentFolder}/${filename}`
-    : filename;
+  const breadcrumbSegments = pathSegments.slice(0, -1);
 
   return (
     <Card
@@ -410,20 +364,15 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
         onClick={onHeaderClick}
       >
         {isSingle ? (
-          <Meta>
-            <MetaAccent>Eval</MetaAccent>
-            <MetaDivider />
-            {evalSummary.caseCount !== null ? (
-              <>
-                <span>
-                  {evalSummary.caseCount}{' '}
-                  {evalSummary.caseCount === 1 ? 'case' : 'cases'}
-                </span>
-                <MetaDivider />
-              </>
-            ) : null}
-            <MetaPath title={evalSummary.filePath}>{compactFilePath}</MetaPath>
-          </Meta>
+          <Breadcrumb>
+            {breadcrumbSegments.map((seg, i) => (
+              <span key={`${seg}-${String(i)}`}>
+                {seg}
+                <BreadcrumbSep style={{ margin: '0 6px' }}>/</BreadcrumbSep>
+              </span>
+            ))}
+            <BreadcrumbCurrent>{filename}</BreadcrumbCurrent>
+          </Breadcrumb>
         ) : null}
         <HeaderTopRow>
           <HeaderLeft>
@@ -441,10 +390,16 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
               </TitleRow>
               {isSingle ? null : (
                 <FilePath title={evalSummary.filePath}>
-                  <FilePathPrefix>›</FilePathPrefix>
                   {evalSummary.filePath}
                 </FilePath>
               )}
+              {isSingle && evalSummary.caseCount !== null ? (
+                <Description>
+                  {evalSummary.caseCount}{' '}
+                  {evalSummary.caseCount === 1 ? 'case' : 'cases'} · see score
+                  history and per-case results below.
+                </Description>
+              ) : null}
             </TitleBlock>
           </HeaderLeft>
           <HeaderRight onClick={(e) => e.stopPropagation()}>
@@ -515,7 +470,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
           {hasScoreHistory ? (
             <Section>
               <SectionLabel>
-                Score history
+                <SectionLabelText>Score history</SectionLabelText>
                 <SectionMeta>
                   {chartData.length} {chartData.length === 1 ? 'run' : 'runs'}
                 </SectionMeta>
@@ -526,7 +481,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
 
           <Section>
             <SectionLabel>
-              Runs
+              <SectionLabelText>Runs</SectionLabelText>
               <SectionMeta>
                 {runRows.length > 0
                   ? `${runRows.length} ${runRows.length === 1 ? 'run' : 'runs'}`

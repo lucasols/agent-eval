@@ -2,11 +2,13 @@ import { createGlobalStyle } from 'vindur';
 import { colors } from '#src/style/colors';
 
 const _ = createGlobalStyle`
+  @import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
+
   :root {
     color-scheme: light;
-    --radius-sm: 0px;
-    --radius-md: 0px;
-    --radius-lg: 0px;
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
   }
 
   *,
@@ -21,17 +23,17 @@ const _ = createGlobalStyle`
   body {
     height: 100%;
     font-family:
-      'JetBrains Mono', 'SF Mono', 'Fira Code', 'Fira Mono', ui-monospace,
-      monospace;
-    font-feature-settings: 'tnum', 'ss01', 'cv02';
+      'Geist', -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui,
+      sans-serif;
+    font-feature-settings: 'ss01', 'ss03', 'cv11';
     background: ${colors.bg.var};
     color: ${colors.text.var};
-    font-size: 16px;
-    line-height: 1.45;
+    font-size: 13px;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    letter-spacing: 0.005em;
+    letter-spacing: -0.005em;
   }
 
   #root {
@@ -39,7 +41,7 @@ const _ = createGlobalStyle`
   }
 
   ::selection {
-    background: ${colors.accent.alpha(0.35)};
+    background: ${colors.accent.alpha(0.3)};
     color: ${colors.text.var};
   }
 
@@ -54,6 +56,7 @@ const _ = createGlobalStyle`
 
   ::-webkit-scrollbar-thumb {
     background: ${colors.borderStrong.var};
+    border-radius: 10px;
     border: 2px solid ${colors.bg.var};
   }
 

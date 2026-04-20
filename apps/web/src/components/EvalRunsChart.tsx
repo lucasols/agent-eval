@@ -9,7 +9,7 @@ import {
 } from 'recharts';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
-import { monoFont } from '#src/style/helpers';
+import { kicker, monoFont } from '#src/style/helpers';
 import { formatCost, formatTimestamp } from '../utils/formatters.ts';
 
 type ChartPoint = {
@@ -22,35 +22,21 @@ type ChartPoint = {
 type EvalRunsChartProps = { data: ChartPoint[] };
 
 const ChartFrame = styled.div`
-  height: 200px;
-  padding: 12px 12px 4px;
+  height: 210px;
+  padding: 10px 14px 8px;
   border: 1px solid ${colors.border.var};
-  background: ${colors.bgElevated.alpha(0.5)};
-  position: relative;
-
-  &::before {
-    content: 'SCORE · 0.0 → 1.0';
-    position: absolute;
-    top: 10px;
-    left: 14px;
-    font-family:
-      'JetBrains Mono', 'SF Mono', 'Fira Code', 'Fira Mono', ui-monospace,
-      monospace;
-    font-size: 8.5px;
-    font-weight: 700;
-    letter-spacing: 0.24em;
-    color: ${colors.textDim.var};
-    z-index: 1;
-    pointer-events: none;
-  }
+  border-radius: var(--radius-lg);
+  background: ${colors.bg.var};
 `;
 
 const TooltipBox = styled.div`
   ${monoFont}
   background: ${colors.bg.var};
-  border: 1px solid ${colors.accent.alpha(0.4)};
+  border: 1px solid ${colors.borderStrong.var};
+  border-radius: var(--radius-md);
   padding: 10px 12px;
-  font-size: 10.5px;
+  font-size: 11px;
+  line-height: 1.5;
   color: ${colors.text.var};
   min-width: 160px;
   box-shadow: 0 10px 30px -10px ${colors.black.alpha(0.18)};
@@ -67,18 +53,18 @@ const TooltipRow = styled.div`
 `;
 
 const TooltipKey = styled.span`
-  color: ${colors.textDim.var};
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  font-size: 9px;
+  ${kicker}
+  color: ${colors.textMuted.var};
+`;
+
+const TooltipScore = styled.span`
+  color: ${colors.accentDim.var};
 `;
 
 const tickStyle = {
-  fill: colors.textDim.var,
-  fontSize: 9,
-  fontFamily: 'JetBrains Mono, monospace',
-  letterSpacing: '0.1em',
+  fill: colors.textMuted.var,
+  fontSize: 10,
+  fontFamily: 'Geist Mono, JetBrains Mono, monospace',
 };
 
 function CustomTooltip({
@@ -99,7 +85,7 @@ function CustomTooltip({
       </TooltipRow>
       <TooltipRow>
         <TooltipKey>score</TooltipKey>
-        <span>{point.score.toFixed(2)}</span>
+        <TooltipScore>{point.score.toFixed(2)}</TooltipScore>
       </TooltipRow>
       <TooltipRow>
         <TooltipKey>cost</TooltipKey>
@@ -118,7 +104,7 @@ export function EvalRunsChart({ data }: EvalRunsChartProps) {
       >
         <AreaChart
           data={data}
-          margin={{ top: 18, right: 12, bottom: 4, left: 0 }}
+          margin={{ top: 12, right: 12, bottom: 4, left: 0 }}
         >
           <defs>
             <linearGradient
@@ -131,7 +117,7 @@ export function EvalRunsChart({ data }: EvalRunsChartProps) {
               <stop
                 offset="0%"
                 stopColor={colors.accent.var}
-                stopOpacity={0.45}
+                stopOpacity={0.32}
               />
               <stop
                 offset="100%"
@@ -178,16 +164,16 @@ export function EvalRunsChart({ data }: EvalRunsChartProps) {
             strokeWidth={1.75}
             fill="url(#evalScoreFill)"
             dot={{
-              r: 3,
+              r: 2.5,
               fill: colors.bg.var,
               stroke: colors.accent.var,
-              strokeWidth: 1.5,
+              strokeWidth: 1.75,
             }}
             activeDot={{
-              r: 5,
-              fill: colors.accent.var,
-              stroke: colors.bg.var,
-              strokeWidth: 2,
+              r: 4,
+              fill: colors.bg.var,
+              stroke: colors.accent.var,
+              strokeWidth: 1.75,
             }}
             isAnimationActive={false}
           />

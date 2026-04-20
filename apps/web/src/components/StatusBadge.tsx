@@ -1,6 +1,6 @@
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
-import { inline } from '#src/style/helpers';
+import { inline, monoFont } from '#src/style/helpers';
 
 type StatusBadgeProps = { status: string };
 
@@ -13,35 +13,31 @@ const Badge = styled.span<{
   cancelled: boolean;
 }>`
   ${inline({ gap: 6, align: 'center' })}
+  ${monoFont}
   display: inline-flex;
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  padding: 3px 7px 3px 8px;
-  border: 1px solid ${colors.borderStrong.var};
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  padding: 3px 8px;
+  border-radius: 20px;
   color: ${colors.textMuted.var};
   background: ${colors.surface.var};
 
   &.pass {
     color: ${colors.success.var};
-    border-color: ${colors.success.alpha(0.4)};
-    background: ${colors.success.alpha(0.08)};
+    background: ${colors.success.alpha(0.1)};
   }
   &.fail {
     color: ${colors.error.var};
-    border-color: ${colors.error.alpha(0.4)};
-    background: ${colors.error.alpha(0.08)};
+    background: ${colors.error.alpha(0.1)};
   }
   &.running {
-    color: ${colors.accent.var};
-    border-color: ${colors.accent.alpha(0.4)};
-    background: ${colors.accent.alpha(0.08)};
+    color: ${colors.accentDim.var};
+    background: ${colors.accent.alpha(0.12)};
   }
   &.cancelled {
     color: ${colors.warning.var};
-    border-color: ${colors.warning.alpha(0.4)};
-    background: ${colors.warning.alpha(0.08)};
+    background: ${colors.warning.alpha(0.1)};
   }
 `;
 
@@ -51,22 +47,21 @@ const Dot = styled.span<{
   running: boolean;
   cancelled: boolean;
 }>`
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
+  border-radius: 5px;
   flex-shrink: 0;
   background: ${colors.textDim.var};
 
   &.pass {
     background: ${colors.success.var};
-    box-shadow: 0 0 6px ${colors.success.alpha(0.6)};
   }
   &.fail {
     background: ${colors.error.var};
-    box-shadow: 0 0 6px ${colors.error.alpha(0.6)};
   }
   &.running {
     background: ${colors.accent.var};
-    animation: pulseDot 1.4s ease-in-out infinite;
+    animation: pulseDot 1.6s ease-in-out infinite;
   }
   &.cancelled {
     background: ${colors.warning.var};
@@ -76,11 +71,9 @@ const Dot = styled.span<{
     0%,
     100% {
       opacity: 1;
-      box-shadow: 0 0 0 0 ${colors.accent.alpha(0.6)};
     }
     50% {
-      opacity: 0.6;
-      box-shadow: 0 0 0 5px ${colors.accent.alpha(0)};
+      opacity: 0.4;
     }
   }
 `;

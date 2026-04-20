@@ -1,100 +1,86 @@
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
-import { inline, stack } from '#src/style/helpers';
+import { inline, kicker, stack } from '#src/style/helpers';
 import { evalsStore } from '../stores/evalsStore.ts';
 import { EvalTree } from './EvalTree.tsx';
 
 const Root = styled.aside`
   ${stack()}
-  width: 296px;
+  width: 248px;
   flex-shrink: 0;
   border-right: 1px solid ${colors.border.var};
-  background: linear-gradient(
-    180deg,
-    ${colors.bgElevated.var} 0%,
-    ${colors.bg.var} 100%
-  );
+  background: ${colors.bgElevated.var};
   overflow: hidden;
   position: relative;
-
-  &::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 1px;
-    height: 60%;
-    background: linear-gradient(
-      180deg,
-      ${colors.accent.alpha(0)} 0%,
-      ${colors.accent.alpha(0.3)} 40%,
-      ${colors.accent.alpha(0)} 100%
-    );
-  }
 `;
 
 const Masthead = styled.div`
-  ${stack({ gap: 2 })}
-  padding: 20px 20px 16px;
-  border-bottom: 1px solid ${colors.border.var};
-  position: relative;
-`;
-
-const MastheadTop = styled.div`
-  ${inline({ justify: 'space-between', align: 'center' })}
-`;
-
-const Brand = styled.div`
   ${inline({ gap: 10, align: 'center' })}
+  padding: 14px 16px;
+  border-bottom: 1px solid ${colors.border.var};
 `;
 
 const Mark = styled.div`
-  width: 22px;
-  height: 22px;
-  background: ${colors.accent.var};
+  width: 26px;
+  height: 26px;
+  background: linear-gradient(
+    135deg,
+    ${colors.accent.var},
+    ${colors.accentDim.var}
+  );
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
   color: ${colors.accentInk.var};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 800;
+  font-weight: 700;
+  font-size: 12.5px;
   letter-spacing: -0.02em;
-  box-shadow:
-    2px 2px 0 ${colors.bg.var},
-    2px 2px 0 1px ${colors.borderStrong.var};
+  box-shadow: 0 0 20px ${colors.accent.alpha(0.2)};
+`;
+
+const BrandText = styled.div`
+  ${stack({ gap: 1 })}
+  flex: 1;
+  min-width: 0;
 `;
 
 const Wordmark = styled.div`
   font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   color: ${colors.text.var};
 `;
 
-const SectionHeader = styled.div`
-  ${inline({ justify: 'space-between', align: 'center' })}
-  padding: 14px 20px 8px;
-  border-bottom: 1px solid ${colors.border.alpha(0.5)};
+const BrandSub = styled.div`
+  font-family:
+    'Geist Mono', 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+  font-size: 10px;
+  color: ${colors.textMuted.var};
+  font-variant-numeric: tabular-nums;
 `;
 
-const SectionLabel = styled.div`
-  ${inline({ gap: 8, align: 'center' })}
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
+const SectionHeader = styled.div`
+  ${inline({ justify: 'space-between', align: 'center', gap: 8 })}
+  padding: 12px 16px 6px;
+`;
+
+const SectionLabel = styled.span`
+  ${kicker}
   color: ${colors.textMuted.var};
 `;
 
 const SectionCounter = styled.span`
-  color: ${colors.accent.var};
-  font-weight: 700;
+  font-family:
+    'Geist Mono', 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+  font-size: 10px;
+  color: ${colors.textDim.var};
+  font-variant-numeric: tabular-nums;
 `;
 
 const ScrollArea = styled.div`
   flex: 1;
   overflow: auto;
+  padding-bottom: 10px;
 `;
 
 export function Sidebar() {
@@ -103,20 +89,15 @@ export function Sidebar() {
   return (
     <Root>
       <Masthead>
-        <MastheadTop>
-          <Brand>
-            <Mark>◆</Mark>
-            <Wordmark>Agentevals</Wordmark>
-          </Brand>
-        </MastheadTop>
+        <Mark>ae</Mark>
+        <BrandText>
+          <Wordmark>agent evals</Wordmark>
+          <BrandSub>workspace · main</BrandSub>
+        </BrandText>
       </Masthead>
       <SectionHeader>
-        <SectionLabel>
-          Evals{' '}
-          <SectionCounter>
-            [{String(evals.length).padStart(2, '0')}]
-          </SectionCounter>
-        </SectionLabel>
+        <SectionLabel>Evals</SectionLabel>
+        <SectionCounter>{evals.length}</SectionCounter>
       </SectionHeader>
       <ScrollArea>
         <EvalTree />

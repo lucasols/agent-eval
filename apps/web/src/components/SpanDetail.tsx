@@ -1,14 +1,14 @@
 import type { EvalTraceSpan, TraceDisplayConfig } from '@agent-evals/shared';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
-import { inline, monoFont } from '#src/style/helpers';
+import { inline, kicker, monoFont } from '#src/style/helpers';
 import {
   formatTraceAttributeValue,
   getTraceAttributeItems,
 } from '#src/utils/traceAttributes';
 
 const DetailRoot = styled.div`
-  padding: 12px;
+  padding: 14px 16px;
   background: ${colors.bg.var};
   border-radius: var(--radius-md);
   border: 1px solid ${colors.border.var};
@@ -16,26 +16,32 @@ const DetailRoot = styled.div`
 `;
 
 const DetailTitle = styled.div`
+  ${monoFont}
+  font-size: 14px;
   font-weight: 600;
-  margin-bottom: 8px;
+  letter-spacing: -0.005em;
+  color: ${colors.text.var};
+  margin-bottom: 12px;
 `;
 
 const DetailItems = styled.div`
-  ${inline({ gap: 12 })}
-  margin-bottom: 12px;
+  ${inline({ gap: 16 })}
+  margin-bottom: 14px;
   flex-wrap: wrap;
 `;
 
 const DetailItemRoot = styled.div``;
 
 const DetailItemLabel = styled.div`
-  font-size: 10px;
+  ${kicker}
   color: ${colors.textMuted.var};
-  margin-bottom: 2px;
+  margin-bottom: 3px;
 `;
 
 const DetailItemValue = styled.div`
   ${monoFont}
+  font-size: 11.5px;
+  color: ${colors.text.var};
 `;
 
 const ErrorContainer = styled.div`
@@ -60,21 +66,21 @@ const JsonSectionRoot = styled.div`
 `;
 
 const JsonSectionLabel = styled.div`
-  font-weight: 600;
-  font-size: 11px;
-  color: ${colors.textDim.var};
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin-bottom: 4px;
+  ${kicker}
+  color: ${colors.textMuted.var};
+  margin-bottom: 6px;
 `;
 
 const JsonSectionPre = styled.pre`
   ${monoFont}
   font-size: 11px;
+  line-height: 1.55;
   white-space: pre-wrap;
-  word-break: break-all;
-  background: ${colors.surface.var};
-  padding: 8px;
+  word-break: break-word;
+  color: ${colors.textMuted.var};
+  background: ${colors.bgElevated.var};
+  border: 1px solid ${colors.border.var};
+  padding: 10px 12px;
   border-radius: var(--radius-sm);
   max-height: 200px;
   overflow: auto;

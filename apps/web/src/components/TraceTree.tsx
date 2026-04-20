@@ -22,7 +22,7 @@ const TreePane = styled.div`
   overflow: auto;
   border: 1px solid ${colors.border.var};
   border-radius: var(--radius-md);
-  background: ${colors.surface.var};
+  background: ${colors.bg.var};
   padding: 4px 0;
 `;
 
@@ -33,22 +33,22 @@ const DetailPane = styled.div`
 `;
 
 const SpanRow = styled.div<{ active: boolean }>`
-  ${inline({ gap: 6, align: 'center' })}
+  ${inline({ gap: 7, align: 'center' })}
   ${transition({ property: 'background, color' })}
   cursor: pointer;
   font-size: 11.5px;
-  height: 24px;
-  padding-right: 8px;
+  height: 26px;
+  padding-right: 10px;
   border-left: 2px solid transparent;
   color: ${colors.textMuted.var};
 
   &:hover {
-    background: ${colors.surfaceHover.var};
+    background: ${colors.bgElevated.var};
     color: ${colors.text.var};
   }
 
   &.active {
-    background: ${colors.surfaceActive.var};
+    background: ${colors.surface.var};
     color: ${colors.text.var};
     border-left-color: ${colors.accent.var};
   }
@@ -92,42 +92,42 @@ const KindBadge = styled.span<{
   evalKind: boolean;
 }>`
   ${monoFont}
-  padding: 1px 5px;
-  border-radius: 3px;
+  padding: 2px 6px;
+  border-radius: 4px;
   font-size: 9.5px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: ${colors.text.var};
-  background: ${colors.borderStrong.var};
+  color: ${colors.textMuted.var};
+  background: ${colors.surface.var};
   flex-shrink: 0;
 
   &.agent {
-    background: ${colors.accent.alpha(0.15)};
-    color: ${colors.accent.var};
+    background: rgba(167, 139, 250, 0.14);
+    color: #7c3aed;
   }
   &.llm {
-    background: rgba(99, 156, 255, 0.15);
-    color: #9bb8ff;
+    background: rgba(103, 232, 249, 0.18);
+    color: ${colors.accentDim.var};
   }
   &.tool {
-    background: ${colors.success.alpha(0.15)};
-    color: ${colors.success.var};
+    background: rgba(240, 171, 252, 0.18);
+    color: #a21caf;
   }
   &.retrieval {
-    background: ${colors.warning.alpha(0.15)};
+    background: ${colors.warning.alpha(0.12)};
     color: ${colors.warning.var};
   }
   &.scorer {
     background: rgba(236, 72, 153, 0.15);
-    color: #f0a4cf;
+    color: #be185d;
   }
   &.checkpoint {
     background: rgba(99, 102, 241, 0.15);
-    color: #b1b3ff;
+    color: #4338ca;
   }
   &.evalKind {
-    background: ${colors.borderStrong.var};
+    background: ${colors.surface.var};
     color: ${colors.textMuted.var};
   }
 `;

@@ -1,7 +1,13 @@
 import { X } from 'lucide-react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
-import { inline, monoFont, stack, tabularNums } from '#src/style/helpers';
+import {
+  inline,
+  kicker,
+  monoFont,
+  stack,
+  tabularNums,
+} from '#src/style/helpers';
 import { closeRun, runStore } from '../stores/runStore.ts';
 import {
   formatCost,
@@ -19,10 +25,8 @@ const DrawerLoading = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  color: ${colors.textDim.var};
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.24em;
+  color: ${colors.textMuted.var};
+  font-size: 12px;
 `;
 
 const DrawerRoot = styled.div`
@@ -31,27 +35,23 @@ const DrawerRoot = styled.div`
   border-left: 1px solid ${colors.border.var};
   background: ${colors.bgElevated.var};
   overflow: hidden;
-  box-shadow: -16px 0 40px -20px ${colors.black.alpha(0.15)};
 `;
 
 const Header = styled.div`
-  ${inline({ justify: 'space-between', align: 'center', gap: 10 })}
-  height: 52px;
-  padding: 0 14px 0 20px;
+  ${stack({ gap: 10 })}
+  padding: 14px 18px 12px;
   border-bottom: 1px solid ${colors.border.var};
   background: ${colors.bgElevated.var};
   flex-shrink: 0;
-  position: relative;
+`;
 
-  &::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 3px;
-    background: ${colors.accent.var};
-  }
+const HeaderTop = styled.div`
+  ${inline({ justify: 'space-between', align: 'center', gap: 10 })}
+`;
+
+const HeaderKicker = styled.span`
+  ${kicker}
+  color: ${colors.textMuted.var};
 `;
 
 const HeaderLeft = styled.div`
@@ -60,19 +60,20 @@ const HeaderLeft = styled.div`
 `;
 
 const RunTag = styled.span`
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.26em;
-  text-transform: uppercase;
+  ${monoFont}
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
   color: ${colors.accentInk.var};
-  padding: 4px 9px;
   background: ${colors.accent.var};
 `;
 
 const RunTime = styled.span`
-  font-size: 12.5px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
   color: ${colors.text.var};
+  letter-spacing: -0.01em;
   ${tabularNums}
 `;
 
@@ -88,11 +89,8 @@ const Section = styled.section`
 `;
 
 const SectionLabel = styled.div`
-  font-size: 10.5px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: ${colors.textDim.var};
+  ${kicker}
+  color: ${colors.textMuted.var};
 `;
 
 const StatGrid = styled.div`
@@ -102,19 +100,16 @@ const StatGrid = styled.div`
 `;
 
 const Stat = styled.div`
-  ${stack({ gap: 4 })}
-  padding: 10px 12px;
-  background: ${colors.surface.var};
+  ${stack({ gap: 6 })}
+  padding: 12px 14px;
+  background: ${colors.bg.var};
   border: 1px solid ${colors.border.var};
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
 `;
 
 const StatLabel = styled.span`
-  font-size: 10.5px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: ${colors.textDim.var};
+  ${kicker}
+  color: ${colors.textMuted.var};
 `;
 
 const StatValue = styled.span<{
@@ -122,14 +117,14 @@ const StatValue = styled.span<{
   cost: boolean;
   error: boolean;
 }>`
-  ${monoFont}
   ${tabularNums}
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 500;
   color: ${colors.text.var};
+  letter-spacing: -0.02em;
 
   &.accent {
-    color: ${colors.accent.var};
+    color: ${colors.accentDim.var};
   }
   &.cost {
     color: ${colors.cost.var};
@@ -147,8 +142,8 @@ const MetaList = styled.dl`
 `;
 
 const MetaKey = styled.dt`
-  font-size: 11.5px;
-  color: ${colors.textDim.var};
+  font-size: 12px;
+  color: ${colors.textMuted.var};
 `;
 
 const MetaValue = styled.dd`
@@ -167,10 +162,10 @@ const ErrorBlock = styled.pre`
   white-space: pre-wrap;
   word-break: break-word;
   color: ${colors.error.var};
-  background: ${colors.error.alpha(0.08)};
-  border: 1px solid ${colors.error.alpha(0.4)};
-  border-radius: var(--radius-sm);
-  padding: 12px;
+  background: ${colors.error.alpha(0.06)};
+  border: 1px solid ${colors.error.alpha(0.3)};
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
   margin: 0;
 `;
 
@@ -207,17 +202,20 @@ export function RunDrawer() {
   return (
     <DrawerRoot>
       <Header>
+        <HeaderTop>
+          <HeaderKicker>Run</HeaderKicker>
+          <IconButton
+            onClick={closeRun}
+            aria-label="Close run drawer"
+          >
+            <X />
+          </IconButton>
+        </HeaderTop>
         <HeaderLeft>
-          <RunTag>Run</RunTag>
+          <RunTag>RUN</RunTag>
           <RunTime>{formatTimestamp(manifest.startedAt)}</RunTime>
           <StatusBadge status={manifest.status} />
         </HeaderLeft>
-        <IconButton
-          onClick={closeRun}
-          aria-label="Close run drawer"
-        >
-          <X />
-        </IconButton>
       </Header>
 
       <Body>

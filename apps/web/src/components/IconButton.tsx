@@ -10,29 +10,29 @@ type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 const Root = styled.button<{ md: boolean }>`
   ${centerContent}
-  ${transition({ property: 'background, color, border-color' })}
-  width: 26px;
-  height: 26px;
-  border-radius: 0;
-  border: 1px solid transparent;
+  ${transition({ property: 'background, color' })}
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  border: none;
   background: transparent;
   color: ${colors.textMuted.var};
   flex-shrink: 0;
 
   &.md {
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-md);
   }
 
   &:hover:not(:disabled) {
-    background: ${colors.surfaceHover.var};
-    color: ${colors.accent.var};
-    border-color: ${colors.borderStrong.var};
+    background: ${colors.surface.var};
+    color: ${colors.text.var};
   }
 
   &:disabled {
     cursor: not-allowed;
-    opacity: 0.4;
+    opacity: 0.5;
   }
 
   & > svg {

@@ -98,24 +98,33 @@ export const transition = vindurFn(
 
 export const monoFont = css`
   font-family:
-    'JetBrains Mono', 'SF Mono', 'Fira Code', 'Fira Mono', ui-monospace,
-    monospace;
-  font-feature-settings: 'tnum', 'cv02';
+    'Geist Mono', 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+  font-feature-settings: 'tnum', 'zero';
 `;
 
 export const sansFont = css`
   font-family:
-    'JetBrains Mono', 'SF Mono', 'Fira Code', 'Fira Mono', ui-monospace,
-    monospace;
-  font-feature-settings: 'tnum', 'ss01';
+    'Geist',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Inter',
+    'Segoe UI',
+    system-ui,
+    sans-serif;
+  font-feature-settings: 'ss01', 'ss03', 'cv11';
 `;
 
 export const displayFont = css`
   font-family:
-    'JetBrains Mono', 'SF Mono', 'Fira Code', 'Fira Mono', ui-monospace,
-    monospace;
-  font-feature-settings: 'ss01', 'zero';
-  letter-spacing: -0.02em;
+    'Geist',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Inter',
+    'Segoe UI',
+    system-ui,
+    sans-serif;
+  font-feature-settings: 'ss01', 'ss03', 'cv11';
+  letter-spacing: -0.025em;
 `;
 
 export const tabularNums = css`
@@ -124,6 +133,15 @@ export const tabularNums = css`
 
 export const caps = css`
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.1em;
+  font-weight: 500;
+`;
+
+export const kicker = css`
+  font-family:
+    'Geist Mono', 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   font-weight: 500;
 `;

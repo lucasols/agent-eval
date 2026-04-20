@@ -18,24 +18,23 @@ const Root = styled.button<{
   ghost: boolean;
   danger: boolean;
 }>`
-  ${inline({ align: 'center', gap: 8 })}
+  ${inline({ align: 'center', gap: 7 })}
   ${transition({ property: 'background, border-color, color, box-shadow' })}
   display: inline-flex;
-  height: 28px;
+  height: 32px;
   padding: 0 14px;
-  border-radius: 0;
+  border-radius: var(--radius-md);
   border: 1px solid transparent;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
   line-height: 1;
   white-space: nowrap;
   user-select: none;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
 
   &:disabled {
     cursor: not-allowed;
-    opacity: 0.4;
+    opacity: 0.5;
   }
 
   & > svg {
@@ -47,29 +46,29 @@ const Root = styled.button<{
   &.primary {
     background: ${colors.accent.var};
     color: ${colors.accentInk.var};
+    font-weight: 600;
     box-shadow:
-      0 0 0 1px ${colors.accentDim.var},
-      0 6px 16px -8px ${colors.accent.alpha(0.55)};
+      0 0 0 1px ${colors.accent.alpha(0.3)},
+      0 6px 20px -6px ${colors.accent.alpha(0.45)};
   }
   &.primary:hover:not(:disabled) {
     background: ${colors.accentHover.var};
     box-shadow:
-      0 0 0 1px ${colors.accentDim.var},
-      0 8px 20px -6px ${colors.accent.alpha(0.7)};
+      0 0 0 1px ${colors.accent.alpha(0.45)},
+      0 8px 22px -4px ${colors.accent.alpha(0.6)};
   }
   &.primary:active:not(:disabled) {
     background: ${colors.accentDim.var};
   }
 
   &.secondary {
-    background: transparent;
+    background: ${colors.surface.var};
     color: ${colors.text.var};
     border-color: ${colors.borderStrong.var};
   }
   &.secondary:hover:not(:disabled) {
     background: ${colors.surfaceHover.var};
-    border-color: ${colors.accent.alpha(0.4)};
-    color: ${colors.accent.var};
+    border-color: ${colors.accent.alpha(0.45)};
   }
 
   &.ghost {
@@ -77,7 +76,7 @@ const Root = styled.button<{
     color: ${colors.textMuted.var};
   }
   &.ghost:hover:not(:disabled) {
-    background: ${colors.surfaceHover.var};
+    background: ${colors.surface.var};
     color: ${colors.text.var};
   }
 
@@ -87,7 +86,7 @@ const Root = styled.button<{
     border-color: ${colors.error.alpha(0.4)};
   }
   &.danger:hover:not(:disabled) {
-    background: ${colors.error.alpha(0.1)};
+    background: ${colors.error.alpha(0.08)};
     border-color: ${colors.error.var};
   }
 `;

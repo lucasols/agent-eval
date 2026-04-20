@@ -10,6 +10,7 @@ import { colors } from '#src/style/colors';
 import {
   ellipsis,
   inline,
+  kicker,
   monoFont,
   tabularNums,
   transition,
@@ -33,19 +34,18 @@ export type RunRow = {
 type EvalRunsTableProps = { runs: RunRow[]; columnDefs: ColumnDef[] };
 
 const Empty = styled.div`
-  padding: 32px 24px;
+  padding: 30px 24px;
   border: 1px dashed ${colors.border.var};
+  border-radius: var(--radius-lg);
   text-align: center;
-  color: ${colors.textDim.var};
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.22em;
-  background: transparent;
+  color: ${colors.textMuted.var};
+  font-size: 12.5px;
 `;
 
 const TableWrap = styled.div`
   border: 1px solid ${colors.border.var};
-  background: ${colors.bgElevated.alpha(0.4)};
+  border-radius: var(--radius-lg);
+  background: ${colors.bg.var};
   overflow: hidden;
 `;
 
@@ -57,14 +57,11 @@ const Table = styled.table`
 `;
 
 const Th = styled.th<{ rightAlign: boolean; indent: boolean }>`
-  padding: 10px 14px;
-  background: ${colors.surface.var};
+  ${kicker}
+  padding: 10px 16px;
+  background: ${colors.bgElevated.var};
   border-bottom: 1px solid ${colors.border.var};
-  font-size: 9.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  color: ${colors.textDim.var};
+  color: ${colors.textMuted.var};
   text-align: left;
   white-space: nowrap;
 
@@ -72,17 +69,19 @@ const Th = styled.th<{ rightAlign: boolean; indent: boolean }>`
     text-align: right;
   }
   &.indent {
-    padding-left: 32px;
+    padding-left: 36px;
   }
 `;
 
-const RunHeaderRow = styled.tr`
-  border-top: 1px solid ${colors.borderStrong.var};
-  border-bottom: 1px solid ${colors.border.var};
-  background: ${colors.surface.var};
+const RunHeaderRow = styled.tr<{ latest: boolean }>`
+  border-top: 1px solid ${colors.border.var};
 
   &:first-child {
     border-top: none;
+  }
+
+  &.latest {
+    background: ${colors.accent.alpha(0.03)};
   }
 `;
 
@@ -91,83 +90,88 @@ const RunHeaderCell = styled.td`
 `;
 
 const RunHeaderBar = styled.button`
-  ${inline({ gap: 20, align: 'center' })}
-  ${transition({ property: 'background, border-color' })}
+  ${inline({ gap: 16, align: 'center' })}
+  ${transition({ property: 'background' })}
   width: 100%;
-  padding: 12px 16px 12px 14px;
+  padding: 12px 20px;
   flex-wrap: wrap;
   background: transparent;
   border: none;
-  border-left: 2px solid transparent;
   text-align: left;
   cursor: pointer;
   color: inherit;
   font: inherit;
 
   &:hover {
-    background: ${colors.surfaceHover.var};
-    border-left-color: ${colors.accent.var};
+    background: ${colors.bgElevated.var};
   }
 `;
 
-const RunTag = styled.span`
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.26em;
-  text-transform: uppercase;
+const LatestTag = styled.span`
+  ${monoFont}
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
   color: ${colors.accentInk.var};
   background: ${colors.accent.var};
-  padding: 4px 8px 4px 10px;
+`;
+
+const RunIdTag = styled.span`
+  ${monoFont}
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: ${colors.textMuted.var};
+  background: ${colors.surface.var};
 `;
 
 const RunTime = styled.span`
-  ${monoFont}
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 12.5px;
+  font-weight: 500;
   color: ${colors.text.var};
-  ${tabularNums}
+  letter-spacing: -0.005em;
 `;
 
 const RunStat = styled.div`
-  ${inline({ gap: 8, align: 'center' })}
-  font-size: 11px;
+  ${inline({ gap: 6, align: 'center' })}
+  font-size: 11.5px;
   color: ${colors.textMuted.var};
   ${tabularNums}
 `;
 
 const RunStatLabel = styled.span`
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  color: ${colors.textDim.var};
+  ${kicker}
+  color: ${colors.textMuted.var};
 `;
 
 const RunStatValue = styled.span<{ accent: boolean; cost: boolean }>`
   ${monoFont}
+  ${tabularNums}
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   color: ${colors.text.var};
 
   &.accent {
-    color: ${colors.accent.var};
+    color: ${colors.accentDim.var};
   }
   &.cost {
     color: ${colors.cost.var};
   }
 `;
 
-const CaseRowEl = styled.tr`
+const CaseRowEl = styled.tr<{ active: boolean }>`
   ${transition({ property: 'background' })}
   cursor: pointer;
-  border-bottom: 1px solid ${colors.border.alpha(0.4)};
+  border-top: 1px solid ${colors.border.var};
 
   &:hover {
-    background: ${colors.surfaceHover.alpha(0.5)};
+    background: ${colors.bgElevated.var};
   }
 
-  &:hover td:first-child {
-    color: ${colors.accent.var};
+  &.active {
+    background: ${colors.surface.var};
   }
 `;
 
@@ -176,11 +180,11 @@ const CaseTd = styled.td<{
   mono: boolean;
   indent: boolean;
 }>`
-  padding: 10px 14px;
+  padding: 10px 16px;
   vertical-align: middle;
   white-space: nowrap;
   color: ${colors.text.var};
-  ${transition({ property: 'color' })}
+  font-size: 12px;
 
   &.rightAlign {
     text-align: right;
@@ -189,9 +193,10 @@ const CaseTd = styled.td<{
     ${monoFont}
     ${tabularNums}
     font-size: 11.5px;
+    color: ${colors.textMuted.var};
   }
   &.indent {
-    padding-left: 32px;
+    padding-left: 36px;
   }
 `;
 
@@ -199,10 +204,51 @@ const CaseId = styled.div`
   ${ellipsis}
   ${monoFont}
   font-size: 12px;
-  font-weight: 500;
   color: ${colors.text.var};
   max-width: 260px;
-  ${transition({ property: 'color' })}
+`;
+
+const ScoreBar = styled.span`
+  display: inline-block;
+  width: 40px;
+  height: 3px;
+  border-radius: 4px;
+  background: ${colors.surface.var};
+  position: relative;
+  overflow: hidden;
+  margin-right: 8px;
+  vertical-align: middle;
+`;
+
+const ScoreBarFill = styled.span<{
+  pass: boolean;
+  partial: boolean;
+  fail: boolean;
+}>`
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 4px;
+  background: ${colors.textDim.var};
+
+  &.pass {
+    background: ${colors.success.var};
+  }
+  &.partial {
+    background: ${colors.warning.var};
+  }
+  &.fail {
+    background: ${colors.error.var};
+  }
+`;
+
+const ScoreText = styled.span`
+  ${monoFont}
+  ${tabularNums}
+  font-size: 12px;
+  color: ${colors.text.var};
+  font-weight: 500;
 `;
 
 const CostText = styled.span`
@@ -214,16 +260,14 @@ const Dim = styled.span`
 `;
 
 const PlaceholderRow = styled.tr`
-  border-bottom: 1px solid ${colors.border.alpha(0.4)};
+  border-top: 1px solid ${colors.border.var};
 `;
 
 const PlaceholderCell = styled.td`
   padding: 18px;
   text-align: center;
-  font-size: 10px;
-  color: ${colors.textDim.var};
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
+  font-size: 12px;
+  color: ${colors.textMuted.var};
 `;
 
 function isNumericColumn(c: ColumnDef): boolean {
@@ -302,10 +346,11 @@ export function EvalRunsTable({ runs, columnDefs }: EvalRunsTableProps) {
           </tr>
         </thead>
         <tbody>
-          {runs.map((run) => (
+          {runs.map((run, idx) => (
             <RunGroup
               key={run.manifest.id}
               run={run}
+              isLatest={idx === 0}
               customColumns={customColumns}
               totalCols={totalCols}
             />
@@ -316,12 +361,33 @@ export function EvalRunsTable({ runs, columnDefs }: EvalRunsTableProps) {
   );
 }
 
+function ScoreCell({ score }: { score: number | null }) {
+  if (score === null) return <Dim>{'\u2014'}</Dim>;
+  const tone: 'pass' | 'partial' | 'fail' =
+    score >= 0.7 ? 'pass' : score >= 0.4 ? 'partial' : 'fail';
+  return (
+    <>
+      <ScoreBar>
+        <ScoreBarFill
+          pass={tone === 'pass'}
+          partial={tone === 'partial'}
+          fail={tone === 'fail'}
+          style={{ width: `${score * 100}%` }}
+        />
+      </ScoreBar>
+      <ScoreText>{formatScore(score)}</ScoreText>
+    </>
+  );
+}
+
 function RunGroup({
   run,
+  isLatest,
   customColumns,
   totalCols,
 }: {
   run: RunRow;
+  isLatest: boolean;
   customColumns: ColumnDef[];
   totalCols: number;
 }) {
@@ -337,13 +403,17 @@ function RunGroup({
 
   return (
     <>
-      <RunHeaderRow>
+      <RunHeaderRow latest={isLatest}>
         <RunHeaderCell colSpan={totalCols}>
           <RunHeaderBar
             type="button"
             onClick={() => void selectRun(manifest.id)}
           >
-            <RunTag>Run</RunTag>
+            {isLatest ? (
+              <LatestTag>LATEST</LatestTag>
+            ) : (
+              <RunIdTag>#{manifest.id.slice(0, 6)}</RunIdTag>
+            )}
             <RunTime>{formatTimestamp(manifest.startedAt)}</RunTime>
             <StatusBadge status={manifest.status} />
             <RunStat>
@@ -395,6 +465,7 @@ function RunGroup({
         cases.map((row) => (
           <CaseRowEl
             key={`${row.caseId}-${String(row.trial)}`}
+            active={false}
             onClick={() => handleCaseClick(row.caseId)}
           >
             <CaseTd
@@ -413,14 +484,10 @@ function RunGroup({
             </CaseTd>
             <CaseTd
               rightAlign={true}
-              mono={true}
+              mono={false}
               indent={false}
             >
-              {row.score === null ? (
-                <Dim>{'\u2014'}</Dim>
-              ) : (
-                formatScore(row.score)
-              )}
+              <ScoreCell score={row.score} />
             </CaseTd>
             <CaseTd
               rightAlign={true}

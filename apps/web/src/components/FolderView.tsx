@@ -2,7 +2,7 @@ import type { EvalSummary } from '@agent-evals/shared';
 import { Folder as FolderIcon } from 'lucide-react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
-import { inline, monoFont, stack } from '#src/style/helpers';
+import { inline, kicker, stack } from '#src/style/helpers';
 import { EmptyState } from './EmptyState.tsx';
 import { EvalCard } from './EvalCard.tsx';
 
@@ -14,42 +14,24 @@ const Root = styled.div`
 `;
 
 const Header = styled.div`
-  ${stack({ gap: 4 })}
-  padding: 24px 32px 20px;
+  ${stack({ gap: 6 })}
+  padding: 22px 32px 18px;
   border-bottom: 1px solid ${colors.border.var};
-  background: ${colors.bgElevated.alpha(0.5)};
+  background: ${colors.bg.var};
   position: sticky;
   top: 0;
   z-index: 1;
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: linear-gradient(
-      90deg,
-      ${colors.accent.var} 0%,
-      ${colors.accent.var} 64px,
-      transparent 64px,
-      transparent 100%
-    );
-  }
 `;
 
 const Eyebrow = styled.div`
-  ${inline({ gap: 10, align: 'center' })}
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.26em;
-  text-transform: uppercase;
-  color: ${colors.accent.var};
+  ${kicker}
+  ${inline({ gap: 8, align: 'center' })}
+  color: ${colors.textMuted.var};
 `;
 
 const EyebrowIcon = styled.span`
   display: inline-flex;
+  color: ${colors.accent.var};
 
   & > svg {
     width: 12px;
@@ -64,18 +46,14 @@ const TitleRow = styled.div`
 `;
 
 const FolderName = styled.div`
-  ${monoFont}
-  font-size: 22px;
-  font-weight: 800;
+  font-size: 20px;
+  font-weight: 600;
   color: ${colors.text.var};
   letter-spacing: -0.02em;
 `;
 
 const Count = styled.div`
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
+  ${kicker}
   color: ${colors.textDim.var};
 `;
 

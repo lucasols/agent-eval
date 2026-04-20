@@ -26,7 +26,7 @@ import {
 import { StatusDot } from './StatusBadge.tsx';
 
 const Root = styled.div`
-  padding: 6px 0 16px;
+  padding: 2px 0 10px;
 `;
 
 const Empty = styled.div`
@@ -35,10 +35,10 @@ const Empty = styled.div`
 `;
 
 const EmptyTitle = styled.div`
-  color: ${colors.textDim.var};
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
+  color: ${colors.textMuted.var};
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
 `;
 
 const EmptyBody = styled.div`
@@ -54,8 +54,9 @@ const CommandHint = styled.code`
   width: 100%;
   overflow: auto;
   color: ${colors.text.var};
-  background: ${colors.bgElevated.var};
+  background: ${colors.surface.var};
   border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-sm);
   padding: 10px 12px;
 `;
 
@@ -67,54 +68,55 @@ const RowBase = styled.button<{
   depth3: boolean;
 }>`
   ${inline({ gap: 8, align: 'center' })}
-  ${transition({ property: 'background, color, border-color' })}
+  ${transition({ property: 'background, color' })}
   position: relative;
-  width: 100%;
+  width: calc(100% - 16px);
+  margin: 1px 8px;
   background: transparent;
   border: none;
-  border-left: 2px solid transparent;
+  border-radius: var(--radius-sm);
   text-align: left;
   color: ${colors.textMuted.var};
-  font-size: 12px;
-  min-height: 28px;
+  font-size: 12.5px;
+  line-height: 20px;
+  min-height: 30px;
   padding-top: 5px;
   padding-bottom: 5px;
-  padding-right: 14px;
+  padding-right: 10px;
   overflow: hidden;
 
   &.depth0 {
-    padding-left: 14px;
+    padding-left: 10px;
   }
   &.depth1 {
-    padding-left: 28px;
+    padding-left: 24px;
   }
   &.depth2 {
-    padding-left: 42px;
+    padding-left: 38px;
   }
   &.depth3 {
-    padding-left: 56px;
+    padding-left: 52px;
   }
 
   &:hover {
-    background: ${colors.surfaceHover.var};
+    background: ${colors.bg.var};
     color: ${colors.text.var};
   }
 
   &.active {
-    background: ${colors.accent.alpha(0.18)};
+    background: ${colors.surface.var};
     color: ${colors.text.var};
-    border-left-color: ${colors.accent.var};
   }
 
   &.active::before {
     content: '';
     position: absolute;
-    left: -2px;
-    top: 50%;
-    transform: translateY(-50%);
+    left: -8px;
+    top: 6px;
+    bottom: 6px;
     width: 2px;
-    height: 14px;
-    background: ${colors.accentDim.var};
+    background: ${colors.accent.var};
+    border-radius: 2px;
   }
 
   & > svg {
@@ -125,7 +127,7 @@ const RowBase = styled.button<{
   }
 
   &.active > svg {
-    color: ${colors.accentDim.var};
+    color: ${colors.accent.var};
   }
 `;
 
@@ -137,6 +139,7 @@ const ChevronIcon = styled.span<{ open: boolean }>`
   align-items: center;
   justify-content: center;
   color: ${colors.textDim.var};
+  opacity: 0.7;
 
   &.open {
     transform: rotate(90deg);
@@ -152,17 +155,15 @@ const RowLabel = styled.span`
   ${ellipsis}
   flex: 1;
   font-weight: 500;
-  font-size: 12px;
-  letter-spacing: 0.01em;
+  font-size: 12.5px;
 `;
 
 const FolderLabel = styled.span`
   ${ellipsis}
   flex: 1;
-  font-weight: 700;
-  font-size: 10.5px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  font-weight: 500;
+  font-size: 12.5px;
+  color: ${colors.textMuted.var};
 `;
 
 const FilenameHint = styled.span`
@@ -173,19 +174,19 @@ const FilenameHint = styled.span`
   font-weight: 400;
   flex: 0 1 auto;
   max-width: 38%;
-  opacity: 0.65;
   white-space: nowrap;
 `;
 
 const StaleTag = styled.span`
+  ${monoFont}
   font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: ${colors.warning.var};
   padding: 1px 5px;
-  border: 1px solid ${colors.warning.alpha(0.4)};
-  background: ${colors.warning.alpha(0.08)};
+  border-radius: 3px;
+  background: ${colors.warning.alpha(0.1)};
   flex-shrink: 0;
 `;
 

@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import { useState } from 'react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
-import { inline, monoFont, sansFont, stack } from '#src/style/helpers';
+import { inline, kicker, monoFont, stack } from '#src/style/helpers';
 import { evalsStore } from '../stores/evalsStore.ts';
 import { closeCase, runStore } from '../stores/runStore.ts';
 import {
@@ -26,10 +26,8 @@ const DrawerLoading = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  color: ${colors.textDim.var};
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.24em;
+  color: ${colors.textMuted.var};
+  font-size: 12px;
 `;
 
 const DrawerRoot = styled.div`
@@ -38,27 +36,28 @@ const DrawerRoot = styled.div`
   border-left: 1px solid ${colors.border.var};
   background: ${colors.bgElevated.var};
   overflow: hidden;
-  box-shadow: -16px 0 40px -20px ${colors.black.alpha(0.15)};
 `;
 
 const Header = styled.div`
-  ${inline({ justify: 'space-between', align: 'center', gap: 10 })}
-  height: 52px;
-  padding: 0 14px 0 20px;
+  ${stack({ gap: 10 })}
+  padding: 14px 18px 12px;
   border-bottom: 1px solid ${colors.border.var};
   background: ${colors.bgElevated.var};
   flex-shrink: 0;
-  position: relative;
+`;
 
-  &::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 3px;
-    background: ${colors.accent.var};
-  }
+const HeaderTop = styled.div`
+  ${inline({ justify: 'space-between', align: 'center', gap: 10 })}
+`;
+
+const HeaderKicker = styled.span`
+  ${kicker}
+  color: ${colors.textMuted.var};
+`;
+
+const HeaderTitleRow = styled.div`
+  ${inline({ gap: 10, align: 'center' })}
+  min-width: 0;
 `;
 
 const HeaderLeft = styled.div`
@@ -68,50 +67,40 @@ const HeaderLeft = styled.div`
 
 const CaseId = styled.span`
   ${monoFont}
-  font-size: 13px;
+  font-size: 17px;
   color: ${colors.text.var};
-  font-weight: 700;
-  letter-spacing: -0.005em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 `;
 
 const TabBar = styled.div`
-  ${inline({ gap: 0 })}
+  ${inline({ gap: 4 })}
   border-bottom: 1px solid ${colors.border.var};
-  padding: 0 12px;
+  padding: 10px 14px 0;
   flex-shrink: 0;
   overflow-x: auto;
-  background: ${colors.bg.alpha(0.3)};
 `;
 
 const TabButton = styled.button<{ active: boolean }>`
-  ${sansFont}
   position: relative;
-  padding: 11px 14px;
+  padding: 8px 12px;
   background: transparent;
   border: none;
-  font-size: 10px;
-  font-weight: 700;
-  color: ${colors.textDim.var};
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
+  font-size: 12px;
+  font-weight: 500;
+  color: ${colors.textMuted.var};
   white-space: nowrap;
+  margin-bottom: -1px;
+  border-bottom: 1.5px solid transparent;
+  text-transform: capitalize;
 
   &:hover {
-    color: ${colors.textMuted.var};
+    color: ${colors.text.var};
   }
 
   &.active {
-    color: ${colors.accent.var};
-  }
-
-  &.active::after {
-    content: '';
-    position: absolute;
-    left: 14px;
-    right: 14px;
-    bottom: -1px;
-    height: 2px;
-    background: ${colors.accent.var};
+    color: ${colors.text.var};
+    border-bottom-color: ${colors.accent.var};
   }
 `;
 
@@ -124,12 +113,14 @@ const TabContent = styled.div`
 const OutputPre = styled.pre`
   ${monoFont}
   font-size: 11.5px;
+  line-height: 1.6;
   white-space: pre-wrap;
-  word-break: break-all;
-  background: ${colors.surface.var};
+  word-break: break-word;
+  color: ${colors.textMuted.var};
+  background: ${colors.bg.var};
   border: 1px solid ${colors.border.var};
-  border-radius: var(--radius-sm);
-  padding: 10px;
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
 `;
 
 const ErrorContainer = styled.div`
@@ -157,22 +148,21 @@ const RawSections = styled.div`
 `;
 
 const RawLabel = styled.div`
-  font-size: 10.5px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: ${colors.textDim.var};
-  margin-bottom: 6px;
+  ${kicker}
+  color: ${colors.textMuted.var};
+  margin-bottom: 8px;
 `;
 
 const RawPre = styled.pre`
   ${monoFont}
   font-size: 11px;
+  line-height: 1.6;
   white-space: pre-wrap;
-  word-break: break-all;
-  background: ${colors.surface.var};
-  padding: 10px;
-  border-radius: var(--radius-sm);
+  word-break: break-word;
+  color: ${colors.textMuted.var};
+  background: ${colors.bg.var};
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
   border: 1px solid ${colors.border.var};
   max-height: 320px;
   overflow: auto;
@@ -185,18 +175,15 @@ const ColumnsGrid = styled.div`
 
 const ColumnRow = styled.div`
   ${inline({ justify: 'space-between', align: 'center', gap: 12 })}
-  padding: 8px 10px;
-  background: ${colors.surface.var};
+  padding: 10px 12px;
+  background: ${colors.bg.var};
   border: 1px solid ${colors.border.var};
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
 `;
 
 const ColumnLabel = styled.div`
-  font-size: 11px;
-  font-weight: 600;
-  color: ${colors.textDim.var};
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  ${kicker}
+  color: ${colors.textMuted.var};
 `;
 
 const ColumnValueText = styled.div`
@@ -247,16 +234,21 @@ export function CaseDrawer() {
   return (
     <DrawerRoot>
       <Header>
-        <HeaderLeft>
-          <CaseId>{d.caseId}</CaseId>
-          <StatusBadge status={d.status} />
-        </HeaderLeft>
-        <IconButton
-          onClick={closeCase}
-          aria-label="Close"
-        >
-          <X />
-        </IconButton>
+        <HeaderTop>
+          <HeaderKicker>Case</HeaderKicker>
+          <IconButton
+            onClick={closeCase}
+            aria-label="Close"
+          >
+            <X />
+          </IconButton>
+        </HeaderTop>
+        <HeaderTitleRow>
+          <HeaderLeft>
+            <CaseId>{d.caseId}</CaseId>
+            <StatusBadge status={d.status} />
+          </HeaderLeft>
+        </HeaderTitleRow>
       </Header>
 
       <TabBar>
