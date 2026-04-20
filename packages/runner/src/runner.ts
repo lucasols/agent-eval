@@ -1,8 +1,15 @@
-import { glob } from 'glob';
-import { watch } from 'chokidar';
 import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
+import {
+  getEvalRegistry,
+  runInEvalScope,
+  buildTraceTree,
+  EvalAssertionError,
+  type EvalColumnOverride,
+  type EvalDefinition,
+  type EvalScoreDef,
+} from '@agent-evals/sdk';
 import type {
   EvalSummary,
   RunManifest,
@@ -20,23 +27,16 @@ import type {
   TraceDisplayInputConfig,
 } from '@agent-evals/shared';
 import { cellValueSchema } from '@agent-evals/shared';
-import {
-  getEvalRegistry,
-  runInEvalScope,
-  buildTraceTree,
-  EvalAssertionError,
-  type EvalColumnOverride,
-  type EvalDefinition,
-  type EvalScoreDef,
-} from '@agent-evals/sdk';
-import { loadConfig } from './config.ts';
-import { resolveTracePresentation } from './traceDisplay.ts';
-import { parseEvalMetas } from './discovery.ts';
+import { watch } from 'chokidar';
+import { glob } from 'glob';
 import {
   createFsCacheStore,
   type CacheClearFilter,
   type FsCacheStore,
 } from './cacheStore.ts';
+import { loadConfig } from './config.ts';
+import { parseEvalMetas } from './discovery.ts';
+import { resolveTracePresentation } from './traceDisplay.ts';
 
 /** Imperative runner interface used by the server and CLI. */
 export type EvalRunner = {
@@ -48,11 +48,9 @@ export type EvalRunner = {
   getEval(id: string): EvalSummary | undefined;
   /** Re-scan configured eval files and emit a discovery update to listeners. */
   refreshDiscovery(): Promise<void>;
-  startRun(request: CreateRunRequest): Promise<{
-    manifest: RunManifest;
-    summary: RunSummary;
-    cases: CaseRow[];
-  }>;
+  startRun(
+    request: CreateRunRequest,
+  ): Promise<{ manifest: RunManifest; summary: RunSummary; cases: CaseRow[] }>;
   /** Return run manifests tracked in the current process. */
   getRuns(): RunManifest[];
   getRun(
@@ -81,9 +79,7 @@ export type EvalRunner = {
   clearCache(filter?: CacheClearFilter): Promise<void>;
 };
 
-type CreateRunnerOptions = {
-  watchForChanges?: boolean;
-};
+type CreateRunnerOptions = { watchForChanges?: boolean };
 
 type EvalMeta = {
   id: string;
@@ -282,11 +278,7 @@ export function createRunner({
     getRun(id) {
       const run = runs.get(id);
       if (!run) return undefined;
-      return {
-        manifest: run.manifest,
-        summary: run.summary,
-        cases: run.cases,
-      };
+      return { manifest: run.manifest, summary: run.summary, cases: run.cases };
     },
 
     cancelRun(id) {
@@ -337,10 +329,7 @@ export function createRunner({
 
   function setupWatcher() {
     const patterns = config.include.map((p) => resolve(workspaceRoot, p));
-    const watcher = watch(patterns, {
-      ignoreInitial: true,
-      persistent: true,
-    });
+    const watcher = watch(patterns, { ignoreInitial: true, persistent: true });
 
     watcher.on('change', () => {
       void runner.refreshDiscovery();
@@ -413,9 +402,9 @@ export function createRunner({
 
           await entry.use(async (evalDef) => {
             const cases = filterEvalCases(
-              typeof evalDef.cases === 'function' ?
-                await evalDef.cases()
-              : (evalDef.cases ?? []),
+              typeof evalDef.cases === 'function'
+                ? await evalDef.cases()
+                : (evalDef.cases ?? []),
               request.target.evalIds,
               request.target.caseIds,
               evalMeta.id,
@@ -503,12 +492,9 @@ export function createRunner({
 
           lastRunStatusMap.set(
             evalMeta.id,
-            (
-              runState.summary.failedCases > 0
-                || runState.summary.errorCases > 0
-            ) ?
-              'fail'
-            : 'pass',
+            runState.summary.failedCases > 0 || runState.summary.errorCases > 0
+              ? 'fail'
+              : 'pass',
           );
         } catch (error) {
           console.error(`Error running eval ${evalMeta.id}:`, error);
@@ -524,9 +510,9 @@ export function createRunner({
         .map((c) => c.score)
         .filter((s): s is number => s !== null);
       runState.summary.averageScore =
-        allScores.length > 0 ?
-          allScores.reduce((a, b) => a + b, 0) / allScores.length
-        : null;
+        allScores.length > 0
+          ? allScores.reduce((a, b) => a + b, 0) / allScores.length
+          : null;
 
       const totalCostUsd = allCaseRows
         .map((c) => c.costUsd)
@@ -539,17 +525,18 @@ export function createRunner({
       runState.summary.totalDurationMs =
         endTime.getTime() - new Date(runState.manifest.startedAt).getTime();
 
-      const finalStatus =
-        runState.abortController.signal.aborted ? 'cancelled'
-        : evalErrors.length > 0 ? 'error'
-        : 'completed';
+      const finalStatus = runState.abortController.signal.aborted
+        ? 'cancelled'
+        : evalErrors.length > 0
+          ? 'error'
+          : 'completed';
       runState.summary.status = finalStatus;
       runState.manifest.status = finalStatus;
       runState.manifest.endedAt = endTime.toISOString();
       runState.summary.errorMessage =
-        evalErrors.length > 0 ?
-          evalErrors.map((e) => `[${e.evalId}] ${e.message}`).join('\n')
-        : null;
+        evalErrors.length > 0
+          ? evalErrors.map((e) => `[${e.evalId}] ${e.message}`).join('\n')
+          : null;
 
       emitEvent(runState, {
         type: 'run.summary',
@@ -666,10 +653,7 @@ async function runCase<TInput>(params: {
   cacheAdapter: FsCacheStore | null;
   cacheMode: CacheMode;
   codeFingerprint: string;
-}): Promise<{
-  caseDetail: CaseDetail;
-  caseRowUpdate: Partial<CaseRow>;
-}> {
+}): Promise<{ caseDetail: CaseDetail; caseRowUpdate: Partial<CaseRow> }> {
   const {
     evalDef,
     evalId,
@@ -689,14 +673,8 @@ async function runCase<TInput>(params: {
       await evalDef.execute({ input: evalCase.input, signal });
     },
     {
-      cacheContext:
-        cacheAdapter ?
-          {
-            adapter: cacheAdapter,
-            mode: cacheMode,
-            evalId,
-            codeFingerprint,
-          }
+      cacheContext: cacheAdapter
+        ? { adapter: cacheAdapter, mode: cacheMode, evalId, codeFingerprint }
         : undefined,
     },
   );
@@ -705,9 +683,9 @@ async function runCase<TInput>(params: {
   const traceTree = buildTraceTree(scope.spans, scope.checkpoints);
 
   const nonAssertError =
-    executeError && !(executeError instanceof EvalAssertionError) ?
-      executeError
-    : null;
+    executeError && !(executeError instanceof EvalAssertionError)
+      ? executeError
+      : null;
 
   if (!nonAssertError && evalDef.deriveFromTracing) {
     try {
@@ -760,16 +738,16 @@ async function runCase<TInput>(params: {
 
   const scoreValues = [...scoreResults.values()].map((s) => s.value);
   const avgScore =
-    scoreValues.length > 0 ?
-      scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length
-    : null;
+    scoreValues.length > 0
+      ? scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length
+      : null;
 
   let passed = scope.assertionFailures.length === 0 && !nonAssertError;
   if (passed) {
     for (const [, scoreEntry] of scoreResults) {
       if (
-        scoreEntry.passThreshold !== undefined
-        && scoreEntry.value < scoreEntry.passThreshold
+        scoreEntry.passThreshold !== undefined &&
+        scoreEntry.value < scoreEntry.passThreshold
       ) {
         passed = false;
         break;
@@ -777,10 +755,11 @@ async function runCase<TInput>(params: {
     }
   }
 
-  const status: CaseRow['status'] =
-    nonAssertError ? 'error'
-    : passed ? 'pass'
-    : 'fail';
+  const status: CaseRow['status'] = nonAssertError
+    ? 'error'
+    : passed
+      ? 'pass'
+      : 'fail';
 
   const { trace: displayTrace, traceDisplay } = resolveTracePresentation(
     scope.spans,
@@ -799,9 +778,8 @@ async function runCase<TInput>(params: {
   const costUsdRaw = scope.outputs['costUsd'];
   const costUsd = typeof costUsdRaw === 'number' ? costUsdRaw : null;
 
-  const errorInfo =
-    nonAssertError ?
-      {
+  const errorInfo = nonAssertError
+    ? {
         name: nonAssertError.name,
         message: nonAssertError.message,
         stack: nonAssertError.stack,
@@ -815,9 +793,7 @@ async function runCase<TInput>(params: {
     input: evalCase.input,
     trace: displayTrace,
     traceDisplay,
-    cost: {
-      totalUsd: costUsd,
-    },
+    cost: { totalUsd: costUsd },
     columns,
     assertionFailures: scope.assertionFailures,
     error: errorInfo,
@@ -867,11 +843,7 @@ function mergeColumnDefs<TInput>(
     if (target.has(key)) continue;
     const override = overrideMap[key];
     const kind: ColumnKind = override?.kind ?? inferKind(value);
-    const def: ColumnDef = {
-      key,
-      label: override?.label ?? key,
-      kind,
-    };
+    const def: ColumnDef = { key, label: override?.label ?? key, kind };
     if (override?.format !== undefined) def.format = override.format;
     if (override?.primary !== undefined) def.primary = override.primary;
     if (override?.defaultVisible !== undefined)
@@ -904,9 +876,9 @@ function inferKind(value: unknown): ColumnKind {
 function toCellValue(value: unknown): CellValue | undefined {
   if (value === null) return null;
   if (
-    typeof value === 'string'
-    || typeof value === 'number'
-    || typeof value === 'boolean'
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean'
   ) {
     return value;
   }

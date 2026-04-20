@@ -1,5 +1,11 @@
+import type {
+  CaseRow,
+  CellValue,
+  ColumnDef,
+  RunManifest,
+  RunSummary,
+} from '@agent-evals/shared';
 import { styled } from 'vindur';
-import type { CaseRow, CellValue, ColumnDef, RunManifest, RunSummary } from '@agent-evals/shared';
 import { colors } from '#src/style/colors';
 import {
   ellipsis,
@@ -9,7 +15,6 @@ import {
   transition,
 } from '#src/style/helpers';
 import { selectCase, selectRun } from '../stores/runStore.ts';
-import { StatusBadge, StatusDot } from './StatusBadge.tsx';
 import {
   formatCost,
   formatDuration,
@@ -17,6 +22,7 @@ import {
   formatScore,
   formatTimestamp,
 } from '../utils/formatters.ts';
+import { StatusBadge, StatusDot } from './StatusBadge.tsx';
 
 export type RunRow = {
   manifest: RunManifest;
@@ -24,10 +30,7 @@ export type RunRow = {
   cases: CaseRow[];
 };
 
-type EvalRunsTableProps = {
-  runs: RunRow[];
-  columnDefs: ColumnDef[];
-};
+type EvalRunsTableProps = { runs: RunRow[]; columnDefs: ColumnDef[] };
 
 const Empty = styled.div`
   padding: 32px 24px;
@@ -168,7 +171,11 @@ const CaseRowEl = styled.tr`
   }
 `;
 
-const CaseTd = styled.td<{ rightAlign: boolean; mono: boolean; indent: boolean }>`
+const CaseTd = styled.td<{
+  rightAlign: boolean;
+  mono: boolean;
+  indent: boolean;
+}>`
   padding: 10px 14px;
   vertical-align: middle;
   white-space: nowrap;
@@ -253,19 +260,34 @@ export function EvalRunsTable({ runs, columnDefs }: EvalRunsTableProps) {
       <Table>
         <thead>
           <tr>
-            <Th rightAlign={false} indent={true}>
+            <Th
+              rightAlign={false}
+              indent={true}
+            >
               Case
             </Th>
-            <Th rightAlign={false} indent={false}>
+            <Th
+              rightAlign={false}
+              indent={false}
+            >
               Status
             </Th>
-            <Th rightAlign={true} indent={false}>
+            <Th
+              rightAlign={true}
+              indent={false}
+            >
               Score
             </Th>
-            <Th rightAlign={true} indent={false}>
+            <Th
+              rightAlign={true}
+              indent={false}
+            >
               Latency
             </Th>
-            <Th rightAlign={true} indent={false}>
+            <Th
+              rightAlign={true}
+              indent={false}
+            >
               Cost
             </Th>
             {customColumns.map((c) => (
@@ -317,31 +339,46 @@ function RunGroup({
     <>
       <RunHeaderRow>
         <RunHeaderCell colSpan={totalCols}>
-          <RunHeaderBar type="button" onClick={() => void selectRun(manifest.id)}>
+          <RunHeaderBar
+            type="button"
+            onClick={() => void selectRun(manifest.id)}
+          >
             <RunTag>Run</RunTag>
             <RunTime>{formatTimestamp(manifest.startedAt)}</RunTime>
             <StatusBadge status={manifest.status} />
             <RunStat>
               <RunStatLabel>Cases</RunStatLabel>
-              <RunStatValue accent={false} cost={false}>
+              <RunStatValue
+                accent={false}
+                cost={false}
+              >
                 {passFail}
               </RunStatValue>
             </RunStat>
             <RunStat>
               <RunStatLabel>Duration</RunStatLabel>
-              <RunStatValue accent={false} cost={false}>
+              <RunStatValue
+                accent={false}
+                cost={false}
+              >
                 {formatDuration(summary.totalDurationMs)}
               </RunStatValue>
             </RunStat>
             <RunStat>
               <RunStatLabel>Cost</RunStatLabel>
-              <RunStatValue accent={false} cost={true}>
+              <RunStatValue
+                accent={false}
+                cost={true}
+              >
                 {formatCost(summary.cost.totalUsd)}
               </RunStatValue>
             </RunStat>
             <RunStat>
               <RunStatLabel>Avg</RunStatLabel>
-              <RunStatValue accent={true} cost={false}>
+              <RunStatValue
+                accent={true}
+                cost={false}
+              >
                 {formatScore(summary.averageScore)}
               </RunStatValue>
             </RunStat>
@@ -360,27 +397,47 @@ function RunGroup({
             key={`${row.caseId}-${String(row.trial)}`}
             onClick={() => handleCaseClick(row.caseId)}
           >
-            <CaseTd rightAlign={false} mono={false} indent={true}>
+            <CaseTd
+              rightAlign={false}
+              mono={false}
+              indent={true}
+            >
               <CaseId>{row.caseId}</CaseId>
             </CaseTd>
-            <CaseTd rightAlign={false} mono={false} indent={false}>
+            <CaseTd
+              rightAlign={false}
+              mono={false}
+              indent={false}
+            >
               <StatusDot status={row.status} />
             </CaseTd>
-            <CaseTd rightAlign={true} mono={true} indent={false}>
+            <CaseTd
+              rightAlign={true}
+              mono={true}
+              indent={false}
+            >
               {row.score === null ? (
                 <Dim>{'\u2014'}</Dim>
               ) : (
                 formatScore(row.score)
               )}
             </CaseTd>
-            <CaseTd rightAlign={true} mono={true} indent={false}>
+            <CaseTd
+              rightAlign={true}
+              mono={true}
+              indent={false}
+            >
               {row.latencyMs === null ? (
                 <Dim>{'\u2014'}</Dim>
               ) : (
                 formatDuration(row.latencyMs)
               )}
             </CaseTd>
-            <CaseTd rightAlign={true} mono={true} indent={false}>
+            <CaseTd
+              rightAlign={true}
+              mono={true}
+              indent={false}
+            >
               {row.costUsd === null ? (
                 <Dim>{'\u2014'}</Dim>
               ) : (

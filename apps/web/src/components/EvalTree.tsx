@@ -1,7 +1,15 @@
-import { styled } from 'vindur';
 import { ChevronRight, FileCode, Folder, FolderOpen } from 'lucide-react';
+import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
-import { ellipsis, inline, monoFont, stack, transition } from '#src/style/helpers';
+import {
+  ellipsis,
+  inline,
+  monoFont,
+  stack,
+  transition,
+} from '#src/style/helpers';
+import { evalsStore } from '../stores/evalsStore.ts';
+import { runStore } from '../stores/runStore.ts';
 import {
   selectionStore,
   selectEval,
@@ -15,8 +23,6 @@ import {
   type TreeLeaf,
   type TreeNode,
 } from '../utils/buildEvalTree.ts';
-import { evalsStore } from '../stores/evalsStore.ts';
-import { runStore } from '../stores/runStore.ts';
 import { StatusDot } from './StatusBadge.tsx';
 
 const Root = styled.div`
@@ -270,7 +276,13 @@ function NodeView({ node, depth, selection, expandedFolders }: NodeViewProps) {
       />
     );
   }
-  return <LeafRow leaf={node} depth={depth} selection={selection} />;
+  return (
+    <LeafRow
+      leaf={node}
+      depth={depth}
+      selection={selection}
+    />
+  );
 }
 
 function FolderRow({
@@ -285,7 +297,8 @@ function FolderRow({
   expandedFolders: Set<string>;
 }) {
   const isOpen = expandedFolders.has(folder.path);
-  const isActive = selection.kind === 'folder' && selection.path === folder.path;
+  const isActive =
+    selection.kind === 'folder' && selection.path === folder.path;
 
   function handleClick() {
     toggleFolder(folder.path);

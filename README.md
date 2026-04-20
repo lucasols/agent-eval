@@ -22,7 +22,7 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
 1. **Create `agent-evals.config.ts`** at your project root:
 
    ```ts
-   import type { AgentEvalsConfig } from '@agent-evals/sdk'
+   import type { AgentEvalsConfig } from '@agent-evals/sdk';
 
    export const config: AgentEvalsConfig = {
      include: ['evals/**/*.eval.ts'],
@@ -31,14 +31,14 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
      pricing: {
        'gpt-4o': { inputPerMillionUsd: 2.5, outputPerMillionUsd: 10 },
      },
-   }
+   };
    ```
 
 2. **Write an eval** in `evals/my-agent.eval.ts`:
 
    ```ts
-   import { defineEval, setOutput, span, tracer } from '@agent-evals/sdk'
-   import { myAgent } from '../src/agent'
+   import { defineEval, setOutput, span, tracer } from '@agent-evals/sdk';
+   import { myAgent } from '../src/agent';
 
    defineEval({
      id: 'my-agent',
@@ -48,22 +48,19 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
        { id: 'farewell', input: { message: 'bye' } },
      ],
      execute: async ({ input }) => {
-       await tracer.span(
-         { kind: 'agent', name: 'my-agent' },
-         async () => {
-           span.setAttribute('input', input)
-           const output = await myAgent(input)
-           span.setAttribute('output', output)
-           setOutput('output', output)
-         },
-       )
+       await tracer.span({ kind: 'agent', name: 'my-agent' }, async () => {
+         span.setAttribute('input', input);
+         const output = await myAgent(input);
+         span.setAttribute('output', output);
+         setOutput('output', output);
+       });
      },
      scores: {
        hasOutput: ({ outputs }) => {
-         return outputs.output !== undefined ? 1 : 0
+         return outputs.output !== undefined ? 1 : 0;
        },
      },
-   })
+   });
    ```
 
 3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). The command prepares the UI automatically, so you do not need to start a separate web dev server. The UI gives you run controls, per-case results, trace drawer, and cost. The eval explorer updates automatically when matching `*.eval.ts` files are added, removed, or edited.
@@ -92,41 +89,38 @@ Use `pnpm dev:app` when you want to smoke-test the built app flow that `pnpm eva
 
 `agent-evals.config.ts` at your project root defines how evals are discovered and executed.
 
-| Field            | Type                                           | Description                                                      |
-| ---------------- | ---------------------------------------------- | ---------------------------------------------------------------- |
-| `include`        | `string[]`                                     | Glob patterns for eval files (e.g. `['evals/**/*.eval.ts']`)     |
-| `workspaceRoot`  | `string?`                                      | Root directory; defaults to `process.cwd()`                      |
-| `defaultTrials`  | `number?`                                      | Trials per case when not overridden (default: `1`)               |
-| `concurrency`    | `number?`                                      | Max parallel case executions (default: `2`)                      |
-| `pricing`        | `Record<string, { inputPerMillionUsd, outputPerMillionUsd }>?` | Per-model pricing used to compute cost |
-| `traceDisplay`   | `TraceDisplayConfig?`                          | Global trace attribute display config for the UI                 |
+| Field           | Type                                                           | Description                                                  |
+| --------------- | -------------------------------------------------------------- | ------------------------------------------------------------ |
+| `include`       | `string[]`                                                     | Glob patterns for eval files (e.g. `['evals/**/*.eval.ts']`) |
+| `workspaceRoot` | `string?`                                                      | Root directory; defaults to `process.cwd()`                  |
+| `defaultTrials` | `number?`                                                      | Trials per case when not overridden (default: `1`)           |
+| `concurrency`   | `number?`                                                      | Max parallel case executions (default: `2`)                  |
+| `pricing`       | `Record<string, { inputPerMillionUsd, outputPerMillionUsd }>?` | Per-model pricing used to compute cost                       |
+| `traceDisplay`  | `TraceDisplayConfig?`                                          | Global trace attribute display config for the UI             |
 
 ## Writing evals
 
 `defineEval` takes a single definition object:
 
-| Field           | Required | Purpose                                                                          |
-| --------------- | -------- | -------------------------------------------------------------------------------- |
-| `id`            | yes      | Unique eval id                                                                   |
-| `title`         |          | Display title                                                                    |
-| `description`   |          | Free-text description                                                            |
-| `cases`         | yes      | `EvalCase[]` or `() => Promise<EvalCase[]>` (async loader for dynamic datasets)  |
-| `execute`       | yes      | `async ({ input, signal }) => { ... }`                                           |
-| `traceDisplay`  |          | Per-eval trace attribute display overrides for the UI                             |
-| `deriveFromTracing` |      | Derive output columns from the finished trace tree                               |
-| `scores`        |          | Record of scoring functions returning `0..1`                                     |
-| `columns`       |          | Custom columns shown in the results table                                        |
-| `passThreshold` |          | Minimum average score for a case to pass                                         |
+| Field               | Required | Purpose                                                                         |
+| ------------------- | -------- | ------------------------------------------------------------------------------- |
+| `id`                | yes      | Unique eval id                                                                  |
+| `title`             |          | Display title                                                                   |
+| `description`       |          | Free-text description                                                           |
+| `cases`             | yes      | `EvalCase[]` or `() => Promise<EvalCase[]>` (async loader for dynamic datasets) |
+| `execute`           | yes      | `async ({ input, signal }) => { ... }`                                          |
+| `traceDisplay`      |          | Per-eval trace attribute display overrides for the UI                           |
+| `deriveFromTracing` |          | Derive output columns from the finished trace tree                              |
+| `scores`            |          | Record of scoring functions returning `0..1`                                    |
+| `columns`           |          | Custom columns shown in the results table                                       |
+| `passThreshold`     |          | Minimum average score for a case to pass                                        |
 
 ### Cases
 
 ```ts
 cases: [
-  {
-    id: 'simple-text',
-    input: { message: 'I want a refund', locale: 'en-US' },
-  },
-]
+  { id: 'simple-text', input: { message: 'I want a refund', locale: 'en-US' } },
+];
 ```
 
 `columns` populates your custom columns.
@@ -137,20 +131,14 @@ Wrap work in `tracer.span(...)` to get a trajectory tree in the UI. Span mutatio
 
 ```ts
 execute: async ({ input }) => {
-  await tracer.span(
-    { kind: 'agent', name: 'refund-agent' },
-    async () => {
-      span.setAttribute('input', input)
-      const result = await agent(input)
-      span.setAttributes({
-        model: 'gpt-4.1',
-        output: result,
-      })
-      setOutput('output', result)
-    },
-  )
-  tracer.checkpoint('final-state', { approved: true })
-}
+  await tracer.span({ kind: 'agent', name: 'refund-agent' }, async () => {
+    span.setAttribute('input', input);
+    const result = await agent(input);
+    span.setAttributes({ model: 'gpt-4.1', output: result });
+    setOutput('output', result);
+  });
+  tracer.checkpoint('final-state', { approved: true });
+};
 ```
 
 Use `traceDisplay` to tell the UI which attributes to promote in the trace tree and detail pane:
@@ -231,12 +219,12 @@ await tracer.span(
     cache: { key: { prompt: input.message, model: 'gpt-4o-mini' } },
   },
   async () => {
-    const result = await llm.complete(input.message)
-    span.setAttributes({ model: 'gpt-4o-mini', output: result })
-    incrementOutput('costUsd', computeCost(result))
-    return result
+    const result = await llm.complete(input.message);
+    span.setAttributes({ model: 'gpt-4o-mini', output: result });
+    incrementOutput('costUsd', computeCost(result));
+    return result;
   },
-)
+);
 ```
 
 Cached spans get `cache.status` in their attributes (`hit`, `miss`, `refresh`,
@@ -277,7 +265,7 @@ Server API (`/api/cache`):
   writes; `use` reads on hit and writes on miss.
 - Only SDK-mediated side effects replay (`tracer.span`, `tracer.checkpoint`,
   `setOutput`, `incrementOutput`, span attributes). External side effects
-  (network, DB writes) do *not* replay on cache hits — use caching only for
+  (network, DB writes) do _not_ replay on cache hits — use caching only for
   pure functions of their key.
 - Return values are JSON round-tripped before storage; return JSON-safe values
   or carry richer data through `setOutput`.
@@ -288,29 +276,32 @@ Disable caching globally from `agent-evals.config.ts`:
 export const config: AgentEvalsConfig = {
   include: ['evals/**/*.eval.ts'],
   cache: { enabled: false },
-}
+};
 ```
 
 ## Display blocks
 
 `blocks` helpers build rich content for `displayInput` / `displayOutput`:
 
-| Helper             | Use                                             |
-| ------------------ | ----------------------------------------------- |
-| `blocks.text(s)`   | Plain text                                      |
-| `blocks.markdown`  | Rendered markdown                               |
-| `blocks.json(v)`   | Formatted JSON                                  |
-| `blocks.image`     | Image from repo file or runtime artifact        |
-| `blocks.audio`     | Audio from repo file or runtime artifact        |
-| `blocks.video`     | Video from repo file or runtime artifact        |
-| `blocks.file`      | Arbitrary file download                         |
+| Helper            | Use                                      |
+| ----------------- | ---------------------------------------- |
+| `blocks.text(s)`  | Plain text                               |
+| `blocks.markdown` | Rendered markdown                        |
+| `blocks.json(v)`  | Formatted JSON                           |
+| `blocks.image`    | Image from repo file or runtime artifact |
+| `blocks.audio`    | Audio from repo file or runtime artifact |
+| `blocks.video`    | Video from repo file or runtime artifact |
+| `blocks.file`     | Arbitrary file download                  |
 
 File references are either repo files (`{ source: 'repo', path, mimeType? }`) or runtime artifacts produced via `span.addArtifact(...)` during a run.
 
 ```ts
 displayInput: [
-  blocks.image({ source: 'repo', path: 'evals/assets/receipt-1.png' }, 'Receipt'),
-]
+  blocks.image(
+    { source: 'repo', path: 'evals/assets/receipt-1.png' },
+    'Receipt',
+  ),
+];
 ```
 
 ## CLI

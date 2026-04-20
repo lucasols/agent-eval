@@ -1,6 +1,6 @@
-import { Hono } from 'hono';
 import { readFile } from 'node:fs/promises';
 import { resolve, relative } from 'node:path';
+import { Hono } from 'hono';
 import { getRunnerInstance } from '../runner.ts';
 
 export const assetsRoutes = new Hono()

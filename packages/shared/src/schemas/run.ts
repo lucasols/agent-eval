@@ -1,6 +1,6 @@
 import { z } from 'zod/v4';
-import { evalCostSummarySchema } from './cost.ts';
 import { cacheModeSchema } from './cache.ts';
+import { evalCostSummarySchema } from './cost.ts';
 
 /** Schema for persisted metadata about a single run invocation. */
 export const runManifestSchema = z.object({

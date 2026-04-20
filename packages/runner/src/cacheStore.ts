@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import {
   mkdir,
   readFile,
@@ -7,17 +8,13 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { resultify } from 't-result';
-import { cacheEntrySchema, type CacheListItem } from '@agent-evals/shared';
 import type { CacheAdapter } from '@agent-evals/sdk';
+import { cacheEntrySchema, type CacheListItem } from '@agent-evals/shared';
+import { resultify } from 't-result';
 
 /** Filter accepted by `FsCacheStore.clear` to narrow the set of entries removed. */
-export type CacheClearFilter = {
-  namespace?: string;
-  key?: string;
-};
+export type CacheClearFilter = { namespace?: string; key?: string };
 
 /** Filesystem cache adapter backing persisted cache entries for a workspace. */
 export type FsCacheStore = CacheAdapter & {
@@ -104,8 +101,8 @@ export function createFsCacheStore(options: {
     async clear(filter) {
       if (!existsSync(cacheDir)) return;
       if (
-        !filter
-        || (filter.namespace === undefined && filter.key === undefined)
+        !filter ||
+        (filter.namespace === undefined && filter.key === undefined)
       ) {
         await rm(cacheDir, { recursive: true, force: true });
         return;

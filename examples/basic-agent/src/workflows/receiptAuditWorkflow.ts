@@ -33,10 +33,7 @@ export async function runReceiptAuditWorkflow(
 
       span.setAttributes({
         input: { path: input.receiptImage },
-        output: {
-          orderId: input.orderId,
-          totalUsd: input.expectedTotalUsd,
-        },
+        output: { orderId: input.orderId, totalUsd: input.expectedTotalUsd },
       });
     });
 
@@ -56,10 +53,7 @@ export async function runReceiptAuditWorkflow(
           model: 'gpt-4o-mini',
           usage,
           costUsd,
-          output: {
-            auditStatus: 'verified',
-            discrepancyCount: 0,
-          },
+          output: { auditStatus: 'verified', discrepancyCount: 0 },
         });
 
         incrementOutput('costUsd', costUsd);
@@ -74,11 +68,7 @@ export async function runReceiptAuditWorkflow(
         const finalText = `Verified receipt for order ${input.orderId} and matched it to the customer report.`;
         span.setAttributes({
           input: { orderId: input.orderId },
-          output: {
-            auditStatus: 'verified',
-            discrepancyCount: 0,
-            finalText,
-          },
+          output: { auditStatus: 'verified', discrepancyCount: 0, finalText },
         });
         return {
           auditStatus: 'verified' as const,

@@ -6,11 +6,7 @@ import type {
 } from '@agent-evals/shared';
 
 /** Single authored eval case with its stable identifier and input payload. */
-export type EvalCase<TInput> = {
-  id: string;
-  input: TInput;
-  tags?: string[];
-};
+export type EvalCase<TInput> = { id: string; input: TInput; tags?: string[] };
 
 /** UI overrides for a derived or scored column emitted by an eval. */
 export type EvalColumnOverride = {
@@ -37,10 +33,7 @@ export type EvalTraceTree = {
 };
 
 /** Context passed to an eval's `execute` function for a single case run. */
-export type EvalExecuteContext<TInput> = {
-  input: TInput;
-  signal: AbortSignal;
-};
+export type EvalExecuteContext<TInput> = { input: TInput; signal: AbortSignal };
 
 /** Context passed to `deriveFromTracing` after execution has completed. */
 export type EvalDeriveContext<TInput> = {
@@ -64,11 +57,7 @@ export type EvalScoreFn<TInput> = (
 /** Score definition accepted by `defineEval`, with optional UI metadata. */
 export type EvalScoreDef<TInput> =
   | EvalScoreFn<TInput>
-  | {
-      compute: EvalScoreFn<TInput>;
-      passThreshold?: number;
-      label?: string;
-    };
+  | { compute: EvalScoreFn<TInput>; passThreshold?: number; label?: string };
 
 /** Complete authored eval definition consumed by `defineEval`. */
 export type EvalDefinition<TInput = unknown> = {

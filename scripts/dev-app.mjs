@@ -88,17 +88,20 @@ process.once('SIGTERM', () => shutdown(0));
 
 await assertPortAvailable(serverPort, 'App');
 
-console.info(`Starting example app on http://localhost:${String(serverPort)} using ${exampleWorkspace}`);
+console.info(
+  `Starting example app on http://localhost:${String(serverPort)} using ${exampleWorkspace}`,
+);
 
 startApp();
 startWatchers();
 
 function startApp() {
   console.info('Running `pnpm eval app`...');
-  const child = spawn(pnpmCommand, ['eval', 'app', '--port', String(serverPort)], {
-    cwd: exampleWorkspace,
-    stdio: 'inherit',
-  });
+  const child = spawn(
+    pnpmCommand,
+    ['eval', 'app', '--port', String(serverPort)],
+    { cwd: exampleWorkspace, stdio: 'inherit' },
+  );
 
   appProcess = child;
 
@@ -146,9 +149,9 @@ function startWatchers() {
       { recursive },
       (eventType, filename) => {
         const changedPath =
-          typeof filename === 'string' && filename.length > 0 ?
-            `${target.label}: ${filename}`
-          : target.label;
+          typeof filename === 'string' && filename.length > 0
+            ? `${target.label}: ${filename}`
+            : target.label;
         requestRestart(`${eventType} in ${changedPath}`);
       },
     );
@@ -176,7 +179,9 @@ function requestRestart(reason) {
       return;
     }
 
-    console.info(`Change detected, restarting example app... (${pendingRestartReason})`);
+    console.info(
+      `Change detected, restarting example app... (${pendingRestartReason})`,
+    );
     appProcess.kill('SIGTERM');
   }, 150);
 }

@@ -42,11 +42,7 @@ function updateCurrentSpan(update: (currentSpan: EvalTraceSpan) => void): void {
 }
 
 function noopActiveSpan(): TraceActiveSpan {
-  return {
-    setName() {},
-    setAttribute() {},
-    setAttributes() {},
-  };
+  return { setName() {}, setAttribute() {}, setAttributes() {} };
 }
 
 function mergeSpanAttributes(
@@ -166,9 +162,9 @@ async function traceSpan(
     const cacheOpts = info.cache;
     const cacheCtx = scope.cacheContext;
     if (
-      cacheOpts !== undefined
-      && cacheCtx !== undefined
-      && scope.replayingDepth === 0
+      cacheOpts !== undefined &&
+      cacheCtx !== undefined &&
+      scope.replayingDepth === 0
     ) {
       const ctx = cacheCtx;
       const namespace = cacheOpts.namespace ?? `${ctx.evalId}__${info.name}`;

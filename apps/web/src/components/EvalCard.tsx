@@ -1,7 +1,7 @@
+import type { EvalSummary } from '@agent-evals/shared';
+import { ChevronDown, Play } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { styled } from 'vindur';
-import { ChevronDown, Play } from 'lucide-react';
-import type { EvalSummary } from '@agent-evals/shared';
 import { colors } from '#src/style/colors';
 import {
   ellipsis,
@@ -11,9 +11,6 @@ import {
   tabularNums,
   transition,
 } from '#src/style/helpers';
-import { EvalRunsChart } from './EvalRunsChart.tsx';
-import { EvalRunsTable } from './EvalRunsTable.tsx';
-import { SplitButton, type SplitButtonMenuEntry } from './SplitButton.tsx';
 import { historyStore, getRunsForEval } from '../stores/historyStore.ts';
 import { clearCacheForEval, runStore, startRun } from '../stores/runStore.ts';
 import {
@@ -21,11 +18,11 @@ import {
   formatDuration,
   formatScore,
 } from '../utils/formatters.ts';
+import { EvalRunsChart } from './EvalRunsChart.tsx';
+import { EvalRunsTable } from './EvalRunsTable.tsx';
+import { SplitButton, type SplitButtonMenuEntry } from './SplitButton.tsx';
 
-type EvalCardProps = {
-  evalSummary: EvalSummary;
-  mode: 'single' | 'stacked';
-};
+type EvalCardProps = { evalSummary: EvalSummary; mode: 'single' | 'stacked' };
 
 const Card = styled.section<{ stacked: boolean; single: boolean }>`
   ${stack({ gap: 0 })}
@@ -287,12 +284,10 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const { runRows, chartData, latestSummary } = useMemo(() => {
     const evalRuns = getRunsForEval(runs, evalSummary.id);
     const liveRun =
-      (
-        currentRun
-        && runTargetsEvalLocal(currentRun.manifest.target, evalSummary.id)
-      ) ?
-        currentRun
-      : null;
+      currentRun &&
+      runTargetsEvalLocal(currentRun.manifest.target, evalSummary.id)
+        ? currentRun
+        : null;
 
     const merged = evalRuns.filter(
       (r) => r.manifest.id !== liveRun?.manifest.id,
@@ -328,8 +323,8 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   }, [runs, currentRun, evalSummary.id]);
 
   const isRunning =
-    currentRun?.manifest.status === 'running'
-    && runTargetsEvalLocal(currentRun.manifest.target, evalSummary.id);
+    currentRun?.manifest.status === 'running' &&
+    runTargetsEvalLocal(currentRun.manifest.target, evalSummary.id);
   const hasScoreHistory = chartData.length > 1;
 
   function handleRun(e: React.MouseEvent) {
@@ -404,11 +399,11 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
         sticky={isSingle}
         onClick={onHeaderClick}
       >
-        {isSingle ?
+        {isSingle ? (
           <Meta>
             <MetaAccent>Eval</MetaAccent>
             <MetaDivider />
-            {evalSummary.caseCount !== null ?
+            {evalSummary.caseCount !== null ? (
               <>
                 <span>
                   {evalSummary.caseCount}{' '}
@@ -416,25 +411,23 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
                 </span>
                 <MetaDivider />
               </>
-            : null}
+            ) : null}
             <span>{filename}</span>
           </Meta>
-        : null}
+        ) : null}
         <HeaderTopRow>
           <HeaderLeft>
-            {isStacked ?
+            {isStacked ? (
               <Chevron open={!collapsed}>
                 <ChevronDown />
               </Chevron>
-            : null}
+            ) : null}
             <TitleBlock>
               <TitleRow>
                 <Title large={isSingle}>
                   {evalSummary.title ?? evalSummary.id}
                 </Title>
-                {evalSummary.stale ?
-                  <StaleBadge>stale</StaleBadge>
-                : null}
+                {evalSummary.stale ? <StaleBadge>stale</StaleBadge> : null}
               </TitleRow>
               <FilePath title={evalSummary.filePath}>
                 <FilePathPrefix>›</FilePathPrefix>
@@ -455,7 +448,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
         </HeaderTopRow>
       </Header>
 
-      {showBody ?
+      {showBody ? (
         <Body scroll={isSingle}>
           <StatsGrid>
             <Stat>
@@ -482,9 +475,9 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
                 accent={false}
                 cost={false}
               >
-                {latestSummary ?
-                  `${latestSummary.passedCases}/${latestSummary.failedCases + latestSummary.errorCases}`
-                : '\u2014'}
+                {latestSummary
+                  ? `${latestSummary.passedCases}/${latestSummary.failedCases + latestSummary.errorCases}`
+                  : '\u2014'}
               </StatValue>
             </Stat>
             <Stat>
@@ -507,7 +500,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
             </Stat>
           </StatsGrid>
 
-          {hasScoreHistory ?
+          {hasScoreHistory ? (
             <Section>
               <SectionLabel>
                 Score history
@@ -517,15 +510,15 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
               </SectionLabel>
               <EvalRunsChart data={chartData} />
             </Section>
-          : null}
+          ) : null}
 
           <Section>
             <SectionLabel>
               Runs
               <SectionMeta>
-                {runRows.length > 0 ?
-                  `${runRows.length} ${runRows.length === 1 ? 'run' : 'runs'}`
-                : 'no runs'}
+                {runRows.length > 0
+                  ? `${runRows.length} ${runRows.length === 1 ? 'run' : 'runs'}`
+                  : 'no runs'}
               </SectionMeta>
             </SectionLabel>
             <EvalRunsTable
@@ -534,7 +527,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
             />
           </Section>
         </Body>
-      : null}
+      ) : null}
     </Card>
   );
 }

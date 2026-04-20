@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'vitest';
 import type { EvalSummary } from '@agent-evals/shared';
+import { describe, expect, test } from 'vitest';
 import {
   buildEvalTree,
   collectEvalsInFolder,
@@ -166,11 +166,7 @@ describe('app tree ui', () => {
       collectEvalsInFolder(exampleEvals, 'support/refunds')
         .map((ev) => ev.id)
         .sort(),
-    ).toEqual([
-      'high-value-refund',
-      'receipt-audit',
-      'receipt-fraud-review',
-    ]);
+    ).toEqual(['high-value-refund', 'receipt-audit', 'receipt-fraud-review']);
 
     expect(
       collectEvalsInFolder(exampleEvals, 'support')

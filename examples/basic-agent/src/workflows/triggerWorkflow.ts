@@ -15,10 +15,7 @@ export type WorkflowInput = {
   voiceNote?: string;
 };
 
-export type WorkflowResult = {
-  finalText: string;
-  approved: boolean;
-};
+export type WorkflowResult = { finalText: string; approved: boolean };
 
 const INPUT_PRICE_PER_MILLION = 2.5;
 const OUTPUT_PRICE_PER_MILLION = 10;
@@ -41,8 +38,8 @@ export async function triggerWorkflow(
 
         const usage = { inputTokens: 150, outputTokens: 50 };
         const costUsd =
-          (usage.inputTokens / 1_000_000) * INPUT_PRICE_PER_MILLION
-          + (usage.outputTokens / 1_000_000) * OUTPUT_PRICE_PER_MILLION;
+          (usage.inputTokens / 1_000_000) * INPUT_PRICE_PER_MILLION +
+          (usage.outputTokens / 1_000_000) * OUTPUT_PRICE_PER_MILLION;
 
         span.setAttributes({
           input: { prompt: input.message },

@@ -36,10 +36,7 @@ export function createBaseConfig({
     {
       linterOptions: { reportUnusedDisableDirectives: true },
       languageOptions: {
-        parserOptions: {
-          projectService: true,
-          tsconfigRootDir,
-        },
+        parserOptions: { projectService: true, tsconfigRootDir },
         globals: { process: true },
       },
     },
@@ -127,9 +124,7 @@ export function createBaseConfig({
         '**/vitest.config.ts',
         ...(allowDefaultExport ?? []),
       ],
-      rules: {
-        '@ls-stack/no-default-export': OFF,
-      },
+      rules: { '@ls-stack/no-default-export': OFF },
     },
     ...(extraRuleGroups ?? []),
     {

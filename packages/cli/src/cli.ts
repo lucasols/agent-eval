@@ -2,8 +2,8 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { CacheMode } from '@agent-evals/shared';
 import { createRunner } from '@agent-evals/runner';
+import type { CacheMode } from '@agent-evals/shared';
 
 type CliArgs = {
   command: 'app' | 'list' | 'run' | 'cache' | 'help';
@@ -34,11 +34,11 @@ function parseArgs(argv: string[]): CliArgs {
 
   const command = argv[0];
   if (
-    command === 'app'
-    || command === 'list'
-    || command === 'run'
-    || command === 'cache'
-    || command === 'help'
+    command === 'app' ||
+    command === 'list' ||
+    command === 'run' ||
+    command === 'cache' ||
+    command === 'help'
   ) {
     args.command = command;
   }
@@ -142,10 +142,7 @@ async function ensureWebUiIsBuilt(): Promise<void> {
     const child = spawn(
       pnpmCommand,
       ['--filter', '@agent-evals/web', 'build'],
-      {
-        cwd: repoRoot,
-        stdio: 'inherit',
-      },
+      { cwd: repoRoot, stdio: 'inherit' },
     );
 
     child.once('error', (error) => {
@@ -176,10 +173,10 @@ function isHonoAppModule(mod: unknown): mod is { app: HonoAppLike } {
   }
   const { app } = mod;
   return (
-    typeof app === 'object'
-    && app !== null
-    && 'fetch' in app
-    && typeof app.fetch === 'function'
+    typeof app === 'object' &&
+    app !== null &&
+    'fetch' in app &&
+    typeof app.fetch === 'function'
   );
 }
 
@@ -252,15 +249,15 @@ async function commandRun(args: CliArgs): Promise<void> {
   }
 
   const target =
-    args.caseIds.length > 0 ?
-      {
-        mode: 'caseIds' as const,
-        caseIds: args.caseIds,
-        evalIds: args.evalIds.length > 0 ? args.evalIds : undefined,
-      }
-    : args.evalIds.length > 0 ?
-      { mode: 'evalIds' as const, evalIds: args.evalIds }
-    : { mode: 'all' as const };
+    args.caseIds.length > 0
+      ? {
+          mode: 'caseIds' as const,
+          caseIds: args.caseIds,
+          evalIds: args.evalIds.length > 0 ? args.evalIds : undefined,
+        }
+      : args.evalIds.length > 0
+        ? { mode: 'evalIds' as const, evalIds: args.evalIds }
+        : { mode: 'all' as const };
 
   const run = await runner.startRun({
     target,
@@ -381,10 +378,10 @@ async function waitForRunCompletion(
     const check = () => {
       const run = runner.getRun(runId);
       if (
-        !run
-        || run.manifest.status === 'completed'
-        || run.manifest.status === 'cancelled'
-        || run.manifest.status === 'error'
+        !run ||
+        run.manifest.status === 'completed' ||
+        run.manifest.status === 'cancelled' ||
+        run.manifest.status === 'error'
       ) {
         resolvePromise();
         return;

@@ -6,10 +6,7 @@ import type {
 } from '@agent-evals/shared';
 import { formatCost, formatDuration } from './formatters.ts';
 
-type TraceAttributeItem = {
-  config: TraceAttributeDisplay;
-  value: unknown;
-};
+type TraceAttributeItem = { config: TraceAttributeDisplay; value: unknown };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;

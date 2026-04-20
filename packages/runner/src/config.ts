@@ -1,7 +1,10 @@
-import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { agentEvalsConfigSchema, type AgentEvalsConfig } from '@agent-evals/shared';
+import {
+  agentEvalsConfigSchema,
+  type AgentEvalsConfig,
+} from '@agent-evals/shared';
 import { z } from 'zod/v4';
 
 const configModuleSchema = z.object({
@@ -15,8 +18,18 @@ const defaultConfig: AgentEvalsConfig = {
   concurrency: 2,
   traceDisplay: {
     attributes: [
-      { path: 'input', label: 'Input', format: 'json', placements: ['section'] },
-      { path: 'output', label: 'Output', format: 'json', placements: ['section'] },
+      {
+        path: 'input',
+        label: 'Input',
+        format: 'json',
+        placements: ['section'],
+      },
+      {
+        path: 'output',
+        label: 'Output',
+        format: 'json',
+        placements: ['section'],
+      },
     ],
   },
 };
@@ -38,10 +51,7 @@ export async function loadConfig(): Promise<AgentEvalsConfig> {
       return defaultConfig;
     }
 
-    return {
-      ...defaultConfig,
-      ...userConfig,
-    };
+    return { ...defaultConfig, ...userConfig };
   } catch (error) {
     console.error('Failed to load agent-evals.config.ts:', error);
     return defaultConfig;

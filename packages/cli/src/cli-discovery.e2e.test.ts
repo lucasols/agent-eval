@@ -24,9 +24,8 @@ describe('CLI discovery', () => {
       expect(result.stdout).toContain('Voice Return Follow-up');
       expect(result.stdout).toContain('Refund Workflow');
       expect(result.stdout).toContain('refund-workflow');
-      expect(
-        normalizeTextSnapshot(workspacePath, result.stdout),
-      ).toMatchInlineSnapshot(`
+      expect(normalizeTextSnapshot(workspacePath, result.stdout))
+        .toMatchInlineSnapshot(`
         "Discovered evals:
 
           Refund Workflow

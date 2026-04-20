@@ -1,5 +1,5 @@
-import { styled } from 'vindur';
 import { type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import { centerContent, transition } from '#src/style/helpers';
 
@@ -46,9 +46,17 @@ const Root = styled.button<{ md: boolean }>`
   }
 `;
 
-export function IconButton({ children, size = 'sm', ...rest }: IconButtonProps) {
+export function IconButton({
+  children,
+  size = 'sm',
+  ...rest
+}: IconButtonProps) {
   return (
-    <Root type="button" {...rest} md={size === 'md'}>
+    <Root
+      type="button"
+      {...rest}
+      md={size === 'md'}
+    >
       {children}
     </Root>
   );

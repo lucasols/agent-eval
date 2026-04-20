@@ -11,10 +11,7 @@ defineEval<WorkflowInput>({
   cases: [
     {
       id: 'simple-text',
-      input: {
-        message: 'I want a refund for order #123',
-        locale: 'en-US',
-      },
+      input: { message: 'I want a refund for order #123', locale: 'en-US' },
     },
     {
       id: 'with-image',

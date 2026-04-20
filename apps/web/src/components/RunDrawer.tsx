@@ -1,16 +1,16 @@
-import { styled } from 'vindur';
 import { X } from 'lucide-react';
+import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import { inline, monoFont, stack, tabularNums } from '#src/style/helpers';
 import { closeRun, runStore } from '../stores/runStore.ts';
-import { StatusBadge } from './StatusBadge.tsx';
-import { IconButton } from './IconButton.tsx';
 import {
   formatCost,
   formatDuration,
   formatScore,
   formatTimestamp,
 } from '../utils/formatters.ts';
+import { IconButton } from './IconButton.tsx';
+import { StatusBadge } from './StatusBadge.tsx';
 
 const DrawerLoading = styled.div`
   width: 540px;
@@ -117,7 +117,11 @@ const StatLabel = styled.span`
   color: ${colors.textDim.var};
 `;
 
-const StatValue = styled.span<{ accent: boolean; cost: boolean; error: boolean }>`
+const StatValue = styled.span<{
+  accent: boolean;
+  cost: boolean;
+  error: boolean;
+}>`
   ${monoFont}
   ${tabularNums}
   font-size: 14px;
@@ -208,7 +212,10 @@ export function RunDrawer() {
           <RunTime>{formatTimestamp(manifest.startedAt)}</RunTime>
           <StatusBadge status={manifest.status} />
         </HeaderLeft>
-        <IconButton onClick={closeRun} aria-label="Close run drawer">
+        <IconButton
+          onClick={closeRun}
+          aria-label="Close run drawer"
+        >
           <X />
         </IconButton>
       </Header>
@@ -217,37 +224,61 @@ export function RunDrawer() {
         <StatGrid>
           <Stat>
             <StatLabel>Cases</StatLabel>
-            <StatValue accent={false} cost={false} error={false}>
+            <StatValue
+              accent={false}
+              cost={false}
+              error={false}
+            >
               {String(summary.totalCases)}
             </StatValue>
           </Stat>
           <Stat>
             <StatLabel>Passed</StatLabel>
-            <StatValue accent={false} cost={false} error={false}>
+            <StatValue
+              accent={false}
+              cost={false}
+              error={false}
+            >
               {String(summary.passedCases)}
             </StatValue>
           </Stat>
           <Stat>
             <StatLabel>Failed</StatLabel>
-            <StatValue accent={false} cost={false} error={failed > 0}>
+            <StatValue
+              accent={false}
+              cost={false}
+              error={failed > 0}
+            >
               {String(failed)}
             </StatValue>
           </Stat>
           <Stat>
             <StatLabel>Duration</StatLabel>
-            <StatValue accent={false} cost={false} error={false}>
+            <StatValue
+              accent={false}
+              cost={false}
+              error={false}
+            >
               {formatDuration(summary.totalDurationMs)}
             </StatValue>
           </Stat>
           <Stat>
             <StatLabel>Cost</StatLabel>
-            <StatValue accent={false} cost={true} error={false}>
+            <StatValue
+              accent={false}
+              cost={true}
+              error={false}
+            >
               {formatCost(summary.cost.totalUsd)}
             </StatValue>
           </Stat>
           <Stat>
             <StatLabel>Avg score</StatLabel>
-            <StatValue accent={true} cost={false} error={false}>
+            <StatValue
+              accent={true}
+              cost={false}
+              error={false}
+            >
               {formatScore(summary.averageScore)}
             </StatValue>
           </Stat>

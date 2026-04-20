@@ -44,10 +44,7 @@ export async function runHighValueRefundWorkflow(
         model: 'gpt-4o-mini',
         usage,
         costUsd,
-        output: {
-          riskLevel: 'high',
-          requiresManagerApproval: true,
-        },
+        output: { riskLevel: 'high', requiresManagerApproval: true },
       });
 
       incrementOutput('costUsd', costUsd);
@@ -60,10 +57,7 @@ export async function runHighValueRefundWorkflow(
 
         span.setAttributes({
           input: { path: input.receiptImage },
-          output: {
-            orderId: input.orderId,
-            purchaseVerified: true,
-          },
+          output: { orderId: input.orderId, purchaseVerified: true },
         });
       },
     );

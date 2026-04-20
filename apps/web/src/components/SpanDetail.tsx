@@ -109,9 +109,20 @@ export function SpanDetail({ span, spans, traceDisplay }: SpanDetailProps) {
       <DetailTitle>{span.name}</DetailTitle>
 
       <DetailItems>
-        <DetailItem label="Kind" value={span.kind} />
-        <DetailItem label="Status" value={span.status} />
-        {durationMs !== null ? <DetailItem label="Duration" value={`${String(durationMs)}ms`} /> : null}
+        <DetailItem
+          label="Kind"
+          value={span.kind}
+        />
+        <DetailItem
+          label="Status"
+          value={span.status}
+        />
+        {durationMs !== null ? (
+          <DetailItem
+            label="Duration"
+            value={`${String(durationMs)}ms`}
+          />
+        ) : null}
         {detailItems.map((item) => (
           <DetailItem
             key={item.config.path}
@@ -131,7 +142,11 @@ export function SpanDetail({ span, spans, traceDisplay }: SpanDetailProps) {
       ))}
 
       {span.attributes !== undefined ? (
-        <JsonSection label="Attributes" data={span.attributes} asJson />
+        <JsonSection
+          label="Attributes"
+          data={span.attributes}
+          asJson
+        />
       ) : null}
 
       {span.error ? (
@@ -140,9 +155,7 @@ export function SpanDetail({ span, spans, traceDisplay }: SpanDetailProps) {
             {span.error.name ?? 'Error'}: {span.error.message}
           </ErrorTitle>
           {span.error.stack ? (
-            <ErrorStack>
-              {span.error.stack}
-            </ErrorStack>
+            <ErrorStack>{span.error.stack}</ErrorStack>
           ) : null}
         </ErrorContainer>
       ) : null}
@@ -170,9 +183,7 @@ function JsonSection({
 }) {
   return (
     <JsonSectionRoot>
-      <JsonSectionLabel>
-        {label}
-      </JsonSectionLabel>
+      <JsonSectionLabel>{label}</JsonSectionLabel>
       <JsonSectionPre>
         {asJson ? JSON.stringify(data, null, 2) : String(data)}
       </JsonSectionPre>

@@ -1,6 +1,6 @@
+import { ChevronDown } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { styled } from 'vindur';
-import { ChevronDown } from 'lucide-react';
 import { colors } from '#src/style/colors';
 import { inline, stack, transition } from '#src/style/helpers';
 
@@ -52,9 +52,9 @@ export function SplitButton({
     if (!open) return;
     function onClickAway(event: MouseEvent) {
       if (
-        rootRef.current
-        && event.target instanceof Node
-        && !rootRef.current.contains(event.target)
+        rootRef.current &&
+        event.target instanceof Node &&
+        !rootRef.current.contains(event.target)
       ) {
         setOpen(false);
       }
@@ -98,15 +98,16 @@ export function SplitButton({
         </Chevron>
       </PrimaryRow>
 
-      {open ?
+      {open ? (
         <Menu
           role="menu"
           onClick={(event) => event.stopPropagation()}
         >
           {menu.map((entry, index) =>
-            'kind' in entry ?
+            'kind' in entry ? (
               <Separator key={`sep-${String(index)}`} />
-            : <MenuItem
+            ) : (
+              <MenuItem
                 key={entry.id}
                 role="menuitem"
                 danger={entry.tone === 'danger'}
@@ -116,13 +117,14 @@ export function SplitButton({
                 }}
               >
                 <ItemLabel>{entry.label}</ItemLabel>
-                {entry.description ?
+                {entry.description ? (
                   <ItemDescription>{entry.description}</ItemDescription>
-                : null}
-              </MenuItem>,
+                ) : null}
+              </MenuItem>
+            ),
           )}
         </Menu>
-      : null}
+      ) : null}
     </Root>
   );
 }

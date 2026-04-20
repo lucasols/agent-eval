@@ -34,17 +34,16 @@ function assertPortAvailable(port) {
 
 await assertPortAvailable(serverPort);
 
-console.info(`Starting Agent Evals server on http://localhost:${String(serverPort)}`);
+console.info(
+  `Starting Agent Evals server on http://localhost:${String(serverPort)}`,
+);
 
 const child = spawn(
   process.execPath,
   ['--watch', resolve(repoRoot, 'apps/server/src/index.ts')],
   {
     cwd: exampleWorkspace,
-    env: {
-      ...process.env,
-      PORT: String(serverPort),
-    },
+    env: { ...process.env, PORT: String(serverPort) },
     stdio: 'inherit',
   },
 );

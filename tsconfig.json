@@ -1,8 +1,6 @@
 {
   "extends": "./tsconfig.base.json",
-  "compilerOptions": {
-    "noEmit": true
-  },
-  "include": [],
+  "compilerOptions": { "noEmit": true, "types": ["node"] },
+  "include": ["scripts/**/*.ts"],
   "exclude": ["node_modules"]
 }

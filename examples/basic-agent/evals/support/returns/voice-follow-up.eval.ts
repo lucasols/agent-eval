@@ -11,12 +11,14 @@ import {
 defineEval<VoiceReturnFollowUpInput>({
   id: 'voice-return-follow-up',
   title: 'Voice Return Follow-up',
-  description: 'Adds voice-note return requests so the example tree has another branch',
+  description:
+    'Adds voice-note return requests so the example tree has another branch',
   cases: [
     {
       id: 'wrong-size-jacket',
       input: {
-        customerMessage: 'The jacket is the wrong size and I want return instructions.',
+        customerMessage:
+          'The jacket is the wrong size and I want return instructions.',
         orderId: '#RET-31',
         preferredChannel: 'email',
         voiceNote: 'evals/datasets/assets/note-1.mp3',
@@ -25,7 +27,8 @@ defineEval<VoiceReturnFollowUpInput>({
     {
       id: 'pt-br-defect',
       input: {
-        customerMessage: 'Preciso das instrucoes de devolucao do pedido com defeito.',
+        customerMessage:
+          'Preciso das instrucoes de devolucao do pedido com defeito.',
         locale: 'pt-BR',
         orderId: '#RET-44',
         preferredChannel: 'sms',

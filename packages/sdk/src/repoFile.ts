@@ -8,9 +8,5 @@ import type { RepoFileRef } from '@agent-evals/shared';
  * @returns A repo-backed file reference consumable by display blocks.
  */
 export function repoFile(path: string, mimeType?: string): RepoFileRef {
-  return {
-    source: 'repo',
-    path,
-    mimeType,
-  };
+  return { source: 'repo', path, mimeType };
 }

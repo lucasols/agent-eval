@@ -1,7 +1,7 @@
-import { useState } from 'react';
 import type { EvalTraceSpan, TraceDisplayConfig } from '@agent-evals/shared';
-import { styled } from 'vindur';
 import { ChevronRight } from 'lucide-react';
+import { useState } from 'react';
+import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import { inline, monoFont, transition } from '#src/style/helpers';
 import {
@@ -208,9 +208,8 @@ type TraceTreeProps = {
 export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
   const [selectedSpanId, setSelectedSpanId] = useState<string | null>(null);
   const rootSpans = spans.filter((s) => s.parentId === null);
-  const selectedSpan =
-    selectedSpanId ?
-      (spans.find((s) => s.id === selectedSpanId) ?? null)
+  const selectedSpan = selectedSpanId
+    ? (spans.find((s) => s.id === selectedSpanId) ?? null)
     : null;
 
   return (
@@ -228,7 +227,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
           />
         ))}
       </TreePane>
-      {selectedSpan ?
+      {selectedSpan ? (
         <DetailPane>
           <SpanDetail
             span={selectedSpan}
@@ -236,7 +235,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
             traceDisplay={traceDisplay}
           />
         </DetailPane>
-      : null}
+      ) : null}
     </Root>
   );
 }
@@ -267,9 +266,9 @@ function SpanNode({
   );
 
   const durationMs =
-    span.startedAt && span.endedAt ?
-      new Date(span.endedAt).getTime() - new Date(span.startedAt).getTime()
-    : null;
+    span.startedAt && span.endedAt
+      ? new Date(span.endedAt).getTime() - new Date(span.startedAt).getTime()
+      : null;
 
   return (
     <div>
@@ -278,7 +277,7 @@ function SpanNode({
         active={selectedSpanId === span.id}
         style={{ paddingLeft: depth * 14 + 8 }}
       >
-        {hasChildren ?
+        {hasChildren ? (
           <ToggleButton
             type="button"
             open={expanded}
@@ -289,7 +288,9 @@ function SpanNode({
           >
             <ChevronRight />
           </ToggleButton>
-        : <Spacer />}
+        ) : (
+          <Spacer />
+        )}
         <KindBadge
           agent={span.kind === 'agent'}
           llm={span.kind === 'llm'}
@@ -303,31 +304,29 @@ function SpanNode({
         </KindBadge>
         <SpanName>{span.name}</SpanName>
         {renderCacheBadge(span)}
-        {span.status === 'error' ?
-          <ErrorLabel>err</ErrorLabel>
-        : null}
-        {durationMs !== null ?
+        {span.status === 'error' ? <ErrorLabel>err</ErrorLabel> : null}
+        {durationMs !== null ? (
           <DurationLabel>{formatSpanDuration(durationMs)}</DurationLabel>
-        : null}
+        ) : null}
         {treeAttributeItems.map((item) => (
           <TreeAttributeLabel key={item.config.path}>
             {formatTraceAttributeValue(item.value, item.config.format)}
           </TreeAttributeLabel>
         ))}
       </SpanRow>
-      {expanded && hasChildren ?
-        children.map((child) => (
-          <SpanNode
-            key={child.id}
-            span={child}
-            spans={spans}
-            depth={depth + 1}
-            traceDisplay={traceDisplay}
-            selectedSpanId={selectedSpanId}
-            onSelect={onSelect}
-          />
-        ))
-      : null}
+      {expanded && hasChildren
+        ? children.map((child) => (
+            <SpanNode
+              key={child.id}
+              span={child}
+              spans={spans}
+              depth={depth + 1}
+              traceDisplay={traceDisplay}
+              selectedSpanId={selectedSpanId}
+              onSelect={onSelect}
+            />
+          ))
+        : null}
     </div>
   );
 }
@@ -340,10 +339,10 @@ function formatSpanDuration(ms: number): string {
 function renderCacheBadge(span: EvalTraceSpan) {
   const status = span.attributes?.['cache.status'];
   if (
-    status !== 'hit'
-    && status !== 'miss'
-    && status !== 'refresh'
-    && status !== 'bypass'
+    status !== 'hit' &&
+    status !== 'miss' &&
+    status !== 'refresh' &&
+    status !== 'bypass'
   ) {
     return null;
   }

@@ -1,4 +1,3 @@
-import { Store } from 't-state';
 import {
   caseDetailSchema,
   caseRowSchema,
@@ -11,6 +10,7 @@ import {
   type CaseDetail,
 } from '@agent-evals/shared';
 import { resultify } from 't-result';
+import { Store } from 't-state';
 import { z } from 'zod/v4';
 import { refetchHistory } from './historyStore.ts';
 
@@ -59,9 +59,7 @@ export type RunTarget =
   | { mode: 'evalIds'; evalIds: string[] };
 
 /** Optional run-start options, notably the cache mode. */
-export type StartRunOptions = {
-  cacheMode?: CacheMode;
-};
+export type StartRunOptions = { cacheMode?: CacheMode };
 
 export async function startRun(
   target: RunTarget,
@@ -135,17 +133,15 @@ function subscribeToRunEvents(runId: string): void {
     runStore.setState((prev) => {
       if (!prev.currentRun) return prev;
       const cases = prev.currentRun.cases.map((c) =>
-        (
-          c.caseId === envelope.payload.caseId
-          && c.trial === envelope.payload.trial
-        ) ?
-          envelope.payload
-        : c,
+        c.caseId === envelope.payload.caseId &&
+        c.trial === envelope.payload.trial
+          ? envelope.payload
+          : c,
       );
       const hasCase = cases.some(
         (c) =>
-          c.caseId === envelope.payload.caseId
-          && c.trial === envelope.payload.trial,
+          c.caseId === envelope.payload.caseId &&
+          c.trial === envelope.payload.trial,
       );
       return {
         ...prev,

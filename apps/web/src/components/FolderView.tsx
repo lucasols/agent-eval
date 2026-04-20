@@ -1,15 +1,12 @@
-import { styled } from 'vindur';
-import { Folder as FolderIcon } from 'lucide-react';
 import type { EvalSummary } from '@agent-evals/shared';
+import { Folder as FolderIcon } from 'lucide-react';
+import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import { inline, monoFont, stack } from '#src/style/helpers';
-import { EvalCard } from './EvalCard.tsx';
 import { EmptyState } from './EmptyState.tsx';
+import { EvalCard } from './EvalCard.tsx';
 
-type FolderViewProps = {
-  folderPath: string;
-  evals: EvalSummary[];
-};
+type FolderViewProps = { folderPath: string; evals: EvalSummary[] };
 
 const Root = styled.div`
   height: 100%;
@@ -112,7 +109,11 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
       ) : (
         <Stack>
           {evals.map((ev) => (
-            <EvalCard key={ev.id} evalSummary={ev} mode="stacked" />
+            <EvalCard
+              key={ev.id}
+              evalSummary={ev}
+              mode="stacked"
+            />
           ))}
         </Stack>
       )}

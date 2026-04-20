@@ -39,14 +39,14 @@ export const inline = vindurFn(
   } = {}) => `
   display: flex;
   align-items: ${
-    align === 'left' ? 'flex-start'
-    : align === 'right' ? 'flex-end'
-    : align
+    align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : align
   };
   justify-content: ${
-    justify === 'left' ? 'flex-start'
-    : justify === 'right' ? 'flex-end'
-    : justify
+    justify === 'left'
+      ? 'flex-start'
+      : justify === 'right'
+        ? 'flex-end'
+        : justify
   };
   ${gap ? `gap: ${gap}px;` : ''}
 `,
@@ -71,14 +71,14 @@ export const stack = vindurFn(
   display: flex;
   flex-direction: column;
   align-items: ${
-    align === 'left' ? 'flex-start'
-    : align === 'right' ? 'flex-end'
-    : align
+    align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : align
   };
   justify-content: ${
-    justify === 'top' ? 'flex-start'
-    : justify === 'bottom' ? 'flex-end'
-    : justify
+    justify === 'top'
+      ? 'flex-start'
+      : justify === 'bottom'
+        ? 'flex-end'
+        : justify
   };
   ${gap ? `gap: ${gap}px;` : ''}
 `,
@@ -88,14 +88,9 @@ export const transition = vindurFn(
   ({
     duration = 'medium',
     property,
-  }: {
-    duration?: 'medium' | 'slow' | 'fast';
-    property?: string;
-  } = {}) =>
+  }: { duration?: 'medium' | 'slow' | 'fast'; property?: string } = {}) =>
     `transition: ${
-      duration === 'medium' ? 0.24
-      : duration === 'slow' ? 0.36
-      : 0.12
+      duration === 'medium' ? 0.24 : duration === 'slow' ? 0.36 : 0.12
     }s cubic-bezier(0.4, 0.0, 0.2, 1);
     ${property ? `transition-property: ${property};` : ''}
   `,

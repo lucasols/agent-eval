@@ -45,9 +45,6 @@ export const agentEvalsConfigSchema = z.object({
   concurrency: z.number().optional(),
   traceDisplay: traceDisplayInputConfigSchema.optional(),
   cache: z
-    .object({
-      enabled: z.boolean().optional(),
-      dir: z.string().optional(),
-    })
+    .object({ enabled: z.boolean().optional(), dir: z.string().optional() })
     .optional(),
 });

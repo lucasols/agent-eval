@@ -2,9 +2,7 @@ import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import { inline } from '#src/style/helpers';
 
-type StatusBadgeProps = {
-  status: string;
-};
+type StatusBadgeProps = { status: string };
 
 type Tone = 'pass' | 'fail' | 'running' | 'pending' | 'cancelled';
 

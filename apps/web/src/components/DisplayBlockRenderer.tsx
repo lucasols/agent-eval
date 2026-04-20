@@ -55,18 +55,12 @@ const FileLink = styled.a`
   color: ${colors.accent.var};
 `;
 
-type DisplayBlockRendererProps = {
-  block: DisplayBlock;
-};
+type DisplayBlockRendererProps = { block: DisplayBlock };
 
 export function DisplayBlockRenderer({ block }: DisplayBlockRendererProps) {
   return (
     <BlockWrapper>
-      {block.label ? (
-        <BlockLabel>
-          {block.label}
-        </BlockLabel>
-      ) : null}
+      {block.label ? <BlockLabel>{block.label}</BlockLabel> : null}
       {renderBlock(block)}
     </BlockWrapper>
   );
@@ -85,11 +79,7 @@ function renderBlock(block: DisplayBlock) {
       );
 
     case 'json':
-      return (
-        <JsonBlock>
-          {JSON.stringify(block.value, null, 2)}
-        </JsonBlock>
-      );
+      return <JsonBlock>{JSON.stringify(block.value, null, 2)}</JsonBlock>;
 
     case 'image':
       return (
