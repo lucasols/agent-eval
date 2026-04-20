@@ -1,21 +1,21 @@
+import type { CellValue, ColumnDef, DisplayBlock } from '@agent-evals/shared';
+import { X } from 'lucide-react';
 import { useState } from 'react';
 import { styled } from 'vindur';
-import { X } from 'lucide-react';
-import type { CellValue, ColumnDef, DisplayBlock } from '@agent-evals/shared';
 import { colors } from '#src/style/colors';
 import { inline, monoFont, sansFont, stack } from '#src/style/helpers';
-import { closeCase, runStore } from '../stores/runStore.ts';
 import { evalsStore } from '../stores/evalsStore.ts';
-import { DisplayBlockRenderer } from './DisplayBlockRenderer.tsx';
-import { TraceTree } from './TraceTree.tsx';
-import { StatusBadge } from './StatusBadge.tsx';
-import { IconButton } from './IconButton.tsx';
+import { closeCase, runStore } from '../stores/runStore.ts';
 import {
   formatCost,
   formatDuration,
   formatPercent,
   formatScore,
 } from '../utils/formatters.ts';
+import { DisplayBlockRenderer } from './DisplayBlockRenderer.tsx';
+import { IconButton } from './IconButton.tsx';
+import { StatusBadge } from './StatusBadge.tsx';
+import { TraceTree } from './TraceTree.tsx';
 
 type Tab = 'input' | 'output' | 'trace' | 'raw' | 'failures' | 'error';
 
@@ -251,7 +251,10 @@ export function CaseDrawer() {
           <CaseId>{d.caseId}</CaseId>
           <StatusBadge status={d.status} />
         </HeaderLeft>
-        <IconButton onClick={closeCase} aria-label="Close">
+        <IconButton
+          onClick={closeCase}
+          aria-label="Close"
+        >
           <X />
         </IconButton>
       </Header>
@@ -282,21 +285,37 @@ export function CaseDrawer() {
               {columnDefs
                 .filter((c) => !c.primary)
                 .map((c) => (
-                  <ColumnCell key={c.key} def={c} value={d.columns[c.key]} />
+                  <ColumnCell
+                    key={c.key}
+                    def={c}
+                    value={d.columns[c.key]}
+                  />
                 ))}
             </ColumnsGrid>
           </div>
         ) : null}
 
         {activeTab === 'trace' ? (
-          <TraceTree spans={d.trace} traceDisplay={d.traceDisplay} />
+          <TraceTree
+            spans={d.trace}
+            traceDisplay={d.traceDisplay}
+          />
         ) : null}
 
         {activeTab === 'raw' ? (
           <RawSections>
-            <RawSection label="Input" data={d.input} />
-            <RawSection label="Columns" data={d.columns} />
-            <RawSection label="Trace" data={d.trace} />
+            <RawSection
+              label="Input"
+              data={d.input}
+            />
+            <RawSection
+              label="Columns"
+              data={d.columns}
+            />
+            <RawSection
+              label="Trace"
+              data={d.trace}
+            />
           </RawSections>
         ) : null}
 
@@ -324,13 +343,18 @@ export function CaseDrawer() {
 function PrimaryBlocks({ value }: { value: CellValue | undefined }) {
   if (!Array.isArray(value)) {
     return (
-      <OutputPre>{value === undefined ? '\u2014' : JSON.stringify(value, null, 2)}</OutputPre>
+      <OutputPre>
+        {value === undefined ? '\u2014' : JSON.stringify(value, null, 2)}
+      </OutputPre>
     );
   }
   return (
     <div>
       {value.map((block: DisplayBlock, i) => (
-        <DisplayBlockRenderer key={i} block={block} />
+        <DisplayBlockRenderer
+          key={i}
+          block={block}
+        />
       ))}
     </div>
   );

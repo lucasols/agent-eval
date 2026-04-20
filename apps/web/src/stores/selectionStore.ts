@@ -5,10 +5,7 @@ export type Selection =
   | { kind: 'eval'; id: string }
   | { kind: 'folder'; path: string };
 
-type SelectionState = {
-  selection: Selection;
-  expandedFolders: Set<string>;
-};
+type SelectionState = { selection: Selection; expandedFolders: Set<string> };
 
 function readSelectionFromUrl(): Selection {
   if (typeof window === 'undefined') return { kind: 'none' };

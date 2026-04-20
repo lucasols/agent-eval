@@ -1,7 +1,4 @@
-export type WorkflowUsage = {
-  inputTokens: number;
-  outputTokens: number;
-};
+export type WorkflowUsage = { inputTokens: number; outputTokens: number };
 
 const INPUT_PRICE_PER_MILLION = 2.5;
 const OUTPUT_PRICE_PER_MILLION = 10;

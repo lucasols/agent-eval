@@ -10,10 +10,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-export function getNestedAttribute(
-  value: unknown,
-  path: string,
-): unknown {
+export function getNestedAttribute(value: unknown, path: string): unknown {
   const parts = path.split('.');
   let current = value;
 
@@ -55,10 +52,7 @@ export function resolveTracePresentation(
   spans: EvalTraceSpan[],
   globalTraceDisplay: TraceDisplayInputConfig | undefined,
   evalTraceDisplay: TraceDisplayInputConfig | undefined,
-): {
-  trace: EvalTraceSpan[];
-  traceDisplay: TraceDisplayConfig;
-} {
+): { trace: EvalTraceSpan[]; traceDisplay: TraceDisplayConfig } {
   const merged = new Map<string, TraceAttributeDisplayInput>();
 
   for (const attribute of globalTraceDisplay?.attributes ?? []) {
@@ -72,13 +66,14 @@ export function resolveTracePresentation(
   const resolvedAttributes: TraceAttributeDisplay[] = [];
   const transformedTrace = spans.map((span) => ({
     ...span,
-    attributes: span.attributes === undefined ? undefined : { ...span.attributes },
+    attributes:
+      span.attributes === undefined ? undefined : { ...span.attributes },
   }));
 
   for (const attribute of merged.values()) {
-    const resolvedPath = attribute.transform ?
-      `__display.${attribute.key ?? attribute.path}`
-    : attribute.path;
+    const resolvedPath = attribute.transform
+      ? `__display.${attribute.key ?? attribute.path}`
+      : attribute.path;
 
     resolvedAttributes.push({
       key: attribute.key,
@@ -113,8 +108,6 @@ export function resolveTracePresentation(
 
   return {
     trace: transformedTrace,
-    traceDisplay: {
-      attributes: resolvedAttributes,
-    },
+    traceDisplay: { attributes: resolvedAttributes },
   };
 }

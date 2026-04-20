@@ -1,19 +1,19 @@
+import { LayoutGrid } from 'lucide-react';
 import { useEffect } from 'react';
 import { styled } from 'vindur';
-import { LayoutGrid } from 'lucide-react';
 import { colors } from '#src/style/colors';
 import { inline, stack } from '#src/style/helpers';
 import { evalsStore, fetchEvals } from '../stores/evalsStore.ts';
 import { refetchHistory } from '../stores/historyStore.ts';
 import { runStore } from '../stores/runStore.ts';
 import { selectionStore } from '../stores/selectionStore.ts';
-import { Sidebar } from './Sidebar.tsx';
-import { CaseDrawer } from './CaseDrawer.tsx';
-import { RunDrawer } from './RunDrawer.tsx';
-import { SingleEvalView } from './SingleEvalView.tsx';
-import { FolderView } from './FolderView.tsx';
-import { EmptyState } from './EmptyState.tsx';
 import { collectEvalsInFolder } from '../utils/buildEvalTree.ts';
+import { CaseDrawer } from './CaseDrawer.tsx';
+import { EmptyState } from './EmptyState.tsx';
+import { FolderView } from './FolderView.tsx';
+import { RunDrawer } from './RunDrawer.tsx';
+import { Sidebar } from './Sidebar.tsx';
+import { SingleEvalView } from './SingleEvalView.tsx';
 
 const Root = styled.div`
   ${inline({ align: 'stretch' })}
@@ -77,7 +77,12 @@ function MainContent() {
 
   if (selection.kind === 'folder') {
     const inFolder = collectEvalsInFolder(evals, selection.path);
-    return <FolderView folderPath={selection.path} evals={inFolder} />;
+    return (
+      <FolderView
+        folderPath={selection.path}
+        evals={inFolder}
+      />
+    );
   }
 
   return (

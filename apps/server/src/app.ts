@@ -1,12 +1,13 @@
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { serveStatic } from '@hono/node-server/serve-static';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
-import { existsSync } from 'node:fs';
+import { assetsRoutes } from './routes/assets.ts';
+import { cacheRoutes } from './routes/cache.ts';
 import { evalsRoutes } from './routes/evals.ts';
 import { runsRoutes } from './routes/runs.ts';
-import { assetsRoutes } from './routes/assets.ts';
 
 const baseApp = new Hono();
 
@@ -16,6 +17,7 @@ baseApp.use('/*', cors());
 const routes_ = baseApp
   .route('/api/evals', evalsRoutes)
   .route('/api/runs', runsRoutes)
+  .route('/api/cache', cacheRoutes)
   .route('/api', assetsRoutes);
 
 export type AppType = typeof routes_;

@@ -112,7 +112,10 @@ export function Sidebar() {
       </Masthead>
       <SectionHeader>
         <SectionLabel>
-          Evals <SectionCounter>[{String(evals.length).padStart(2, '0')}]</SectionCounter>
+          Evals{' '}
+          <SectionCounter>
+            [{String(evals.length).padStart(2, '0')}]
+          </SectionCounter>
         </SectionLabel>
       </SectionHeader>
       <ScrollArea>

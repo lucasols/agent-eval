@@ -35,12 +35,7 @@ function commonPrefixLength(all: string[][]): number {
 }
 
 export function buildEvalTree(evals: EvalSummary[]): TreeNode[] {
-  const root: TreeFolder = {
-    kind: 'folder',
-    path: '',
-    name: '',
-    children: [],
-  };
+  const root: TreeFolder = { kind: 'folder', path: '', name: '', children: [] };
 
   const folderIndex = new Map<string, TreeFolder>();
   folderIndex.set('', root);
@@ -90,8 +85,10 @@ export function buildEvalTree(evals: EvalSummary[]): TreeNode[] {
 function sortTree(folder: TreeFolder): void {
   folder.children.sort((a, b) => {
     if (a.kind !== b.kind) return a.kind === 'folder' ? -1 : 1;
-    const aName = a.kind === 'folder' ? a.name : (a.evalSummary.title ?? a.evalSummary.id);
-    const bName = b.kind === 'folder' ? b.name : (b.evalSummary.title ?? b.evalSummary.id);
+    const aName =
+      a.kind === 'folder' ? a.name : (a.evalSummary.title ?? a.evalSummary.id);
+    const bName =
+      b.kind === 'folder' ? b.name : (b.evalSummary.title ?? b.evalSummary.id);
     return aName.localeCompare(bName);
   });
   for (const child of folder.children) {

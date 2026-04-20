@@ -7,9 +7,7 @@
     "moduleResolution": "bundler",
     "noEmit": true,
     "allowImportingTsExtensions": true,
-    "paths": {
-      "#src/*": ["./src/*"]
-    }
+    "paths": { "#src/*": ["./src/*"] }
   },
   "include": ["src"]
 }

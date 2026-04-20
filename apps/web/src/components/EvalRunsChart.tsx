@@ -1,4 +1,3 @@
-import { styled } from 'vindur';
 import {
   Area,
   AreaChart,
@@ -8,6 +7,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import { monoFont } from '#src/style/helpers';
 import { formatCost, formatTimestamp } from '../utils/formatters.ts';
@@ -19,9 +19,7 @@ type ChartPoint = {
   cost: number | null;
 };
 
-type EvalRunsChartProps = {
-  data: ChartPoint[];
-};
+type EvalRunsChartProps = { data: ChartPoint[] };
 
 const ChartFrame = styled.div`
   height: 200px;
@@ -114,15 +112,32 @@ function CustomTooltip({
 export function EvalRunsChart({ data }: EvalRunsChartProps) {
   return (
     <ChartFrame>
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer
+        width="100%"
+        height="100%"
+      >
         <AreaChart
           data={data}
           margin={{ top: 18, right: 12, bottom: 4, left: 0 }}
         >
           <defs>
-            <linearGradient id="evalScoreFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={colors.accent.var} stopOpacity={0.45} />
-              <stop offset="100%" stopColor={colors.accent.var} stopOpacity={0} />
+            <linearGradient
+              id="evalScoreFill"
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="1"
+            >
+              <stop
+                offset="0%"
+                stopColor={colors.accent.var}
+                stopOpacity={0.45}
+              />
+              <stop
+                offset="100%"
+                stopColor={colors.accent.var}
+                stopOpacity={0}
+              />
             </linearGradient>
           </defs>
           <CartesianGrid
@@ -150,7 +165,11 @@ export function EvalRunsChart({ data }: EvalRunsChartProps) {
           />
           <Tooltip
             content={<CustomTooltip />}
-            cursor={{ stroke: colors.accent.alpha(0.5), strokeWidth: 1, strokeDasharray: '3 3' }}
+            cursor={{
+              stroke: colors.accent.alpha(0.5),
+              strokeWidth: 1,
+              strokeDasharray: '3 3',
+            }}
           />
           <Area
             type="monotone"

@@ -15,6 +15,7 @@
     "@agent-evals/sdk": "workspace:*",
     "chokidar": "^4.0.3",
     "glob": "^11.0.2",
+    "t-result": "^0.6.1",
     "vitest": "^3.2.4",
     "zod": "^4.1.11"
   },

@@ -1,4 +1,3 @@
-import { Store } from 't-state';
 import {
   caseRowSchema,
   runManifestSchema,
@@ -8,6 +7,7 @@ import {
   type RunSummary,
 } from '@agent-evals/shared';
 import { resultify } from 't-result';
+import { Store } from 't-state';
 import { z } from 'zod/v4';
 
 export type HistoricalRun = {
@@ -23,10 +23,7 @@ const runDetailSchema = z.object({
   cases: z.array(caseRowSchema),
 });
 
-type HistoryState = {
-  runs: HistoricalRun[];
-  loading: boolean;
-};
+type HistoryState = { runs: HistoricalRun[]; loading: boolean };
 
 export const historyStore = new Store<HistoryState>({
   state: { runs: [], loading: false },
@@ -63,9 +60,7 @@ export async function refetchHistory(): Promise<void> {
     return;
   }
 
-  const details = await Promise.all(
-    manifests.map((m) => fetchRunDetail(m.id)),
-  );
+  const details = await Promise.all(manifests.map((m) => fetchRunDetail(m.id)));
   const runs: HistoricalRun[] = [];
   for (const d of details) {
     if (d) runs.push(d);
@@ -78,10 +73,7 @@ export async function refetchHistory(): Promise<void> {
   historyStore.setPartialState({ runs, loading: false });
 }
 
-export function runTargetsEval(
-  manifest: RunManifest,
-  evalId: string,
-): boolean {
+export function runTargetsEval(manifest: RunManifest, evalId: string): boolean {
   if (manifest.target.mode === 'all') return true;
   if (manifest.target.mode === 'evalIds') {
     return manifest.target.evalIds?.includes(evalId) ?? false;

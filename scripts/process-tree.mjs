@@ -41,15 +41,13 @@ export function terminateProcessTree(child, signal) {
   }
 
   const mappedSignal =
-    signal === 'SIGINT' ? '-INT'
-    : signal === 'SIGKILL' ? '-KILL'
-    : '-TERM';
+    signal === 'SIGINT' ? '-INT' : signal === 'SIGKILL' ? '-KILL' : '-TERM';
 
-  const targetPids = [...getDescendantPids(child.pid), child.pid].map((pid) => String(pid));
+  const targetPids = [...getDescendantPids(child.pid), child.pid].map((pid) =>
+    String(pid),
+  );
 
-  spawnSync('kill', [mappedSignal, '--', ...targetPids], {
-    stdio: 'ignore',
-  });
+  spawnSync('kill', [mappedSignal, '--', ...targetPids], { stdio: 'ignore' });
 }
 
 /**

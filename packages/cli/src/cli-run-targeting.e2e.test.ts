@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'vitest';
 import { runSummarySchema } from '@agent-evals/shared';
+import { describe, expect, test } from 'vitest';
 import {
   normalizeSnapshotValue,
   normalizeTextSnapshot,
@@ -122,7 +122,9 @@ describe('CLI run targeting', () => {
       const artifacts = await readSingleRunArtifacts(workspacePath);
 
       expect(artifacts.manifest.target.mode).toBe('evalIds');
-      expect(artifacts.manifest.target.evalIds).toEqual(['receipt-fraud-review']);
+      expect(artifacts.manifest.target.evalIds).toEqual([
+        'receipt-fraud-review',
+      ]);
       expect(artifacts.traceFiles).toEqual(['tampered-total.json']);
       expect(artifacts.cases.map((caseRow) => caseRow.caseId)).toEqual([
         'tampered-total',
@@ -341,9 +343,10 @@ describe('CLI run targeting', () => {
       expect(summary.passedCases).toBe(2);
       expect(artifacts.cases).toHaveLength(2);
       expect(artifacts.cases.map((caseRow) => caseRow.trial)).toEqual([0, 1]);
-      expect(
-        artifacts.cases.map((caseRow) => caseRow.caseId),
-      ).toEqual(['simple-text', 'simple-text']);
+      expect(artifacts.cases.map((caseRow) => caseRow.caseId)).toEqual([
+        'simple-text',
+        'simple-text',
+      ]);
 
       expect(
         normalizeSnapshotValue(workspacePath, {

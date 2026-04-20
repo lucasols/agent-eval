@@ -45,28 +45,31 @@ export async function runReceiptFraudReviewWorkflow(
         },
       );
 
-      await tracer.span({ kind: 'llm', name: 'flag-tampering-signals' }, async () => {
-        await waitForWorkflowDelay('flagTamperingSignals');
+      await tracer.span(
+        { kind: 'llm', name: 'flag-tampering-signals' },
+        async () => {
+          await waitForWorkflowDelay('flagTamperingSignals');
 
-        const usage = { inputTokens: 240, outputTokens: 90 };
-        const costUsd = calculateWorkflowCostUsd(usage);
+          const usage = { inputTokens: 240, outputTokens: 90 };
+          const costUsd = calculateWorkflowCostUsd(usage);
 
-        span.setAttributes({
-          input: {
-            customerMessage: input.customerMessage,
-            claimedAmountUsd: input.claimedAmountUsd,
-          },
-          model: 'gpt-4o-mini',
-          usage,
-          costUsd,
-          output: {
-            riskLevel: 'high',
-            tamperingSignals: ['edited_total', 'mismatched_font_weight'],
-          },
-        });
+          span.setAttributes({
+            input: {
+              customerMessage: input.customerMessage,
+              claimedAmountUsd: input.claimedAmountUsd,
+            },
+            model: 'gpt-4o-mini',
+            usage,
+            costUsd,
+            output: {
+              riskLevel: 'high',
+              tamperingSignals: ['edited_total', 'mismatched_font_weight'],
+            },
+          });
 
-        incrementOutput('costUsd', costUsd);
-      });
+          incrementOutput('costUsd', costUsd);
+        },
+      );
 
       const result = await tracer.span(
         { kind: 'tool', name: 'open-risk-case' },
@@ -76,11 +79,7 @@ export async function runReceiptFraudReviewWorkflow(
           const finalText = `Opened a risk review for order ${input.orderId} after detecting receipt tampering signals.`;
           span.setAttributes({
             input: { orderId: input.orderId },
-            output: {
-              finalText,
-              reviewQueue: 'risk-ops',
-              riskLevel: 'high',
-            },
+            output: { finalText, reviewQueue: 'risk-ops', riskLevel: 'high' },
           });
           return {
             finalText,

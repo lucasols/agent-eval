@@ -2,7 +2,14 @@ import { z } from 'zod/v4';
 
 /** Schema for the semantic categories used to classify trace spans. */
 export const traceSpanKindSchema = z.enum([
-  'eval', 'agent', 'llm', 'tool', 'retrieval', 'scorer', 'checkpoint', 'custom',
+  'eval',
+  'agent',
+  'llm',
+  'tool',
+  'retrieval',
+  'scorer',
+  'checkpoint',
+  'custom',
 ]);
 /** Semantic category used to classify a trace span in the UI. */
 export type TraceSpanKind = z.infer<typeof traceSpanKindSchema>;
@@ -84,10 +91,12 @@ export const traceAttributeDisplayInputSchema = z.object({
   placements: z.array(traceAttributeDisplayPlacementSchema).optional(),
   scope: z.enum(['self', 'subtree']).optional(),
   mode: z.enum(['all', 'last', 'sum']).optional(),
-  transform: z.custom<TraceAttributeTransform>(
-    (value) => value === undefined || typeof value === 'function',
-    { message: 'Expected a transform function' },
-  ).optional(),
+  transform: z
+    .custom<TraceAttributeTransform>(
+      (value) => value === undefined || typeof value === 'function',
+      { message: 'Expected a transform function' },
+    )
+    .optional(),
 });
 /**
  * Authored trace display rule accepted in eval definitions and config files.
@@ -105,7 +114,9 @@ export const traceDisplayInputConfigSchema = z.object({
   attributes: z.array(traceAttributeDisplayInputSchema).optional(),
 });
 /** Trace display configuration authored by users in config or eval files. */
-export type TraceDisplayInputConfig = z.infer<typeof traceDisplayInputConfigSchema>;
+export type TraceDisplayInputConfig = z.infer<
+  typeof traceDisplayInputConfigSchema
+>;
 
 /** Schema for a persisted trace span captured during case execution. */
 export const traceSpanSchema = z.object({
@@ -118,11 +129,13 @@ export const traceSpanSchema = z.object({
   endedAt: z.string().nullable(),
   status: z.enum(['running', 'ok', 'error', 'cancelled']),
   attributes: z.record(z.string(), z.unknown()).optional(),
-  error: z.object({
-    name: z.string().optional(),
-    message: z.string(),
-    stack: z.string().optional(),
-  }).optional(),
+  error: z
+    .object({
+      name: z.string().optional(),
+      message: z.string(),
+      stack: z.string().optional(),
+    })
+    .optional(),
 });
 /** Persisted trace span shape stored for each eval case run. */
 export type EvalTraceSpan = z.infer<typeof traceSpanSchema>;

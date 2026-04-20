@@ -25,9 +25,7 @@ defineEval<{ prompt: string }>({
   cases: [
     {
       id: 'random-sanity-check',
-      input: {
-        prompt: 'Generate a random experiment result for the UI.',
-      },
+      input: { prompt: 'Generate a random experiment result for the UI.' },
     },
   ],
   columns: {
@@ -41,17 +39,17 @@ defineEval<{ prompt: string }>({
       const randomValue = samplePercent();
       const analysisDelayMs = sampleDelayMs(180, 340);
 
-      await tracer.span({ kind: 'llm', name: 'roll-random-signal' }, async () => {
-        await waitForDelay(analysisDelayMs);
+      await tracer.span(
+        { kind: 'llm', name: 'roll-random-signal' },
+        async () => {
+          await waitForDelay(analysisDelayMs);
 
-        span.setAttributes({
-          input: { prompt: input.prompt },
-          output: {
-            analysisDelayMs,
-            randomValue,
-          },
-        });
-      });
+          span.setAttributes({
+            input: { prompt: input.prompt },
+            output: { analysisDelayMs, randomValue },
+          });
+        },
+      );
 
       const publishDelayMs = sampleDelayMs(140, 280);
       const responseText = `Randomized result for: ${input.prompt}`;
@@ -63,10 +61,7 @@ defineEval<{ prompt: string }>({
 
           span.setAttributes({
             input: { randomValue },
-            output: {
-              publishDelayMs,
-              responseText,
-            },
+            output: { publishDelayMs, responseText },
           });
         },
       );
@@ -82,9 +77,6 @@ defineEval<{ prompt: string }>({
     });
   },
   scores: {
-    randomScore: {
-      label: 'Random Score',
-      compute: () => sampleScore(),
-    },
+    randomScore: { label: 'Random Score', compute: () => sampleScore() },
   },
 });

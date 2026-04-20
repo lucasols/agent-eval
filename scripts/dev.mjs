@@ -64,7 +64,9 @@ await Promise.all([
   assertPortAvailable(webPort, 'Web dev server'),
 ]);
 
-console.info(`Starting Agent Evals server on http://localhost:${String(serverPort)}`);
+console.info(
+  `Starting Agent Evals server on http://localhost:${String(serverPort)}`,
+);
 console.info(`Starting Vite dev server on http://localhost:${String(webPort)}`);
 
 startServer();
@@ -76,10 +78,7 @@ function startServer() {
     ['--watch', resolve(repoRoot, 'apps/server/src/index.ts')],
     {
       cwd: exampleWorkspace,
-      env: {
-        ...process.env,
-        PORT: String(serverPort),
-      },
+      env: { ...process.env, PORT: String(serverPort) },
       stdio: 'inherit',
     },
   );
@@ -100,11 +99,7 @@ function startWeb() {
       '--port',
       String(webPort),
     ],
-    {
-      cwd: repoRoot,
-      env: process.env,
-      stdio: 'inherit',
-    },
+    { cwd: repoRoot, env: process.env, stdio: 'inherit' },
   );
 
   registerChild('Web dev server', child);

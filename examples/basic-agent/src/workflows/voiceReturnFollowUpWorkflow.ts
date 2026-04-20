@@ -33,25 +33,29 @@ export async function runVoiceReturnFollowUpWorkflow(
 
       const detectedLocale = input.locale ?? 'en-US';
 
-      await tracer.span({ kind: 'llm', name: 'transcribe-voice-note' }, async () => {
-        await waitForWorkflowDelay('transcribeVoiceNote');
+      await tracer.span(
+        { kind: 'llm', name: 'transcribe-voice-note' },
+        async () => {
+          await waitForWorkflowDelay('transcribeVoiceNote');
 
-        const usage = { inputTokens: 130, outputTokens: 90 };
-        const costUsd = calculateWorkflowCostUsd(usage);
+          const usage = { inputTokens: 130, outputTokens: 90 };
+          const costUsd = calculateWorkflowCostUsd(usage);
 
-        span.setAttributes({
-          input: { voiceNote: input.voiceNote },
-          model: 'gpt-4o-mini',
-          usage,
-          costUsd,
-          output: {
-            detectedLocale,
-            transcriptSummary: 'Customer requested a return and follow-up instructions.',
-          },
-        });
+          span.setAttributes({
+            input: { voiceNote: input.voiceNote },
+            model: 'gpt-4o-mini',
+            usage,
+            costUsd,
+            output: {
+              detectedLocale,
+              transcriptSummary:
+                'Customer requested a return and follow-up instructions.',
+            },
+          });
 
-        incrementOutput('costUsd', costUsd);
-      });
+          incrementOutput('costUsd', costUsd);
+        },
+      );
 
       await tracer.span({ kind: 'tool', name: 'draft-follow-up' }, async () => {
         await waitForWorkflowDelay('draftFollowUp');

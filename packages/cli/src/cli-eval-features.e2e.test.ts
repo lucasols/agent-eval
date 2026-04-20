@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'vitest';
 import { displayBlockSchema, type EvalTraceSpan } from '@agent-evals/shared';
+import { describe, expect, test } from 'vitest';
 import { z } from 'zod/v4';
 import {
   normalizeSnapshotValue,
@@ -29,7 +29,9 @@ describe('CLI eval features', () => {
       const withAudioCase = requireCase(artifacts.cases, 'with-audio');
 
       for (const caseRow of artifacts.cases) {
-        const responseBlocks = displayBlocksSchema.parse(caseRow.columns.response);
+        const responseBlocks = displayBlocksSchema.parse(
+          caseRow.columns.response,
+        );
 
         expect(caseRow.status).toBe('pass');
         expect(typeof caseRow.score).toBe('number');
@@ -130,7 +132,10 @@ describe('CLI eval features', () => {
       expect(result.stderr).toBe('');
 
       const artifacts = await readSingleRunArtifacts(workspacePath);
-      const simpleTextTrace = requireTrace(artifacts.traces, 'simple-text.json');
+      const simpleTextTrace = requireTrace(
+        artifacts.traces,
+        'simple-text.json',
+      );
       const withImageTrace = requireTrace(artifacts.traces, 'with-image.json');
       const withAudioTrace = requireTrace(artifacts.traces, 'with-audio.json');
 
@@ -151,12 +156,12 @@ describe('CLI eval features', () => {
         message: 'I need to return this product',
         voiceNote: 'evals/datasets/assets/note-1.mp3',
       });
-      expect(withImageTrace.some((span) => span.name === 'inspect-receipt')).toBe(
-        true,
-      );
-      expect(withAudioTrace.some((span) => span.name === 'inspect-receipt')).toBe(
-        false,
-      );
+      expect(
+        withImageTrace.some((span) => span.name === 'inspect-receipt'),
+      ).toBe(true);
+      expect(
+        withAudioTrace.some((span) => span.name === 'inspect-receipt'),
+      ).toBe(false);
       expect(withImagePlan.attributes?.model).toBe('gpt-4o-mini');
       expect(withImagePlan.attributes?.usage).toEqual({
         inputTokens: 150,
@@ -450,7 +455,10 @@ describe('CLI eval features', () => {
         artifacts.cases,
         'assertion-failure-visible-output',
       );
-      const silentPassCase = requireCase(artifacts.cases, 'silent-pass-no-output');
+      const silentPassCase = requireCase(
+        artifacts.cases,
+        'silent-pass-no-output',
+      );
       const silentAssertionCase = requireCase(
         artifacts.cases,
         'silent-assertion-no-output',
@@ -472,9 +480,9 @@ describe('CLI eval features', () => {
 
       expect(silentPassCase.columns).toEqual({});
       expect(silentAssertionCase.columns).toEqual({});
-      expect(requireTrace(artifacts.traces, 'silent-pass-no-output.json')).toEqual(
-        [],
-      );
+      expect(
+        requireTrace(artifacts.traces, 'silent-pass-no-output.json'),
+      ).toEqual([]);
       expect(
         requireTrace(artifacts.traces, 'silent-assertion-no-output.json'),
       ).toEqual([]);
@@ -600,10 +608,7 @@ function requireSpan(trace: EvalTraceSpan[], name: string): EvalTraceSpan {
   return span;
 }
 
-function readDisplayString(
-  value: unknown,
-  key: string,
-): string | undefined {
+function readDisplayString(value: unknown, key: string): string | undefined {
   if (!isRecord(value) || !(key in value)) {
     return undefined;
   }
@@ -619,9 +624,7 @@ function getDurationMs(span: EvalTraceSpan): number {
     throw new Error(`Expected completed span ${span.name}`);
   }
 
-  return (
-    new Date(span.endedAt).getTime() - new Date(span.startedAt).getTime()
-  );
+  return new Date(span.endedAt).getTime() - new Date(span.startedAt).getTime();
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

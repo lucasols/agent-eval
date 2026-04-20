@@ -1,5 +1,5 @@
-import { styled } from 'vindur';
 import { type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import { inline, transition } from '#src/style/helpers';
 
@@ -47,12 +47,14 @@ const Root = styled.button<{
   &.primary {
     background: ${colors.accent.var};
     color: ${colors.accentInk.var};
-    box-shadow: 0 0 0 1px ${colors.accentDim.var},
+    box-shadow:
+      0 0 0 1px ${colors.accentDim.var},
       0 6px 16px -8px ${colors.accent.alpha(0.55)};
   }
   &.primary:hover:not(:disabled) {
     background: ${colors.accentHover.var};
-    box-shadow: 0 0 0 1px ${colors.accentDim.var},
+    box-shadow:
+      0 0 0 1px ${colors.accentDim.var},
       0 8px 20px -6px ${colors.accent.alpha(0.7)};
   }
   &.primary:active:not(:disabled) {

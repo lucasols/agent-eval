@@ -3,9 +3,7 @@ import { colors } from '#src/style/colors';
 import { inline, monoFont } from '#src/style/helpers';
 import { formatCost } from '../utils/formatters.ts';
 
-type CostBadgeProps = {
-  billedCost: number | null;
-};
+type CostBadgeProps = { billedCost: number | null };
 
 const CostContainer = styled.span`
   ${inline({ gap: 8 })}

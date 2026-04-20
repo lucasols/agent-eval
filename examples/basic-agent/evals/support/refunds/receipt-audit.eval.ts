@@ -29,7 +29,8 @@ defineEval<ReceiptAuditInput>({
     {
       id: 'bundle-attachment-audit',
       input: {
-        customerMessage: 'The grinder attachment was missing from the bundle box.',
+        customerMessage:
+          'The grinder attachment was missing from the bundle box.',
         expectedTotalUsd: 89,
         orderId: '#B-77',
         receiptImage: 'evals/datasets/assets/receipt-1.png',
@@ -68,7 +69,8 @@ defineEval<ReceiptFraudReviewInput>({
       id: 'tampered-total',
       input: {
         claimedAmountUsd: 312,
-        customerMessage: 'The receipt total looks different from what accounting sees.',
+        customerMessage:
+          'The receipt total looks different from what accounting sees.',
         orderId: '#RISK-12',
         receiptImage: 'evals/datasets/assets/receipt-1.png',
       },

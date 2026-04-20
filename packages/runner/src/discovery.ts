@@ -1,8 +1,4 @@
-type EvalDiscoveryMeta = {
-  filePath: string;
-  id: string;
-  title?: string;
-};
+type EvalDiscoveryMeta = { filePath: string; id: string; title?: string };
 
 const evalIdMatchRegex = /\bid\s*:\s*['"]([^'"]+)['"]/;
 const evalTitleMatchRegex = /\btitle\s*:\s*['"]([^'"]+)['"]/;
@@ -27,10 +23,7 @@ export function parseEvalMetas(
     const idMatch = evalIdMatchRegex.exec(extracted.objectText);
     const id = idMatch?.[1];
     if (id !== undefined) {
-      const result: EvalDiscoveryMeta = {
-        filePath,
-        id,
-      };
+      const result: EvalDiscoveryMeta = { filePath, id };
 
       const titleMatch = evalTitleMatchRegex.exec(extracted.objectText);
       const title = titleMatch?.[1];

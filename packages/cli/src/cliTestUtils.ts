@@ -93,7 +93,9 @@ export async function runExampleCli(
   });
 }
 
-export async function readSingleRunArtifacts(workspacePath: string): Promise<{
+export async function readSingleRunArtifacts(
+  workspacePath: string,
+): Promise<{
   cases: ReturnType<typeof caseRowSchema.parse>[];
   manifest: ReturnType<typeof runManifestSchema.parse>;
   summary: ReturnType<typeof runSummarySchema.parse>;
@@ -104,12 +106,20 @@ export async function readSingleRunArtifacts(workspacePath: string): Promise<{
   const runDirectories = (await readdir(runsPath)).sort();
   const [runDirectory] = runDirectories;
   if (runDirectories.length !== 1 || runDirectory === undefined) {
-    throw new Error(`Expected exactly one run directory, got ${runDirectories.length}`);
+    throw new Error(
+      `Expected exactly one run directory, got ${runDirectories.length}`,
+    );
   }
 
   const runPath = resolve(runsPath, runDirectory);
-  const summary = await readJsonFile(runSummarySchema, resolve(runPath, 'summary.json'));
-  const manifest = await readJsonFile(runManifestSchema, resolve(runPath, 'run.json'));
+  const summary = await readJsonFile(
+    runSummarySchema,
+    resolve(runPath, 'summary.json'),
+  );
+  const manifest = await readJsonFile(
+    runManifestSchema,
+    resolve(runPath, 'run.json'),
+  );
 
   const casesText = await readFile(resolve(runPath, 'cases.jsonl'), 'utf8');
   const cases = casesText
@@ -131,13 +141,7 @@ export async function readSingleRunArtifacts(workspacePath: string): Promise<{
     ),
   );
 
-  return {
-    cases,
-    manifest,
-    summary,
-    traceFiles,
-    traces,
-  };
+  return { cases, manifest, summary, traceFiles, traces };
 }
 
 export function normalizeTextSnapshot(
@@ -198,10 +202,7 @@ export function summarizeTrace(
   }));
 }
 
-function parseJson<T>(
-  schema: { parse(value: unknown): T },
-  text: string,
-): T {
+function parseJson<T>(schema: { parse(value: unknown): T }, text: string): T {
   const parsed: unknown = JSON.parse(text);
   return schema.parse(parsed);
 }
@@ -224,10 +225,7 @@ function normalizeDynamicString(workspacePath: string, value: string): string {
     .replaceAll(`/private${workspacePath}`, '<workspace>')
     .replaceAll(workspacePath, '<workspace>')
     .replaceAll(repoRoot, '<repo>')
-    .replace(
-      /\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z_[a-z0-9]+/g,
-      '<run-id>',
-    )
+    .replace(/\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z_[a-z0-9]+/g, '<run-id>')
     .replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/g, '<timestamp>')
     .replace(/span_\d+_\d+/g, '<span-id>')
     .replace(/http:\/\/127\.0\.0\.1:\d+/g, 'http://127.0.0.1:<port>')

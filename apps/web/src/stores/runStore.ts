@@ -1,15 +1,16 @@
-import { Store } from 't-state';
 import {
   caseDetailSchema,
   caseRowSchema,
   runManifestSchema,
   runSummarySchema,
+  type CacheMode,
   type CaseRow,
   type RunManifest,
   type RunSummary,
   type CaseDetail,
 } from '@agent-evals/shared';
 import { resultify } from 't-result';
+import { Store } from 't-state';
 import { z } from 'zod/v4';
 import { refetchHistory } from './historyStore.ts';
 
@@ -57,14 +58,21 @@ export type RunTarget =
   | { mode: 'all' }
   | { mode: 'evalIds'; evalIds: string[] };
 
-export async function startRun(target: RunTarget): Promise<void> {
+/** Optional run-start options, notably the cache mode. */
+export type StartRunOptions = { cacheMode?: CacheMode };
+
+export async function startRun(
+  target: RunTarget,
+  options: StartRunOptions = {},
+): Promise<void> {
   const { trials } = runStore.state;
+  const cacheMode = options.cacheMode ?? 'use';
 
   const fetchResult = await resultify(() =>
     fetch('/api/runs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ target, trials }),
+      body: JSON.stringify({ target, trials, cache: { mode: cacheMode } }),
     }),
   );
   if (fetchResult.error) return;
@@ -92,10 +100,7 @@ function safeJsonParse(raw: string): unknown {
   return parsed.value;
 }
 
-function safeParseJson<T>(
-  schema: z.ZodType<T>,
-  raw: string,
-): T | null {
+function safeParseJson<T>(schema: z.ZodType<T>, raw: string): T | null {
   const json = safeJsonParse(raw);
   if (json === null) return null;
   const parsed = schema.safeParse(json);
@@ -265,4 +270,37 @@ export function closeRun(): void {
 
 export function setTrials(trials: number): void {
   runStore.setPartialState({ trials });
+}
+
+/**
+ * Delete cache entries scoped to a single eval id.
+ *
+ * Namespace convention is `${evalId}__${spanName}`, so we fetch the list and
+ * delete every namespace matching the prefix.
+ */
+export async function clearCacheForEval(evalId: string): Promise<void> {
+  const listResult = await resultify(() => fetch('/api/cache'));
+  if (listResult.error) return;
+  const jsonResult = await resultify(() => listResult.value.json());
+  if (jsonResult.error) return;
+
+  const parsed = z
+    .array(z.object({ namespace: z.string(), key: z.string() }))
+    .safeParse(jsonResult.value);
+  if (!parsed.success) return;
+
+  const prefix = `${evalId}__`;
+  const matching = parsed.data.filter((entry) =>
+    entry.namespace.startsWith(prefix),
+  );
+  await Promise.all(
+    matching.map((entry) =>
+      resultify(() =>
+        fetch(
+          `/api/cache/${encodeURIComponent(entry.namespace)}/${encodeURIComponent(entry.key)}`,
+          { method: 'DELETE' },
+        ),
+      ),
+    ),
+  );
 }

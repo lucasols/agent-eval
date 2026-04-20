@@ -1,6 +1,6 @@
 import { z } from 'zod/v4';
-import { cellValueSchema, columnDefSchema } from './display.ts';
 import { evalCostSummarySchema } from './cost.ts';
+import { cellValueSchema, columnDefSchema } from './display.ts';
 import { traceDisplayConfigSchema, traceSpanSchema } from './trace.ts';
 
 /** Schema summarizing a discovered eval for list and overview screens. */
@@ -13,7 +13,9 @@ export const evalSummarySchema = z.object({
   stale: z.boolean(),
   columnDefs: z.array(columnDefSchema),
   caseCount: z.number().nullable(),
-  lastRunStatus: z.enum(['pass', 'fail', 'error', 'running', 'cancelled']).nullable(),
+  lastRunStatus: z
+    .enum(['pass', 'fail', 'error', 'running', 'cancelled'])
+    .nullable(),
 });
 /** Metadata shown for one discovered eval in the explorer UI. */
 export type EvalSummary = z.infer<typeof evalSummarySchema>;
@@ -43,11 +45,13 @@ export const caseDetailSchema = z.object({
   cost: evalCostSummarySchema,
   columns: z.record(z.string(), cellValueSchema),
   assertionFailures: z.array(z.string()),
-  error: z.object({
-    name: z.string().optional(),
-    message: z.string(),
-    stack: z.string().optional(),
-  }).nullable(),
+  error: z
+    .object({
+      name: z.string().optional(),
+      message: z.string(),
+      stack: z.string().optional(),
+    })
+    .nullable(),
   trial: z.number(),
 });
 /** Full case payload including inputs, trace, outputs, and failures. */

@@ -16,9 +16,7 @@ afterEach(async () => {
 });
 
 describe('createRunner', () => {
-  test(
-    'emits discovery updates after refreshing changed eval files',
-    async () => {
+  test('emits discovery updates after refreshing changed eval files', async () => {
     const workspacePath = await mkdtemp(
       join(tmpdir(), 'agent-evals-runner-watch-'),
     );
@@ -84,7 +82,5 @@ defineEval({
     } finally {
       process.chdir(previousCwd);
     }
-    },
-    10_000,
-  );
+  }, 10_000);
 });

@@ -1,6 +1,6 @@
-import { Store } from 't-state';
 import { evalSummarySchema, type EvalSummary } from '@agent-evals/shared';
 import { resultify } from 't-result';
+import { Store } from 't-state';
 import { z } from 'zod/v4';
 
 const evalSummariesSchema = z.array(evalSummarySchema);
@@ -37,7 +37,9 @@ async function loadEvals(url: string, init?: RequestInit): Promise<void> {
     });
     return;
   }
-  const parseResult = resultify(() => evalSummariesSchema.parse(jsonResult.value));
+  const parseResult = resultify(() =>
+    evalSummariesSchema.parse(jsonResult.value),
+  );
   if (parseResult.error) {
     evalsStore.setPartialState({
       loading: false,
