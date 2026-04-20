@@ -26,7 +26,7 @@ const _ = createGlobalStyle`
     font-feature-settings: 'tnum', 'ss01', 'cv02';
     background: ${colors.bg.var};
     color: ${colors.text.var};
-    font-size: 12.5px;
+    font-size: 16px;
     line-height: 1.45;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

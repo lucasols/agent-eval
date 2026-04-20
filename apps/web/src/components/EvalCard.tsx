@@ -100,6 +100,12 @@ const MetaAccent = styled.span`
   color: ${colors.accent.var};
 `;
 
+const MetaPath = styled.span`
+  ${monoFont}
+  ${ellipsis}
+  min-width: 0;
+`;
+
 const HeaderLeft = styled.div`
   ${inline({ gap: 12, align: 'center' })}
   min-width: 0;
@@ -388,6 +394,10 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const pathSegments = evalSummary.filePath.split('/');
   const filename =
     pathSegments[pathSegments.length - 1] ?? evalSummary.filePath;
+  const parentFolder = pathSegments[pathSegments.length - 2];
+  const compactFilePath = parentFolder
+    ? `${parentFolder}/${filename}`
+    : filename;
 
   return (
     <Card
@@ -412,7 +422,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
                 <MetaDivider />
               </>
             ) : null}
-            <span>{filename}</span>
+            <MetaPath title={evalSummary.filePath}>{compactFilePath}</MetaPath>
           </Meta>
         ) : null}
         <HeaderTopRow>
@@ -429,10 +439,12 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
                 </Title>
                 {evalSummary.stale ? <StaleBadge>stale</StaleBadge> : null}
               </TitleRow>
-              <FilePath title={evalSummary.filePath}>
-                <FilePathPrefix>›</FilePathPrefix>
-                {evalSummary.filePath}
-              </FilePath>
+              {isSingle ? null : (
+                <FilePath title={evalSummary.filePath}>
+                  <FilePathPrefix>›</FilePathPrefix>
+                  {evalSummary.filePath}
+                </FilePath>
+              )}
             </TitleBlock>
           </HeaderLeft>
           <HeaderRight onClick={(e) => e.stopPropagation()}>

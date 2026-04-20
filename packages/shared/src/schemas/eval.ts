@@ -8,6 +8,7 @@ export const evalSummarySchema = z.object({
   id: z.string(),
   title: z.string().optional(),
   description: z.string().optional(),
+  /** Eval file path relative to the active workspace root. */
   filePath: z.string(),
   stale: z.boolean(),
   columnDefs: z.array(columnDefSchema),
