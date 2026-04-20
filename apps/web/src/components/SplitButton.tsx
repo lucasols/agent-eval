@@ -30,105 +30,6 @@ type SplitButtonProps = {
   'aria-label'?: string;
 };
 
-/**
- * Button composed of a primary action plus a chevron-triggered menu of
- * secondary actions.
- *
- * Used on `EvalCard` to expose cache mode controls (run normally, no cache,
- * refresh, clear) alongside the default Run action.
- */
-export function SplitButton({
-  label,
-  leftIcon,
-  disabled,
-  onPrimaryClick,
-  menu,
-  'aria-label': ariaLabel,
-}: SplitButtonProps) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onClickAway(event: MouseEvent) {
-      if (
-        rootRef.current &&
-        event.target instanceof Node &&
-        !rootRef.current.contains(event.target)
-      ) {
-        setOpen(false);
-      }
-    }
-    function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false);
-    }
-    document.addEventListener('mousedown', onClickAway);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onClickAway);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
-  return (
-    <Root ref={rootRef}>
-      <PrimaryRow>
-        <Primary
-          type="button"
-          onClick={onPrimaryClick}
-          disabled={disabled}
-          aria-label={ariaLabel}
-        >
-          {leftIcon}
-          <span>{label}</span>
-        </Primary>
-        <Chevron
-          type="button"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          aria-label="Show more actions"
-          disabled={disabled}
-          onClick={(event) => {
-            event.stopPropagation();
-            setOpen((value) => !value);
-          }}
-          isOpen={open}
-        >
-          <ChevronDown />
-        </Chevron>
-      </PrimaryRow>
-
-      {open ? (
-        <Menu
-          role="menu"
-          onClick={(event) => event.stopPropagation()}
-        >
-          {menu.map((entry, index) =>
-            'kind' in entry ? (
-              <Separator key={`sep-${String(index)}`} />
-            ) : (
-              <MenuItem
-                key={entry.id}
-                role="menuitem"
-                danger={entry.tone === 'danger'}
-                onClick={() => {
-                  setOpen(false);
-                  entry.onSelect();
-                }}
-              >
-                <ItemLabel>{entry.label}</ItemLabel>
-                {entry.description ? (
-                  <ItemDescription>{entry.description}</ItemDescription>
-                ) : null}
-              </MenuItem>
-            ),
-          )}
-        </Menu>
-      ) : null}
-    </Root>
-  );
-}
-
 const Root = styled.div`
   position: relative;
   display: inline-flex;
@@ -177,7 +78,7 @@ const Primary = styled.button`
   }
 `;
 
-const Chevron = styled.button<{ isOpen: boolean }>`
+const Chevron = styled.button<{ open: boolean }>`
   ${transition({ property: 'background, border-color, color' })}
   display: inline-flex;
   align-items: center;
@@ -197,7 +98,7 @@ const Chevron = styled.button<{ isOpen: boolean }>`
     transition: transform 0.18s ease;
   }
 
-  &.isOpen > svg {
+  &.open > svg {
     transform: rotate(180deg);
   }
 
@@ -261,3 +162,102 @@ const Separator = styled.div`
   background: ${colors.border.var};
   margin: 4px 0;
 `;
+
+/**
+ * Button composed of a primary action plus a chevron-triggered menu of
+ * secondary actions.
+ *
+ * Used on `EvalCard` to expose cache mode controls (run normally, no cache,
+ * refresh, clear) alongside the default Run action.
+ */
+export function SplitButton({
+  label,
+  leftIcon,
+  disabled,
+  onPrimaryClick,
+  menu,
+  'aria-label': ariaLabel,
+}: SplitButtonProps) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClickAway(event: MouseEvent) {
+      if (
+        rootRef.current &&
+        event.target instanceof Node &&
+        !rootRef.current.contains(event.target)
+      ) {
+        setOpen(false);
+      }
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onClickAway);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClickAway);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <Root ref={rootRef}>
+      <PrimaryRow>
+        <Primary
+          type="button"
+          onClick={onPrimaryClick}
+          disabled={disabled}
+          aria-label={ariaLabel}
+        >
+          {leftIcon}
+          <span>{label}</span>
+        </Primary>
+        <Chevron
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label="Show more actions"
+          disabled={disabled}
+          onClick={(event) => {
+            event.stopPropagation();
+            setOpen((value) => !value);
+          }}
+          open={open}
+        >
+          <ChevronDown />
+        </Chevron>
+      </PrimaryRow>
+
+      {open ? (
+        <Menu
+          role="menu"
+          onClick={(event) => event.stopPropagation()}
+        >
+          {menu.map((entry, index) =>
+            'kind' in entry ? (
+              <Separator key={`sep-${String(index)}`} />
+            ) : (
+              <MenuItem
+                key={entry.id}
+                role="menuitem"
+                danger={entry.tone === 'danger'}
+                onClick={() => {
+                  setOpen(false);
+                  entry.onSelect();
+                }}
+              >
+                <ItemLabel>{entry.label}</ItemLabel>
+                {entry.description ? (
+                  <ItemDescription>{entry.description}</ItemDescription>
+                ) : null}
+              </MenuItem>
+            ),
+          )}
+        </Menu>
+      ) : null}
+    </Root>
+  );
+}
