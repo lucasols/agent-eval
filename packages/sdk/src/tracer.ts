@@ -7,6 +7,7 @@ import type {
   SerializedCacheSpan,
   SpanCacheOptions,
 } from '@agent-evals/shared';
+import { getCompositeKey } from '@ls-stack/utils/getCompositeKey';
 import type { CacheRecordingFrame, EvalCaseScope } from './runtime.ts';
 import { getCurrentScope } from './runtime.ts';
 import type { EvalTraceTree } from './types.ts';
@@ -334,32 +335,13 @@ export function buildTraceTree(
   };
 }
 
-function stableStringify(value: unknown): string {
-  if (value === undefined) return 'undefined';
-  if (value === null || typeof value !== 'object') {
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map(stableStringify).join(',')}]`;
-  }
-  const entries: [string, unknown][] = Object.entries(value);
-  entries.sort(([a], [b]) =>
-    a < b ? -1
-    : a > b ? 1
-    : 0,
-  );
-  return `{${entries
-    .map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`)
-    .join(',')}}`;
-}
-
 /** Hash the components of a cache key into a deterministic hex digest. */
 export function hashCacheKey(input: {
   namespace: string;
   codeFingerprint: string;
   key: unknown;
 }): string {
-  return createHash('sha256').update(stableStringify(input)).digest('hex');
+  return createHash('sha256').update(getCompositeKey(input)).digest('hex');
 }
 
 function toJsonSafe(value: unknown): unknown {
