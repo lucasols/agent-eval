@@ -304,3 +304,25 @@ export async function clearCacheForEval(evalId: string): Promise<void> {
     ),
   );
 }
+
+export async function recomputeStatusesForEval(evalId: string): Promise<void> {
+  await resultify(() =>
+    fetch(`/api/runs/actions/recompute-status/${encodeURIComponent(evalId)}`, {
+      method: 'POST',
+    }),
+  );
+  closeRun();
+  closeCase();
+  await refetchHistory();
+}
+
+export async function cleanRunsForEval(evalId: string): Promise<void> {
+  await resultify(() =>
+    fetch(`/api/runs/actions/clean/${encodeURIComponent(evalId)}`, {
+      method: 'POST',
+    }),
+  );
+  closeRun();
+  closeCase();
+  await refetchHistory();
+}

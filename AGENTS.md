@@ -214,7 +214,7 @@ Common anti-patterns to avoid:
 
 ## Async actions
 
-Use `useActionFn` from `@ls-stack/react-utils` instead of tracking progress with `useState`:
+Use `useActionFn` from `@ls-stack/react-utils/useActionFn` instead of tracking progress with `useState`:
 
 ```tsx
 const doSomething = useActionFn(async (...args) => {

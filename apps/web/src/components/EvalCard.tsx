@@ -14,7 +14,13 @@ import {
 } from '#src/style/helpers';
 import { evalsStore } from '../stores/evalsStore.ts';
 import { getRunsForEval, historyStore } from '../stores/historyStore.ts';
-import { clearCacheForEval, runStore, startRun } from '../stores/runStore.ts';
+import {
+  cleanRunsForEval,
+  clearCacheForEval,
+  recomputeStatusesForEval,
+  runStore,
+  startRun,
+} from '../stores/runStore.ts';
 import { selectFolder } from '../stores/selectionStore.ts';
 import { getDisplayFolderSegments } from '../utils/buildEvalTree.ts';
 import { buildEvalScopedRunRows } from '../utils/evalRuns.ts';
@@ -25,6 +31,7 @@ import {
 } from '../utils/formatters.ts';
 import { EvalRunsChart } from './EvalRunsChart.tsx';
 import { EvalRunsTable } from './EvalRunsTable.tsx';
+import { MenuButton } from './MenuButton.tsx';
 import { SplitButton, type SplitButtonMenuEntry } from './SplitButton.tsx';
 
 type EvalCardProps = { evalSummary: EvalSummary; mode: 'single' | 'stacked' };
@@ -257,6 +264,9 @@ const SectionMeta = styled.span`
 
 export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [maintenanceAction, setMaintenanceAction] = useState<
+    'recompute' | 'clean' | null
+  >(null);
   const isStacked = mode === 'stacked';
   const isSingle = mode === 'single';
 
@@ -363,6 +373,45 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     },
   ];
 
+  async function handleRecomputeStatuses() {
+    setMaintenanceAction('recompute');
+    try {
+      await recomputeStatusesForEval(evalSummary.id);
+    } finally {
+      setMaintenanceAction(null);
+    }
+  }
+
+  async function handleCleanRuns() {
+    setMaintenanceAction('clean');
+    try {
+      await cleanRunsForEval(evalSummary.id);
+    } finally {
+      setMaintenanceAction(null);
+    }
+  }
+
+  const moreMenu: SplitButtonMenuEntry[] = [
+    {
+      id: 'recompute-status',
+      label: 'Recompute status',
+      description:
+        'Recalculate statuses for saved runs that touched this eval.',
+      onSelect: () => {
+        void handleRecomputeStatuses();
+      },
+    },
+    {
+      id: 'clean-runs',
+      label: 'Clean runs',
+      description: 'Delete saved terminal runs that touched this eval.',
+      tone: 'danger',
+      onSelect: () => {
+        void handleCleanRuns();
+      },
+    },
+  ];
+
   const showBody = !isStacked || !collapsed;
 
   function onHeaderClick() {
@@ -443,6 +492,11 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
               disabled={isRunning}
               menu={cacheMenu}
               aria-label="Run"
+            />
+            <MenuButton
+              menu={moreMenu}
+              disabled={maintenanceAction !== null}
+              aria-label="More eval actions"
             />
           </HeaderRight>
         </HeaderTopRow>

@@ -584,4 +584,273 @@ defineEval({
       process.chdir(previousCwd);
     }
   }, 10_000);
+
+  test('recomputes persisted statuses for runs touching one eval', async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), 'agent-evals-runner-recompute-status-'),
+    );
+    createdWorkspaces.push(workspacePath);
+
+    await mkdir(join(workspacePath, 'evals'), { recursive: true });
+    await mkdir(
+      join(
+        workspacePath,
+        '.agent-evals',
+        'runs',
+        '2026-04-21T12-10-00Z_recompute',
+        'case-details',
+      ),
+      { recursive: true },
+    );
+
+    await writeFile(
+      join(workspacePath, 'agent-evals.config.ts'),
+      `export default {
+  include: ['evals/**/*.eval.ts'],
+};
+`,
+    );
+    await writeFile(
+      join(workspacePath, 'evals', 'recompute.eval.ts'),
+      `import { defineEval } from '@agent-evals/sdk';
+
+defineEval({
+  id: 'recompute-eval',
+  title: 'Recompute Eval',
+  cases: [{ id: 'old-case', input: {} }],
+  execute: async () => {},
+  scores: {
+    quality: {
+      label: 'Quality',
+      compute: () => 0.2,
+    },
+  },
+});
+`,
+    );
+
+    await writeFile(
+      join(
+        workspacePath,
+        '.agent-evals',
+        'runs',
+        '2026-04-21T12-10-00Z_recompute',
+        'run.json',
+      ),
+      JSON.stringify(
+        {
+          id: '2026-04-21T12-10-00Z_recompute',
+          shortId: 'r0',
+          status: 'completed',
+          startedAt: '2026-04-21T12:10:00.000Z',
+          endedAt: '2026-04-21T12:10:01.000Z',
+          target: { mode: 'evalIds', evalIds: ['recompute-eval'] },
+          trials: 1,
+          cacheMode: 'use',
+        },
+        null,
+        2,
+      ),
+    );
+    await writeFile(
+      join(
+        workspacePath,
+        '.agent-evals',
+        'runs',
+        '2026-04-21T12-10-00Z_recompute',
+        'summary.json',
+      ),
+      JSON.stringify(
+        {
+          runId: '2026-04-21T12-10-00Z_recompute',
+          status: 'completed',
+          totalCases: 1,
+          passedCases: 1,
+          failedCases: 0,
+          errorCases: 0,
+          cancelledCases: 0,
+          averageScore: 0.2,
+          totalDurationMs: 1000,
+          cost: { totalUsd: null },
+          errorMessage: null,
+        },
+        null,
+        2,
+      ),
+    );
+    await writeFile(
+      join(
+        workspacePath,
+        '.agent-evals',
+        'runs',
+        '2026-04-21T12-10-00Z_recompute',
+        'cases.jsonl',
+      ),
+      `${JSON.stringify({
+        caseId: 'old-case',
+        evalId: 'recompute-eval',
+        status: 'pass',
+        score: 0.2,
+        latencyMs: 111,
+        costUsd: null,
+        columns: { quality: 0.2 },
+        trial: 0,
+      })}
+`,
+    );
+    await writeFile(
+      join(
+        workspacePath,
+        '.agent-evals',
+        'runs',
+        '2026-04-21T12-10-00Z_recompute',
+        'case-details',
+        'old-case.json',
+      ),
+      JSON.stringify(
+        {
+          caseId: 'old-case',
+          evalId: 'recompute-eval',
+          status: 'pass',
+          input: {},
+          trace: [],
+          traceDisplay: { attributes: [] },
+          cost: { totalUsd: null },
+          columns: { quality: 0.2 },
+          assertionFailures: [],
+          error: null,
+          trial: 0,
+        },
+        null,
+        2,
+      ),
+    );
+
+    const previousCwd = process.cwd();
+    process.chdir(workspacePath);
+
+    try {
+      const runner = createRunner({ watchForChanges: false });
+      await runner.init();
+
+      const result = await runner.recomputeStatusesForEval('recompute-eval');
+
+      expect(result.updatedRuns).toBe(1);
+      expect(
+        runner.getRun('2026-04-21T12-10-00Z_recompute')?.cases[0]?.status,
+      ).toBe('fail');
+      expect(runner.getEval('recompute-eval')?.lastRunStatus).toBe('fail');
+    } finally {
+      process.chdir(previousCwd);
+    }
+  });
+
+  test('cleans terminal runs touching one eval', async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), 'agent-evals-runner-clean-runs-'),
+    );
+    createdWorkspaces.push(workspacePath);
+
+    await mkdir(join(workspacePath, 'evals'), { recursive: true });
+    await mkdir(
+      join(
+        workspacePath,
+        '.agent-evals',
+        'runs',
+        '2026-04-21T12-20-00Z_clean',
+        'case-details',
+      ),
+      { recursive: true },
+    );
+
+    await writeFile(
+      join(workspacePath, 'agent-evals.config.ts'),
+      `export default {
+  include: ['evals/**/*.eval.ts'],
+};
+`,
+    );
+    await writeFile(
+      join(workspacePath, 'evals', 'cleanup.eval.ts'),
+      `import { defineEval } from '@agent-evals/sdk';
+
+defineEval({ id: 'cleanup-eval', title: 'Cleanup Eval' });
+`,
+    );
+    await writeFile(
+      join(
+        workspacePath,
+        '.agent-evals',
+        'runs',
+        '2026-04-21T12-20-00Z_clean',
+        'run.json',
+      ),
+      JSON.stringify(
+        {
+          id: '2026-04-21T12-20-00Z_clean',
+          shortId: 'r0',
+          status: 'completed',
+          startedAt: '2026-04-21T12:20:00.000Z',
+          endedAt: '2026-04-21T12:20:01.000Z',
+          target: { mode: 'evalIds', evalIds: ['cleanup-eval'] },
+          trials: 1,
+          cacheMode: 'use',
+        },
+        null,
+        2,
+      ),
+    );
+    await writeFile(
+      join(
+        workspacePath,
+        '.agent-evals',
+        'runs',
+        '2026-04-21T12-20-00Z_clean',
+        'summary.json',
+      ),
+      JSON.stringify(
+        {
+          runId: '2026-04-21T12-20-00Z_clean',
+          status: 'completed',
+          totalCases: 0,
+          passedCases: 0,
+          failedCases: 0,
+          errorCases: 0,
+          cancelledCases: 0,
+          averageScore: null,
+          totalDurationMs: 1000,
+          cost: { totalUsd: null },
+          errorMessage: null,
+        },
+        null,
+        2,
+      ),
+    );
+    await writeFile(
+      join(
+        workspacePath,
+        '.agent-evals',
+        'runs',
+        '2026-04-21T12-20-00Z_clean',
+        'cases.jsonl',
+      ),
+      '',
+    );
+
+    const previousCwd = process.cwd();
+    process.chdir(workspacePath);
+
+    try {
+      const runner = createRunner({ watchForChanges: false });
+      await runner.init();
+
+      const result = await runner.cleanRunsForEval('cleanup-eval');
+
+      expect(result.deletedRuns).toBe(1);
+      expect(runner.getRuns()).toHaveLength(0);
+      expect(runner.getEval('cleanup-eval')?.lastRunStatus).toBe(null);
+    } finally {
+      process.chdir(previousCwd);
+    }
+  });
 });

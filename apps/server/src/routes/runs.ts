@@ -10,6 +10,18 @@ export const runsRoutes = new Hono()
     const runs = runner.getRuns();
     return c.json(runs, 200);
   })
+  .post('/actions/recompute-status/:evalId', async (c) => {
+    const evalId = c.req.param('evalId');
+    const runner = getRunnerInstance();
+    const result = await runner.recomputeStatusesForEval(evalId);
+    return c.json(result, 200);
+  })
+  .post('/actions/clean/:evalId', async (c) => {
+    const evalId = c.req.param('evalId');
+    const runner = getRunnerInstance();
+    const result = await runner.cleanRunsForEval(evalId);
+    return c.json(result, 200);
+  })
   .post('/', zValidator('json', createRunRequestSchema), async (c) => {
     const body = c.req.valid('json');
     const runner = getRunnerInstance();

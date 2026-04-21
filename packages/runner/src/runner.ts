@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import { resolve, join, relative } from 'node:path';
 import {
   getEvalRegistry,
@@ -41,6 +41,11 @@ import {
 } from './columnBuilder.ts';
 import { loadConfig } from './config.ts';
 import { parseEvalMetas } from './discovery.ts';
+import {
+  persistRunState,
+  recomputeEvalStatusesInRuns,
+  runTouchesEval,
+} from './runMaintenance.ts';
 import {
   generateRunId,
   getLastRunStatuses,
@@ -90,6 +95,10 @@ export type EvalRunner = {
    * supplied.
    */
   clearCache(filter?: CacheClearFilter): Promise<void>;
+  /** Recompute persisted case and run statuses for terminal runs touching one eval. */
+  recomputeStatusesForEval(evalId: string): Promise<{ updatedRuns: number }>;
+  /** Delete terminal persisted runs that touch one eval from in-memory history and disk. */
+  cleanRunsForEval(evalId: string): Promise<{ deletedRuns: number }>;
 };
 
 type CreateRunnerOptions = { watchForChanges?: boolean };
@@ -170,6 +179,56 @@ export function createRunner({
     },
     async clearCache(filter) {
       await cacheStore.clear(filter);
+    },
+    async recomputeStatusesForEval(evalId) {
+      const evalMeta = evals.get(evalId);
+      if (!evalMeta) return { updatedRuns: 0 };
+
+      const registry = getEvalRegistry();
+      await import(evalMeta.sourceFilePath);
+      const entry = registry.get(evalId);
+      if (!entry) return { updatedRuns: 0 };
+
+      const scoreThresholds = new Map<string, number>();
+      entry.use((evalDef) => {
+        for (const [key, def] of Object.entries(evalDef.scores ?? {})) {
+          scoreThresholds.set(key, normalizeScoreDef(def).passThreshold ?? 0.5);
+        }
+      });
+
+      const updatedRuns = await recomputeEvalStatusesInRuns({
+        runs: runs.values(),
+        evalId,
+        evalExists: evals.has(evalId),
+        scoreThresholds,
+        persistCaseDetail,
+      });
+
+      emitDiscoveryEvent();
+      return { updatedRuns };
+    },
+    async cleanRunsForEval(evalId) {
+      let deletedRuns = 0;
+      for (const [runId, run] of [...runs]) {
+        if (
+          !runTouchesEval({
+            target: run.manifest.target,
+            caseRows: run.cases,
+            evalId,
+            evalExists: evals.has(evalId),
+          })
+        ) {
+          continue;
+        }
+        if (run.manifest.status === 'running') continue;
+
+        runs.delete(runId);
+        await rm(run.runDir, { recursive: true, force: true });
+        deletedRuns += 1;
+      }
+
+      emitDiscoveryEvent();
+      return { deletedRuns };
     },
     getEvals() {
       const result: EvalSummary[] = [];
@@ -589,18 +648,7 @@ export function createRunner({
         });
       }
 
-      await writeFile(
-        join(runDir, 'summary.json'),
-        JSON.stringify(runState.summary, null, 2),
-      );
-
-      await writeFile(
-        join(runDir, 'run.json'),
-        JSON.stringify(runState.manifest, null, 2),
-      );
-
-      const casesJsonl = allCaseRows.map((c) => JSON.stringify(c)).join('\n');
-      await writeFile(join(runDir, 'cases.jsonl'), casesJsonl);
+      await persistRunState(runState);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       runState.manifest.status = 'error';
@@ -615,14 +663,7 @@ export function createRunner({
         payload: { message },
       });
 
-      await writeFile(
-        join(runDir, 'summary.json'),
-        JSON.stringify(runState.summary, null, 2),
-      );
-      await writeFile(
-        join(runDir, 'run.json'),
-        JSON.stringify(runState.manifest, null, 2),
-      );
+      await persistRunState(runState);
     }
   }
 
