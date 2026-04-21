@@ -48,11 +48,13 @@ const TableWrap = styled.div`
   border: 1px solid ${colors.border.var};
   border-radius: var(--radius-lg);
   background: ${colors.bg.var};
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
 `;
 
 const Table = styled.table`
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   font-size: 12px;
   table-layout: auto;
