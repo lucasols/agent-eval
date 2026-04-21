@@ -204,6 +204,22 @@ function annotateEvalCounts(folder: TreeFolder): number {
   return total;
 }
 
+export function collectCollapsiblePaths(nodes: TreeNode[]): string[] {
+  const paths: string[] = [];
+  function walk(node: TreeNode): void {
+    if (node.kind === 'folder') {
+      paths.push(node.path);
+      for (const child of node.children) walk(child);
+      return;
+    }
+    if (node.kind === 'file') {
+      paths.push(node.path);
+    }
+  }
+  for (const node of nodes) walk(node);
+  return paths;
+}
+
 export function collectNodeEvals(node: TreeNode): EvalSummary[] {
   if (node.kind === 'leaf') return [node.evalSummary];
   if (node.kind === 'file') return node.evals;

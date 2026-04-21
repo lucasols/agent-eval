@@ -12,6 +12,8 @@ export const evalSummarySchema = z.object({
   filePath: z.string(),
   stale: z.boolean(),
   columnDefs: z.array(columnDefSchema),
+  /** Effective eval-level average score threshold. Defaults to `0.5`. */
+  passThreshold: z.number().optional(),
   caseCount: z.number().nullable(),
   lastRunStatus: z
     .enum(['pass', 'fail', 'error', 'running', 'cancelled'])

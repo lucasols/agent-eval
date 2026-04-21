@@ -26,6 +26,7 @@ import {
   formatTimestamp,
 } from '../utils/formatters.ts';
 import { StatusBadge } from './StatusBadge.tsx';
+import { Tooltip } from './Tooltip.tsx';
 
 export type RunRow = {
   manifest: RunManifest;
@@ -33,7 +34,11 @@ export type RunRow = {
   cases: CaseRow[];
 };
 
-type EvalRunsTableProps = { runs: RunRow[]; columnDefs: ColumnDef[] };
+type EvalRunsTableProps = {
+  runs: RunRow[];
+  columnDefs: ColumnDef[];
+  passThreshold: number;
+};
 
 const Empty = styled.div`
   padding: 30px 24px;
@@ -48,8 +53,12 @@ const TableWrap = styled.div`
   border: 1px solid ${colors.border.var};
   border-radius: var(--radius-lg);
   background: ${colors.bg.var};
+  overflow: hidden;
+`;
+
+const TableScroll = styled.div`
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: visible;
 `;
 
 const Table = styled.table`
@@ -62,6 +71,9 @@ const Table = styled.table`
 
 const Th = styled.th<{ rightAlign: boolean; indent: boolean }>`
   ${kicker};
+  position: sticky;
+  top: 0;
+  z-index: 1;
   padding: 10px 16px;
   background: ${colors.bgElevated.var};
   border-bottom: 1px solid ${colors.border.var};
@@ -259,6 +271,10 @@ const ScoreText = styled.span`
   font-weight: 500;
 `;
 
+const ScoreCellWrap = styled.span`
+  ${inline({ gap: 0, align: 'center' })}
+`;
+
 const CostText = styled.span`
   color: ${colors.cost.var};
 `;
@@ -295,7 +311,11 @@ function formatCellValue(c: ColumnDef, value: CellValue | undefined): string {
   return String(value);
 }
 
-export function EvalRunsTable({ runs, columnDefs }: EvalRunsTableProps) {
+export function EvalRunsTable({
+  runs,
+  columnDefs,
+  passThreshold,
+}: EvalRunsTableProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
     const latest = runs[0];
     return latest ? new Set([latest.manifest.id]) : new Set();
@@ -323,70 +343,73 @@ export function EvalRunsTable({ runs, columnDefs }: EvalRunsTableProps) {
 
   return (
     <TableWrap>
-      <Table>
-        <thead>
-          <tr>
-            <Th
-              rightAlign={false}
-              indent={false}
-            >
-              Case
-            </Th>
-            <Th
-              rightAlign={false}
-              indent={false}
-            >
-              Status
-            </Th>
-            <Th
-              rightAlign={true}
-              indent={false}
-            >
-              Score
-            </Th>
-            <Th
-              rightAlign={true}
-              indent={false}
-            >
-              Latency
-            </Th>
-            <Th
-              rightAlign={true}
-              indent={false}
-            >
-              Cases
-            </Th>
-            <Th
-              rightAlign={true}
-              indent={false}
-            >
-              Cost
-            </Th>
-            {customColumns.map((c) => (
+      <TableScroll>
+        <Table>
+          <thead>
+            <tr>
               <Th
-                key={c.key}
-                rightAlign={c.align === 'right'}
+                rightAlign={false}
                 indent={false}
               >
-                {c.label}
+                Case
               </Th>
+              <Th
+                rightAlign={false}
+                indent={false}
+              >
+                Status
+              </Th>
+              <Th
+                rightAlign={true}
+                indent={false}
+              >
+                Score
+              </Th>
+              <Th
+                rightAlign={true}
+                indent={false}
+              >
+                Latency
+              </Th>
+              <Th
+                rightAlign={true}
+                indent={false}
+              >
+                Cases
+              </Th>
+              <Th
+                rightAlign={true}
+                indent={false}
+              >
+                Cost
+              </Th>
+              {customColumns.map((c) => (
+                <Th
+                  key={c.key}
+                  rightAlign={c.align === 'right'}
+                  indent={false}
+                >
+                  {c.label}
+                </Th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {runs.map((run, idx) => (
+              <RunGroup
+                key={run.manifest.id}
+                run={run}
+                isLatest={idx === 0}
+                expanded={expandedIds.has(run.manifest.id)}
+                onToggle={toggleExpanded}
+                customColumns={customColumns}
+                passThreshold={passThreshold}
+                totalCols={totalCols}
+              />
             ))}
-          </tr>
-        </thead>
-        <tbody>
-          {runs.map((run, idx) => (
-            <RunGroup
-              key={run.manifest.id}
-              run={run}
-              isLatest={idx === 0}
-              expanded={expandedIds.has(run.manifest.id)}
-              onToggle={toggleExpanded}
-              customColumns={customColumns}
-              totalCols={totalCols}
-            />
-          ))}
-        </tbody>
-      </Table>
+          </tbody>
+        </Table>
+      </TableScroll>
     </TableWrap>
   );
 }
@@ -394,9 +417,11 @@ export function EvalRunsTable({ runs, columnDefs }: EvalRunsTableProps) {
 function ScoreCell({
   score,
   status,
+  passThreshold,
 }: {
   score: number | null;
   status?: CaseRow['status'];
+  passThreshold: number;
 }) {
   if (score === null) return <Dim>{'\u2014'}</Dim>;
   const tone: 'pass' | 'partial' | 'fail' =
@@ -409,18 +434,21 @@ function ScoreCell({
           : score >= 0.4
             ? 'partial'
             : 'fail';
+  const tooltipContent = `Pass threshold: ${formatScore(passThreshold)}`;
   return (
-    <>
-      <ScoreBar>
-        <ScoreBarFill
-          pass={tone === 'pass'}
-          partial={tone === 'partial'}
-          fail={tone === 'fail'}
-          style={{ width: `${score * 100}%` }}
-        />
-      </ScoreBar>
-      <ScoreText>{formatScore(score)}</ScoreText>
-    </>
+    <Tooltip content={tooltipContent}>
+      <ScoreCellWrap>
+        <ScoreBar>
+          <ScoreBarFill
+            pass={tone === 'pass'}
+            partial={tone === 'partial'}
+            fail={tone === 'fail'}
+            style={{ width: `${score * 100}%` }}
+          />
+        </ScoreBar>
+        <ScoreText>{formatScore(score)}</ScoreText>
+      </ScoreCellWrap>
+    </Tooltip>
   );
 }
 
@@ -430,6 +458,7 @@ function RunGroup({
   expanded,
   onToggle,
   customColumns,
+  passThreshold,
   totalCols,
 }: {
   run: RunRow;
@@ -437,6 +466,7 @@ function RunGroup({
   expanded: boolean;
   onToggle: (id: string) => void;
   customColumns: ColumnDef[];
+  passThreshold: number;
   totalCols: number;
 }) {
   const { manifest, summary, cases } = run;
@@ -497,6 +527,7 @@ function RunGroup({
           <ScoreCell
             score={summary.averageScore}
             status={summary.status}
+            passThreshold={passThreshold}
           />
         </RunHeaderTd>
         <RunHeaderTd
@@ -575,6 +606,7 @@ function RunGroup({
                 <ScoreCell
                   score={row.score}
                   status={row.status}
+                  passThreshold={passThreshold}
                 />
               </CaseTd>
               <CaseTd

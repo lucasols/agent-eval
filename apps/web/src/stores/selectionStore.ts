@@ -5,7 +5,7 @@ export type Selection =
   | { kind: 'eval'; id: string }
   | { kind: 'folder'; path: string };
 
-type SelectionState = { selection: Selection; expandedFolders: Set<string> };
+type SelectionState = { selection: Selection; collapsedFolders: Set<string> };
 
 function readSelectionFromUrl(): Selection {
   if (typeof window === 'undefined') return { kind: 'none' };
@@ -17,24 +17,18 @@ function readSelectionFromUrl(): Selection {
   return { kind: 'none' };
 }
 
-function expandedFoldersForSelection(selection: Selection): Set<string> {
-  const expanded = new Set<string>();
-  if (selection.kind !== 'folder') return expanded;
-  const parts = selection.path.split('/');
-  for (let i = 1; i <= parts.length; i++) {
-    expanded.add(parts.slice(0, i).join('/'));
-  }
-  return expanded;
-}
-
 const initialSelection = readSelectionFromUrl();
 
 export const selectionStore = new Store<SelectionState>({
-  state: {
-    selection: initialSelection,
-    expandedFolders: expandedFoldersForSelection(initialSelection),
-  },
+  state: { selection: initialSelection, collapsedFolders: new Set<string>() },
 });
+
+export function isFolderExpanded(
+  collapsedFolders: Set<string>,
+  path: string,
+): boolean {
+  return !collapsedFolders.has(path);
+}
 
 function selectionToSearch(selection: Selection): string {
   const params = new URLSearchParams(window.location.search);
@@ -74,35 +68,50 @@ export function clearSelection(): void {
 
 export function toggleFolder(path: string): void {
   selectionStore.setState((prev) => {
-    const next = new Set(prev.expandedFolders);
+    const next = new Set(prev.collapsedFolders);
     if (next.has(path)) {
       next.delete(path);
     } else {
       next.add(path);
     }
-    return { ...prev, expandedFolders: next };
+    return { ...prev, collapsedFolders: next };
   });
 }
 
 export function expandFolder(path: string): void {
   selectionStore.setState((prev) => {
-    if (prev.expandedFolders.has(path)) return prev;
-    const next = new Set(prev.expandedFolders);
-    next.add(path);
-    return { ...prev, expandedFolders: next };
+    if (!prev.collapsedFolders.has(path)) return prev;
+    const next = new Set(prev.collapsedFolders);
+    next.delete(path);
+    return { ...prev, collapsedFolders: next };
   });
+}
+
+export function expandAllFolders(): void {
+  selectionStore.setState((prev) => {
+    if (prev.collapsedFolders.size === 0) return prev;
+    return { ...prev, collapsedFolders: new Set<string>() };
+  });
+}
+
+export function collapseAllFolders(paths: string[]): void {
+  selectionStore.setState((prev) => ({
+    ...prev,
+    collapsedFolders: new Set(paths),
+  }));
 }
 
 if (typeof window !== 'undefined') {
   window.addEventListener('popstate', () => {
     const selection = readSelectionFromUrl();
-    selectionStore.setState((prev) => ({
-      ...prev,
-      selection,
-      expandedFolders: new Set([
-        ...prev.expandedFolders,
-        ...expandedFoldersForSelection(selection),
-      ]),
-    }));
+    selectionStore.setState((prev) => {
+      if (selection.kind !== 'folder') return { ...prev, selection };
+      const collapsed = new Set(prev.collapsedFolders);
+      const parts = selection.path.split('/');
+      for (let i = 1; i <= parts.length; i++) {
+        collapsed.delete(parts.slice(0, i).join('/'));
+      }
+      return { ...prev, selection, collapsedFolders: collapsed };
+    });
   });
 }

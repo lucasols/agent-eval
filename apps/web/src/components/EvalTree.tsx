@@ -13,6 +13,7 @@ import { evalsStore } from '../stores/evalsStore.ts';
 import { runStore } from '../stores/runStore.ts';
 import {
   expandFolder,
+  isFolderExpanded,
   selectionStore,
   selectEval,
   selectFolder,
@@ -229,9 +230,9 @@ export function EvalTree() {
     hasLoaded: s.hasLoaded,
     error: s.error,
   }));
-  const { selection, expandedFolders } = selectionStore.useSelectorRC((s) => ({
+  const { selection, collapsedFolders } = selectionStore.useSelectorRC((s) => ({
     selection: s.selection,
-    expandedFolders: s.expandedFolders,
+    collapsedFolders: s.collapsedFolders,
   }));
   const { currentRun } = runStore.useSelectorRC((s) => ({
     currentRun: s.currentRun,
@@ -302,7 +303,7 @@ export function EvalTree() {
           node={node}
           depth={0}
           selection={selection}
-          expandedFolders={expandedFolders}
+          collapsedFolders={collapsedFolders}
           showFilenamePrefix
           isEvalRunning={isEvalRunning}
         />
@@ -315,7 +316,7 @@ type NodeViewProps = {
   node: TreeNode;
   depth: number;
   selection: Selection;
-  expandedFolders: Set<string>;
+  collapsedFolders: Set<string>;
   showFilenamePrefix: boolean;
   isEvalRunning: (evalId: string) => boolean;
 };
@@ -324,7 +325,7 @@ function NodeView({
   node,
   depth,
   selection,
-  expandedFolders,
+  collapsedFolders,
   showFilenamePrefix,
   isEvalRunning,
 }: NodeViewProps) {
@@ -334,7 +335,7 @@ function NodeView({
         folder={node}
         depth={depth}
         selection={selection}
-        expandedFolders={expandedFolders}
+        collapsedFolders={collapsedFolders}
         isEvalRunning={isEvalRunning}
       />
     );
@@ -345,7 +346,7 @@ function NodeView({
         file={node}
         depth={depth}
         selection={selection}
-        expandedFolders={expandedFolders}
+        collapsedFolders={collapsedFolders}
         isEvalRunning={isEvalRunning}
       />
     );
@@ -365,16 +366,16 @@ function FolderRow({
   folder,
   depth,
   selection,
-  expandedFolders,
+  collapsedFolders,
   isEvalRunning,
 }: {
   folder: TreeFolder;
   depth: number;
   selection: Selection;
-  expandedFolders: Set<string>;
+  collapsedFolders: Set<string>;
   isEvalRunning: (evalId: string) => boolean;
 }) {
-  const isOpen = expandedFolders.has(folder.path);
+  const isOpen = isFolderExpanded(collapsedFolders, folder.path);
   const isActive =
     selection.kind === 'folder' && selection.path === folder.path;
   const folderEvals = collectNodeEvals(folder);
@@ -429,7 +430,7 @@ function FolderRow({
               node={child}
               depth={depth + 1}
               selection={selection}
-              expandedFolders={expandedFolders}
+              collapsedFolders={collapsedFolders}
               showFilenamePrefix
               isEvalRunning={isEvalRunning}
             />
@@ -443,16 +444,16 @@ function FileRow({
   file,
   depth,
   selection,
-  expandedFolders,
+  collapsedFolders,
   isEvalRunning,
 }: {
   file: TreeFile;
   depth: number;
   selection: Selection;
-  expandedFolders: Set<string>;
+  collapsedFolders: Set<string>;
   isEvalRunning: (evalId: string) => boolean;
 }) {
-  const isOpen = expandedFolders.has(file.path);
+  const isOpen = isFolderExpanded(collapsedFolders, file.path);
   const isActive = selection.kind === 'folder' && selection.path === file.path;
   const combinedStatus = deriveCombinedStatus(file.evals, isEvalRunning);
   const statusTooltip = formatStatusBreakdown(

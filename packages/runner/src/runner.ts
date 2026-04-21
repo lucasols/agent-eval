@@ -110,6 +110,7 @@ type EvalMeta = {
   filePath: string;
   sourceFilePath: string;
   columnDefs: ColumnDef[];
+  passThreshold: number;
   caseCount: number | null;
 };
 
@@ -240,6 +241,7 @@ export function createRunner({
           filePath: meta.filePath,
           stale: staleEvals.has(meta.id),
           columnDefs: meta.columnDefs,
+          passThreshold: meta.passThreshold,
           caseCount: meta.caseCount,
           lastRunStatus: lastRunStatusMap.get(meta.id) ?? null,
         });
@@ -256,6 +258,7 @@ export function createRunner({
         filePath: meta.filePath,
         stale: staleEvals.has(meta.id),
         columnDefs: meta.columnDefs,
+        passThreshold: meta.passThreshold,
         caseCount: meta.caseCount,
         lastRunStatus: lastRunStatusMap.get(meta.id) ?? null,
       };
@@ -286,6 +289,7 @@ export function createRunner({
               filePath: toWorkspaceRelativePath(meta.filePath),
               sourceFilePath: meta.filePath,
               columnDefs: [],
+              passThreshold: meta.passThreshold,
               caseCount: null,
             });
           }
@@ -490,6 +494,7 @@ export function createRunner({
           }
 
           await entry.use(async (evalDef) => {
+            evalMeta.passThreshold = evalDef.passThreshold ?? 0.5;
             const cases = filterEvalCases(
               typeof evalDef.cases === 'function'
                 ? await evalDef.cases()

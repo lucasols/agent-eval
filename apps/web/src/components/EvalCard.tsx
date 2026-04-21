@@ -547,6 +547,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
             <EvalRunsTable
               runs={runRows}
               columnDefs={evalSummary.columnDefs}
+              passThreshold={evalSummary.passThreshold ?? 0.5}
             />
           </Section>
         </Body>

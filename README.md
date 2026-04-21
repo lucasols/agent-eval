@@ -203,7 +203,8 @@ scores: {
 
 Cases default to a pass threshold of `0.5` on the average score unless you set
 the eval-level `passThreshold` explicitly. Individual scores only enforce a
-threshold when that score definition sets `passThreshold`.
+threshold when that score definition sets `passThreshold`. In the UI runs table,
+hover the score to see the effective eval-level threshold.
 
 ### Custom columns
 

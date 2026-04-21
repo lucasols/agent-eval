@@ -1,9 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
-import { inline, kicker, stack } from '#src/style/helpers';
+import { inline, kicker, stack, transition } from '#src/style/helpers';
 import { evalsStore } from '../stores/evalsStore.ts';
+import {
+  collapseAllFolders,
+  expandAllFolders,
+  selectionStore,
+} from '../stores/selectionStore.ts';
+import {
+  buildEvalTree,
+  collectCollapsiblePaths,
+} from '../utils/buildEvalTree.ts';
 import { EvalTree } from './EvalTree.tsx';
+import { Tooltip } from './Tooltip.tsx';
 
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 640;
@@ -102,12 +113,44 @@ const SectionLabel = styled.span`
   color: ${colors.textMuted.var};
 `;
 
+const SectionActions = styled.div`
+  ${inline({ gap: 4, align: 'center' })}
+`;
+
 const SectionCounter = styled.span`
   font-family:
     'Geist Mono', 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
   font-size: 10px;
   color: ${colors.textDim.var};
   font-variant-numeric: tabular-nums;
+`;
+
+const IconButton = styled.button`
+  ${inline({ align: 'center', justify: 'center' })}
+  ${transition({ property: 'background, color' })}
+  width: 22px;
+  height: 22px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0;
+  color: ${colors.textDim.var};
+  cursor: pointer;
+
+  &:hover {
+    background: ${colors.surface.var};
+    color: ${colors.text.var};
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  & > svg {
+    width: 14px;
+    height: 14px;
+  }
 `;
 
 const ScrollArea = styled.div`
@@ -131,9 +174,20 @@ function readStoredWidth(): number {
 
 export function Sidebar() {
   const { evals } = evalsStore.useSelectorRC((s) => ({ evals: s.evals }));
+  const { collapsedFolders } = selectionStore.useSelectorRC((s) => ({
+    collapsedFolders: s.collapsedFolders,
+  }));
   const [width, setWidth] = useState<number>(() => readStoredWidth());
   const [dragging, setDragging] = useState(false);
   const rootRef = useRef<HTMLElement>(null);
+
+  const collapsiblePaths = useMemo(
+    () => collectCollapsiblePaths(buildEvalTree(evals)),
+    [evals],
+  );
+  const allCollapsed =
+    collapsiblePaths.length > 0 &&
+    collapsiblePaths.every((p) => collapsedFolders.has(p));
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -184,7 +238,24 @@ export function Sidebar() {
       </Masthead>
       <SectionHeader>
         <SectionLabel>Evals</SectionLabel>
-        <SectionCounter>{evals.length}</SectionCounter>
+        <SectionActions>
+          <Tooltip content={allCollapsed ? 'Expand all' : 'Collapse all'}>
+            <IconButton
+              type="button"
+              onClick={() => {
+                if (allCollapsed) expandAllFolders();
+                else collapseAllFolders(collapsiblePaths);
+              }}
+              disabled={collapsiblePaths.length === 0}
+              aria-label={
+                allCollapsed ? 'Expand all folders' : 'Collapse all folders'
+              }
+            >
+              {allCollapsed ? <ChevronsUpDown /> : <ChevronsDownUp />}
+            </IconButton>
+          </Tooltip>
+          <SectionCounter>{evals.length}</SectionCounter>
+        </SectionActions>
       </SectionHeader>
       <ScrollArea>
         <EvalTree />
