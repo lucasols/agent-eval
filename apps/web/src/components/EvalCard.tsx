@@ -27,7 +27,7 @@ import {
   runStore,
   startRun,
 } from '../stores/runStore.ts';
-import { selectFolder } from '../stores/selectionStore.ts';
+import { selectEval, selectFolder } from '../stores/selectionStore.ts';
 import { getDisplayFolderSegments } from '../utils/buildEvalTree.ts';
 import { buildEvalScopedRunRows } from '../utils/evalRuns.ts';
 import {
@@ -291,7 +291,9 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
           .slice(-20)
           .map((r, index, completedRuns) => ({
             axisLabel:
-              index === completedRuns.length - 1 ? 'LATEST' : r.manifest.shortId,
+              index === completedRuns.length - 1
+                ? 'LATEST'
+                : r.manifest.shortId,
             shortId: r.manifest.shortId,
             startedAt: r.manifest.startedAt,
             score: r.summary.averageScore ?? 0,
@@ -485,6 +487,16 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
             </TitleBlock>
           </HeaderLeft>
           <HeaderRight onClick={(e) => e.stopPropagation()}>
+            {isStacked ? (
+              <Tooltip content="Open eval page">
+                <IconButton
+                  aria-label="Open eval page"
+                  onClick={() => selectEval(evalSummary.id)}
+                >
+                  <SquareArrowOutUpRight />
+                </IconButton>
+              </Tooltip>
+            ) : null}
             <SplitButton
               label={isRunning ? 'Running' : 'Run'}
               leftIcon={<Play />}
@@ -635,12 +647,16 @@ function RunsSection({
           {runs.length > 0 ? (
             <Tooltip
               content={
-                allRunsExpanded ? 'Collapse all run cases' : 'Expand all run cases'
+                allRunsExpanded
+                  ? 'Collapse all run cases'
+                  : 'Expand all run cases'
               }
             >
               <IconButton
                 aria-label={
-                  allRunsExpanded ? 'Collapse all run cases' : 'Expand all run cases'
+                  allRunsExpanded
+                    ? 'Collapse all run cases'
+                    : 'Expand all run cases'
                 }
                 onClick={toggleAllRuns}
               >
