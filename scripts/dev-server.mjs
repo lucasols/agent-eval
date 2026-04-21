@@ -6,13 +6,14 @@ import {
   spawnManaged,
   terminateProcessTree,
 } from './process-tree.mjs';
+import { getDevPorts } from './dev-ports.mjs';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const exampleWorkspace = resolve(repoRoot, 'examples/basic-agent');
-const serverPort = 4100;
+const { serverPort } = getDevPorts();
 
 /**
- * Fail fast when a fixed dev port is already taken, so `pnpm dev:server`
+ * Fail fast when a configured dev port is already taken, so `pnpm dev:server`
  * behaves predictably instead of crashing later.
  *
  * @param {number} port

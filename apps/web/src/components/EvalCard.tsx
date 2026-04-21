@@ -32,6 +32,7 @@ import {
 import { EvalRunsChart } from './EvalRunsChart.tsx';
 import { EvalRunsTable } from './EvalRunsTable.tsx';
 import { MenuButton } from './MenuButton.tsx';
+import { PathBreadcrumb } from './PathBreadcrumb.tsx';
 import { SplitButton, type SplitButtonMenuEntry } from './SplitButton.tsx';
 
 type EvalCardProps = { evalSummary: EvalSummary; mode: 'single' | 'stacked' };
@@ -76,36 +77,8 @@ const HeaderTopRow = styled.div`
   width: 100%;
 `;
 
-const Breadcrumb = styled.div`
-  ${inline({ gap: 8, align: 'center' })}
-  ${monoFont};
-  font-size: 13px;
-  color: ${colors.textMuted.var};
+const BreadcrumbWrap = styled.div`
   margin-bottom: 14px;
-`;
-
-const BreadcrumbSep = styled.span`
-  color: ${colors.textDim.var};
-  margin: 0 6px;
-`;
-
-const BreadcrumbLink = styled.button`
-  ${transition({ property: 'color' })}
-  ${monoFont};
-  appearance: none;
-  background: transparent;
-  border: none;
-  padding: 0;
-  color: ${colors.textMuted.var};
-  cursor: pointer;
-
-  &:hover {
-    color: ${colors.text.var};
-  }
-`;
-
-const BreadcrumbCurrent = styled.span`
-  color: ${colors.text.var};
 `;
 
 const HeaderLeft = styled.div`
@@ -441,20 +414,16 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
         onClick={onHeaderClick}
       >
         {isSingle ? (
-          <Breadcrumb>
-            {breadcrumbSegments.map(({ segment, path }) => (
-              <span key={path}>
-                <BreadcrumbLink
-                  type="button"
-                  onClick={() => selectFolder(path)}
-                >
-                  {segment}
-                </BreadcrumbLink>
-                <BreadcrumbSep>/</BreadcrumbSep>
-              </span>
-            ))}
-            <BreadcrumbCurrent>{filename}</BreadcrumbCurrent>
-          </Breadcrumb>
+          <BreadcrumbWrap>
+            <PathBreadcrumb
+              segments={breadcrumbSegments.map(({ segment, path }) => ({
+                label: segment,
+                path,
+              }))}
+              currentLabel={filename}
+              onSelect={selectFolder}
+            />
+          </BreadcrumbWrap>
         ) : null}
         <HeaderTopRow>
           <HeaderLeft>

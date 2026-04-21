@@ -63,7 +63,7 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
    });
    ```
 
-3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). The command prepares the UI automatically, so you do not need to start a separate web dev server. The UI gives you run controls, per-case results, trace drawer, and cost. Display statuses are derived consistently from the latest scoped child results: case results roll up to evals, evals roll up to files and folders, and run result views derive their display status from the cases in scope while preserving raw run lifecycle separately. Scores default to a pass threshold of `0.5` unless overridden per score. In single-eval view, the breadcrumb folder segments are clickable so you can jump back to the containing folder, and the header's more menu lets you recompute saved statuses or clean saved runs for that eval. The eval explorer updates automatically when matching `*.eval.ts` files are added, removed, or edited.
+3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). The command prepares the UI automatically, so you do not need to start a separate web dev server. The UI gives you run controls, per-case results, trace drawer, and cost. Display statuses are derived consistently from the latest scoped child results: case results roll up to evals, evals roll up to files and folders, and run result views derive their display status from the cases in scope while preserving raw run lifecycle separately. Scores default to a pass threshold of `0.5` unless overridden per score. In single-eval view, the breadcrumb folder segments are clickable so you can jump back to the containing folder, and folder views reuse the same breadcrumb pattern so nested folders stay navigable in place. The header's more menu lets you recompute saved statuses or clean saved runs for that eval. The eval explorer updates automatically when matching `*.eval.ts` files are added, removed, or edited.
 
 4. **Or use the CLI**:
 
@@ -83,9 +83,16 @@ A complete working example lives at [`examples/basic-agent`](./examples/basic-ag
 
 From `examples/basic-agent`, run `pnpm eval app` for the same single-command flow a library user gets.
 
-From the repo root, `pnpm dev` now starts the example-backed Hono server on `http://localhost:4100` together with the Vite web dev server on `http://localhost:4200`, so frontend changes get full HMR while `/api` stays pointed at the example workspace.
+From the repo root, `pnpm dev` starts the example-backed Hono server on `http://localhost:4100` together with the Vite web dev server on `http://localhost:4200` by default, so frontend changes get full HMR while `/api` stays pointed at the example workspace.
 
-Use `pnpm dev:app` when you want to smoke-test the built app flow that `pnpm eval app` uses, and `pnpm dev:server` when you only need the backend. These repo-local dev scripts always use fixed ports so the server is consistently on `4100` and the Vite app is consistently on `4200`.
+If you want different local dev ports, add a repo-root `.env` file with one or both of these variables:
+
+```sh
+AGENT_EVALS_DEV_SERVER_PORT=5100
+AGENT_EVALS_DEV_WEB_PORT=5200
+```
+
+`pnpm dev`, `pnpm dev:server`, and `pnpm dev:app` read `AGENT_EVALS_DEV_SERVER_PORT`, and the Vite dev server reads `AGENT_EVALS_DEV_WEB_PORT` while proxying `/api` to the configured backend port.
 
 ## Configuration
 

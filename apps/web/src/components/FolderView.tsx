@@ -1,12 +1,16 @@
 import type { EvalSummary } from '@agent-evals/shared';
-import { Folder as FolderIcon } from 'lucide-react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
-import { inline, kicker, stack } from '#src/style/helpers';
+import { kicker, stack } from '#src/style/helpers';
+import { selectFolder } from '../stores/selectionStore.ts';
 import { EmptyState } from './EmptyState.tsx';
 import { EvalCard } from './EvalCard.tsx';
+import { PathBreadcrumb } from './PathBreadcrumb.tsx';
 
-type FolderViewProps = { folderPath: string; evals: EvalSummary[] };
+type FolderViewProps = {
+  folderPath: string;
+  evals: EvalSummary[];
+};
 
 const Root = styled.div`
   height: 100%;
@@ -23,33 +27,11 @@ const Header = styled.div`
   z-index: 1;
 `;
 
-const Eyebrow = styled.div`
-  ${kicker}
-  ${inline({ gap: 8, align: 'center' })}
-  color: ${colors.textMuted.var};
-`;
-
-const EyebrowIcon = styled.span`
-  display: inline-flex;
-  color: ${colors.accent.var};
-
-  & > svg {
-    width: 12px;
-    height: 12px;
-  }
-`;
-
 const TitleRow = styled.div`
   display: flex;
   align-items: baseline;
+  justify-content: space-between;
   gap: 14px;
-`;
-
-const FolderName = styled.div`
-  font-size: 20px;
-  font-weight: 600;
-  color: ${colors.text.var};
-  letter-spacing: -0.02em;
 `;
 
 const Count = styled.div`
@@ -63,11 +45,24 @@ const Stack = styled.div`
 `;
 
 export function FolderView({ folderPath, evals }: FolderViewProps) {
+  const displaySegments = folderPath
+    .split('/')
+    .filter((segment) => segment.length > 0);
+  const currentLabel = displaySegments.at(-1) ?? '/';
+  const parentSegments = displaySegments.slice(0, -1).map((label, index) => ({
+    label,
+    path: displaySegments.slice(0, index + 1).join('/'),
+  }));
+
   return (
     <Root>
       <Header>
         <TitleRow>
-          <FolderName>{folderPath || '/'}</FolderName>
+          <PathBreadcrumb
+            segments={parentSegments}
+            currentLabel={currentLabel}
+            onSelect={selectFolder}
+          />
           <Count>
             {evals.length} {evals.length === 1 ? 'eval' : 'evals'}
           </Count>

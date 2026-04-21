@@ -3,9 +3,11 @@ import { fileURLToPath } from 'node:url';
 import { vindurPlugin } from '@vindur-css/vite-plugin';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { getDevPorts } from '../../scripts/dev-ports.mjs';
 
 const rootDir = dirname(fileURLToPath(import.meta.url));
 const srcDir = resolve(rootDir, 'src');
+const { serverPort, webPort } = getDevPorts();
 
 export default defineConfig({
   plugins: [
@@ -14,8 +16,13 @@ export default defineConfig({
   ],
   resolve: { alias: { '#src': srcDir } },
   server: {
-    port: 4200,
+    port: webPort,
     strictPort: true,
-    proxy: { '/api': { target: 'http://localhost:4100', changeOrigin: true } },
+    proxy: {
+      '/api': {
+        target: `http://localhost:${String(serverPort)}`,
+        changeOrigin: true,
+      },
+    },
   },
 });

@@ -6,16 +6,16 @@ import {
   spawnManaged,
   terminateProcessTree,
 } from './process-tree.mjs';
+import { getDevPorts } from './dev-ports.mjs';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const exampleWorkspace = resolve(repoRoot, 'examples/basic-agent');
-const serverPort = 4100;
-const webPort = 4200;
+const { serverPort, webPort } = getDevPorts();
 const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 
 /**
- * Fail fast when a fixed dev port is already taken, so `pnpm dev` behaves
- * predictably instead of silently switching ports or crashing later.
+ * Fail fast when a configured dev port is already taken, so `pnpm dev`
+ * behaves predictably instead of silently switching ports or crashing later.
  *
  * @param {number} port
  * @param {string} serviceName
@@ -99,7 +99,15 @@ function startWeb() {
       '--port',
       String(webPort),
     ],
-    { cwd: repoRoot, env: process.env, stdio: 'inherit' },
+    {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        AGENT_EVALS_DEV_SERVER_PORT: String(serverPort),
+        AGENT_EVALS_DEV_WEB_PORT: String(webPort),
+      },
+      stdio: 'inherit',
+    },
   );
 
   registerChild('Web dev server', child);

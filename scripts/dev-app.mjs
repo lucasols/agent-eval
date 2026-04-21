@@ -7,10 +7,11 @@ import {
   spawnManaged,
   terminateProcessTree,
 } from './process-tree.mjs';
+import { getDevPorts } from './dev-ports.mjs';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const exampleWorkspace = resolve(repoRoot, 'examples/basic-agent');
-const serverPort = 4100;
+const { serverPort } = getDevPorts();
 const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 const watchTargets = [
   { label: 'web source', path: resolve(repoRoot, 'apps/web/src') },
@@ -30,8 +31,8 @@ const watchTargets = [
 ];
 
 /**
- * Fail fast when a fixed dev port is already taken, so `pnpm dev:app` behaves
- * predictably instead of silently switching ports or crashing later.
+ * Fail fast when a configured dev port is already taken, so `pnpm dev:app`
+ * behaves predictably instead of silently switching ports or crashing later.
  *
  * @param {number} port
  * @param {string} serviceName
