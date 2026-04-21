@@ -76,6 +76,16 @@ function setCaseSelectionState(selection: CaseSelection | null): void {
   });
 }
 
+export function clearDrawerSelectionState(): void {
+  runStore.setPartialState({
+    selectedCaseRunId: null,
+    selectedCaseId: null,
+    selectedCaseDetail: null,
+    selectedRunId: null,
+    selectedRunDetail: null,
+  });
+}
+
 function setCaseSelection(selection: CaseSelection | null): void {
   setCaseSelectionState(selection);
   updateSearchParams((searchParams) => {

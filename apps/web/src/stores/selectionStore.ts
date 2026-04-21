@@ -3,6 +3,7 @@ import {
   getCurrentSearchParams,
   updateSearchParams,
 } from '../hooks/useSearchParams.ts';
+import { clearDrawerSelectionState } from './runStore.ts';
 
 export type Selection =
   | { kind: 'none' }
@@ -74,6 +75,7 @@ function applySelectionFromUrl(selection: Selection): void {
 
 function setSelection(selection: Selection): void {
   selectionStore.setPartialState({ selection });
+  clearDrawerSelectionState();
   updateSearchParams((searchParams) => {
     searchParams.delete('eval');
     searchParams.delete('folder');
