@@ -91,7 +91,7 @@ const KindBadge = styled.span<{
   checkpoint: boolean;
   evalKind: boolean;
 }>`
-  ${monoFont}
+  ${monoFont};
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 9.5px;
@@ -148,7 +148,7 @@ const CacheBadge = styled.span<{
   refresh: boolean;
   bypass: boolean;
 }>`
-  ${monoFont}
+  ${monoFont};
   padding: 1px 5px;
   border-radius: 3px;
   font-size: 9.5px;
@@ -178,14 +178,14 @@ const CacheBadge = styled.span<{
 `;
 
 const ErrorLabel = styled.span`
-  ${monoFont}
+  ${monoFont};
   color: ${colors.error.var};
   font-size: 10px;
   flex-shrink: 0;
 `;
 
 const DurationLabel = styled.span`
-  ${monoFont}
+  ${monoFont};
   color: ${colors.textDim.var};
   font-size: 10.5px;
   font-variant-numeric: tabular-nums;
@@ -193,7 +193,7 @@ const DurationLabel = styled.span`
 `;
 
 const TreeAttributeLabel = styled.span`
-  ${monoFont}
+  ${monoFont};
   font-size: 9.5px;
   letter-spacing: 0.04em;
   flex-shrink: 0;

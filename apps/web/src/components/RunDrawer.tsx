@@ -60,7 +60,7 @@ const HeaderLeft = styled.div`
 `;
 
 const RunTag = styled.span`
-  ${monoFont}
+  ${monoFont};
   font-size: 9.5px;
   font-weight: 600;
   padding: 3px 8px;
@@ -74,7 +74,7 @@ const RunTime = styled.span`
   font-weight: 600;
   color: ${colors.text.var};
   letter-spacing: -0.01em;
-  ${tabularNums}
+  ${tabularNums};
 `;
 
 const Body = styled.div`
@@ -117,7 +117,7 @@ const StatValue = styled.span<{
   cost: boolean;
   error: boolean;
 }>`
-  ${tabularNums}
+  ${tabularNums};
   font-size: 18px;
   font-weight: 500;
   color: ${colors.text.var};
@@ -148,15 +148,15 @@ const MetaKey = styled.dt`
 
 const MetaValue = styled.dd`
   margin: 0;
-  ${monoFont}
-  ${tabularNums}
+  ${monoFont};
+  ${tabularNums};
   font-size: 11.5px;
   color: ${colors.text.var};
   word-break: break-all;
 `;
 
 const ErrorBlock = styled.pre`
-  ${monoFont}
+  ${monoFont};
   font-size: 11.5px;
   line-height: 1.55;
   white-space: pre-wrap;

@@ -66,7 +66,7 @@ const HeaderLeft = styled.div`
 `;
 
 const CaseId = styled.span`
-  ${monoFont}
+  ${monoFont};
   font-size: 17px;
   color: ${colors.text.var};
   font-weight: 600;
@@ -111,7 +111,7 @@ const TabContent = styled.div`
 `;
 
 const OutputPre = styled.pre`
-  ${monoFont}
+  ${monoFont};
   font-size: 11.5px;
   line-height: 1.6;
   white-space: pre-wrap;
@@ -133,7 +133,7 @@ const ErrorTitle = styled.div`
 `;
 
 const ErrorStack = styled.pre`
-  ${monoFont}
+  ${monoFont};
   font-size: 11px;
   white-space: pre-wrap;
   opacity: 0.8;
@@ -154,7 +154,7 @@ const RawLabel = styled.div`
 `;
 
 const RawPre = styled.pre`
-  ${monoFont}
+  ${monoFont};
   font-size: 11px;
   line-height: 1.6;
   white-space: pre-wrap;
@@ -187,7 +187,7 @@ const ColumnLabel = styled.div`
 `;
 
 const ColumnValueText = styled.div`
-  ${monoFont}
+  ${monoFont};
   font-size: 12px;
   color: ${colors.text.var};
   text-align: right;

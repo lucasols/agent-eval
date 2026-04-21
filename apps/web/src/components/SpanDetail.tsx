@@ -16,7 +16,7 @@ const DetailRoot = styled.div`
 `;
 
 const DetailTitle = styled.div`
-  ${monoFont}
+  ${monoFont};
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.005em;
@@ -39,7 +39,7 @@ const DetailItemLabel = styled.div`
 `;
 
 const DetailItemValue = styled.div`
-  ${monoFont}
+  ${monoFont};
   font-size: 11.5px;
   color: ${colors.text.var};
 `;
@@ -54,7 +54,7 @@ const ErrorTitle = styled.div`
 `;
 
 const ErrorStack = styled.pre`
-  ${monoFont}
+  ${monoFont};
   font-size: 10px;
   white-space: pre-wrap;
   margin-top: 4px;
@@ -72,7 +72,7 @@ const JsonSectionLabel = styled.div`
 `;
 
 const JsonSectionPre = styled.pre`
-  ${monoFont}
+  ${monoFont};
   font-size: 11px;
   line-height: 1.55;
   white-space: pre-wrap;

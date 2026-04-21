@@ -12,7 +12,7 @@ import {
   tabularNums,
   transition,
 } from '#src/style/helpers';
-import { historyStore, getRunsForEval } from '../stores/historyStore.ts';
+import { getRunsForEval, historyStore } from '../stores/historyStore.ts';
 import { clearCacheForEval, runStore, startRun } from '../stores/runStore.ts';
 import {
   formatCost,
@@ -67,8 +67,8 @@ const HeaderTopRow = styled.div`
 
 const Breadcrumb = styled.div`
   ${inline({ gap: 8, align: 'center' })}
-  ${monoFont}
-  font-size: 11.5px;
+  ${monoFont};
+  font-size: 13px;
   color: ${colors.textMuted.var};
   margin-bottom: 14px;
 `;
@@ -99,7 +99,7 @@ const TitleRow = styled.div`
 `;
 
 const Title = styled.h2<{ large: boolean }>`
-  ${ellipsis}
+  ${ellipsis};
   font-size: 16px;
   font-weight: 600;
   color: ${colors.text.var};
@@ -122,7 +122,7 @@ const Description = styled.div`
 `;
 
 const StaleBadge = styled.span`
-  ${monoFont}
+  ${monoFont};
   font-size: 10px;
   font-weight: 500;
   padding: 3px 8px;
@@ -132,8 +132,8 @@ const StaleBadge = styled.span`
 `;
 
 const FilePath = styled.div`
-  ${monoFont}
-  ${ellipsis}
+  ${monoFont};
+  ${ellipsis};
   font-size: 11.5px;
   color: ${colors.textMuted.var};
 `;
@@ -187,12 +187,13 @@ const Stat = styled.div`
 `;
 
 const StatLabel = styled.div`
-  ${kicker}
+  ${kicker};
+  font-size: 9px;
   color: ${colors.textMuted.var};
 `;
 
 const StatValue = styled.div<{ accent: boolean; cost: boolean }>`
-  ${tabularNums}
+  ${tabularNums};
   font-size: 30px;
   font-weight: 500;
   color: ${colors.text.var};
@@ -229,7 +230,7 @@ const SectionLabelText = styled.span`
 `;
 
 const SectionMeta = styled.span`
-  ${monoFont}
+  ${monoFont};
   font-size: 10.5px;
   color: ${colors.textMuted.var};
 `;

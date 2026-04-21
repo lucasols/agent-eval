@@ -13,7 +13,7 @@ const Badge = styled.span<{
   cancelled: boolean;
 }>`
   ${inline({ gap: 6, align: 'center' })}
-  ${monoFont}
+  ${monoFont};
   display: inline-flex;
   font-size: 11px;
   font-weight: 500;

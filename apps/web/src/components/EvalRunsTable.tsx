@@ -57,7 +57,7 @@ const Table = styled.table`
 `;
 
 const Th = styled.th<{ rightAlign: boolean; indent: boolean }>`
-  ${kicker}
+  ${kicker};
   padding: 10px 16px;
   background: ${colors.bgElevated.var};
   border-bottom: 1px solid ${colors.border.var};
@@ -122,17 +122,17 @@ const RunStat = styled.div`
   ${inline({ gap: 6, align: 'center' })}
   font-size: 11.5px;
   color: ${colors.textMuted.var};
-  ${tabularNums}
+  ${tabularNums};
 `;
 
 const RunStatLabel = styled.span`
-  ${kicker}
+  ${kicker};
   color: ${colors.textMuted.var};
 `;
 
 const RunStatValue = styled.span<{ accent: boolean; cost: boolean }>`
-  ${monoFont}
-  ${tabularNums}
+  ${monoFont};
+  ${tabularNums};
   font-size: 12px;
   font-weight: 500;
   color: ${colors.text.var};
@@ -174,8 +174,8 @@ const CaseTd = styled.td<{
     text-align: right;
   }
   &.mono {
-    ${monoFont}
-    ${tabularNums}
+    ${monoFont};
+    ${tabularNums};
     font-size: 11.5px;
     color: ${colors.textMuted.var};
   }
@@ -185,8 +185,8 @@ const CaseTd = styled.td<{
 `;
 
 const CaseId = styled.div`
-  ${ellipsis}
-  ${monoFont}
+  ${ellipsis};
+  ${monoFont};
   font-size: 12px;
   color: ${colors.text.var};
   max-width: 260px;
@@ -228,8 +228,8 @@ const ScoreBarFill = styled.span<{
 `;
 
 const ScoreText = styled.span`
-  ${monoFont}
-  ${tabularNums}
+  ${monoFont};
+  ${tabularNums};
   font-size: 12px;
   color: ${colors.text.var};
   font-weight: 500;

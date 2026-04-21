@@ -26,7 +26,7 @@ const MarkdownBlock = styled.div`
 `;
 
 const JsonBlock = styled.pre`
-  ${monoFont}
+  ${monoFont};
   font-size: 12px;
   background: ${colors.bg.var};
   padding: 12px;

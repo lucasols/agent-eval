@@ -7,7 +7,7 @@ type CostBadgeProps = { billedCost: number | null };
 
 const CostContainer = styled.span`
   ${inline({ gap: 8 })}
-  ${monoFont}
+  ${monoFont};
   display: inline-flex;
   color: ${colors.cost.var};
   font-size: 12px;

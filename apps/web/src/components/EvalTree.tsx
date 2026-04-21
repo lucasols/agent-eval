@@ -49,7 +49,7 @@ const EmptyBody = styled.div`
 `;
 
 const CommandHint = styled.code`
-  ${monoFont}
+  ${monoFont};
   display: block;
   width: 100%;
   overflow: auto;
@@ -152,14 +152,14 @@ const ChevronIcon = styled.span<{ open: boolean }>`
 `;
 
 const RowLabel = styled.span`
-  ${ellipsis}
+  ${ellipsis};
   flex: 1;
   font-weight: 500;
   font-size: 12.5px;
 `;
 
 const FolderLabel = styled.span`
-  ${ellipsis}
+  ${ellipsis};
   flex: 1;
   font-weight: 500;
   font-size: 12.5px;
@@ -167,8 +167,8 @@ const FolderLabel = styled.span`
 `;
 
 const FilenameHint = styled.span`
-  ${monoFont}
-  ${ellipsis}
+  ${monoFont};
+  ${ellipsis};
   font-size: 10px;
   color: ${colors.textDim.var};
   font-weight: 400;
@@ -178,7 +178,7 @@ const FilenameHint = styled.span`
 `;
 
 const StaleTag = styled.span`
-  ${monoFont}
+  ${monoFont};
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.04em;
