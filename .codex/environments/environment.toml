@@ -6,6 +6,6 @@ name = "agent-eval-2"
 script = ""
 
 [[actions]]
-name = "Run"
-icon = "run"
+name = "Pull"
+icon = "tool"
 command = "git pull"
