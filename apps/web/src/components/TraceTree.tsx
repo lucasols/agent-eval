@@ -2,6 +2,10 @@ import type { EvalTraceSpan, TraceDisplayConfig } from '@agent-evals/shared';
 import { ChevronRight, PanelRightClose, PanelRightOpen, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { styled } from 'vindur';
+import {
+  updateSearchParams,
+  useSearchParams,
+} from '#src/hooks/useSearchParams';
 import { colors } from '#src/style/colors';
 import { inline, monoFont, transition } from '#src/style/helpers';
 import {
@@ -486,6 +490,7 @@ type SpanBar = {
 };
 
 const TIMELINE_COLLAPSED_STORAGE_KEY = 'agent-evals.trace-timeline-collapsed';
+const SPAN_SEARCH_PARAM_KEY = 'span';
 
 function readTimelineCollapsed(): boolean {
   if (typeof window === 'undefined') return false;
@@ -493,13 +498,14 @@ function readTimelineCollapsed(): boolean {
 }
 
 export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
-  const [selectedSpanId, setSelectedSpanId] = useState<string | null>(null);
+  const searchParams = useSearchParams();
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [timelineCollapsed, setTimelineCollapsed] = useState<boolean>(
     readTimelineCollapsed,
   );
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const rootRef = useRef<HTMLDivElement>(null);
+  const selectedSpanId = searchParams.get(SPAN_SEARCH_PARAM_KEY);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -548,9 +554,14 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
     : null;
 
   useEffect(() => {
+    if (!selectedSpanId || selectedSpan) return;
+    updateSelectedSpanId(null);
+  }, [selectedSpan, selectedSpanId]);
+
+  useEffect(() => {
     if (!selectedSpanId) return;
     function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') setSelectedSpanId(null);
+      if (event.key === 'Escape') updateSelectedSpanId(null);
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -566,7 +577,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
   }
 
   function handleSelect(id: string) {
-    setSelectedSpanId((current) => (current === id ? null : id));
+    updateSelectedSpanId(selectedSpanId === id ? null : id);
   }
 
   const tickLabels = buildRulerTicks(metrics.totalMs);
@@ -585,15 +596,9 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
                   aria-label={
                     timelineCollapsed ? 'Show timeline' : 'Hide timeline'
                   }
-                  title={
-                    timelineCollapsed ? 'Show timeline' : 'Hide timeline'
-                  }
+                  title={timelineCollapsed ? 'Show timeline' : 'Hide timeline'}
                 >
-                  {timelineCollapsed ? (
-                    <PanelRightOpen />
-                  ) : (
-                    <PanelRightClose />
-                  )}
+                  {timelineCollapsed ? <PanelRightOpen /> : <PanelRightClose />}
                 </TimelineToggle>
               </RulerLabelInline>
               {!timelineCollapsed ? (
@@ -737,7 +742,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
             <OverlayLabel>Span detail</OverlayLabel>
             <CloseButton
               type="button"
-              onClick={() => setSelectedSpanId(null)}
+              onClick={() => updateSelectedSpanId(null)}
               aria-label="Close span detail"
             >
               <X />
@@ -754,6 +759,13 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
       ) : null}
     </Root>
   );
+
+  function updateSelectedSpanId(id: string | null): void {
+    updateSearchParams((nextSearchParams) => {
+      nextSearchParams.delete(SPAN_SEARCH_PARAM_KEY);
+      if (id) nextSearchParams.set(SPAN_SEARCH_PARAM_KEY, id);
+    });
+  }
 }
 
 function computeTraceMetrics(spans: EvalTraceSpan[]): TraceMetrics {

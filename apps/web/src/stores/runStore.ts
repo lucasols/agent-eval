@@ -82,6 +82,7 @@ function setCaseSelection(selection: CaseSelection | null): void {
     searchParams.delete('caseRun');
     searchParams.delete('case');
     searchParams.delete('run');
+    searchParams.delete('span');
     if (!selection) {
       searchParams.delete('caseTab');
     }
@@ -105,6 +106,7 @@ function setRunSelection(selection: RunSelection | null): void {
     searchParams.delete('caseRun');
     searchParams.delete('case');
     searchParams.delete('caseTab');
+    searchParams.delete('span');
     if (!selection) return;
     searchParams.set('run', selection.runId);
   });
