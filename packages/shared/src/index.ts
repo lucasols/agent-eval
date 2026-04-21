@@ -35,9 +35,11 @@ export {
   type TraceDisplayInputConfig,
 } from './schemas/trace.ts';
 export {
+  evalFreshnessStatusSchema,
   evalSummarySchema,
   caseRowSchema,
   caseDetailSchema,
+  type EvalFreshnessStatus,
   type EvalSummary,
   type CaseRow,
   type CaseDetail,
@@ -55,6 +57,7 @@ export {
   type DerivedStatus,
   type ScopedCaseSummary,
 } from './status.ts';
+export { getEvalDisplayStatus, type EvalDisplayStatus } from './evalStatus.ts';
 export {
   sseEnvelopeSchema,
   type SseEnvelope,

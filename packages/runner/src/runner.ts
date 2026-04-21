@@ -1,13 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import { resolve, join, relative } from 'node:path';
-import {
-  getEvalRegistry,
-  runInEvalScope,
-  buildTraceTree,
-  EvalAssertionError,
-  type EvalDefinition,
-} from '@agent-evals/sdk';
+import { getEvalRegistry } from '@agent-evals/sdk';
 import type {
   EvalSummary,
   RunManifest,
@@ -20,8 +14,6 @@ import type {
   CacheListItem,
   CacheMode,
   ColumnDef,
-  CellValue,
-  TraceDisplayInputConfig,
 } from '@agent-evals/shared';
 import {
   deriveStatusFromCaseRows,
@@ -34,13 +26,16 @@ import {
   type CacheClearFilter,
   type FsCacheStore,
 } from './cacheStore.ts';
-import {
-  mergeColumnDefs,
-  normalizeScoreDef,
-  toCellValue,
-} from './columnBuilder.ts';
+import { mergeColumnDefs, normalizeScoreDef } from './columnBuilder.ts';
 import { loadConfig } from './config.ts';
 import { parseEvalMetas } from './discovery.ts';
+import {
+  buildEvalSummary,
+  getTargetEvalIds,
+  setLatestRunInfoMap,
+} from './evalSummaries.ts';
+import { readGitWorktreeState } from './gitState.ts';
+import { filterEvalCases, runCase } from './runExecution.ts';
 import {
   persistRunState,
   recomputeEvalStatusesInRuns,
@@ -49,11 +44,12 @@ import {
 import {
   generateRunId,
   getLastRunStatuses,
+  getLatestRunInfos,
   loadPersistedRunSnapshots,
   nextShortIdFromSnapshots,
   persistCaseDetail,
+  type EvalLatestRunInfo,
 } from './runPersistence.ts';
-import { resolveTracePresentation } from './traceDisplay.ts';
 
 /** Imperative runner interface used by the server and CLI. */
 export type EvalRunner = {
@@ -133,9 +129,9 @@ export function createRunner({
   let localStateDir: string;
   let cacheStore: FsCacheStore;
   const evals = new Map<string, EvalMeta>();
-  const staleEvals = new Set<string>();
   const runs = new Map<string, RunState>();
   const lastRunStatusMap = new Map<string, EvalSummary['lastRunStatus']>();
+  const latestRunInfoMap = new Map<string, EvalLatestRunInfo>();
   const discoveryListeners = new Set<(event: SseEnvelope) => void>();
   let nextShortIdNum = 0;
 
@@ -232,36 +228,31 @@ export function createRunner({
       return { deletedRuns };
     },
     getEvals() {
+      const gitState = readGitWorktreeState(workspaceRoot);
       const result: EvalSummary[] = [];
       for (const meta of getSortedEvalMetas()) {
-        result.push({
-          id: meta.id,
-          title: meta.title,
-          description: meta.description,
-          filePath: meta.filePath,
-          stale: staleEvals.has(meta.id),
-          columnDefs: meta.columnDefs,
-          passThreshold: meta.passThreshold,
-          caseCount: meta.caseCount,
-          lastRunStatus: lastRunStatusMap.get(meta.id) ?? null,
-        });
+        result.push(
+          buildEvalSummary({
+            meta,
+            config,
+            gitState,
+            latestRun: latestRunInfoMap.get(meta.id),
+            lastRunStatus: lastRunStatusMap.get(meta.id) ?? null,
+          }),
+        );
       }
       return result;
     },
     getEval(id) {
       const meta = evals.get(id);
       if (!meta) return undefined;
-      return {
-        id: meta.id,
-        title: meta.title,
-        description: meta.description,
-        filePath: meta.filePath,
-        stale: staleEvals.has(meta.id),
-        columnDefs: meta.columnDefs,
-        passThreshold: meta.passThreshold,
-        caseCount: meta.caseCount,
+      return buildEvalSummary({
+        meta,
+        config,
+        gitState: readGitWorktreeState(workspaceRoot),
+        latestRun: latestRunInfoMap.get(meta.id),
         lastRunStatus: lastRunStatusMap.get(meta.id) ?? null,
-      };
+      });
     },
     async refreshDiscovery() {
       const patterns = config.include;
@@ -276,8 +267,6 @@ export function createRunner({
       }
 
       evals.clear();
-      staleEvals.clear();
-
       for (const filePath of discovered) {
         try {
           const content = await readFile(filePath, 'utf-8');
@@ -306,6 +295,7 @@ export function createRunner({
       const now = new Date().toISOString();
       const cacheMode: CacheMode = request.cache?.mode ?? 'use';
       const runDir = join(localStateDir, 'runs', runId);
+      const gitState = readGitWorktreeState(workspaceRoot);
 
       const manifest: RunManifest = {
         id: runId,
@@ -313,6 +303,8 @@ export function createRunner({
         status: 'running',
         startedAt: now,
         endedAt: null,
+        commitSha: gitState.commitSha,
+        trackedChangesFingerprint: gitState.trackedChangesFingerprint,
         target: request.target,
         trials: request.trials,
         cacheMode,
@@ -345,6 +337,20 @@ export function createRunner({
       };
 
       runs.set(runId, runState);
+      setLatestRunInfoMap({
+        latestRunInfoMap,
+        evalIds: getTargetEvalIds({
+          request,
+          sortedEvalIds: getSortedEvalMetas().map((meta) => meta.id),
+          knownEvalIds: new Set(evals.keys()),
+        }),
+        info: {
+          status: 'running',
+          startedAt: now,
+          commitSha: manifest.commitSha ?? null,
+          trackedChangesFingerprint: manifest.trackedChangesFingerprint ?? null,
+        },
+      });
 
       await mkdir(runDir, { recursive: true });
       await mkdir(join(runDir, 'traces'), { recursive: true });
@@ -434,9 +440,17 @@ export function createRunner({
       runs: runs.values(),
       knownEvalIds: evals.keys(),
     });
+    const latestRunInfos = getLatestRunInfos({
+      runs: runs.values(),
+      knownEvalIds: evals.keys(),
+    });
     lastRunStatusMap.clear();
     for (const [evalId, status] of lastRunStatuses) {
       lastRunStatusMap.set(evalId, status);
+    }
+    latestRunInfoMap.clear();
+    for (const [evalId, info] of latestRunInfos) {
+      latestRunInfoMap.set(evalId, info);
     }
     const event: SseEnvelope = {
       type: 'discovery.updated',
@@ -592,6 +606,15 @@ export function createRunner({
                 deriveStatusFromCaseRows({ caseRows: evalCaseRows }),
               ),
             );
+            const latestStatus = lastRunStatusMap.get(evalMeta.id) ?? null;
+            latestRunInfoMap.set(evalMeta.id, {
+              status: latestStatus,
+              startedAt:
+                runState.manifest.endedAt ?? runState.manifest.startedAt,
+              commitSha: runState.manifest.commitSha ?? null,
+              trackedChangesFingerprint:
+                runState.manifest.trackedChangesFingerprint ?? null,
+            });
           });
         } catch (error) {
           console.error(`Error running eval ${evalMeta.id}:`, error);
@@ -600,6 +623,13 @@ export function createRunner({
             message: error instanceof Error ? error.message : String(error),
           });
           lastRunStatusMap.set(evalMeta.id, 'error');
+          latestRunInfoMap.set(evalMeta.id, {
+            status: 'error',
+            startedAt: runState.manifest.endedAt ?? runState.manifest.startedAt,
+            commitSha: runState.manifest.commitSha ?? null,
+            trackedChangesFingerprint:
+              runState.manifest.trackedChangesFingerprint ?? null,
+          });
         }
       }
 
@@ -620,11 +650,34 @@ export function createRunner({
           : 'completed';
       runState.summary.status = finalStatus;
       runState.manifest.status = finalStatus;
-      runState.manifest.endedAt = endTime.toISOString();
+      const completedRunAt = endTime.toISOString();
+      runState.manifest.endedAt = completedRunAt;
       runState.summary.errorMessage =
         evalErrors.length > 0
           ? evalErrors.map((e) => `[${e.evalId}] ${e.message}`).join('\n')
           : null;
+
+      for (const evalId of getTargetEvalIds({
+        request,
+        sortedEvalIds: getSortedEvalMetas().map((meta) => meta.id),
+        knownEvalIds: new Set(evals.keys()),
+      })) {
+        const latestStatus =
+          lastRunStatusMap.get(evalId) ??
+          toLastRunStatus(
+            deriveStatusFromCaseRows({
+              caseRows: [],
+              lifecycleStatus: runState.manifest.status,
+            }),
+          );
+        latestRunInfoMap.set(evalId, {
+          status: latestStatus,
+          startedAt: completedRunAt,
+          commitSha: runState.manifest.commitSha ?? null,
+          trackedChangesFingerprint:
+            runState.manifest.trackedChangesFingerprint ?? null,
+        });
+      }
 
       emitEvent(runState, {
         type: 'run.summary',
@@ -654,6 +707,7 @@ export function createRunner({
       }
 
       await persistRunState(runState);
+      emitDiscoveryEvent();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       runState.manifest.status = 'error';
@@ -669,6 +723,7 @@ export function createRunner({
       });
 
       await persistRunState(runState);
+      emitDiscoveryEvent();
     }
   }
 
@@ -706,195 +761,4 @@ export function createRunner({
   }
 
   return runner;
-}
-
-function filterEvalCases<TInput>(
-  cases: { id: string; input: TInput; tags?: string[] }[],
-  evalIds: string[] | undefined,
-  caseIds: string[] | undefined,
-  evalId: string,
-): { id: string; input: TInput; tags?: string[] }[] {
-  if (evalIds && evalIds.length > 0 && !evalIds.includes(evalId)) {
-    return [];
-  }
-
-  if (!caseIds || caseIds.length === 0) {
-    return cases;
-  }
-
-  const selectedCaseIds = new Set(caseIds);
-  return cases.filter((evalCase) => selectedCaseIds.has(evalCase.id));
-}
-
-async function runCase<TInput>(params: {
-  evalDef: EvalDefinition<TInput>;
-  evalId: string;
-  evalCase: { id: string; input: TInput; tags?: string[] };
-  globalTraceDisplay: TraceDisplayInputConfig | undefined;
-  trial: number;
-  signal: AbortSignal;
-  startTime: number;
-  cacheAdapter: FsCacheStore | null;
-  cacheMode: CacheMode;
-  codeFingerprint: string;
-}): Promise<{ caseDetail: CaseDetail; caseRowUpdate: Partial<CaseRow> }> {
-  const {
-    evalDef,
-    evalId,
-    evalCase,
-    globalTraceDisplay,
-    trial,
-    signal,
-    startTime,
-    cacheAdapter,
-    cacheMode,
-    codeFingerprint,
-  } = params;
-
-  const { scope, error: executeError } = await runInEvalScope(
-    evalCase.id,
-    async () => {
-      await evalDef.execute({ input: evalCase.input, signal });
-    },
-    {
-      cacheContext: cacheAdapter
-        ? { adapter: cacheAdapter, mode: cacheMode, evalId, codeFingerprint }
-        : undefined,
-    },
-  );
-
-  const elapsedMs = Date.now() - startTime;
-  const traceTree = buildTraceTree(scope.spans, scope.checkpoints);
-
-  const nonAssertError =
-    executeError && !(executeError instanceof EvalAssertionError)
-      ? executeError
-      : null;
-
-  if (!nonAssertError && evalDef.deriveFromTracing) {
-    try {
-      const derived = await evalDef.deriveFromTracing({
-        trace: traceTree,
-        input: evalCase.input,
-        case: evalCase,
-      });
-      for (const [key, value] of Object.entries(derived)) {
-        if (!(key in scope.outputs)) {
-          scope.outputs[key] = value;
-        }
-      }
-    } catch (e) {
-      scope.assertionFailures.push(
-        `deriveFromTracing threw: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    }
-  }
-
-  const scoreResults = new Map<
-    string,
-    {
-      value: number;
-      passThreshold: number | undefined;
-      label: string | undefined;
-    }
-  >();
-
-  if (!nonAssertError && evalDef.scores) {
-    for (const [key, def] of Object.entries(evalDef.scores)) {
-      const { compute, passThreshold, label } = normalizeScoreDef(def);
-      try {
-        const value = await compute({
-          input: evalCase.input,
-          outputs: scope.outputs,
-          case: evalCase,
-        });
-        scope.outputs[key] = value;
-        scoreResults.set(key, { value, passThreshold, label });
-      } catch (e) {
-        scope.assertionFailures.push(
-          `score "${key}" threw: ${e instanceof Error ? e.message : String(e)}`,
-        );
-        scope.outputs[key] = 0;
-        scoreResults.set(key, { value: 0, passThreshold, label });
-      }
-    }
-  }
-
-  const scoreValues = [...scoreResults.values()].map((s) => s.value);
-  const avgScore =
-    scoreValues.length > 0
-      ? scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length
-      : null;
-  const casePassThreshold = evalDef.passThreshold ?? 0.5;
-
-  let passed = scope.assertionFailures.length === 0 && !nonAssertError;
-  if (passed) {
-    for (const [, scoreEntry] of scoreResults) {
-      if (
-        scoreEntry.passThreshold !== undefined &&
-        scoreEntry.value < scoreEntry.passThreshold
-      ) {
-        passed = false;
-        break;
-      }
-    }
-  }
-  if (passed && avgScore !== null && avgScore < casePassThreshold) {
-    passed = false;
-  }
-
-  const status: CaseRow['status'] = nonAssertError
-    ? 'error'
-    : passed
-      ? 'pass'
-      : 'fail';
-
-  const { trace: displayTrace, traceDisplay } = resolveTracePresentation(
-    scope.spans,
-    globalTraceDisplay,
-    evalDef.traceDisplay,
-  );
-
-  const columns: Record<string, CellValue> = {};
-  for (const [key, value] of Object.entries(scope.outputs)) {
-    const cell = toCellValue(value);
-    if (cell !== undefined) {
-      columns[key] = cell;
-    }
-  }
-
-  const costUsdRaw = scope.outputs['costUsd'];
-  const costUsd = typeof costUsdRaw === 'number' ? costUsdRaw : null;
-
-  const errorInfo = nonAssertError
-    ? {
-        name: nonAssertError.name,
-        message: nonAssertError.message,
-        stack: nonAssertError.stack,
-      }
-    : null;
-
-  const caseDetail: CaseDetail = {
-    caseId: evalCase.id,
-    evalId,
-    status,
-    input: evalCase.input,
-    trace: displayTrace,
-    traceDisplay,
-    cost: { totalUsd: costUsd },
-    columns,
-    assertionFailures: scope.assertionFailures,
-    error: errorInfo,
-    trial,
-  };
-
-  const caseRowUpdate: Partial<CaseRow> = {
-    status,
-    score: avgScore,
-    latencyMs: elapsedMs,
-    costUsd,
-    columns,
-  };
-
-  return { caseDetail, caseRowUpdate };
 }

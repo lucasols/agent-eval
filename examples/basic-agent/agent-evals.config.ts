@@ -11,6 +11,7 @@ export const config: AgentEvalsConfig = {
     },
   },
   concurrency: 2,
+  staleAfterDays: 14,
   traceDisplay: {
     attributes: [
       {

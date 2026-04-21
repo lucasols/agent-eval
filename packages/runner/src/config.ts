@@ -16,6 +16,7 @@ const defaultConfig: AgentEvalsConfig = {
   include: ['**/*.eval.ts'],
   defaultTrials: 1,
   concurrency: 2,
+  staleAfterDays: 14,
   traceDisplay: {
     attributes: [
       {

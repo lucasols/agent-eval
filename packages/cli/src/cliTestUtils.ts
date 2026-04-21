@@ -93,6 +93,41 @@ export async function runExampleCli(
   });
 }
 
+export async function runWorkspaceCommand(
+  workspacePath: string,
+  command: string,
+  args: string[],
+): Promise<CommandResult> {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const child = spawn(command, args, {
+      cwd: workspacePath,
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (chunk: Buffer | string) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on('data', (chunk: Buffer | string) => {
+      stderr += chunk.toString();
+    });
+
+    child.on('close', (exitCode) => {
+      resolvePromise({
+        exitCode,
+        stderr: stderr.trimEnd(),
+        stdout: stdout.trimEnd(),
+      });
+    });
+    child.on('error', (error) => {
+      rejectPromise(error);
+    });
+  });
+}
+
 export async function readSingleRunArtifacts(
   workspacePath: string,
 ): Promise<{

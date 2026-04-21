@@ -1,6 +1,6 @@
 import {
-  deriveStatusFromChildStatuses,
-  type DerivedStatus,
+  getEvalDisplayStatus,
+  type EvalDisplayStatus,
   type EvalSummary,
 } from '@agent-evals/shared';
 
@@ -230,10 +230,12 @@ export function collectNodeEvals(node: TreeNode): EvalSummary[] {
   return out;
 }
 
-export type CombinedStatus = DerivedStatus;
+export type CombinedStatus = EvalDisplayStatus;
 
 export type StatusBreakdown = {
   running: number;
+  stale: number;
+  outdated: number;
   pass: number;
   fail: number;
   error: number;
@@ -248,6 +250,8 @@ export function getStatusBreakdown(
 ): StatusBreakdown {
   const counts: StatusBreakdown = {
     running: 0,
+    stale: 0,
+    outdated: 0,
     pass: 0,
     fail: 0,
     error: 0,
@@ -256,13 +260,30 @@ export function getStatusBreakdown(
     total: evals.length,
   };
   for (const ev of evals) {
-    if (isEvalRunning(ev.id) || ev.lastRunStatus === 'running') {
+    const status = getEvalDisplayStatus({
+      freshnessStatus: ev.freshnessStatus,
+      stale: ev.stale,
+      outdated: ev.outdated,
+      lastRunStatus: ev.lastRunStatus,
+      isRunning: isEvalRunning(ev.id),
+    });
+    if (status === 'running') {
       counts.running += 1;
-    } else if (ev.lastRunStatus === 'pass') counts.pass += 1;
-    else if (ev.lastRunStatus === 'fail') counts.fail += 1;
-    else if (ev.lastRunStatus === 'error') counts.error += 1;
-    else if (ev.lastRunStatus === 'cancelled') counts.cancelled += 1;
-    else counts.pending += 1;
+    } else if (status === 'stale') {
+      counts.stale += 1;
+    } else if (status === 'outdated') {
+      counts.outdated += 1;
+    } else if (status === 'pass') {
+      counts.pass += 1;
+    } else if (status === 'fail') {
+      counts.fail += 1;
+    } else if (status === 'error') {
+      counts.error += 1;
+    } else if (status === 'cancelled') {
+      counts.cancelled += 1;
+    } else {
+      counts.pending += 1;
+    }
   }
   return counts;
 }
@@ -270,6 +291,8 @@ export function getStatusBreakdown(
 export function formatStatusBreakdown(breakdown: StatusBreakdown): string {
   const parts: string[] = [];
   if (breakdown.running > 0) parts.push(`${breakdown.running} running`);
+  if (breakdown.stale > 0) parts.push(`${breakdown.stale} stale`);
+  if (breakdown.outdated > 0) parts.push(`${breakdown.outdated} outdated`);
   if (breakdown.pass > 0) parts.push(`${breakdown.pass} pass`);
   if (breakdown.fail > 0) parts.push(`${breakdown.fail} fail`);
   if (breakdown.error > 0) parts.push(`${breakdown.error} error`);
@@ -284,11 +307,41 @@ export function deriveCombinedStatus(
   isEvalRunning: (evalId: string) => boolean,
 ): CombinedStatus {
   if (evals.length === 0) return 'pending';
-  return deriveStatusFromChildStatuses({
-    statuses: evals.map((ev) =>
-      isEvalRunning(ev.id) ? 'running' : ev.lastRunStatus,
-    ),
-  });
+  let hasPass = false;
+  let hasPending = false;
+  let hasRunning = false;
+  let hasCancelled = false;
+  let hasError = false;
+  let hasFail = false;
+  let hasStale = false;
+  let hasOutdated = false;
+
+  for (const ev of evals) {
+    const status = getEvalDisplayStatus({
+      freshnessStatus: ev.freshnessStatus,
+      stale: ev.stale,
+      outdated: ev.outdated,
+      lastRunStatus: ev.lastRunStatus,
+      isRunning: isEvalRunning(ev.id),
+    });
+    if (status === 'running') hasRunning = true;
+    else if (status === 'error') hasError = true;
+    else if (status === 'fail') hasFail = true;
+    else if (status === 'stale') hasStale = true;
+    else if (status === 'outdated') hasOutdated = true;
+    else if (status === 'cancelled') hasCancelled = true;
+    else if (status === 'pass') hasPass = true;
+    else hasPending = true;
+  }
+
+  if (hasRunning) return 'running';
+  if (hasError) return 'error';
+  if (hasFail) return 'fail';
+  if (hasStale) return 'stale';
+  if (hasOutdated) return 'outdated';
+  if (hasCancelled) return 'cancelled';
+  if (hasPending || !hasPass) return 'pending';
+  return 'pass';
 }
 
 export function collectEvalsInFolder(

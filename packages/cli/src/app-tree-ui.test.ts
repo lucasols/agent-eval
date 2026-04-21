@@ -241,6 +241,19 @@ describe('app tree ui', () => {
         (evalId) => evalId === 'running',
       ),
     ).toBe('running');
+
+    expect(
+      deriveCombinedStatus(
+        [
+          createEvalSummary('pass', 'Pass', '/tmp/pass.eval.ts', 'pass', {
+            stale: true,
+            outdated: true,
+            freshnessStatus: 'stale',
+          }),
+        ],
+        () => false,
+      ),
+    ).toBe('stale');
   });
 });
 
@@ -249,6 +262,7 @@ function createEvalSummary(
   title: string,
   filePath: string,
   lastRunStatus: EvalSummary['lastRunStatus'] = null,
+  overrides: Partial<EvalSummary> = {},
 ): EvalSummary {
   return {
     id,
@@ -256,9 +270,15 @@ function createEvalSummary(
     description: `${title} example eval`,
     filePath,
     stale: false,
+    outdated: false,
+    freshnessStatus: 'fresh',
+    latestRunAt: null,
+    latestRunCommitSha: null,
+    currentCommitSha: null,
     columnDefs: [],
     caseCount: 1,
     lastRunStatus,
+    ...overrides,
   };
 }
 

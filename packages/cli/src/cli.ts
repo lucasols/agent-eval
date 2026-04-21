@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRunner } from '@agent-evals/runner';
-import type { CacheMode } from '@agent-evals/shared';
+import { getEvalDisplayStatus, type CacheMode } from '@agent-evals/shared';
 
 type CliArgs = {
   command: 'app' | 'list' | 'run' | 'cache' | 'help';
@@ -224,11 +224,19 @@ async function commandList(args_: CliArgs): Promise<void> {
 
   console.info('Discovered evals:\n');
   for (const ev of evals) {
-    const staleTag = ev.stale ? ' [stale]' : '';
+    const displayStatus = getEvalDisplayStatus({
+      freshnessStatus: ev.freshnessStatus,
+      stale: ev.stale,
+      outdated: ev.outdated,
+      lastRunStatus: ev.lastRunStatus,
+    });
     const title = ev.title ?? ev.id;
-    console.info(`  ${title}${staleTag}`);
+    console.info(`  ${title}`);
     console.info(`    id: ${ev.id}`);
     console.info(`    file: ${ev.filePath}`);
+    if (displayStatus !== 'pending') {
+      console.info(`    status: ${displayStatus}`);
+    }
     if (ev.caseCount !== null) {
       console.info(`    cases: ${String(ev.caseCount)}`);
     }

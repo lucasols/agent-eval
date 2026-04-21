@@ -16,6 +16,11 @@ import {
   runSummarySchema,
 } from '@agent-evals/shared';
 import { resultify } from 't-result';
+import { getRunFreshnessTimestamp, type LatestRunInfo } from './freshness.ts';
+
+export type EvalLatestRunInfo = LatestRunInfo & {
+  status: EvalSummary['lastRunStatus'];
+};
 
 export type PersistedRunSnapshot = {
   runDir: string;
@@ -106,21 +111,41 @@ export function getLastRunStatuses(params: {
   runs: Iterable<{ manifest: RunManifest; cases: CaseRow[] }>;
   knownEvalIds: Iterable<string>;
 }): Map<string, EvalSummary['lastRunStatus']> {
+  const latestRunInfos = getLatestRunInfos(params);
+  return new Map(
+    [...latestRunInfos].map(([evalId, info]) => [evalId, info.status]),
+  );
+}
+
+/**
+ * Return the latest scoped run metadata for each eval based on persisted and
+ * in-memory runs.
+ */
+export function getLatestRunInfos(params: {
+  runs: Iterable<{ manifest: RunManifest; cases: CaseRow[] }>;
+  knownEvalIds: Iterable<string>;
+}): Map<string, EvalLatestRunInfo> {
   const { runs, knownEvalIds } = params;
   const orderedRuns = [...runs].toSorted(
     (a, b) =>
-      new Date(a.manifest.startedAt).getTime() -
-      new Date(b.manifest.startedAt).getTime(),
+      new Date(getRunFreshnessTimestamp(a.manifest)).getTime() -
+      new Date(getRunFreshnessTimestamp(b.manifest)).getTime(),
   );
-  const statuses = new Map<string, EvalSummary['lastRunStatus']>();
+  const latestRunInfos = new Map<string, EvalLatestRunInfo>();
 
   for (const run of orderedRuns) {
     for (const evalId of getRunEvalIds(run, knownEvalIds)) {
-      statuses.set(evalId, getEvalStatusForRun(run, evalId));
+      latestRunInfos.set(evalId, {
+        status: getEvalStatusForRun(run, evalId),
+        startedAt: getRunFreshnessTimestamp(run.manifest),
+        commitSha: run.manifest.commitSha ?? null,
+        trackedChangesFingerprint:
+          run.manifest.trackedChangesFingerprint ?? null,
+      });
     }
   }
 
-  return statuses;
+  return latestRunInfos;
 }
 
 function toLastRunStatus(

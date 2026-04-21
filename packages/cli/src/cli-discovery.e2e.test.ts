@@ -1,7 +1,10 @@
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import {
   normalizeTextSnapshot,
   runExampleCli,
+  runWorkspaceCommand,
   withIsolatedExampleWorkspace,
 } from './cliTestUtils.ts';
 
@@ -68,6 +71,112 @@ describe('CLI discovery', () => {
             id: voice-return-follow-up
             file: evals/support/returns/voice-follow-up.eval.ts"
       `);
+    });
+  });
+
+  test('shows outdated freshness when the latest run is old and from another commit', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      expect(
+        (await runWorkspaceCommand(workspacePath, 'git', ['init'])).exitCode,
+      ).toBe(0);
+      expect(
+        (
+          await runWorkspaceCommand(workspacePath, 'git', [
+            'config',
+            'user.email',
+            'ci@example.com',
+          ])
+        ).exitCode,
+      ).toBe(0);
+      expect(
+        (
+          await runWorkspaceCommand(workspacePath, 'git', [
+            'config',
+            'user.name',
+            'CI',
+          ])
+        ).exitCode,
+      ).toBe(0);
+      expect(
+        (await runWorkspaceCommand(workspacePath, 'git', ['add', '.']))
+          .exitCode,
+      ).toBe(0);
+      expect(
+        (
+          await runWorkspaceCommand(workspacePath, 'git', [
+            'commit',
+            '-m',
+            'initial',
+          ])
+        ).exitCode,
+      ).toBe(0);
+
+      const runPath = join(
+        workspacePath,
+        '.agent-evals',
+        'runs',
+        '2026-04-01T12-00-00Z_outdated',
+      );
+      await mkdir(join(runPath, 'case-details'), { recursive: true });
+      await writeFile(
+        join(runPath, 'run.json'),
+        JSON.stringify(
+          {
+            id: '2026-04-01T12-00-00Z_outdated',
+            shortId: 'r0',
+            status: 'completed',
+            startedAt: '2026-04-01T12:00:00.000Z',
+            endedAt: '2026-04-01T12:00:02.000Z',
+            commitSha: '1111111111111111111111111111111111111111',
+            target: { mode: 'evalIds', evalIds: ['refund-workflow'] },
+            trials: 1,
+            cacheMode: 'use',
+          },
+          null,
+          2,
+        ),
+      );
+      await writeFile(
+        join(runPath, 'summary.json'),
+        JSON.stringify(
+          {
+            runId: '2026-04-01T12-00-00Z_outdated',
+            status: 'completed',
+            totalCases: 1,
+            passedCases: 1,
+            failedCases: 0,
+            errorCases: 0,
+            cancelledCases: 0,
+            averageScore: 1,
+            totalDurationMs: 2000,
+            cost: { totalUsd: 0.01 },
+            errorMessage: null,
+          },
+          null,
+          2,
+        ),
+      );
+      await writeFile(
+        join(runPath, 'cases.jsonl'),
+        `${JSON.stringify({
+          caseId: 'simple-text',
+          evalId: 'refund-workflow',
+          status: 'pass',
+          score: 1,
+          latencyMs: 120,
+          costUsd: 0.01,
+          columns: {},
+          trial: 0,
+        })}
+`,
+      );
+
+      const result = await runExampleCli(workspacePath, ['list']);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe('');
+      expect(result.stdout).toContain('Refund Workflow');
+      expect(result.stdout).toContain('status: outdated');
     });
   });
 });

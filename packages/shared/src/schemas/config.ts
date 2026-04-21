@@ -18,6 +18,11 @@ export type AgentEvalsConfig = {
   /** Maximum number of cases executed in parallel. Defaults to `2`. */
   concurrency?: number;
   /**
+   * Age threshold, in days, before a latest run from a different commit is
+   * considered outdated. Defaults to `14`.
+   */
+  staleAfterDays?: number;
+  /**
    * Global trace attribute display config for the UI.
    *
    * These rules are merged with per-eval `traceDisplay` rules, with the eval
@@ -43,6 +48,7 @@ export const agentEvalsConfigSchema = z.object({
   defaultTrials: z.number().optional(),
   pricing: z.record(z.string(), modelPricingSchema).optional(),
   concurrency: z.number().optional(),
+  staleAfterDays: z.number().optional(),
   traceDisplay: traceDisplayInputConfigSchema.optional(),
   cache: z
     .object({ enabled: z.boolean().optional(), dir: z.string().optional() })

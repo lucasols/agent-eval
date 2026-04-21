@@ -28,6 +28,7 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
      include: ['evals/**/*.eval.ts'],
      defaultTrials: 1,
      concurrency: 2,
+     staleAfterDays: 14,
      pricing: {
        'gpt-4o': { inputPerMillionUsd: 2.5, outputPerMillionUsd: 10 },
      },
@@ -63,7 +64,7 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
    });
    ```
 
-3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). The command prepares the UI automatically, so you do not need to start a separate web dev server. The UI gives you run controls, per-case results, trace drawer, and cost. Display statuses are derived consistently from the latest scoped child results: case results roll up to evals, evals roll up to files and folders, and run result views derive their display status from the cases in scope while preserving raw run lifecycle separately. Scores default to a pass threshold of `0.5` unless overridden per score. In single-eval view, the breadcrumb folder segments are clickable so you can jump back to the containing folder, and folder views reuse the same breadcrumb pattern so nested folders stay navigable in place. The header's more menu lets you recompute saved statuses or clean saved runs for that eval. The eval explorer updates automatically when matching `*.eval.ts` files are added, removed, or edited.
+3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). The command prepares the UI automatically, so you do not need to start a separate web dev server. The UI gives you run controls, per-case results, trace drawer, and cost. Display statuses are derived consistently from the latest scoped child results: case results roll up to evals, evals roll up to files and folders, and run result views derive their display status from the cases in scope while preserving raw run lifecycle separately. Passing evals can also surface `stale` or `outdated` display statuses: `stale` wins when tracked files changed since the latest passing run, while `outdated` means the latest comparable run is from a different commit and older than `staleAfterDays`. Scores default to a pass threshold of `0.5` unless overridden per score. In single-eval view, the breadcrumb folder segments are clickable so you can jump back to the containing folder, and folder views reuse the same breadcrumb pattern so nested folders stay navigable in place. The header's more menu lets you recompute saved statuses or clean saved runs for that eval. The eval explorer updates automatically when matching `*.eval.ts` files are added, removed, or edited.
 
 4. **Or use the CLI**:
 
@@ -98,14 +99,15 @@ AGENT_EVALS_DEV_WEB_PORT=5200
 
 `agent-evals.config.ts` at your project root defines how evals are discovered and executed.
 
-| Field           | Type                                                           | Description                                                  |
-| --------------- | -------------------------------------------------------------- | ------------------------------------------------------------ |
-| `include`       | `string[]`                                                     | Glob patterns for eval files (e.g. `['evals/**/*.eval.ts']`) |
-| `workspaceRoot` | `string?`                                                      | Root directory; defaults to `process.cwd()`                  |
-| `defaultTrials` | `number?`                                                      | Trials per case when not overridden (default: `1`)           |
-| `concurrency`   | `number?`                                                      | Max parallel case executions (default: `2`)                  |
-| `pricing`       | `Record<string, { inputPerMillionUsd, outputPerMillionUsd }>?` | Per-model pricing used to compute cost                       |
-| `traceDisplay`  | `TraceDisplayConfig?`                                          | Global trace attribute display config for the UI             |
+| Field            | Type                                                           | Description                                                                   |
+| ---------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `include`        | `string[]`                                                     | Glob patterns for eval files (e.g. `['evals/**/*.eval.ts']`)                  |
+| `workspaceRoot`  | `string?`                                                      | Root directory; defaults to `process.cwd()`                                   |
+| `defaultTrials`  | `number?`                                                      | Trials per case when not overridden (default: `1`)                            |
+| `concurrency`    | `number?`                                                      | Max parallel case executions (default: `2`)                                   |
+| `staleAfterDays` | `number?`                                                      | Days before a mismatched-commit latest run is marked outdated (default: `14`) |
+| `pricing`        | `Record<string, { inputPerMillionUsd, outputPerMillionUsd }>?` | Per-model pricing used to compute cost                                        |
+| `traceDisplay`   | `TraceDisplayConfig?`                                          | Global trace attribute display config for the UI                              |
 
 ## Writing evals
 

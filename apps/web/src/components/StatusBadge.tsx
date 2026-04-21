@@ -4,13 +4,22 @@ import { inline, monoFont } from '#src/style/helpers';
 
 type StatusBadgeProps = { status: string };
 
-type Tone = 'pass' | 'fail' | 'running' | 'pending' | 'cancelled';
+type Tone =
+  | 'pass'
+  | 'fail'
+  | 'running'
+  | 'pending'
+  | 'cancelled'
+  | 'stale'
+  | 'outdated';
 
 const Badge = styled.span<{
   pass: boolean;
   fail: boolean;
   running: boolean;
   cancelled: boolean;
+  stale: boolean;
+  outdated: boolean;
 }>`
   ${inline({ gap: 6, align: 'center' })}
   ${monoFont};
@@ -39,6 +48,14 @@ const Badge = styled.span<{
     color: ${colors.warning.var};
     background: ${colors.warning.alpha(0.1)};
   }
+  &.stale {
+    color: ${colors.textMuted.var};
+    background: ${colors.surfaceActive.var};
+  }
+  &.outdated {
+    color: ${colors.warning.var};
+    background: ${colors.warning.alpha(0.14)};
+  }
 `;
 
 const Dot = styled.span<{
@@ -46,6 +63,8 @@ const Dot = styled.span<{
   fail: boolean;
   running: boolean;
   cancelled: boolean;
+  stale: boolean;
+  outdated: boolean;
 }>`
   width: 5px;
   height: 5px;
@@ -66,6 +85,12 @@ const Dot = styled.span<{
   &.cancelled {
     background: ${colors.warning.var};
   }
+  &.stale {
+    background: ${colors.borderStrong.var};
+  }
+  &.outdated {
+    background: ${colors.warning.var};
+  }
 
   @keyframes pulseDot {
     0%,
@@ -83,6 +108,8 @@ function getTone(status: string): Tone {
   if (status === 'fail' || status === 'error') return 'fail';
   if (status === 'running') return 'running';
   if (status === 'cancelled') return 'cancelled';
+  if (status === 'stale') return 'stale';
+  if (status === 'outdated') return 'outdated';
   return 'pending';
 }
 
@@ -94,12 +121,16 @@ export function StatusBadge({ status }: StatusBadgeProps) {
       fail={tone === 'fail'}
       running={tone === 'running'}
       cancelled={tone === 'cancelled'}
+      stale={tone === 'stale'}
+      outdated={tone === 'outdated'}
     >
       <Dot
         pass={tone === 'pass'}
         fail={tone === 'fail'}
         running={tone === 'running'}
         cancelled={tone === 'cancelled'}
+        stale={tone === 'stale'}
+        outdated={tone === 'outdated'}
       />
       {status}
     </Badge>
@@ -114,6 +145,8 @@ export function StatusDot({ status }: { status: string }) {
       fail={tone === 'fail'}
       running={tone === 'running'}
       cancelled={tone === 'cancelled'}
+      stale={tone === 'stale'}
+      outdated={tone === 'outdated'}
     />
   );
 }

@@ -14,6 +14,17 @@ export const runManifestSchema = z.object({
   status: z.enum(['pending', 'running', 'completed', 'cancelled', 'error']),
   startedAt: z.string(),
   endedAt: z.string().nullable(),
+  /**
+   * Git commit SHA for the workspace when the run started. Older persisted
+   * runs may not include this field.
+   */
+  commitSha: z.string().nullable().optional().default(null),
+  /**
+   * Fingerprint of tracked changes relative to `HEAD` when the run started.
+   * `null` means no tracked changes were present or the workspace was not a
+   * comparable git worktree.
+   */
+  trackedChangesFingerprint: z.string().nullable().optional().default(null),
   target: z.object({
     mode: z.enum(['all', 'evalIds', 'caseIds']),
     evalIds: z.array(z.string()).optional(),

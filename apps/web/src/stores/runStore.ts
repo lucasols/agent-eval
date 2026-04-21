@@ -12,6 +12,7 @@ import {
 import { resultify } from 't-result';
 import { Store } from 't-state';
 import { z } from 'zod/v4';
+import { fetchEvals } from './evalsStore.ts';
 import { refetchHistory } from './historyStore.ts';
 
 const createRunResponseSchema = z.object({
@@ -172,6 +173,7 @@ function subscribeToRunEvents(runId: string): void {
     });
     es.close();
     void refetchHistory();
+    void fetchEvals();
   });
 
   es.addEventListener('run.cancelled', () => {
@@ -188,6 +190,7 @@ function subscribeToRunEvents(runId: string): void {
     });
     es.close();
     void refetchHistory();
+    void fetchEvals();
   });
 
   es.addEventListener('run.error', (e) => {
@@ -208,6 +211,7 @@ function subscribeToRunEvents(runId: string): void {
     });
     es.close();
     void refetchHistory();
+    void fetchEvals();
   });
 }
 
@@ -314,6 +318,7 @@ export async function recomputeStatusesForEval(evalId: string): Promise<void> {
   closeRun();
   closeCase();
   await refetchHistory();
+  await fetchEvals();
 }
 
 export async function cleanRunsForEval(evalId: string): Promise<void> {
@@ -325,4 +330,5 @@ export async function cleanRunsForEval(evalId: string): Promise<void> {
   closeRun();
   closeCase();
   await refetchHistory();
+  await fetchEvals();
 }

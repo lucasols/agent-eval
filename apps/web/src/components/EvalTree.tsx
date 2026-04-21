@@ -1,3 +1,4 @@
+import { getEvalDisplayStatus } from '@agent-evals/shared';
 import { ChevronRight } from 'lucide-react';
 import { useEffect } from 'react';
 import { css, styled } from 'vindur';
@@ -31,6 +32,7 @@ import {
   type TreeLeaf,
   type TreeNode,
 } from '../utils/buildEvalTree.ts';
+import { getFreshnessTooltip } from '../utils/freshness.ts';
 import { StatusDot } from './StatusBadge.tsx';
 import { Tooltip } from './Tooltip.tsx';
 
@@ -208,19 +210,6 @@ const RowCounter = styled.span`
   font-size: 10px;
   color: ${colors.textDim.var};
   font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
-`;
-
-const StaleTag = styled.span`
-  ${monoFont};
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: ${colors.warning.var};
-  padding: 1px 5px;
-  border-radius: 3px;
-  background: ${colors.warning.alpha(0.1)};
   flex-shrink: 0;
 `;
 
@@ -534,20 +523,29 @@ function LeafRow({
   const ev = leaf.evalSummary;
   const isActive = selection.kind === 'eval' && selection.id === ev.id;
 
-  const displayStatus = isEvalRunning(ev.id) ? 'running' : ev.lastRunStatus;
+  const displayStatus = getEvalDisplayStatus({
+    freshnessStatus: ev.freshnessStatus,
+    stale: ev.stale,
+    outdated: ev.outdated,
+    lastRunStatus: ev.lastRunStatus,
+    isRunning: isEvalRunning(ev.id),
+  });
   const title = ev.title ?? ev.id;
+  const rowTooltip =
+    ev.stale || ev.outdated ? getFreshnessTooltip(ev) : undefined;
 
   return (
     <RowBase
       type="button"
       onClick={() => selectEval(ev.id)}
+      title={rowTooltip ?? undefined}
       active={isActive}
       depth0={depth === 0}
       depth1={depth === 1}
       depth2={depth === 2}
       depth3={depth >= 3}
     >
-      <StatusDot status={displayStatus ?? 'pending'} />
+      <StatusDot status={displayStatus} />
       <LeafLabel>
         {showFilenamePrefix ? (
           <>
@@ -557,7 +555,6 @@ function LeafRow({
         ) : null}
         {title}
       </LeafLabel>
-      {ev.stale ? <StaleTag>stale</StaleTag> : null}
     </RowBase>
   );
 }

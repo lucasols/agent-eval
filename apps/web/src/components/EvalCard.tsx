@@ -1,4 +1,4 @@
-import type { EvalSummary } from '@agent-evals/shared';
+import { getEvalDisplayStatus, type EvalSummary } from '@agent-evals/shared';
 import { ChevronDown, Play } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { styled } from 'vindur';
@@ -29,11 +29,13 @@ import {
   formatDuration,
   formatScore,
 } from '../utils/formatters.ts';
+import { getFreshnessTooltip } from '../utils/freshness.ts';
 import { EvalRunsChart } from './EvalRunsChart.tsx';
 import { EvalRunsTable } from './EvalRunsTable.tsx';
 import { MenuButton } from './MenuButton.tsx';
 import { PathBreadcrumb } from './PathBreadcrumb.tsx';
 import { SplitButton, type SplitButtonMenuEntry } from './SplitButton.tsx';
+import { StatusBadge } from './StatusBadge.tsx';
 
 type EvalCardProps = { evalSummary: EvalSummary; mode: 'single' | 'stacked' };
 
@@ -121,14 +123,8 @@ const Description = styled.div`
   line-height: 1.5;
 `;
 
-const StaleBadge = styled.span`
-  ${monoFont};
-  font-size: 10px;
-  font-weight: 500;
-  padding: 3px 8px;
-  border-radius: 20px;
-  color: ${colors.warning.var};
-  background: ${colors.warning.alpha(0.1)};
+const StatusWrap = styled.span`
+  display: inline-flex;
 `;
 
 const FilePath = styled.div`
@@ -294,6 +290,17 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     currentRun?.manifest.status === 'running' &&
     runTargetsEvalLocal(currentRun.manifest.target, evalSummary.id);
   const hasScoreHistory = chartData.length > 1;
+  const displayStatus = getEvalDisplayStatus({
+    freshnessStatus: evalSummary.freshnessStatus,
+    stale: evalSummary.stale,
+    outdated: evalSummary.outdated,
+    lastRunStatus: evalSummary.lastRunStatus,
+    isRunning,
+  });
+  const statusTooltip =
+    evalSummary.stale || evalSummary.outdated
+      ? getFreshnessTooltip(evalSummary)
+      : undefined;
 
   function handleRun(e: React.MouseEvent) {
     e.stopPropagation();
@@ -437,7 +444,9 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
                 <Title large={isSingle}>
                   {evalSummary.title ?? evalSummary.id}
                 </Title>
-                {evalSummary.stale ? <StaleBadge>stale</StaleBadge> : null}
+                <StatusWrap title={statusTooltip ?? undefined}>
+                  <StatusBadge status={displayStatus} />
+                </StatusWrap>
               </TitleRow>
               {isSingle ? null : (
                 <FilePath title={evalSummary.filePath}>

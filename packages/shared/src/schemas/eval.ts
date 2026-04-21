@@ -3,6 +3,11 @@ import { evalCostSummarySchema } from './cost.ts';
 import { cellValueSchema, columnDefSchema } from './display.ts';
 import { traceDisplayConfigSchema, traceSpanSchema } from './trace.ts';
 
+/** Freshness signal derived from the latest relevant run plus git state. */
+export const evalFreshnessStatusSchema = z.enum(['fresh', 'stale', 'outdated']);
+/** Freshness signal derived from the latest relevant run plus git state. */
+export type EvalFreshnessStatus = z.infer<typeof evalFreshnessStatusSchema>;
+
 /** Schema summarizing a discovered eval for list and overview screens. */
 export const evalSummarySchema = z.object({
   id: z.string(),
@@ -10,7 +15,18 @@ export const evalSummarySchema = z.object({
   description: z.string().optional(),
   /** Eval file path relative to the active workspace root. */
   filePath: z.string(),
+  /** Indicates tracked workspace changes make the latest passing result stale. */
   stale: z.boolean(),
+  /** Indicates the latest comparable run is from an older commit and too old. */
+  outdated: z.boolean(),
+  /** Latest derived freshness signal for this eval. */
+  freshnessStatus: evalFreshnessStatusSchema,
+  /** Timestamp for the latest run considered when deriving freshness. */
+  latestRunAt: z.string().nullable(),
+  /** Commit SHA recorded on the latest run considered for freshness. */
+  latestRunCommitSha: z.string().nullable(),
+  /** Current workspace commit SHA when the summary was requested. */
+  currentCommitSha: z.string().nullable(),
   columnDefs: z.array(columnDefSchema),
   /** Effective eval-level average score threshold. Defaults to `0.5`. */
   passThreshold: z.number().optional(),
