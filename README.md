@@ -63,7 +63,7 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
    });
    ```
 
-3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). The command prepares the UI automatically, so you do not need to start a separate web dev server. The UI gives you run controls, per-case results, trace drawer, and cost. The eval explorer updates automatically when matching `*.eval.ts` files are added, removed, or edited.
+3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). The command prepares the UI automatically, so you do not need to start a separate web dev server. The UI gives you run controls, per-case results, trace drawer, and cost. In single-eval view, the breadcrumb folder segments are clickable so you can jump back to the containing folder. The eval explorer updates automatically when matching `*.eval.ts` files are added, removed, or edited.
 
 4. **Or use the CLI**:
 

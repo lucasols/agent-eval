@@ -12,8 +12,11 @@ import {
   tabularNums,
   transition,
 } from '#src/style/helpers';
+import { evalsStore } from '../stores/evalsStore.ts';
 import { getRunsForEval, historyStore } from '../stores/historyStore.ts';
 import { clearCacheForEval, runStore, startRun } from '../stores/runStore.ts';
+import { selectFolder } from '../stores/selectionStore.ts';
+import { getDisplayFolderSegments } from '../utils/buildEvalTree.ts';
 import {
   formatCost,
   formatDuration,
@@ -75,6 +78,22 @@ const Breadcrumb = styled.div`
 
 const BreadcrumbSep = styled.span`
   color: ${colors.textDim.var};
+  margin: 0 6px;
+`;
+
+const BreadcrumbLink = styled.button`
+  ${transition({ property: 'color' })}
+  ${monoFont};
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: ${colors.textMuted.var};
+  cursor: pointer;
+
+  &:hover {
+    color: ${colors.text.var};
+  }
 `;
 
 const BreadcrumbCurrent = styled.span`
@@ -241,6 +260,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const isSingle = mode === 'single';
 
   const { runs } = historyStore.useSelectorRC((s) => ({ runs: s.runs }));
+  const { evals } = evalsStore.useSelectorRC((s) => ({ evals: s.evals }));
   const { currentRun } = runStore.useSelectorRC((s) => ({
     currentRun: s.currentRun,
   }));
@@ -352,7 +372,13 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const pathSegments = evalSummary.filePath.split('/');
   const filename =
     pathSegments[pathSegments.length - 1] ?? evalSummary.filePath;
-  const breadcrumbSegments = pathSegments.slice(0, -1);
+  const breadcrumbSegments = getDisplayFolderSegments(
+    evals,
+    evalSummary.filePath,
+  ).map((segment, index, segments) => ({
+    segment,
+    path: segments.slice(0, index + 1).join('/'),
+  }));
 
   return (
     <Card
@@ -366,10 +392,15 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
       >
         {isSingle ? (
           <Breadcrumb>
-            {breadcrumbSegments.map((seg, i) => (
-              <span key={`${seg}-${String(i)}`}>
-                {seg}
-                <BreadcrumbSep style={{ margin: '0 6px' }}>/</BreadcrumbSep>
+            {breadcrumbSegments.map(({ segment, path }) => (
+              <span key={path}>
+                <BreadcrumbLink
+                  type="button"
+                  onClick={() => selectFolder(path)}
+                >
+                  {segment}
+                </BreadcrumbLink>
+                <BreadcrumbSep>/</BreadcrumbSep>
               </span>
             ))}
             <BreadcrumbCurrent>{filename}</BreadcrumbCurrent>

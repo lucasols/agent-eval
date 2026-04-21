@@ -1,4 +1,5 @@
-import { ChevronRight, FileCode, Folder, FolderOpen } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
+import { useEffect } from 'react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import {
@@ -11,6 +12,7 @@ import {
 import { evalsStore } from '../stores/evalsStore.ts';
 import { runStore } from '../stores/runStore.ts';
 import {
+  expandFolder,
   selectionStore,
   selectEval,
   selectFolder,
@@ -19,6 +21,7 @@ import {
 } from '../stores/selectionStore.ts';
 import {
   buildEvalTree,
+  type TreeFile,
   type TreeFolder,
   type TreeLeaf,
   type TreeNode,
@@ -118,63 +121,61 @@ const RowBase = styled.button<{
     background: ${colors.accent.var};
     border-radius: 2px;
   }
-
-  & > svg {
-    width: 13px;
-    height: 13px;
-    flex-shrink: 0;
-    color: ${colors.textDim.var};
-  }
-
-  &.active > svg {
-    color: ${colors.accent.var};
-  }
 `;
 
 const ChevronIcon = styled.span<{ open: boolean }>`
   ${transition({ property: 'transform' })}
   display: inline-flex;
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   align-items: center;
   justify-content: center;
   color: ${colors.textDim.var};
-  opacity: 0.7;
+  opacity: 0.8;
+  flex-shrink: 0;
 
   &.open {
     transform: rotate(90deg);
   }
 
   & > svg {
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
   }
 `;
 
-const RowLabel = styled.span`
+const GroupLabel = styled.span`
+  ${ellipsis};
+  flex: 1;
+  font-weight: 600;
+  font-size: 12.5px;
+  color: ${colors.text.var};
+`;
+
+const LeafLabel = styled.span`
   ${ellipsis};
   flex: 1;
   font-weight: 500;
   font-size: 12.5px;
 `;
 
-const FolderLabel = styled.span`
-  ${ellipsis};
-  flex: 1;
-  font-weight: 500;
-  font-size: 12.5px;
-  color: ${colors.textMuted.var};
-`;
-
-const FilenameHint = styled.span`
-  ${monoFont};
-  ${ellipsis};
-  font-size: 10px;
+const LeafFileName = styled.span`
   color: ${colors.textDim.var};
   font-weight: 400;
-  flex: 0 1 auto;
-  max-width: 38%;
-  white-space: nowrap;
+`;
+
+const LeafSeparator = styled.span`
+  color: ${colors.textDim.var};
+  font-weight: 400;
+  margin: 0 4px;
+`;
+
+const RowCounter = styled.span`
+  ${monoFont};
+  font-size: 10px;
+  color: ${colors.textDim.var};
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 `;
 
 const StaleTag = styled.span`
@@ -190,11 +191,6 @@ const StaleTag = styled.span`
   flex-shrink: 0;
 `;
 
-function getFilename(filePath: string): string {
-  const idx = filePath.lastIndexOf('/');
-  return idx >= 0 ? filePath.slice(idx + 1) : filePath;
-}
-
 export function EvalTree() {
   const { evals, hasLoaded, error } = evalsStore.useSelectorRC((s) => ({
     evals: s.evals,
@@ -205,6 +201,21 @@ export function EvalTree() {
     selection: s.selection,
     expandedFolders: s.expandedFolders,
   }));
+
+  useEffect(() => {
+    if (selection.kind !== 'eval') return;
+    const ev = evals.find((e) => e.id === selection.id);
+    if (!ev) return;
+    expandFolder(ev.filePath);
+    const segments = ev.filePath.split('/').filter((p) => p.length > 0);
+    let current = '';
+    for (let i = 0; i < segments.length - 1; i++) {
+      const segment = segments[i];
+      if (!segment) continue;
+      current = current ? `${current}/${segment}` : segment;
+      expandFolder(current);
+    }
+  }, [selection, evals]);
 
   if (!hasLoaded) {
     return (
@@ -253,6 +264,7 @@ export function EvalTree() {
           depth={0}
           selection={selection}
           expandedFolders={expandedFolders}
+          showFilenamePrefix
         />
       ))}
     </Root>
@@ -264,13 +276,30 @@ type NodeViewProps = {
   depth: number;
   selection: Selection;
   expandedFolders: Set<string>;
+  showFilenamePrefix: boolean;
 };
 
-function NodeView({ node, depth, selection, expandedFolders }: NodeViewProps) {
+function NodeView({
+  node,
+  depth,
+  selection,
+  expandedFolders,
+  showFilenamePrefix,
+}: NodeViewProps) {
   if (node.kind === 'folder') {
     return (
       <FolderRow
         folder={node}
+        depth={depth}
+        selection={selection}
+        expandedFolders={expandedFolders}
+      />
+    );
+  }
+  if (node.kind === 'file') {
+    return (
+      <FileRow
+        file={node}
         depth={depth}
         selection={selection}
         expandedFolders={expandedFolders}
@@ -282,6 +311,7 @@ function NodeView({ node, depth, selection, expandedFolders }: NodeViewProps) {
       leaf={node}
       depth={depth}
       selection={selection}
+      showFilenamePrefix={showFilenamePrefix}
     />
   );
 }
@@ -320,8 +350,8 @@ function FolderRow({
         <ChevronIcon open={isOpen}>
           <ChevronRight />
         </ChevronIcon>
-        {isOpen ? <FolderOpen /> : <Folder />}
-        <FolderLabel>{folder.name}</FolderLabel>
+        <GroupLabel>{folder.name}</GroupLabel>
+        <RowCounter>{folder.evalCount}</RowCounter>
       </RowBase>
       {isOpen
         ? folder.children.map((child) => (
@@ -331,6 +361,65 @@ function FolderRow({
               depth={depth + 1}
               selection={selection}
               expandedFolders={expandedFolders}
+              showFilenamePrefix
+            />
+          ))
+        : null}
+    </>
+  );
+}
+
+function FileRow({
+  file,
+  depth,
+  selection,
+  expandedFolders,
+}: {
+  file: TreeFile;
+  depth: number;
+  selection: Selection;
+  expandedFolders: Set<string>;
+}) {
+  const isOpen = expandedFolders.has(file.path);
+  const isActive =
+    selection.kind === 'eval' &&
+    file.evals.some((ev) => ev.id === selection.id);
+
+  function handleClick() {
+    toggleFolder(file.path);
+  }
+
+  return (
+    <>
+      <RowBase
+        type="button"
+        onClick={handleClick}
+        active={isActive}
+        depth0={depth === 0}
+        depth1={depth === 1}
+        depth2={depth === 2}
+        depth3={depth >= 3}
+      >
+        <ChevronIcon open={isOpen}>
+          <ChevronRight />
+        </ChevronIcon>
+        <GroupLabel>{file.name}</GroupLabel>
+        <RowCounter>{file.evals.length}</RowCounter>
+      </RowBase>
+      {isOpen
+        ? file.evals.map((ev) => (
+            <LeafRow
+              key={`${file.path}#${ev.id}`}
+              leaf={{
+                kind: 'leaf',
+                path: `${ev.filePath}#${ev.id}`,
+                filePath: ev.filePath,
+                fileName: file.name,
+                evalSummary: ev,
+              }}
+              depth={depth + 1}
+              selection={selection}
+              showFilenamePrefix={false}
             />
           ))
         : null}
@@ -342,14 +431,15 @@ function LeafRow({
   leaf,
   depth,
   selection,
+  showFilenamePrefix,
 }: {
   leaf: TreeLeaf;
   depth: number;
   selection: Selection;
+  showFilenamePrefix: boolean;
 }) {
   const ev = leaf.evalSummary;
   const isActive = selection.kind === 'eval' && selection.id === ev.id;
-  const filename = getFilename(ev.filePath);
 
   const { currentRun } = runStore.useSelectorRC((s) => ({
     currentRun: s.currentRun,
@@ -358,6 +448,7 @@ function LeafRow({
     currentRun?.manifest.status === 'running' &&
     targetIncludesEval(currentRun.manifest.target, ev.id);
   const displayStatus = isRunning ? 'running' : ev.lastRunStatus;
+  const title = ev.title ?? ev.id;
 
   return (
     <RowBase
@@ -369,11 +460,17 @@ function LeafRow({
       depth2={depth === 2}
       depth3={depth >= 3}
     >
-      <FileCode />
-      <RowLabel>{ev.title ?? ev.id}</RowLabel>
+      <StatusDot status={displayStatus ?? 'pending'} />
+      <LeafLabel>
+        {showFilenamePrefix ? (
+          <>
+            <LeafFileName>{leaf.fileName}</LeafFileName>
+            <LeafSeparator>/</LeafSeparator>
+          </>
+        ) : null}
+        {title}
+      </LeafLabel>
       {ev.stale ? <StaleTag>stale</StaleTag> : null}
-      {displayStatus ? <StatusDot status={displayStatus} /> : null}
-      <FilenameHint title={ev.filePath}>{filename}</FilenameHint>
     </RowBase>
   );
 }

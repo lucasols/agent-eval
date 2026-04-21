@@ -70,11 +70,13 @@ describe('app tree ui', () => {
             {
               "children": [
                 {
+                  "fileName": "randomized-lab",
                   "id": "randomized-lab",
                   "kind": "leaf",
                   "title": "Randomized Lab",
                 },
               ],
+              "evalCount": 1,
               "kind": "folder",
               "name": "playground",
               "path": "support/playground",
@@ -82,26 +84,30 @@ describe('app tree ui', () => {
             {
               "children": [
                 {
-                  "id": "assertion-failure-demo",
-                  "kind": "leaf",
-                  "title": "Assertion Failure Demo",
-                },
-                {
-                  "id": "score-threshold-demo",
-                  "kind": "leaf",
-                  "title": "Score Threshold Demo",
-                },
-                {
-                  "id": "silent-assertion-demo",
-                  "kind": "leaf",
-                  "title": "Silent Assertion Demo",
-                },
-                {
-                  "id": "silent-pass-demo",
-                  "kind": "leaf",
-                  "title": "Silent Pass Demo",
+                  "evals": [
+                    {
+                      "id": "assertion-failure-demo",
+                      "title": "Assertion Failure Demo",
+                    },
+                    {
+                      "id": "score-threshold-demo",
+                      "title": "Score Threshold Demo",
+                    },
+                    {
+                      "id": "silent-assertion-demo",
+                      "title": "Silent Assertion Demo",
+                    },
+                    {
+                      "id": "silent-pass-demo",
+                      "title": "Silent Pass Demo",
+                    },
+                  ],
+                  "kind": "file",
+                  "name": "outcome-behavior",
+                  "path": "/tmp/agent-evals-example/evals/support/quality/outcome-behavior.eval.ts",
                 },
               ],
+              "evalCount": 4,
               "kind": "folder",
               "name": "quality",
               "path": "support/quality",
@@ -111,26 +117,34 @@ describe('app tree ui', () => {
                 {
                   "children": [
                     {
+                      "fileName": "high-value-refund",
                       "id": "high-value-refund",
                       "kind": "leaf",
                       "title": "High Value Refund",
                     },
                   ],
+                  "evalCount": 1,
                   "kind": "folder",
                   "name": "escalations",
                   "path": "support/refunds/escalations",
                 },
                 {
-                  "id": "receipt-audit",
-                  "kind": "leaf",
-                  "title": "Receipt Audit",
-                },
-                {
-                  "id": "receipt-fraud-review",
-                  "kind": "leaf",
-                  "title": "Receipt Fraud Review",
+                  "evals": [
+                    {
+                      "id": "receipt-audit",
+                      "title": "Receipt Audit",
+                    },
+                    {
+                      "id": "receipt-fraud-review",
+                      "title": "Receipt Fraud Review",
+                    },
+                  ],
+                  "kind": "file",
+                  "name": "receipt-audit",
+                  "path": "/tmp/agent-evals-example/evals/support/refunds/receipt-audit.eval.ts",
                 },
               ],
+              "evalCount": 3,
               "kind": "folder",
               "name": "refunds",
               "path": "support/refunds",
@@ -138,21 +152,25 @@ describe('app tree ui', () => {
             {
               "children": [
                 {
+                  "fileName": "voice-follow-up",
                   "id": "voice-return-follow-up",
                   "kind": "leaf",
                   "title": "Voice Return Follow-up",
                 },
               ],
+              "evalCount": 1,
               "kind": "folder",
               "name": "returns",
               "path": "support/returns",
             },
           ],
+          "evalCount": 9,
           "kind": "folder",
           "name": "support",
           "path": "support",
         },
         {
+          "fileName": "refund-workflow",
           "id": "refund-workflow",
           "kind": "leaf",
           "title": "Refund Workflow",
@@ -217,7 +235,17 @@ function simplifyTree(nodes: TreeNode[]): unknown[] {
         kind: 'folder',
         name: node.name,
         path: node.path,
+        evalCount: node.evalCount,
         children: simplifyTree(node.children),
+      };
+    }
+
+    if (node.kind === 'file') {
+      return {
+        kind: 'file',
+        name: node.name,
+        path: node.path,
+        evals: node.evals.map((ev) => ({ id: ev.id, title: ev.title })),
       };
     }
 
@@ -225,6 +253,7 @@ function simplifyTree(nodes: TreeNode[]): unknown[] {
       kind: 'leaf',
       id: node.evalSummary.id,
       title: node.evalSummary.title,
+      fileName: node.fileName,
     };
   });
 }
@@ -235,6 +264,13 @@ function collectLeafPaths(nodes: TreeNode[]): string[] {
   for (const node of nodes) {
     if (node.kind === 'folder') {
       result.push(...collectLeafPaths(node.children));
+      continue;
+    }
+
+    if (node.kind === 'file') {
+      for (const ev of node.evals) {
+        result.push(`${node.filePath}#${ev.id}`);
+      }
       continue;
     }
 
