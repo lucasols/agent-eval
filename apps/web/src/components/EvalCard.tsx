@@ -4,6 +4,7 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   Play,
+  SquareArrowOutUpRight,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { styled } from 'vindur';
@@ -72,7 +73,7 @@ const Header = styled.header<{ collapsible: boolean; sticky: boolean }>`
   &.sticky {
     position: sticky;
     top: 0;
-    z-index: 2;
+    z-index: 3;
   }
 
   &.collapsible {
@@ -262,7 +263,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     currentRun: s.currentRun,
   }));
 
-  const { runRows, chartData, latestSummary } = useMemo(() => {
+  const { visibleRunRows, chartData, latestSummary } = useMemo(() => {
     const evalRuns = getRunsForEval(runs, evalSummary.id);
     const liveRun =
       currentRun &&
@@ -279,34 +280,36 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
 
     const rows = buildEvalScopedRunRows(merged, evalSummary.id);
 
-    const completedRuns = [...rows]
-      .reverse()
-      .filter(
-        (r) =>
-          r.manifest.status === 'completed' && r.summary.averageScore !== null,
-      )
-      .slice(-20);
-
-    const points = completedRuns.map((r, index) => ({
-      axisLabel:
-        index === completedRuns.length - 1 ? 'LATEST' : r.manifest.shortId,
-      shortId: r.manifest.shortId,
-      startedAt: r.manifest.startedAt,
-      score: r.summary.averageScore ?? 0,
-      cost: r.summary.cost.totalUsd,
-    }));
+    const points = isSingle
+      ? [...rows]
+          .reverse()
+          .filter(
+            (r) =>
+              r.manifest.status === 'completed' &&
+              r.summary.averageScore !== null,
+          )
+          .slice(-20)
+          .map((r, index, completedRuns) => ({
+            axisLabel:
+              index === completedRuns.length - 1 ? 'LATEST' : r.manifest.shortId,
+            shortId: r.manifest.shortId,
+            startedAt: r.manifest.startedAt,
+            score: r.summary.averageScore ?? 0,
+            cost: r.summary.cost.totalUsd,
+          }))
+      : [];
 
     return {
-      runRows: rows,
+      visibleRunRows: isStacked ? rows.slice(0, 1) : rows,
       chartData: points,
       latestSummary: rows[0]?.summary ?? null,
     };
-  }, [runs, currentRun, evalSummary.id]);
+  }, [runs, currentRun, evalSummary.id, isSingle, isStacked]);
 
   const isRunning =
     currentRun?.manifest.status === 'running' &&
     runTargetsEvalLocal(currentRun.manifest.target, evalSummary.id);
-  const hasScoreHistory = chartData.length > 1;
+  const hasScoreHistory = isSingle && chartData.length > 1;
   const displayStatus = getEvalDisplayStatus({
     freshnessStatus: evalSummary.freshnessStatus,
     stale: evalSummary.stale,
@@ -565,8 +568,8 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
 
           <Section fill={isSingle}>
             <RunsSection
-              key={runRows.map((run) => run.manifest.id).join(':')}
-              runs={runRows}
+              key={visibleRunRows.map((run) => run.manifest.id).join(':')}
+              runs={visibleRunRows}
               columnDefs={evalSummary.columnDefs}
               passThreshold={evalSummary.passThreshold ?? 0.5}
               fillHeight={isSingle}

@@ -18,10 +18,7 @@ import { MenuButton } from './MenuButton.tsx';
 import { PathBreadcrumb } from './PathBreadcrumb.tsx';
 import { SplitButton, type SplitButtonMenuEntry } from './SplitButton.tsx';
 
-type FolderViewProps = {
-  folderPath: string;
-  evals: EvalSummary[];
-};
+type FolderViewProps = { folderPath: string; evals: EvalSummary[] };
 
 const Root = styled.div`
   height: 100%;
@@ -35,7 +32,7 @@ const Header = styled.div`
   background: ${colors.bg.var};
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 3;
 `;
 
 const TitleRow = styled.div`
@@ -67,10 +64,12 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
     .split('/')
     .filter((segment) => segment.length > 0);
   const currentLabel = displaySegments.at(-1) ?? '/';
-  const parentSegments = displaySegments.slice(0, -1).map((label, index) => ({
-    label,
-    path: displaySegments.slice(0, index + 1).join('/'),
-  }));
+  const parentSegments = displaySegments
+    .slice(0, -1)
+    .map((label, index) => ({
+      label,
+      path: displaySegments.slice(0, index + 1).join('/'),
+    }));
   const evalIds = evals.map((ev) => ev.id);
   const isRunning =
     currentRun?.manifest.status === 'running' &&
@@ -85,10 +84,11 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
 
   function handleRecomputeStatuses() {
     setMaintenanceAction('recompute');
-    void Promise.all(evalIds.map((evalId) => recomputeStatusesForEval(evalId)))
-      .finally(() => {
-        setMaintenanceAction(null);
-      });
+    void Promise.all(
+      evalIds.map((evalId) => recomputeStatusesForEval(evalId)),
+    ).finally(() => {
+      setMaintenanceAction(null);
+    });
   }
 
   function handleCleanRuns() {
@@ -106,10 +106,7 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
       label: 'Run (use cache)',
       description: 'Read on hit, write on miss.',
       onSelect: () => {
-        void startRun(
-          { mode: 'evalIds', evalIds },
-          { cacheMode: 'use' },
-        );
+        void startRun({ mode: 'evalIds', evalIds }, { cacheMode: 'use' });
       },
     },
     {
@@ -117,10 +114,7 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
       label: 'Run without cache',
       description: 'Skip reads and writes for this run.',
       onSelect: () => {
-        void startRun(
-          { mode: 'evalIds', evalIds },
-          { cacheMode: 'bypass' },
-        );
+        void startRun({ mode: 'evalIds', evalIds }, { cacheMode: 'bypass' });
       },
     },
     {
@@ -128,10 +122,7 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
       label: 'Refresh cache',
       description: 'Force re-execution and overwrite entries.',
       onSelect: () => {
-        void startRun(
-          { mode: 'evalIds', evalIds },
-          { cacheMode: 'refresh' },
-        );
+        void startRun({ mode: 'evalIds', evalIds }, { cacheMode: 'refresh' });
       },
     },
     { kind: 'separator' },
@@ -157,7 +148,8 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
     {
       id: 'recompute-status',
       label: 'Recompute status',
-      description: 'Recalculate statuses for saved runs that touched these evals.',
+      description:
+        'Recalculate statuses for saved runs that touched these evals.',
       onSelect: handleRecomputeStatuses,
     },
     {

@@ -76,7 +76,7 @@ const Th = styled.th<{ rightAlign: boolean; indent: boolean }>`
   ${kicker};
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 1;
   padding: 10px 16px;
   background: ${colors.bgElevated.var};
   box-shadow: inset 0 -1px 0 ${colors.border.var};
