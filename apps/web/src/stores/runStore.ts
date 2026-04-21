@@ -12,6 +12,10 @@ import {
 import { resultify } from 't-result';
 import { Store } from 't-state';
 import { z } from 'zod/v4';
+import {
+  getCurrentSearchParams,
+  updateSearchParams,
+} from '../hooks/useSearchParams.ts';
 import { fetchEvals } from './evalsStore.ts';
 import { refetchHistory } from './historyStore.ts';
 
@@ -33,8 +37,11 @@ export type RunDetail = {
   cases: CaseRow[];
 };
 
+type CaseSelection = { runId: string; caseId: string };
+
 type RunState = {
   currentRun: RunDetail | null;
+  selectedCaseRunId: string | null;
   selectedCaseId: string | null;
   selectedCaseDetail: CaseDetail | null;
   selectedRunId: string | null;
@@ -43,10 +50,63 @@ type RunState = {
   eventSource: EventSource | null;
 };
 
+function readCaseSelectionFromSearchParams(
+  searchParams: URLSearchParams,
+): CaseSelection | null {
+  const runId = searchParams.get('caseRun');
+  const caseId = searchParams.get('case');
+  if (!runId || !caseId) return null;
+  return { runId, caseId };
+}
+
+function setCaseSelectionState(selection: CaseSelection | null): void {
+  runStore.setPartialState({
+    selectedCaseRunId: selection?.runId ?? null,
+    selectedCaseId: selection?.caseId ?? null,
+    selectedCaseDetail: null,
+  });
+}
+
+function setCaseSelection(selection: CaseSelection | null): void {
+  setCaseSelectionState(selection);
+  updateSearchParams((searchParams) => {
+    searchParams.delete('caseRun');
+    searchParams.delete('case');
+    if (!selection) return;
+    searchParams.set('caseRun', selection.runId);
+    searchParams.set('case', selection.caseId);
+  });
+}
+
+async function fetchCaseDetail(runId: string, caseId: string): Promise<void> {
+  const fetchResult = await resultify(() =>
+    fetch(`/api/runs/${runId}/cases/${caseId}`),
+  );
+  if (fetchResult.error) return;
+  const jsonResult = await resultify(() => fetchResult.value.json());
+  if (jsonResult.error) return;
+  const parseResult = resultify(() => caseDetailSchema.parse(jsonResult.value));
+  if (parseResult.error) return;
+
+  if (
+    runStore.state.selectedCaseRunId !== runId ||
+    runStore.state.selectedCaseId !== caseId
+  ) {
+    return;
+  }
+
+  runStore.setPartialState({ selectedCaseDetail: parseResult.value });
+}
+
+const initialCaseSelection = readCaseSelectionFromSearchParams(
+  getCurrentSearchParams(),
+);
+
 export const runStore = new Store<RunState>({
   state: {
     currentRun: null,
-    selectedCaseId: null,
+    selectedCaseRunId: initialCaseSelection?.runId ?? null,
+    selectedCaseId: initialCaseSelection?.caseId ?? null,
     selectedCaseDetail: null,
     selectedRunId: null,
     selectedRunDetail: null,
@@ -86,11 +146,8 @@ export async function startRun(
   );
   if (parseResult.error) return;
 
-  runStore.setPartialState({
-    currentRun: parseResult.value,
-    selectedCaseId: null,
-    selectedCaseDetail: null,
-  });
+  runStore.setPartialState({ currentRun: parseResult.value });
+  setCaseSelection(null);
 
   subscribeToRunEvents(parseResult.value.manifest.id);
 }
@@ -223,37 +280,41 @@ export async function cancelRun(): Promise<void> {
   );
 }
 
-export async function selectCase(runId: string, caseId: string): Promise<void> {
-  runStore.setPartialState({
-    selectedCaseId: caseId,
-    selectedCaseDetail: null,
-    selectedRunId: null,
-    selectedRunDetail: null,
-  });
+export function selectCase(runId: string, caseId: string): void {
+  setCaseSelection({ runId, caseId });
+  runStore.setPartialState({ selectedRunId: null, selectedRunDetail: null });
+}
 
-  const fetchResult = await resultify(() =>
-    fetch(`/api/runs/${runId}/cases/${caseId}`),
-  );
-  if (fetchResult.error) return;
-  const jsonResult = await resultify(() => fetchResult.value.json());
-  if (jsonResult.error) return;
-  const parseResult = resultify(() => caseDetailSchema.parse(jsonResult.value));
-  if (parseResult.error) return;
+export async function syncCaseSelectionFromSearchParams(
+  searchParams: URLSearchParams,
+): Promise<void> {
+  const selection = readCaseSelectionFromSearchParams(searchParams);
+  const sameSelection =
+    runStore.state.selectedCaseRunId === selection?.runId &&
+    runStore.state.selectedCaseId === selection.caseId;
 
-  runStore.setPartialState({ selectedCaseDetail: parseResult.value });
+  if (!selection) {
+    if (sameSelection) return;
+    setCaseSelectionState(null);
+    return;
+  }
+
+  if (!sameSelection) {
+    setCaseSelectionState(selection);
+    runStore.setPartialState({ selectedRunId: null, selectedRunDetail: null });
+  }
+
+  if (sameSelection && runStore.state.selectedCaseDetail) return;
+  await fetchCaseDetail(selection.runId, selection.caseId);
 }
 
 export function closeCase(): void {
-  runStore.setPartialState({ selectedCaseId: null, selectedCaseDetail: null });
+  setCaseSelection(null);
 }
 
 export async function selectRun(runId: string): Promise<void> {
-  runStore.setPartialState({
-    selectedRunId: runId,
-    selectedRunDetail: null,
-    selectedCaseId: null,
-    selectedCaseDetail: null,
-  });
+  setCaseSelection(null);
+  runStore.setPartialState({ selectedRunId: runId, selectedRunDetail: null });
 
   const fetchResult = await resultify(() => fetch(`/api/runs/${runId}`));
   if (fetchResult.error) return;

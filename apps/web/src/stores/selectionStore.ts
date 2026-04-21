@@ -1,4 +1,8 @@
 import { Store } from 't-state';
+import {
+  getCurrentSearchParams,
+  updateSearchParams,
+} from '../hooks/useSearchParams.ts';
 
 export type Selection =
   | { kind: 'none' }
@@ -7,17 +11,19 @@ export type Selection =
 
 type SelectionState = { selection: Selection; collapsedFolders: Set<string> };
 
-function readSelectionFromUrl(): Selection {
-  if (typeof window === 'undefined') return { kind: 'none' };
-  const params = new URLSearchParams(window.location.search);
-  const evalId = params.get('eval');
+function readSelectionFromSearchParams(
+  searchParams: URLSearchParams,
+): Selection {
+  const evalId = searchParams.get('eval');
   if (evalId) return { kind: 'eval', id: evalId };
-  const folder = params.get('folder');
+  const folder = searchParams.get('folder');
   if (folder) return { kind: 'folder', path: folder };
   return { kind: 'none' };
 }
 
-const initialSelection = readSelectionFromUrl();
+const initialSelection = readSelectionFromSearchParams(
+  getCurrentSearchParams(),
+);
 
 export const selectionStore = new Store<SelectionState>({
   state: { selection: initialSelection, collapsedFolders: new Set<string>() },
@@ -30,28 +36,52 @@ export function isFolderExpanded(
   return !collapsedFolders.has(path);
 }
 
-function selectionToSearch(selection: Selection): string {
-  const params = new URLSearchParams(window.location.search);
-  params.delete('eval');
-  params.delete('folder');
-  if (selection.kind === 'eval') params.set('eval', selection.id);
-  else if (selection.kind === 'folder') params.set('folder', selection.path);
-  const str = params.toString();
-  return str ? `?${str}` : '';
+function sameSelection(left: Selection, right: Selection): boolean {
+  if (left.kind !== right.kind) return false;
+  if (left.kind === 'none') return true;
+  if (left.kind === 'eval' && right.kind === 'eval') {
+    return left.id === right.id;
+  }
+  if (left.kind === 'folder' && right.kind === 'folder') {
+    return left.path === right.path;
+  }
+  return false;
 }
 
-function syncUrl(selection: Selection): void {
-  if (typeof window === 'undefined') return;
-  const search = selectionToSearch(selection);
-  const next = `${window.location.pathname}${search}${window.location.hash}`;
-  const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-  if (next === current) return;
-  window.history.pushState(null, '', next);
+function applySelectionFromUrl(selection: Selection): void {
+  selectionStore.setState((prev) => {
+    if (selection.kind !== 'folder') {
+      if (sameSelection(prev.selection, selection)) return prev;
+      return { ...prev, selection };
+    }
+
+    const collapsed = new Set(prev.collapsedFolders);
+    const parts = selection.path.split('/');
+    for (let i = 1; i <= parts.length; i++) {
+      collapsed.delete(parts.slice(0, i).join('/'));
+    }
+
+    const collapsedUnchanged =
+      collapsed.size === prev.collapsedFolders.size &&
+      [...collapsed].every((path) => prev.collapsedFolders.has(path));
+    if (sameSelection(prev.selection, selection) && collapsedUnchanged) {
+      return prev;
+    }
+
+    return { ...prev, selection, collapsedFolders: collapsed };
+  });
 }
 
 function setSelection(selection: Selection): void {
   selectionStore.setPartialState({ selection });
-  syncUrl(selection);
+  updateSearchParams((searchParams) => {
+    searchParams.delete('eval');
+    searchParams.delete('folder');
+    if (selection.kind === 'eval') searchParams.set('eval', selection.id);
+    else if (selection.kind === 'folder') {
+      searchParams.set('folder', selection.path);
+    }
+  });
 }
 
 export function selectEval(id: string): void {
@@ -101,17 +131,9 @@ export function collapseAllFolders(paths: string[]): void {
   }));
 }
 
-if (typeof window !== 'undefined') {
-  window.addEventListener('popstate', () => {
-    const selection = readSelectionFromUrl();
-    selectionStore.setState((prev) => {
-      if (selection.kind !== 'folder') return { ...prev, selection };
-      const collapsed = new Set(prev.collapsedFolders);
-      const parts = selection.path.split('/');
-      for (let i = 1; i <= parts.length; i++) {
-        collapsed.delete(parts.slice(0, i).join('/'));
-      }
-      return { ...prev, selection, collapsedFolders: collapsed };
-    });
-  });
+export function syncSelectionFromSearchParams(
+  searchParams: URLSearchParams,
+): void {
+  const selection = readSelectionFromSearchParams(searchParams);
+  applySelectionFromUrl(selection);
 }

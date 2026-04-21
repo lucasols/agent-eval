@@ -2,10 +2,17 @@ import { useEffect } from 'react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import { inline, stack } from '#src/style/helpers';
+import { useSearchParams } from '../hooks/useSearchParams.ts';
 import { evalsStore, fetchEvals } from '../stores/evalsStore.ts';
 import { refetchHistory } from '../stores/historyStore.ts';
-import { runStore } from '../stores/runStore.ts';
-import { selectionStore } from '../stores/selectionStore.ts';
+import {
+  runStore,
+  syncCaseSelectionFromSearchParams,
+} from '../stores/runStore.ts';
+import {
+  selectionStore,
+  syncSelectionFromSearchParams,
+} from '../stores/selectionStore.ts';
 import { collectEvalsInFolder } from '../utils/buildEvalTree.ts';
 import { CaseDrawer } from './CaseDrawer.tsx';
 import { EmptyState } from './EmptyState.tsx';
@@ -29,15 +36,29 @@ const MainPanel = styled.div`
 `;
 
 export function AppShell() {
+  const searchParams = useSearchParams();
+  const search = searchParams.toString();
   const { selectedCaseId, selectedRunId } = runStore.useSelectorRC((s) => ({
     selectedCaseId: s.selectedCaseId,
     selectedRunId: s.selectedRunId,
   }));
+  const selectedEvalId = searchParams.get('eval');
+  const selectedFolderPath = searchParams.get('folder');
+  const selectedCaseRunId = searchParams.get('caseRun');
+  const selectedCaseFromUrl = searchParams.get('case');
 
   useEffect(() => {
     void fetchEvals();
     void refetchHistory();
   }, []);
+
+  useEffect(() => {
+    syncSelectionFromSearchParams(new URLSearchParams(search));
+  }, [search, selectedEvalId, selectedFolderPath]);
+
+  useEffect(() => {
+    void syncCaseSelectionFromSearchParams(new URLSearchParams(search));
+  }, [search, selectedCaseRunId, selectedCaseFromUrl]);
 
   useEffect(() => {
     const eventSource = new EventSource('/api/evals/events');
