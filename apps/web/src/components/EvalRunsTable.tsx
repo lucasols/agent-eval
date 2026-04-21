@@ -378,7 +378,7 @@ export function EvalRunsTable({
             {customColumns.map((c) => (
               <Th
                 key={c.key}
-                rightAlign={c.align === 'right'}
+                rightAlign={c.align === 'right' || isNumericColumn(c)}
                 indent={false}
               >
                 {c.label}
