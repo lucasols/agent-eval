@@ -10,11 +10,12 @@
     "eslint": "eslint ."
   },
   "dependencies": {
-    "@agent-evals/shared": "workspace:*",
     "@agent-evals/runner": "workspace:*",
+    "@agent-evals/shared": "workspace:*",
     "@hono/node-server": "^1.14.3",
     "@hono/zod-validator": "^0.7.3",
     "hono": "^4.9.9",
+    "launch-editor": "^2.13.2",
     "zod": "^4.1.11"
   },
   "devDependencies": {

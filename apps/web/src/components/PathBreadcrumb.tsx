@@ -1,6 +1,9 @@
+import { SquareArrowOutUpRight } from 'lucide-react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import { inline, monoFont, transition } from '#src/style/helpers';
+import { IconButton } from './IconButton.tsx';
+import { Tooltip } from './Tooltip.tsx';
 
 export type PathBreadcrumbSegment = {
   label: string;
@@ -11,6 +14,7 @@ type PathBreadcrumbProps = {
   segments: PathBreadcrumbSegment[];
   currentLabel: string;
   onSelect: (path: string) => void;
+  onOpenInEditor?: () => void;
 };
 
 const Breadcrumb = styled.div`
@@ -48,6 +52,7 @@ export function PathBreadcrumb({
   segments,
   currentLabel,
   onSelect,
+  onOpenInEditor,
 }: PathBreadcrumbProps) {
   return (
     <Breadcrumb>
@@ -63,6 +68,19 @@ export function PathBreadcrumb({
         </span>
       ))}
       <BreadcrumbCurrent>{currentLabel}</BreadcrumbCurrent>
+      {onOpenInEditor ? (
+        <Tooltip content="Open in editor">
+          <IconButton
+            aria-label="Open in editor"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenInEditor();
+            }}
+          >
+            <SquareArrowOutUpRight />
+          </IconButton>
+        </Tooltip>
+      ) : null}
     </Breadcrumb>
   );
 }

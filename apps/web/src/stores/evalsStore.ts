@@ -58,3 +58,12 @@ async function loadEvals(url: string, init?: RequestInit): Promise<void> {
 export async function fetchEvals(): Promise<void> {
   await loadEvals('/api/evals');
 }
+
+/** Ask the server to open the eval's source file in the user's editor. */
+export async function openEvalInEditor(evalId: string): Promise<void> {
+  await resultify(() =>
+    fetch(`/api/evals/${encodeURIComponent(evalId)}/open-in-editor`, {
+      method: 'POST',
+    }),
+  );
+}

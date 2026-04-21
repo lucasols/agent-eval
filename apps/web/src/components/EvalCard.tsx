@@ -18,7 +18,7 @@ import {
   tabularNums,
   transition,
 } from '#src/style/helpers';
-import { evalsStore } from '../stores/evalsStore.ts';
+import { evalsStore, openEvalInEditor } from '../stores/evalsStore.ts';
 import { getRunsForEval, historyStore } from '../stores/historyStore.ts';
 import {
   cleanRunsForEval,
@@ -453,6 +453,9 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
               }))}
               currentLabel={filename}
               onSelect={selectFolder}
+              onOpenInEditor={() => {
+                void openEvalInEditor(evalSummary.id);
+              }}
             />
           </BreadcrumbWrap>
         ) : null}
