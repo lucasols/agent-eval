@@ -1,17 +1,50 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import { inline, kicker, stack } from '#src/style/helpers';
 import { evalsStore } from '../stores/evalsStore.ts';
 import { EvalTree } from './EvalTree.tsx';
 
+const MIN_WIDTH = 200;
+const MAX_WIDTH = 640;
+const DEFAULT_WIDTH = 248;
+const STORAGE_KEY = 'agent-evals.sidebar-width';
+
 const Root = styled.aside`
   ${stack()}
-  width: 248px;
   flex-shrink: 0;
   border-right: 1px solid ${colors.border.var};
   background: ${colors.bgElevated.var};
   overflow: hidden;
   position: relative;
+`;
+
+const ResizeHandle = styled.div<{ dragging: boolean }>`
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -3px;
+  width: 7px;
+  cursor: col-resize;
+  z-index: 5;
+  user-select: none;
+  touch-action: none;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 3px;
+    width: 1px;
+    background: transparent;
+    transition: background 0.15s ease;
+  }
+
+  &:hover::after,
+  &.dragging::after {
+    background: ${colors.accent.var};
+  }
 `;
 
 const Masthead = styled.div`
@@ -83,11 +116,65 @@ const ScrollArea = styled.div`
   padding-bottom: 10px;
 `;
 
+function clampWidth(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_WIDTH;
+  return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, value));
+}
+
+function readStoredWidth(): number {
+  if (typeof window === 'undefined') return DEFAULT_WIDTH;
+  const raw = window.localStorage.getItem(STORAGE_KEY);
+  if (!raw) return DEFAULT_WIDTH;
+  const parsed = Number.parseFloat(raw);
+  return clampWidth(parsed);
+}
+
 export function Sidebar() {
   const { evals } = evalsStore.useSelectorRC((s) => ({ evals: s.evals }));
+  const [width, setWidth] = useState<number>(() => readStoredWidth());
+  const [dragging, setDragging] = useState(false);
+  const rootRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(STORAGE_KEY, String(width));
+  }, [width]);
+
+  const handlePointerDown = useCallback((event: React.PointerEvent) => {
+    if (event.button !== 0) return;
+    const root = rootRef.current;
+    if (!root) return;
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = root.getBoundingClientRect().width;
+    setDragging(true);
+
+    function onMove(e: PointerEvent) {
+      const next = clampWidth(startWidth + (e.clientX - startX));
+      setWidth(next);
+    }
+
+    function onUp() {
+      setDragging(false);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    }
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  }, []);
+
+  const handleDoubleClick = useCallback(() => {
+    setWidth(DEFAULT_WIDTH);
+  }, []);
 
   return (
-    <Root>
+    <Root
+      ref={rootRef}
+      style={{ width: `${width}px` }}
+    >
       <Masthead>
         <Mark>ae</Mark>
         <BrandText>
@@ -102,6 +189,13 @@ export function Sidebar() {
       <ScrollArea>
         <EvalTree />
       </ScrollArea>
+      <ResizeHandle
+        dragging={dragging}
+        role="separator"
+        aria-orientation="vertical"
+        onPointerDown={handlePointerDown}
+        onDoubleClick={handleDoubleClick}
+      />
     </Root>
   );
 }
