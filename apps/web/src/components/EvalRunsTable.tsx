@@ -25,6 +25,7 @@ import {
   formatScore,
   formatTimestamp,
 } from '../utils/formatters.ts';
+import { getRunDisplayStatus } from '../utils/runStatus.ts';
 import { StatusBadge } from './StatusBadge.tsx';
 
 export type RunRow = {
@@ -426,6 +427,7 @@ function RunGroup({
   totalCols: number;
 }) {
   const { manifest, summary, cases } = run;
+  const displayStatus = getRunDisplayStatus(manifest, summary);
   const hasCases = summary.totalCases > 0;
   const costValue = summary.cost.totalUsd;
   const durationValue = summary.totalDurationMs;
@@ -474,7 +476,7 @@ function RunGroup({
           rightAlign={false}
           mono={false}
         >
-          <StatusBadge status={manifest.status} />
+          <StatusBadge status={displayStatus} />
         </RunHeaderTd>
         <RunHeaderTd
           rightAlign={true}

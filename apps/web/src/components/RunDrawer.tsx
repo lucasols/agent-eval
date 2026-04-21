@@ -15,6 +15,7 @@ import {
   formatScore,
   formatTimestamp,
 } from '../utils/formatters.ts';
+import { getRunDisplayStatus } from '../utils/runStatus.ts';
 import { IconButton } from './IconButton.tsx';
 import { StatusBadge } from './StatusBadge.tsx';
 
@@ -193,6 +194,7 @@ export function RunDrawer() {
   }
 
   const { manifest, summary } = selectedRunDetail;
+  const displayStatus = getRunDisplayStatus(manifest, summary);
   const failed = summary.failedCases + summary.errorCases;
   const showError =
     summary.status === 'error' &&
@@ -214,7 +216,7 @@ export function RunDrawer() {
         <HeaderLeft>
           <RunTag>RUN</RunTag>
           <RunTime>{formatTimestamp(manifest.startedAt)}</RunTime>
-          <StatusBadge status={manifest.status} />
+          <StatusBadge status={displayStatus} />
         </HeaderLeft>
       </Header>
 

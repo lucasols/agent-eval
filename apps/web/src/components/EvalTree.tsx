@@ -31,6 +31,7 @@ import {
   type TreeNode,
 } from '../utils/buildEvalTree.ts';
 import { StatusDot } from './StatusBadge.tsx';
+import { Tooltip } from './Tooltip.tsx';
 
 const Root = styled.div`
   padding: 2px 0 10px;
@@ -192,8 +193,7 @@ const LeafSeparator = styled.span`
 `;
 
 const StatusDotWrap = styled.span`
-  display: inline-flex;
-  align-items: center;
+  ${inline({ gap: 6, align: 'center' })}
   flex-shrink: 0;
 `;
 
@@ -407,10 +407,12 @@ function FolderRow({
           <ChevronRight />
         </ChevronButton>
         <GroupLabel>{folder.name}</GroupLabel>
-        <StatusDotWrap title={statusTooltip}>
-          <StatusDot status={combinedStatus} />
-        </StatusDotWrap>
-        <RowCounter>{folder.evalCount}</RowCounter>
+        <Tooltip content={statusTooltip}>
+          <StatusDotWrap>
+            <StatusDot status={combinedStatus} />
+            <RowCounter>{folder.evalCount}</RowCounter>
+          </StatusDotWrap>
+        </Tooltip>
       </RowBase>
       {isOpen
         ? folder.children.map((child) => (
@@ -478,10 +480,12 @@ function FileRow({
           <ChevronRight />
         </ChevronButton>
         <GroupLabel>{file.name}</GroupLabel>
-        <StatusDotWrap title={statusTooltip}>
-          <StatusDot status={combinedStatus} />
-        </StatusDotWrap>
-        <RowCounter>{file.evals.length}</RowCounter>
+        <Tooltip content={statusTooltip}>
+          <StatusDotWrap>
+            <StatusDot status={combinedStatus} />
+            <RowCounter>{file.evals.length}</RowCounter>
+          </StatusDotWrap>
+        </Tooltip>
       </RowBase>
       {isOpen
         ? file.evals.map((ev) => (
