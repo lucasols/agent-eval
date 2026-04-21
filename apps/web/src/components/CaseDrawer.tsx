@@ -1,13 +1,17 @@
 import type { CellValue, ColumnDef, DisplayBlock } from '@agent-evals/shared';
-import { X } from 'lucide-react';
+import { Maximize2, Minimize2, X } from 'lucide-react';
+import { useRef } from 'react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
+import { useResizableWidth } from '../hooks/useResizableWidth.ts';
 import {
   updateSearchParams,
   useSearchParams,
 } from '../hooks/useSearchParams.ts';
+import { useWindowWidth } from '../hooks/useWindowWidth.ts';
 import { evalsStore } from '../stores/evalsStore.ts';
+import { layoutStore } from '../stores/layoutStore.ts';
 import { closeCase, runStore } from '../stores/runStore.ts';
 import {
   formatCost,
@@ -17,13 +21,13 @@ import {
 } from '../utils/formatters.ts';
 import { DisplayBlockRenderer } from './DisplayBlockRenderer.tsx';
 import { IconButton } from './IconButton.tsx';
+import { ResizeHandle } from './ResizeHandle.tsx';
 import { StatusBadge } from './StatusBadge.tsx';
 import { TraceTree } from './TraceTree.tsx';
 
 type Tab = 'input' | 'output' | 'trace' | 'raw' | 'failures' | 'error';
 
 const DrawerLoading = styled.div`
-  width: 540px;
   border-left: 1px solid ${colors.border.var};
   background: ${colors.bgElevated.var};
   display: flex;
@@ -31,11 +35,13 @@ const DrawerLoading = styled.div`
   justify-content: center;
   color: ${colors.textMuted.var};
   font-size: 12px;
+  flex-shrink: 0;
 `;
 
 const DrawerRoot = styled.div`
   ${stack()}
-  width: 540px;
+  position: relative;
+  flex-shrink: 0;
   border-left: 1px solid ${colors.border.var};
   background: ${colors.bgElevated.var};
   overflow: hidden;
@@ -51,6 +57,10 @@ const Header = styled.div`
 
 const HeaderTop = styled.div`
   ${inline({ justify: 'space-between', align: 'center', gap: 10 })}
+`;
+
+const HeaderActions = styled.div`
+  ${inline({ align: 'center', gap: 2 })}
 `;
 
 const HeaderKicker = styled.span`
@@ -244,9 +254,47 @@ export function CaseDrawer() {
     selectedCaseDetail: s.selectedCaseDetail,
   }));
   const { evals } = evalsStore.useSelectorRC((s) => ({ evals: s.evals }));
+  const { sidebarWidth } = layoutStore.useSelectorRC((s) => ({
+    sidebarWidth: s.sidebarWidth,
+  }));
+  const windowWidth = useWindowWidth();
+  const minWidth = 360;
+  const maxWidth = Math.max(minWidth, windowWidth - sidebarWidth);
+  const {
+    width,
+    dragging,
+    rootRef,
+    handlePointerDown,
+    handleDoubleClick,
+    setWidth,
+  } = useResizableWidth<HTMLDivElement>({
+    storageKey: 'agent-evals.case-drawer-width',
+    minWidth,
+    maxWidth,
+    defaultWidth: 540,
+    edge: 'left',
+  });
+
+  const preExpandWidthRef = useRef<number | null>(null);
+  const isExpanded = width >= maxWidth;
+
+  function toggleExpand() {
+    if (isExpanded) {
+      const previous = preExpandWidthRef.current ?? 540;
+      preExpandWidthRef.current = null;
+      setWidth(previous);
+    } else {
+      preExpandWidthRef.current = width;
+      setWidth(maxWidth);
+    }
+  }
 
   if (!selectedCaseDetail) {
-    return <DrawerLoading>Loading case...</DrawerLoading>;
+    return (
+      <DrawerLoading style={{ width: `${width}px` }}>
+        Loading case...
+      </DrawerLoading>
+    );
   }
 
   const d = selectedCaseDetail;
@@ -260,16 +308,34 @@ export function CaseDrawer() {
   const activeTab = resolveActiveTab(searchParams.get('caseTab'), tabs);
 
   return (
-    <DrawerRoot>
+    <DrawerRoot
+      ref={rootRef}
+      style={{ width: `${width}px` }}
+    >
+      <ResizeHandle
+        dragging={dragging}
+        edge="left"
+        onPointerDown={handlePointerDown}
+        onDoubleClick={handleDoubleClick}
+      />
       <Header>
         <HeaderTop>
           <HeaderKicker>Case</HeaderKicker>
-          <IconButton
-            onClick={closeCase}
-            aria-label="Close"
-          >
-            <X />
-          </IconButton>
+          <HeaderActions>
+            <IconButton
+              onClick={toggleExpand}
+              aria-label={isExpanded ? 'Collapse case drawer' : 'Expand case drawer'}
+              aria-pressed={isExpanded}
+            >
+              {isExpanded ? <Minimize2 /> : <Maximize2 />}
+            </IconButton>
+            <IconButton
+              onClick={closeCase}
+              aria-label="Close"
+            >
+              <X />
+            </IconButton>
+          </HeaderActions>
         </HeaderTop>
         <HeaderTitleRow>
           <HeaderLeft>

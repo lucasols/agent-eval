@@ -1,9 +1,17 @@
 import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import { inline, kicker, stack, transition } from '#src/style/helpers';
+import { useResizableWidth } from '../hooks/useResizableWidth.ts';
 import { evalsStore } from '../stores/evalsStore.ts';
+import {
+  setSidebarWidth,
+  SIDEBAR_DEFAULT_WIDTH,
+  SIDEBAR_MAX_WIDTH,
+  SIDEBAR_MIN_WIDTH,
+  SIDEBAR_WIDTH_STORAGE_KEY,
+} from '../stores/layoutStore.ts';
 import {
   collapseAllFolders,
   expandAllFolders,
@@ -15,12 +23,8 @@ import {
   collectCollapsiblePaths,
 } from '../utils/buildEvalTree.ts';
 import { EvalTree } from './EvalTree.tsx';
+import { ResizeHandle } from './ResizeHandle.tsx';
 import { Tooltip } from './Tooltip.tsx';
-
-const MIN_WIDTH = 200;
-const MAX_WIDTH = 640;
-const DEFAULT_WIDTH = 248;
-const STORAGE_KEY = 'agent-evals.sidebar-width';
 
 const Root = styled.aside`
   ${stack()}
@@ -29,34 +33,6 @@ const Root = styled.aside`
   background: ${colors.bgElevated.var};
   overflow: hidden;
   position: relative;
-`;
-
-const ResizeHandle = styled.div<{ dragging: boolean }>`
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  right: -3px;
-  width: 7px;
-  cursor: col-resize;
-  z-index: 5;
-  user-select: none;
-  touch-action: none;
-
-  &::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 3px;
-    width: 1px;
-    background: transparent;
-    transition: background 0.15s ease;
-  }
-
-  &:hover::after,
-  &.dragging::after {
-    background: ${colors.accent.var};
-  }
 `;
 
 const Masthead = styled.div`
@@ -171,28 +147,24 @@ const ScrollArea = styled.div`
   padding-bottom: 10px;
 `;
 
-function clampWidth(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_WIDTH;
-  return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, value));
-}
-
-function readStoredWidth(): number {
-  if (typeof window === 'undefined') return DEFAULT_WIDTH;
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) return DEFAULT_WIDTH;
-  const parsed = Number.parseFloat(raw);
-  return clampWidth(parsed);
-}
-
 export function Sidebar() {
   const { evals } = evalsStore.useSelectorRC((s) => ({ evals: s.evals }));
   const { collapsedFolders, selection } = selectionStore.useSelectorRC((s) => ({
     collapsedFolders: s.collapsedFolders,
     selection: s.selection,
   }));
-  const [width, setWidth] = useState<number>(() => readStoredWidth());
-  const [dragging, setDragging] = useState(false);
-  const rootRef = useRef<HTMLElement>(null);
+  const { width, dragging, rootRef, handlePointerDown, handleDoubleClick } =
+    useResizableWidth({
+      storageKey: SIDEBAR_WIDTH_STORAGE_KEY,
+      minWidth: SIDEBAR_MIN_WIDTH,
+      maxWidth: SIDEBAR_MAX_WIDTH,
+      defaultWidth: SIDEBAR_DEFAULT_WIDTH,
+      edge: 'right',
+    });
+
+  useEffect(() => {
+    setSidebarWidth(width);
+  }, [width]);
 
   const collapsiblePaths = useMemo(
     () => collectCollapsiblePaths(buildEvalTree(evals)),
@@ -204,41 +176,6 @@ export function Sidebar() {
   const isRootFolderSelected =
     selection.kind === 'none' ||
     (selection.kind === 'folder' && selection.path.length === 0);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem(STORAGE_KEY, String(width));
-  }, [width]);
-
-  const handlePointerDown = useCallback((event: React.PointerEvent) => {
-    if (event.button !== 0) return;
-    const root = rootRef.current;
-    if (!root) return;
-    event.preventDefault();
-    const startX = event.clientX;
-    const startWidth = root.getBoundingClientRect().width;
-    setDragging(true);
-
-    function onMove(e: PointerEvent) {
-      const next = clampWidth(startWidth + (e.clientX - startX));
-      setWidth(next);
-    }
-
-    function onUp() {
-      setDragging(false);
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onUp);
-    }
-
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onUp);
-  }, []);
-
-  const handleDoubleClick = useCallback(() => {
-    setWidth(DEFAULT_WIDTH);
-  }, []);
 
   return (
     <Root
@@ -286,8 +223,7 @@ export function Sidebar() {
       </ScrollArea>
       <ResizeHandle
         dragging={dragging}
-        role="separator"
-        aria-orientation="vertical"
+        edge="right"
         onPointerDown={handlePointerDown}
         onDoubleClick={handleDoubleClick}
       />

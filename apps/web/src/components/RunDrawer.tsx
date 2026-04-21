@@ -9,6 +9,9 @@ import {
   stack,
   tabularNums,
 } from '#src/style/helpers';
+import { useResizableWidth } from '../hooks/useResizableWidth.ts';
+import { useWindowWidth } from '../hooks/useWindowWidth.ts';
+import { layoutStore } from '../stores/layoutStore.ts';
 import { closeRun, runStore } from '../stores/runStore.ts';
 import {
   formatCost,
@@ -17,10 +20,10 @@ import {
   formatTimestamp,
 } from '../utils/formatters.ts';
 import { IconButton } from './IconButton.tsx';
+import { ResizeHandle } from './ResizeHandle.tsx';
 import { StatusBadge } from './StatusBadge.tsx';
 
 const DrawerLoading = styled.div`
-  width: 540px;
   border-left: 1px solid ${colors.border.var};
   background: ${colors.bgElevated.var};
   display: flex;
@@ -28,11 +31,13 @@ const DrawerLoading = styled.div`
   justify-content: center;
   color: ${colors.textMuted.var};
   font-size: 12px;
+  flex-shrink: 0;
 `;
 
 const DrawerRoot = styled.div`
   ${stack()}
-  width: 540px;
+  position: relative;
+  flex-shrink: 0;
   border-left: 1px solid ${colors.border.var};
   background: ${colors.bgElevated.var};
   overflow: hidden;
@@ -188,9 +193,27 @@ export function RunDrawer() {
   const { selectedRunDetail } = runStore.useSelectorRC((s) => ({
     selectedRunDetail: s.selectedRunDetail,
   }));
+  const { sidebarWidth } = layoutStore.useSelectorRC((s) => ({
+    sidebarWidth: s.sidebarWidth,
+  }));
+  const windowWidth = useWindowWidth();
+  const minWidth = 360;
+  const maxWidth = Math.max(minWidth, windowWidth - sidebarWidth);
+  const { width, dragging, rootRef, handlePointerDown, handleDoubleClick } =
+    useResizableWidth<HTMLDivElement>({
+      storageKey: 'agent-evals.run-drawer-width',
+      minWidth,
+      maxWidth,
+      defaultWidth: 540,
+      edge: 'left',
+    });
 
   if (!selectedRunDetail) {
-    return <DrawerLoading>Loading run...</DrawerLoading>;
+    return (
+      <DrawerLoading style={{ width: `${width}px` }}>
+        Loading run...
+      </DrawerLoading>
+    );
   }
 
   const { manifest, summary, cases } = selectedRunDetail;
@@ -205,7 +228,16 @@ export function RunDrawer() {
     summary.errorMessage.length > 0;
 
   return (
-    <DrawerRoot>
+    <DrawerRoot
+      ref={rootRef}
+      style={{ width: `${width}px` }}
+    >
+      <ResizeHandle
+        dragging={dragging}
+        edge="left"
+        onPointerDown={handlePointerDown}
+        onDoubleClick={handleDoubleClick}
+      />
       <Header>
         <HeaderTop>
           <HeaderKicker>Run</HeaderKicker>

@@ -29,11 +29,25 @@ const Root = styled.div`
   background: ${colors.bg.var};
 `;
 
-const MainPanel = styled.div`
+const MainPanel = styled.div<{ sideDrawerOpen: boolean }>`
   ${stack()}
   flex: 1;
   min-width: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: hidden;
+
+  &.sideDrawerOpen {
+    overflow-x: auto;
+  }
+`;
+
+const MainContentFrame = styled.div<{ sideDrawerOpen: boolean }>`
+  width: 100%;
+  height: 100%;
+
+  &.sideDrawerOpen {
+    min-width: 600px;
+  }
 `;
 
 export function AppShell() {
@@ -48,6 +62,7 @@ export function AppShell() {
   const selectedRunFromUrl = searchParams.get('run');
   const selectedCaseRunId = searchParams.get('caseRun');
   const selectedCaseFromUrl = searchParams.get('case');
+  const sideDrawerOpen = selectedCaseId !== null || selectedRunId !== null;
 
   useEffect(() => {
     void fetchEvals();
@@ -80,8 +95,10 @@ export function AppShell() {
   return (
     <Root>
       <Sidebar />
-      <MainPanel>
-        <MainContent />
+      <MainPanel sideDrawerOpen={sideDrawerOpen}>
+        <MainContentFrame sideDrawerOpen={sideDrawerOpen}>
+          <MainContent />
+        </MainContentFrame>
       </MainPanel>
       {selectedCaseId ? <CaseDrawer /> : null}
       {selectedRunId ? <RunDrawer /> : null}
