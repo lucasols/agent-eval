@@ -1,4 +1,3 @@
-import { LayoutGrid } from 'lucide-react';
 import { useEffect } from 'react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
@@ -68,6 +67,7 @@ function MainContent() {
     selection: s.selection,
   }));
   const { evals } = evalsStore.useSelectorRC((s) => ({ evals: s.evals }));
+  const folderPath = selection.kind === 'folder' ? selection.path : '';
 
   if (selection.kind === 'eval') {
     const ev = evals.find((e) => e.id === selection.id);
@@ -75,21 +75,12 @@ function MainContent() {
     return <SingleEvalView evalSummary={ev} />;
   }
 
-  if (selection.kind === 'folder') {
-    const inFolder = collectEvalsInFolder(evals, selection.path);
-    return (
-      <FolderView
-        folderPath={selection.path}
-        evals={inFolder}
-      />
-    );
-  }
+  const inFolder = collectEvalsInFolder(evals, folderPath);
 
   return (
-    <EmptyState
-      icon={<LayoutGrid />}
-      title="Pick an eval"
-      description="Select an eval from the sidebar to inspect its history, run it, and explore each case."
+    <FolderView
+      folderPath={folderPath}
+      evals={inFolder}
     />
   );
 }

@@ -8,6 +8,7 @@ import {
   collapseAllFolders,
   expandAllFolders,
   selectionStore,
+  selectFolder,
 } from '../stores/selectionStore.ts';
 import {
   buildEvalTree,
@@ -108,9 +109,20 @@ const SectionHeader = styled.div`
   padding: 12px 16px 6px;
 `;
 
-const SectionLabel = styled.span`
+const SectionLabel = styled.button<{ active: boolean }>`
   ${kicker}
+  ${transition({ property: 'color' })}
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 0;
   color: ${colors.textMuted.var};
+  cursor: pointer;
+
+  &:hover,
+  &.active {
+    color: ${colors.text.var};
+  }
 `;
 
 const SectionActions = styled.div`
@@ -174,8 +186,9 @@ function readStoredWidth(): number {
 
 export function Sidebar() {
   const { evals } = evalsStore.useSelectorRC((s) => ({ evals: s.evals }));
-  const { collapsedFolders } = selectionStore.useSelectorRC((s) => ({
+  const { collapsedFolders, selection } = selectionStore.useSelectorRC((s) => ({
     collapsedFolders: s.collapsedFolders,
+    selection: s.selection,
   }));
   const [width, setWidth] = useState<number>(() => readStoredWidth());
   const [dragging, setDragging] = useState(false);
@@ -188,6 +201,9 @@ export function Sidebar() {
   const allCollapsed =
     collapsiblePaths.length > 0 &&
     collapsiblePaths.every((p) => collapsedFolders.has(p));
+  const isRootFolderSelected =
+    selection.kind === 'none' ||
+    (selection.kind === 'folder' && selection.path.length === 0);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -237,7 +253,15 @@ export function Sidebar() {
         </BrandText>
       </Masthead>
       <SectionHeader>
-        <SectionLabel>Evals</SectionLabel>
+        <SectionLabel
+          type="button"
+          active={isRootFolderSelected}
+          onClick={() => {
+            selectFolder('');
+          }}
+        >
+          Evals
+        </SectionLabel>
         <SectionActions>
           <Tooltip content={allCollapsed ? 'Expand all' : 'Collapse all'}>
             <IconButton
