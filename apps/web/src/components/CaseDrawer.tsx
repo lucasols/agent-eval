@@ -1,9 +1,12 @@
 import type { CellValue, ColumnDef, DisplayBlock } from '@agent-evals/shared';
 import { X } from 'lucide-react';
-import { useState } from 'react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
+import {
+  updateSearchParams,
+  useSearchParams,
+} from '../hooks/useSearchParams.ts';
 import { evalsStore } from '../stores/evalsStore.ts';
 import { closeCase, runStore } from '../stores/runStore.ts';
 import {
@@ -211,12 +214,36 @@ const FailureList = styled.ul`
   line-height: 1.5;
 `;
 
+function resolveActiveTab(
+  requestedTab: string | null,
+  availableTabs: Tab[],
+): Tab {
+  if (!requestedTab) return 'input';
+  const requested = parseTab(requestedTab);
+  if (!requested) return 'input';
+  return availableTabs.includes(requested) ? requested : 'input';
+}
+
+function parseTab(value: string): Tab | null {
+  switch (value) {
+    case 'input':
+    case 'output':
+    case 'trace':
+    case 'raw':
+    case 'failures':
+    case 'error':
+      return value;
+    default:
+      return null;
+  }
+}
+
 export function CaseDrawer() {
+  const searchParams = useSearchParams();
   const { selectedCaseDetail } = runStore.useSelectorRC((s) => ({
     selectedCaseDetail: s.selectedCaseDetail,
   }));
   const { evals } = evalsStore.useSelectorRC((s) => ({ evals: s.evals }));
-  const [activeTab, setActiveTab] = useState<Tab>('input');
 
   if (!selectedCaseDetail) {
     return <DrawerLoading>Loading case...</DrawerLoading>;
@@ -230,6 +257,7 @@ export function CaseDrawer() {
   const tabs: Tab[] = ['input', 'output', 'trace', 'raw'];
   if (d.assertionFailures.length > 0) tabs.push('failures');
   if (d.error) tabs.push('error');
+  const activeTab = resolveActiveTab(searchParams.get('caseTab'), tabs);
 
   return (
     <DrawerRoot>
@@ -255,7 +283,11 @@ export function CaseDrawer() {
         {tabs.map((tab) => (
           <TabButton
             key={tab}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => {
+              updateSearchParams((nextSearchParams) => {
+                nextSearchParams.set('caseTab', tab);
+              });
+            }}
             active={activeTab === tab}
           >
             {tab}

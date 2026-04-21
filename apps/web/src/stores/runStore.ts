@@ -72,6 +72,9 @@ function setCaseSelection(selection: CaseSelection | null): void {
   updateSearchParams((searchParams) => {
     searchParams.delete('caseRun');
     searchParams.delete('case');
+    if (!selection) {
+      searchParams.delete('caseTab');
+    }
     if (!selection) return;
     searchParams.set('caseRun', selection.runId);
     searchParams.set('case', selection.caseId);
@@ -280,24 +283,30 @@ export async function cancelRun(): Promise<void> {
   );
 }
 
-export function selectCase(runId: string, caseId: string): void {
+export async function selectCase(runId: string, caseId: string): Promise<void> {
   setCaseSelection({ runId, caseId });
   runStore.setPartialState({ selectedRunId: null, selectedRunDetail: null });
+  await fetchCaseDetail(runId, caseId);
 }
 
 export async function syncCaseSelectionFromSearchParams(
   searchParams: URLSearchParams,
 ): Promise<void> {
   const selection = readCaseSelectionFromSearchParams(searchParams);
-  const sameSelection =
-    runStore.state.selectedCaseRunId === selection?.runId &&
-    runStore.state.selectedCaseId === selection.caseId;
 
   if (!selection) {
-    if (sameSelection) return;
+    const caseIsAlreadyClosed =
+      runStore.state.selectedCaseRunId === null &&
+      runStore.state.selectedCaseId === null &&
+      runStore.state.selectedCaseDetail === null;
+    if (caseIsAlreadyClosed) return;
     setCaseSelectionState(null);
     return;
   }
+
+  const sameSelection =
+    runStore.state.selectedCaseRunId === selection.runId &&
+    runStore.state.selectedCaseId === selection.caseId;
 
   if (!sameSelection) {
     setCaseSelectionState(selection);
