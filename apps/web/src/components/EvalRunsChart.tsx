@@ -22,7 +22,7 @@ type ChartPoint = {
 type EvalRunsChartProps = { data: ChartPoint[] };
 
 const ChartFrame = styled.div`
-  height: 210px;
+  height: 150px;
   padding: 10px 14px 8px;
   border: 1px solid ${colors.border.var};
   border-radius: var(--radius-lg);
