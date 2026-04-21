@@ -1,6 +1,6 @@
 import { ChevronRight } from 'lucide-react';
 import { useEffect } from 'react';
-import { styled } from 'vindur';
+import { css, styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import {
   ellipsis,
@@ -63,13 +63,7 @@ const CommandHint = styled.code`
   padding: 10px 12px;
 `;
 
-const RowBase = styled.button<{
-  active: boolean;
-  depth0: boolean;
-  depth1: boolean;
-  depth2: boolean;
-  depth3: boolean;
-}>`
+const rowShell = css`
   ${inline({ gap: 8, align: 'center' })}
   ${transition({ property: 'background, color' })}
   position: relative;
@@ -101,11 +95,6 @@ const RowBase = styled.button<{
     padding-left: 52px;
   }
 
-  &:hover {
-    background: ${colors.bg.var};
-    color: ${colors.text.var};
-  }
-
   &.active {
     background: ${colors.surface.var};
     color: ${colors.text.var};
@@ -123,24 +112,62 @@ const RowBase = styled.button<{
   }
 `;
 
-const ChevronIcon = styled.span<{ open: boolean }>`
-  ${transition({ property: 'transform' })}
+const RowBase = styled.button<{
+  active: boolean;
+  depth0: boolean;
+  depth1: boolean;
+  depth2: boolean;
+  depth3: boolean;
+}>`
+  ${rowShell};
+  cursor: pointer;
+
+  &:hover {
+    background: ${colors.bg.var};
+    color: ${colors.text.var};
+  }
+`;
+
+const StaticRow = styled.div<{
+  active: boolean;
+  depth0: boolean;
+  depth1: boolean;
+  depth2: boolean;
+  depth3: boolean;
+}>`
+  ${rowShell};
+`;
+
+const ChevronButton = styled.button<{ open: boolean }>`
+  ${transition({ property: 'transform, background, color' })}
   display: inline-flex;
-  width: 12px;
-  height: 12px;
+  width: 18px;
+  height: 18px;
   align-items: center;
   justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0;
   color: ${colors.textDim.var};
   opacity: 0.8;
   flex-shrink: 0;
+  cursor: pointer;
 
-  &.open {
-    transform: rotate(90deg);
+  &:hover {
+    background: ${colors.surface.var};
+    color: ${colors.text.var};
+    opacity: 1;
   }
 
   & > svg {
+    ${transition({ property: 'transform' })}
     width: 12px;
     height: 12px;
+  }
+
+  &.open > svg {
+    transform: rotate(90deg);
   }
 `;
 
@@ -331,25 +358,34 @@ function FolderRow({
   const isActive =
     selection.kind === 'folder' && selection.path === folder.path;
 
-  function handleClick() {
-    toggleFolder(folder.path);
+  function handleRowClick() {
     selectFolder(folder.path);
+  }
+
+  function handleChevronClick(event: React.MouseEvent) {
+    event.stopPropagation();
+    toggleFolder(folder.path);
   }
 
   return (
     <>
       <RowBase
         type="button"
-        onClick={handleClick}
+        onClick={handleRowClick}
         active={isActive}
         depth0={depth === 0}
         depth1={depth === 1}
         depth2={depth === 2}
         depth3={depth >= 3}
       >
-        <ChevronIcon open={isOpen}>
+        <ChevronButton
+          type="button"
+          onClick={handleChevronClick}
+          aria-label={isOpen ? 'Collapse folder' : 'Expand folder'}
+          open={isOpen}
+        >
           <ChevronRight />
-        </ChevronIcon>
+        </ChevronButton>
         <GroupLabel>{folder.name}</GroupLabel>
         <RowCounter>{folder.evalCount}</RowCounter>
       </RowBase>
@@ -385,27 +421,31 @@ function FileRow({
     selection.kind === 'eval' &&
     file.evals.some((ev) => ev.id === selection.id);
 
-  function handleClick() {
+  function handleChevronClick(event: React.MouseEvent) {
+    event.stopPropagation();
     toggleFolder(file.path);
   }
 
   return (
     <>
-      <RowBase
-        type="button"
-        onClick={handleClick}
+      <StaticRow
         active={isActive}
         depth0={depth === 0}
         depth1={depth === 1}
         depth2={depth === 2}
         depth3={depth >= 3}
       >
-        <ChevronIcon open={isOpen}>
+        <ChevronButton
+          type="button"
+          onClick={handleChevronClick}
+          aria-label={isOpen ? 'Collapse file' : 'Expand file'}
+          open={isOpen}
+        >
           <ChevronRight />
-        </ChevronIcon>
+        </ChevronButton>
         <GroupLabel>{file.name}</GroupLabel>
         <RowCounter>{file.evals.length}</RowCounter>
-      </RowBase>
+      </StaticRow>
       {isOpen
         ? file.evals.map((ev) => (
             <LeafRow
