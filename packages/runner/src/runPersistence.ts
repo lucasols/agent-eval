@@ -1,0 +1,219 @@
+import { readFile, readdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import type {
+  CaseDetail,
+  CaseRow,
+  EvalSummary,
+  RunManifest,
+  RunSummary,
+} from '@agent-evals/shared';
+import {
+  caseDetailSchema,
+  caseRowSchema,
+  runManifestSchema,
+  runSummarySchema,
+} from '@agent-evals/shared';
+import { resultify } from 't-result';
+
+export type PersistedRunSnapshot = {
+  runDir: string;
+  manifest: RunManifest;
+  summary: RunSummary;
+  cases: CaseRow[];
+  caseDetails: Map<string, CaseDetail>;
+};
+
+export async function loadPersistedRunSnapshots(
+  localStateDir: string,
+): Promise<PersistedRunSnapshot[]> {
+  const runsDir = join(localStateDir, 'runs');
+  const entriesResult = await resultify(() =>
+    readdir(runsDir, { withFileTypes: true }),
+  );
+  if (entriesResult.error) return [];
+
+  const snapshots: PersistedRunSnapshot[] = [];
+  const runDirs = entriesResult.value
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => join(runsDir, entry.name))
+    .toSorted();
+
+  for (const runDir of runDirs) {
+    const snapshot = await loadPersistedRunSnapshot(runDir);
+    if (!snapshot) continue;
+    snapshots.push(snapshot);
+  }
+
+  return snapshots;
+}
+
+export async function persistCaseDetail(
+  runDir: string,
+  caseDetail: CaseDetail,
+): Promise<void> {
+  await writeFile(
+    join(
+      runDir,
+      'case-details',
+      `${encodeCaseDetailFileName(caseDetail.caseId)}.json`,
+    ),
+    JSON.stringify(caseDetail, null, 2),
+  );
+}
+
+export function getLastRunStatuses(params: {
+  runs: Iterable<{ manifest: RunManifest; cases: CaseRow[] }>;
+  knownEvalIds: Iterable<string>;
+}): Map<string, EvalSummary['lastRunStatus']> {
+  const { runs, knownEvalIds } = params;
+  const orderedRuns = [...runs].toSorted(
+    (a, b) =>
+      new Date(a.manifest.startedAt).getTime() -
+      new Date(b.manifest.startedAt).getTime(),
+  );
+  const statuses = new Map<string, EvalSummary['lastRunStatus']>();
+
+  for (const run of orderedRuns) {
+    for (const evalId of getRunEvalIds(run, knownEvalIds)) {
+      statuses.set(evalId, getEvalStatusForRun(run, evalId));
+    }
+  }
+
+  return statuses;
+}
+
+async function loadPersistedRunSnapshot(
+  runDir: string,
+): Promise<PersistedRunSnapshot | null> {
+  const manifest = await readParsedJsonFile(join(runDir, 'run.json'), {
+    safeParse: runManifestSchema.safeParse.bind(runManifestSchema),
+  });
+  if (!manifest) return null;
+
+  const summary = await readParsedJsonFile(join(runDir, 'summary.json'), {
+    safeParse: runSummarySchema.safeParse.bind(runSummarySchema),
+  });
+  if (!summary) return null;
+
+  return {
+    runDir,
+    manifest,
+    summary,
+    cases: await readCaseRows(runDir),
+    caseDetails: await readCaseDetails(runDir),
+  };
+}
+
+async function readParsedJsonFile<T>(
+  filePath: string,
+  schema: {
+    safeParse: (
+      value: unknown,
+    ) => { success: true; data: T } | { success: false };
+  },
+): Promise<T | null> {
+  const fileResult = await resultify(() => readFile(filePath, 'utf-8'));
+  if (fileResult.error) return null;
+
+  const jsonResult = resultify((): unknown => JSON.parse(fileResult.value));
+  if (jsonResult.error) return null;
+
+  const parsed = schema.safeParse(jsonResult.value);
+  if (!parsed.success) return null;
+
+  return parsed.data;
+}
+
+async function readCaseRows(runDir: string): Promise<CaseRow[]> {
+  const fileResult = await resultify(() =>
+    readFile(join(runDir, 'cases.jsonl'), 'utf-8'),
+  );
+  if (fileResult.error) return [];
+
+  const rows: CaseRow[] = [];
+  for (const rawLine of fileResult.value.split('\n')) {
+    const line = rawLine.trim();
+    if (line.length === 0) continue;
+
+    const jsonResult = resultify((): unknown => JSON.parse(line));
+    if (jsonResult.error) continue;
+
+    const parsed = caseRowSchema.safeParse(jsonResult.value);
+    if (!parsed.success) continue;
+
+    rows.push(parsed.data);
+  }
+
+  return rows;
+}
+
+async function readCaseDetails(
+  runDir: string,
+): Promise<Map<string, CaseDetail>> {
+  const detailsDir = join(runDir, 'case-details');
+  const entriesResult = await resultify(() =>
+    readdir(detailsDir, { withFileTypes: true }),
+  );
+  if (entriesResult.error) return new Map();
+
+  const caseDetails = new Map<string, CaseDetail>();
+  for (const entry of entriesResult.value) {
+    if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
+
+    const detail = await readParsedJsonFile(join(detailsDir, entry.name), {
+      safeParse: caseDetailSchema.safeParse.bind(caseDetailSchema),
+    });
+    if (!detail) continue;
+
+    caseDetails.set(detail.caseId, detail);
+  }
+
+  return caseDetails;
+}
+
+function getRunEvalIds(
+  run: { manifest: RunManifest; cases: CaseRow[] },
+  knownEvalIds: Iterable<string>,
+): string[] {
+  const evalIdsFromCases = [
+    ...new Set(run.cases.map((caseRow) => caseRow.evalId)),
+  ];
+  if (evalIdsFromCases.length > 0) return evalIdsFromCases;
+
+  if (run.manifest.target.mode === 'evalIds') {
+    return run.manifest.target.evalIds ?? [];
+  }
+
+  if (run.manifest.target.mode === 'all') {
+    return [...knownEvalIds];
+  }
+
+  return [];
+}
+
+function getEvalStatusForRun(
+  run: { manifest: RunManifest; cases: CaseRow[] },
+  evalId: string,
+): EvalSummary['lastRunStatus'] {
+  if (run.manifest.status === 'running') return 'running';
+  if (run.manifest.status === 'cancelled') return 'cancelled';
+  if (run.manifest.status === 'error') return 'error';
+
+  const evalCases = run.cases.filter((caseRow) => caseRow.evalId === evalId);
+  if (
+    evalCases.some(
+      (caseRow) =>
+        caseRow.status === 'fail' ||
+        caseRow.status === 'error' ||
+        caseRow.status === 'cancelled',
+    )
+  ) {
+    return 'fail';
+  }
+
+  return 'pass';
+}
+
+function encodeCaseDetailFileName(caseId: string): string {
+  return encodeURIComponent(caseId);
+}

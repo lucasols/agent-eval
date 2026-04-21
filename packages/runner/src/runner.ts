@@ -36,6 +36,11 @@ import {
 } from './cacheStore.ts';
 import { loadConfig } from './config.ts';
 import { parseEvalMetas } from './discovery.ts';
+import {
+  getLastRunStatuses,
+  loadPersistedRunSnapshots,
+  persistCaseDetail,
+} from './runPersistence.ts';
 import { resolveTracePresentation } from './traceDisplay.ts';
 
 /** Imperative runner interface used by the server and CLI. */
@@ -51,8 +56,9 @@ export type EvalRunner = {
   startRun(
     request: CreateRunRequest,
   ): Promise<{ manifest: RunManifest; summary: RunSummary; cases: CaseRow[] }>;
-  /** Return run manifests tracked in the current process. */
+  /** Return run manifests tracked in memory, including persisted runs loaded during init. */
   getRuns(): RunManifest[];
+  /** Return one run with its summary and case rows when available in memory. */
   getRun(
     id: string,
   ):
@@ -92,6 +98,7 @@ type EvalMeta = {
 };
 
 type RunState = {
+  runDir: string;
   manifest: RunManifest;
   summary: RunSummary;
   cases: CaseRow[];
@@ -100,12 +107,7 @@ type RunState = {
   abortController: AbortController;
 };
 
-/**
- * Create an in-memory eval runner bound to the current workspace config.
- *
- * @param options Runtime options controlling discovery watchers.
- * @returns A runner instance used by the CLI and server.
- */
+/** Create an in-memory eval runner bound to the current workspace config. */
 export function createRunner({
   watchForChanges = true,
 }: CreateRunnerOptions = {}): EvalRunner {
@@ -143,20 +145,18 @@ export function createRunner({
         dir: config.cache?.dir,
       });
 
+      await loadPersistedRuns();
       await runner.refreshDiscovery();
       if (watchForChanges) {
         setupWatcher();
       }
     },
-
     async listCache() {
       return cacheStore.list();
     },
-
     async clearCache(filter) {
       await cacheStore.clear(filter);
     },
-
     getEvals() {
       const result: EvalSummary[] = [];
       for (const meta of getSortedEvalMetas()) {
@@ -173,7 +173,6 @@ export function createRunner({
       }
       return result;
     },
-
     getEval(id) {
       const meta = evals.get(id);
       if (!meta) return undefined;
@@ -188,7 +187,6 @@ export function createRunner({
         lastRunStatus: lastRunStatusMap.get(meta.id) ?? null,
       };
     },
-
     async refreshDiscovery() {
       const patterns = config.include;
       const discovered: string[] = [];
@@ -225,11 +223,11 @@ export function createRunner({
 
       emitDiscoveryEvent();
     },
-
     async startRun(request) {
       const runId = generateRunId();
       const now = new Date().toISOString();
       const cacheMode: CacheMode = request.cache?.mode ?? 'use';
+      const runDir = join(localStateDir, 'runs', runId);
 
       const manifest: RunManifest = {
         id: runId,
@@ -258,6 +256,7 @@ export function createRunner({
       const abortController = new AbortController();
 
       const runState: RunState = {
+        runDir,
         manifest,
         summary,
         cases: [],
@@ -268,10 +267,10 @@ export function createRunner({
 
       runs.set(runId, runState);
 
-      const runDir = join(localStateDir, 'runs', runId);
       await mkdir(runDir, { recursive: true });
       await mkdir(join(runDir, 'traces'), { recursive: true });
       await mkdir(join(runDir, 'artifacts'), { recursive: true });
+      await mkdir(join(runDir, 'case-details'), { recursive: true });
 
       await writeFile(
         join(runDir, 'run.json'),
@@ -282,17 +281,14 @@ export function createRunner({
 
       return { manifest, summary, cases: [] };
     },
-
     getRuns() {
       return [...runs.values()].map((r) => r.manifest);
     },
-
     getRun(id) {
       const run = runs.get(id);
       if (!run) return undefined;
       return { manifest: run.manifest, summary: run.summary, cases: run.cases };
     },
-
     cancelRun(id) {
       const run = runs.get(id);
       if (!run) return;
@@ -307,13 +303,11 @@ export function createRunner({
         payload: run.summary,
       });
     },
-
     getCaseDetail(runId, caseId) {
       const run = runs.get(runId);
       if (!run) return undefined;
       return run.caseDetails.get(caseId);
     },
-
     subscribe(runId, listener) {
       const run = runs.get(runId);
       if (!run) return () => {};
@@ -357,6 +351,14 @@ export function createRunner({
   }
 
   function emitDiscoveryEvent() {
+    const lastRunStatuses = getLastRunStatuses({
+      runs: runs.values(),
+      knownEvalIds: evals.keys(),
+    });
+    lastRunStatusMap.clear();
+    for (const [evalId, status] of lastRunStatuses) {
+      lastRunStatusMap.set(evalId, status);
+    }
     const event: SseEnvelope = {
       type: 'discovery.updated',
       timestamp: new Date().toISOString(),
@@ -487,6 +489,7 @@ export function createRunner({
                   join(runDir, 'traces', `${evalCase.id}.json`),
                   JSON.stringify(caseDetail.trace, null, 2),
                 );
+                await persistCaseDetail(runDir, caseDetail);
 
                 emitEvent(runState, {
                   type: 'case.finished',
@@ -630,6 +633,18 @@ export function createRunner({
       } catch {
         // ignore listener errors
       }
+    }
+  }
+
+  async function loadPersistedRuns(): Promise<void> {
+    runs.clear();
+    const persistedRuns = await loadPersistedRunSnapshots(localStateDir);
+    for (const persistedRun of persistedRuns) {
+      runs.set(persistedRun.manifest.id, {
+        ...persistedRun,
+        listeners: new Set(),
+        abortController: new AbortController(),
+      });
     }
   }
 
