@@ -8,6 +8,7 @@ import { refetchHistory } from '../stores/historyStore.ts';
 import {
   runStore,
   syncCaseSelectionFromSearchParams,
+  syncRunSelectionFromSearchParams,
 } from '../stores/runStore.ts';
 import {
   selectionStore,
@@ -44,6 +45,7 @@ export function AppShell() {
   }));
   const selectedEvalId = searchParams.get('eval');
   const selectedFolderPath = searchParams.get('folder');
+  const selectedRunFromUrl = searchParams.get('run');
   const selectedCaseRunId = searchParams.get('caseRun');
   const selectedCaseFromUrl = searchParams.get('case');
 
@@ -59,6 +61,10 @@ export function AppShell() {
   useEffect(() => {
     void syncCaseSelectionFromSearchParams(new URLSearchParams(search));
   }, [search, selectedCaseRunId, selectedCaseFromUrl]);
+
+  useEffect(() => {
+    void syncRunSelectionFromSearchParams(new URLSearchParams(search));
+  }, [search, selectedRunFromUrl, selectedCaseRunId, selectedCaseFromUrl]);
 
   useEffect(() => {
     const eventSource = new EventSource('/api/evals/events');

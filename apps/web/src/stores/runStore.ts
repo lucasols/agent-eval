@@ -38,6 +38,7 @@ export type RunDetail = {
 };
 
 type CaseSelection = { runId: string; caseId: string };
+type RunSelection = { runId: string };
 
 type RunState = {
   currentRun: RunDetail | null;
@@ -59,6 +60,14 @@ function readCaseSelectionFromSearchParams(
   return { runId, caseId };
 }
 
+function readRunSelectionFromSearchParams(
+  searchParams: URLSearchParams,
+): RunSelection | null {
+  const runId = searchParams.get('run');
+  if (!runId) return null;
+  return { runId };
+}
+
 function setCaseSelectionState(selection: CaseSelection | null): void {
   runStore.setPartialState({
     selectedCaseRunId: selection?.runId ?? null,
@@ -72,12 +81,32 @@ function setCaseSelection(selection: CaseSelection | null): void {
   updateSearchParams((searchParams) => {
     searchParams.delete('caseRun');
     searchParams.delete('case');
+    searchParams.delete('run');
     if (!selection) {
       searchParams.delete('caseTab');
     }
     if (!selection) return;
     searchParams.set('caseRun', selection.runId);
     searchParams.set('case', selection.caseId);
+  });
+}
+
+function setRunSelectionState(selection: RunSelection | null): void {
+  runStore.setPartialState({
+    selectedRunId: selection?.runId ?? null,
+    selectedRunDetail: null,
+  });
+}
+
+function setRunSelection(selection: RunSelection | null): void {
+  setRunSelectionState(selection);
+  updateSearchParams((searchParams) => {
+    searchParams.delete('run');
+    searchParams.delete('caseRun');
+    searchParams.delete('case');
+    searchParams.delete('caseTab');
+    if (!selection) return;
+    searchParams.set('run', selection.runId);
   });
 }
 
@@ -101,9 +130,27 @@ async function fetchCaseDetail(runId: string, caseId: string): Promise<void> {
   runStore.setPartialState({ selectedCaseDetail: parseResult.value });
 }
 
-const initialCaseSelection = readCaseSelectionFromSearchParams(
-  getCurrentSearchParams(),
-);
+async function fetchRunDetail(runId: string): Promise<void> {
+  const fetchResult = await resultify(() => fetch(`/api/runs/${runId}`));
+  if (fetchResult.error) return;
+  const jsonResult = await resultify(() => fetchResult.value.json());
+  if (jsonResult.error) return;
+  const parseResult = resultify(() =>
+    createRunResponseSchema.parse(jsonResult.value),
+  );
+  if (parseResult.error) return;
+
+  if (runStore.state.selectedRunId !== runId) return;
+  runStore.setPartialState({ selectedRunDetail: parseResult.value });
+}
+
+const initialSearchParams = getCurrentSearchParams();
+const initialCaseSelection =
+  readCaseSelectionFromSearchParams(initialSearchParams);
+const initialRunSelection =
+  initialCaseSelection === null
+    ? readRunSelectionFromSearchParams(initialSearchParams)
+    : null;
 
 export const runStore = new Store<RunState>({
   state: {
@@ -111,7 +158,7 @@ export const runStore = new Store<RunState>({
     selectedCaseRunId: initialCaseSelection?.runId ?? null,
     selectedCaseId: initialCaseSelection?.caseId ?? null,
     selectedCaseDetail: null,
-    selectedRunId: null,
+    selectedRunId: initialRunSelection?.runId ?? null,
     selectedRunDetail: null,
     trials: 1,
     eventSource: null,
@@ -285,7 +332,7 @@ export async function cancelRun(): Promise<void> {
 
 export async function selectCase(runId: string, caseId: string): Promise<void> {
   setCaseSelection({ runId, caseId });
-  runStore.setPartialState({ selectedRunId: null, selectedRunDetail: null });
+  setRunSelectionState(null);
   await fetchCaseDetail(runId, caseId);
 }
 
@@ -322,24 +369,46 @@ export function closeCase(): void {
 }
 
 export async function selectRun(runId: string): Promise<void> {
-  setCaseSelection(null);
-  runStore.setPartialState({ selectedRunId: runId, selectedRunDetail: null });
-
-  const fetchResult = await resultify(() => fetch(`/api/runs/${runId}`));
-  if (fetchResult.error) return;
-  const jsonResult = await resultify(() => fetchResult.value.json());
-  if (jsonResult.error) return;
-  const parseResult = resultify(() =>
-    createRunResponseSchema.parse(jsonResult.value),
-  );
-  if (parseResult.error) return;
-
-  if (runStore.state.selectedRunId !== runId) return;
-  runStore.setPartialState({ selectedRunDetail: parseResult.value });
+  setRunSelection({ runId });
+  setCaseSelectionState(null);
+  await fetchRunDetail(runId);
 }
 
 export function closeRun(): void {
-  runStore.setPartialState({ selectedRunId: null, selectedRunDetail: null });
+  setRunSelection(null);
+}
+
+export async function syncRunSelectionFromSearchParams(
+  searchParams: URLSearchParams,
+): Promise<void> {
+  const caseSelection = readCaseSelectionFromSearchParams(searchParams);
+  if (caseSelection) {
+    const runIsAlreadyClosed =
+      runStore.state.selectedRunId === null &&
+      runStore.state.selectedRunDetail === null;
+    if (runIsAlreadyClosed) return;
+    setRunSelectionState(null);
+    return;
+  }
+
+  const selection = readRunSelectionFromSearchParams(searchParams);
+  if (!selection) {
+    const runIsAlreadyClosed =
+      runStore.state.selectedRunId === null &&
+      runStore.state.selectedRunDetail === null;
+    if (runIsAlreadyClosed) return;
+    setRunSelectionState(null);
+    return;
+  }
+
+  const sameSelection = runStore.state.selectedRunId === selection.runId;
+  if (!sameSelection) {
+    setRunSelectionState(selection);
+    setCaseSelectionState(null);
+  }
+
+  if (sameSelection && runStore.state.selectedRunDetail) return;
+  await fetchRunDetail(selection.runId);
 }
 
 export function setTrials(trials: number): void {
