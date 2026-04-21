@@ -66,12 +66,6 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
   return (
     <Root>
       <Header>
-        <Eyebrow>
-          <EyebrowIcon>
-            <FolderIcon />
-          </EyebrowIcon>
-          Folder
-        </Eyebrow>
         <TitleRow>
           <FolderName>{folderPath || '/'}</FolderName>
           <Count>

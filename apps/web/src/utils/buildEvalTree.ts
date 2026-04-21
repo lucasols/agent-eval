@@ -204,6 +204,9 @@ export function collectEvalsInFolder(
   evals: EvalSummary[],
   folderPath: string,
 ): EvalSummary[] {
+  const inFile = evals.filter((ev) => ev.filePath === folderPath);
+  if (inFile.length > 0) return inFile;
+
   const prefixLen = getTreePrefixLength(evals);
   const prefix = folderPath ? `${folderPath}/` : '';
   return evals.filter((ev) => {

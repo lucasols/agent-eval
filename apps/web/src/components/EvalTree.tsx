@@ -128,16 +128,6 @@ const RowBase = styled.button<{
   }
 `;
 
-const StaticRow = styled.div<{
-  active: boolean;
-  depth0: boolean;
-  depth1: boolean;
-  depth2: boolean;
-  depth3: boolean;
-}>`
-  ${rowShell};
-`;
-
 const ChevronButton = styled.button<{ open: boolean }>`
   ${transition({ property: 'transform, background, color' })}
   display: inline-flex;
@@ -417,9 +407,11 @@ function FileRow({
   expandedFolders: Set<string>;
 }) {
   const isOpen = expandedFolders.has(file.path);
-  const isActive =
-    selection.kind === 'eval' &&
-    file.evals.some((ev) => ev.id === selection.id);
+  const isActive = selection.kind === 'folder' && selection.path === file.path;
+
+  function handleRowClick() {
+    selectFolder(file.path);
+  }
 
   function handleChevronClick(event: React.MouseEvent) {
     event.stopPropagation();
@@ -428,7 +420,9 @@ function FileRow({
 
   return (
     <>
-      <StaticRow
+      <RowBase
+        type="button"
+        onClick={handleRowClick}
         active={isActive}
         depth0={depth === 0}
         depth1={depth === 1}
@@ -445,7 +439,7 @@ function FileRow({
         </ChevronButton>
         <GroupLabel>{file.name}</GroupLabel>
         <RowCounter>{file.evals.length}</RowCounter>
-      </StaticRow>
+      </RowBase>
       {isOpen
         ? file.evals.map((ev) => (
             <LeafRow
