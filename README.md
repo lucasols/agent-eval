@@ -194,8 +194,9 @@ scores: {
 }
 ```
 
-Scores default to a pass threshold of `0.5` unless you set `passThreshold`
-explicitly on that score.
+Cases default to a pass threshold of `0.5` on the average score unless you set
+the eval-level `passThreshold` explicitly. Individual scores only enforce a
+threshold when that score definition sets `passThreshold`.
 
 ### Custom columns
 

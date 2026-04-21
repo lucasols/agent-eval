@@ -2,8 +2,6 @@ import type { EvalColumnOverride, EvalScoreDef } from '@agent-evals/sdk';
 import type { CellValue, ColumnDef, ColumnKind } from '@agent-evals/shared';
 import { cellValueSchema } from '@agent-evals/shared';
 
-const DEFAULT_SCORE_PASS_THRESHOLD = 0.5;
-
 /**
  * Normalize a user-provided score definition (either a function or an
  * object literal with `compute`/`passThreshold`/`label`) to a common
@@ -19,15 +17,11 @@ export function normalizeScoreDef<TInput>(def: EvalScoreDef<TInput>): {
   label: string | undefined;
 } {
   if (typeof def === 'function') {
-    return {
-      compute: def,
-      passThreshold: DEFAULT_SCORE_PASS_THRESHOLD,
-      label: undefined,
-    };
+    return { compute: def, passThreshold: undefined, label: undefined };
   }
   return {
     compute: def.compute,
-    passThreshold: def.passThreshold ?? DEFAULT_SCORE_PASS_THRESHOLD,
+    passThreshold: def.passThreshold,
     label: def.label,
   };
 }
@@ -60,7 +54,6 @@ export function mergeColumnDefs<TInput>(
     if (scoreKeys.has(key)) {
       def.isScore = true;
       const scoreDef = scores?.[key];
-      def.passThreshold = DEFAULT_SCORE_PASS_THRESHOLD;
       if (scoreDef && typeof scoreDef !== 'function') {
         if (scoreDef.passThreshold !== undefined) {
           def.passThreshold = scoreDef.passThreshold;

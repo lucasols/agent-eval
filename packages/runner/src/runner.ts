@@ -779,6 +779,7 @@ async function runCase<TInput>(params: {
     scoreValues.length > 0
       ? scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length
       : null;
+  const casePassThreshold = evalDef.passThreshold ?? 0.5;
 
   let passed = scope.assertionFailures.length === 0 && !nonAssertError;
   if (passed) {
@@ -791,6 +792,9 @@ async function runCase<TInput>(params: {
         break;
       }
     }
+  }
+  if (passed && avgScore !== null && avgScore < casePassThreshold) {
+    passed = false;
   }
 
   const status: CaseRow['status'] = nonAssertError
