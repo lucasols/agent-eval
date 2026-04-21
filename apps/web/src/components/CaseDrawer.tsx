@@ -297,7 +297,9 @@ export function CaseDrawer() {
           <HeaderActions>
             <IconButton
               onClick={toggleExpand}
-              aria-label={isExpanded ? 'Collapse case drawer' : 'Expand case drawer'}
+              aria-label={
+                isExpanded ? 'Collapse case drawer' : 'Expand case drawer'
+              }
               aria-pressed={isExpanded}
             >
               {isExpanded ? <Minimize2 /> : <Maximize2 />}

@@ -1,12 +1,12 @@
 import { createServer } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getDevPorts } from './dev-ports.mjs';
 import {
   childIsRunning,
   spawnManaged,
   terminateProcessTree,
 } from './process-tree.mjs';
-import { getDevPorts } from './dev-ports.mjs';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const exampleWorkspace = resolve(repoRoot, 'examples/basic-agent');

@@ -11,10 +11,7 @@ function initialSidebarWidth(): number {
   if (!raw) return SIDEBAR_DEFAULT_WIDTH;
   const parsed = Number.parseFloat(raw);
   if (!Number.isFinite(parsed)) return SIDEBAR_DEFAULT_WIDTH;
-  return Math.min(
-    SIDEBAR_MAX_WIDTH,
-    Math.max(SIDEBAR_MIN_WIDTH, parsed),
-  );
+  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, parsed));
 }
 
 type LayoutState = { sidebarWidth: number };

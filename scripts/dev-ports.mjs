@@ -99,11 +99,7 @@ function parsePort(rawValue, envVarName, fallbackPort) {
   }
 
   const parsedPort = Number.parseInt(rawValue, 10);
-  if (
-    !Number.isInteger(parsedPort) ||
-    parsedPort < 1 ||
-    parsedPort > 65_535
-  ) {
+  if (!Number.isInteger(parsedPort) || parsedPort < 1 || parsedPort > 65_535) {
     throw new Error(
       `${envVarName} must be a whole number between 1 and 65535. Received ${JSON.stringify(rawValue)}.`,
     );

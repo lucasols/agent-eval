@@ -5,10 +5,7 @@ import { inline, monoFont, transition } from '#src/style/helpers';
 import { IconButton } from './IconButton.tsx';
 import { Tooltip } from './Tooltip.tsx';
 
-export type PathBreadcrumbSegment = {
-  label: string;
-  path: string;
-};
+export type PathBreadcrumbSegment = { label: string; path: string };
 
 type PathBreadcrumbProps = {
   segments: PathBreadcrumbSegment[];

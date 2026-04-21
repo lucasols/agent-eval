@@ -23,7 +23,8 @@ async function loadEvals(url: string, init?: RequestInit): Promise<void> {
     evalsStore.setPartialState({
       loading: false,
       hasLoaded: true,
-      error: 'Could not reach the eval server at /api/evals. Start the backend and reload the page.',
+      error:
+        'Could not reach the eval server at /api/evals. Start the backend and reload the page.',
     });
     return;
   }
