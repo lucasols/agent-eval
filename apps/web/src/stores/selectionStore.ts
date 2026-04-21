@@ -77,6 +77,11 @@ function setSelection(selection: Selection): void {
   updateSearchParams((searchParams) => {
     searchParams.delete('eval');
     searchParams.delete('folder');
+    searchParams.delete('run');
+    searchParams.delete('caseRun');
+    searchParams.delete('case');
+    searchParams.delete('caseTab');
+    searchParams.delete('span');
     if (selection.kind === 'eval') searchParams.set('eval', selection.id);
     else if (selection.kind === 'folder') {
       searchParams.set('folder', selection.path);

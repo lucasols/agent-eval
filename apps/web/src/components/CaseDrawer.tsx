@@ -20,9 +20,10 @@ import {
   formatScore,
 } from '../utils/formatters.ts';
 import { DisplayBlockRenderer } from './DisplayBlockRenderer.tsx';
+import { EmptyState } from './EmptyState.tsx';
 import { IconButton } from './IconButton.tsx';
-import { ResizeHandle } from './ResizeHandle.tsx';
 import { JsonViewer } from './JsonViewer.tsx';
+import { ResizeHandle } from './ResizeHandle.tsx';
 import { StatusBadge } from './StatusBadge.tsx';
 import { TraceTree } from './TraceTree.tsx';
 
@@ -274,6 +275,9 @@ export function CaseDrawer() {
   const evalSummary = evals.find((e) => e.id === d.evalId);
   const columnDefs = evalSummary?.columnDefs ?? [];
   const primaryCol = columnDefs.find((c) => c.primary);
+  const hasOutputValue = columnDefs.some((columnDef) =>
+    hasRenderableOutputValue(d.columns[columnDef.key]),
+  );
 
   const tabs: Tab[] = ['input', 'output', 'trace', 'raw'];
   if (d.assertionFailures.length > 0) tabs.push('failures');
@@ -340,22 +344,29 @@ export function CaseDrawer() {
         {activeTab === 'input' ? <JsonViewer value={d.input} /> : null}
 
         {activeTab === 'output' ? (
-          <div>
-            {primaryCol ? (
-              <PrimaryBlocks value={d.columns[primaryCol.key]} />
-            ) : null}
-            <ColumnsGrid>
-              {columnDefs
-                .filter((c) => !c.primary)
-                .map((c) => (
-                  <ColumnCell
-                    key={c.key}
-                    def={c}
-                    value={d.columns[c.key]}
-                  />
-                ))}
-            </ColumnsGrid>
-          </div>
+          hasOutputValue ? (
+            <div>
+              {primaryCol ? (
+                <PrimaryBlocks value={d.columns[primaryCol.key]} />
+              ) : null}
+              <ColumnsGrid>
+                {columnDefs
+                  .filter((c) => !c.primary)
+                  .map((c) => (
+                    <ColumnCell
+                      key={c.key}
+                      def={c}
+                      value={d.columns[c.key]}
+                    />
+                  ))}
+              </ColumnsGrid>
+            </div>
+          ) : (
+            <EmptyState
+              title="No output recorded"
+              description="This case run did not produce any output values to display."
+            />
+          )
         ) : null}
 
         {activeTab === 'trace' ? (
@@ -417,6 +428,12 @@ function PrimaryBlocks({ value }: { value: CellValue | undefined }) {
       ))}
     </div>
   );
+}
+
+function hasRenderableOutputValue(value: CellValue | undefined): boolean {
+  if (value === undefined || value === null) return false;
+  if (Array.isArray(value)) return value.length > 0;
+  return true;
 }
 
 function ColumnCell({
