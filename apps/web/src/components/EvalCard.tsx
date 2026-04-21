@@ -1,5 +1,10 @@
 import { getEvalDisplayStatus, type EvalSummary } from '@agent-evals/shared';
-import { ChevronDown, Play } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Play,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
@@ -32,10 +37,12 @@ import {
 import { getFreshnessTooltip } from '../utils/freshness.ts';
 import { EvalRunsChart } from './EvalRunsChart.tsx';
 import { EvalRunsTable } from './EvalRunsTable.tsx';
+import { IconButton } from './IconButton.tsx';
 import { MenuButton } from './MenuButton.tsx';
 import { PathBreadcrumb } from './PathBreadcrumb.tsx';
 import { SplitButton, type SplitButtonMenuEntry } from './SplitButton.tsx';
 import { StatusBadge } from './StatusBadge.tsx';
+import { Tooltip } from './Tooltip.tsx';
 
 type EvalCardProps = { evalSummary: EvalSummary; mode: 'single' | 'stacked' };
 
@@ -164,7 +171,8 @@ const Body = styled.div<{ scroll: boolean }>`
 
   &.scroll {
     flex: 1;
-    overflow: auto;
+    min-height: 0;
+    overflow: hidden;
   }
 `;
 
@@ -204,12 +212,17 @@ const StatValue = styled.div<{ accent: boolean; cost: boolean }>`
   }
 `;
 
-const Section = styled.div`
+const Section = styled.div<{ fill: boolean }>`
   ${stack({ gap: 0 })}
   padding: 20px 32px 24px;
 
   &:not(:last-child) {
     border-bottom: 1px solid ${colors.border.var};
+  }
+
+  &.fill {
+    flex: 1;
+    min-height: 0;
   }
 `;
 
@@ -229,6 +242,10 @@ const SectionMeta = styled.span`
   ${monoFont};
   font-size: 10.5px;
   color: ${colors.textMuted.var};
+`;
+
+const SectionActions = styled.div`
+  ${inline({ gap: 4, align: 'center' })}
 `;
 
 export function EvalCard({ evalSummary, mode }: EvalCardProps) {
@@ -348,6 +365,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
       description: 'Remove every cached span entry tied to this eval id.',
       tone: 'danger',
       onSelect: () => {
+        if (!window.confirm('Clear cached entries for this eval?')) return;
         void clearCacheForEval(evalSummary.id);
       },
     },
@@ -387,6 +405,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
       description: 'Delete saved terminal runs that touched this eval.',
       tone: 'danger',
       onSelect: () => {
+        if (!window.confirm('Delete saved runs for this eval?')) return;
         void handleCleanRuns();
       },
     },
@@ -533,7 +552,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
           </StatsGrid>
 
           {hasScoreHistory ? (
-            <Section>
+            <Section fill={false}>
               <SectionLabel>
                 <SectionLabelText>Score history</SectionLabelText>
                 <SectionMeta>
@@ -544,19 +563,13 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
             </Section>
           ) : null}
 
-          <Section>
-            <SectionLabel>
-              <SectionLabelText>Runs</SectionLabelText>
-              <SectionMeta>
-                {runRows.length > 0
-                  ? `${runRows.length} ${runRows.length === 1 ? 'run' : 'runs'}`
-                  : 'no runs'}
-              </SectionMeta>
-            </SectionLabel>
-            <EvalRunsTable
+          <Section fill={isSingle}>
+            <RunsSection
+              key={runRows.map((run) => run.manifest.id).join(':')}
               runs={runRows}
               columnDefs={evalSummary.columnDefs}
               passThreshold={evalSummary.passThreshold ?? 0.5}
+              fillHeight={isSingle}
             />
           </Section>
         </Body>
@@ -574,4 +587,79 @@ function runTargetsEvalLocal(
     return target.evalIds?.includes(evalId) ?? false;
   }
   return false;
+}
+
+function RunsSection({
+  runs,
+  columnDefs,
+  passThreshold,
+  fillHeight,
+}: {
+  runs: Parameters<typeof EvalRunsTable>[0]['runs'];
+  columnDefs: Parameters<typeof EvalRunsTable>[0]['columnDefs'];
+  passThreshold: number;
+  fillHeight: boolean;
+}) {
+  const [expandedRunIds, setExpandedRunIds] = useState<Set<string>>(() => {
+    const latestRun = runs[0];
+    return latestRun ? new Set([latestRun.manifest.id]) : new Set();
+  });
+
+  const allRunsExpanded =
+    runs.length > 0 && runs.every((run) => expandedRunIds.has(run.manifest.id));
+
+  function toggleExpandedRun(runId: string) {
+    setExpandedRunIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(runId)) next.delete(runId);
+      else next.add(runId);
+      return next;
+    });
+  }
+
+  function toggleAllRuns() {
+    setExpandedRunIds(() => {
+      if (allRunsExpanded) return new Set<string>();
+      return new Set(runs.map((run) => run.manifest.id));
+    });
+  }
+
+  return (
+    <>
+      <SectionLabel>
+        <SectionLabelText>Runs</SectionLabelText>
+        <SectionActions>
+          {runs.length > 0 ? (
+            <Tooltip
+              content={
+                allRunsExpanded ? 'Collapse all run cases' : 'Expand all run cases'
+              }
+            >
+              <IconButton
+                aria-label={
+                  allRunsExpanded ? 'Collapse all run cases' : 'Expand all run cases'
+                }
+                onClick={toggleAllRuns}
+              >
+                {allRunsExpanded ? <ChevronsDownUp /> : <ChevronsUpDown />}
+              </IconButton>
+            </Tooltip>
+          ) : null}
+          <SectionMeta>
+            {runs.length > 0
+              ? `${runs.length} ${runs.length === 1 ? 'run' : 'runs'}`
+              : 'no runs'}
+          </SectionMeta>
+        </SectionActions>
+      </SectionLabel>
+      <EvalRunsTable
+        runs={runs}
+        columnDefs={columnDefs}
+        passThreshold={passThreshold}
+        expandedRunIds={expandedRunIds}
+        onToggleExpandedRun={toggleExpandedRun}
+        fillHeight={fillHeight}
+      />
+    </>
+  );
 }

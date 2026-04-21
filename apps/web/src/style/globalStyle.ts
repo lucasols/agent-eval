@@ -45,25 +45,6 @@ const _ = createGlobalStyle`
     color: ${colors.text.var};
   }
 
-  ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: ${colors.borderStrong.var};
-    border-radius: 10px;
-    border: 2px solid ${colors.bg.var};
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: ${colors.textDim.var};
-  }
-
   button {
     cursor: pointer;
     font-family: inherit;

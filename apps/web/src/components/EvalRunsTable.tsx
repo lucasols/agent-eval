@@ -6,7 +6,7 @@ import type {
   ScopedCaseSummary,
 } from '@agent-evals/shared';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { useState, type MouseEvent } from 'react';
+import { type MouseEvent } from 'react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import {
@@ -38,6 +38,9 @@ type EvalRunsTableProps = {
   runs: RunRow[];
   columnDefs: ColumnDef[];
   passThreshold: number;
+  expandedRunIds: Set<string>;
+  onToggleExpandedRun: (runId: string) => void;
+  fillHeight: boolean;
 };
 
 const Empty = styled.div`
@@ -49,16 +52,16 @@ const Empty = styled.div`
   font-size: 12.5px;
 `;
 
-const TableWrap = styled.div`
+const TableWrap = styled.div<{ fillHeight: boolean }>`
   border: 1px solid ${colors.border.var};
   border-radius: var(--radius-lg);
   background: ${colors.bg.var};
-  overflow: hidden;
-`;
+  overflow: auto;
 
-const TableScroll = styled.div`
-  overflow-x: auto;
-  overflow-y: visible;
+  &.fillHeight {
+    flex: 1;
+    min-height: 0;
+  }
 `;
 
 const Table = styled.table`
@@ -73,10 +76,10 @@ const Th = styled.th<{ rightAlign: boolean; indent: boolean }>`
   ${kicker};
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 2;
   padding: 10px 16px;
   background: ${colors.bgElevated.var};
-  border-bottom: 1px solid ${colors.border.var};
+  box-shadow: inset 0 -1px 0 ${colors.border.var};
   color: ${colors.textMuted.var};
   text-align: left;
   white-space: nowrap;
@@ -273,6 +276,7 @@ const ScoreText = styled.span`
 
 const ScoreCellWrap = styled.span`
   ${inline({ gap: 0, align: 'center' })}
+  display: inline-flex;
 `;
 
 const CostText = styled.span`
@@ -315,21 +319,10 @@ export function EvalRunsTable({
   runs,
   columnDefs,
   passThreshold,
+  expandedRunIds,
+  onToggleExpandedRun,
+  fillHeight,
 }: EvalRunsTableProps) {
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
-    const latest = runs[0];
-    return latest ? new Set([latest.manifest.id]) : new Set();
-  });
-
-  function toggleExpanded(id: string) {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
   if (runs.length === 0) {
     return <Empty>Run this eval to see results</Empty>;
   }
@@ -342,74 +335,72 @@ export function EvalRunsTable({
   const totalCols = 6 + customColumns.length;
 
   return (
-    <TableWrap>
-      <TableScroll>
-        <Table>
-          <thead>
-            <tr>
+    <TableWrap fillHeight={fillHeight}>
+      <Table>
+        <thead>
+          <tr>
+            <Th
+              rightAlign={false}
+              indent={false}
+            >
+              Case
+            </Th>
+            <Th
+              rightAlign={false}
+              indent={false}
+            >
+              Status
+            </Th>
+            <Th
+              rightAlign={true}
+              indent={false}
+            >
+              Score
+            </Th>
+            <Th
+              rightAlign={true}
+              indent={false}
+            >
+              Latency
+            </Th>
+            <Th
+              rightAlign={true}
+              indent={false}
+            >
+              Cases
+            </Th>
+            <Th
+              rightAlign={true}
+              indent={false}
+            >
+              Cost
+            </Th>
+            {customColumns.map((c) => (
               <Th
-                rightAlign={false}
+                key={c.key}
+                rightAlign={c.align === 'right'}
                 indent={false}
               >
-                Case
+                {c.label}
               </Th>
-              <Th
-                rightAlign={false}
-                indent={false}
-              >
-                Status
-              </Th>
-              <Th
-                rightAlign={true}
-                indent={false}
-              >
-                Score
-              </Th>
-              <Th
-                rightAlign={true}
-                indent={false}
-              >
-                Latency
-              </Th>
-              <Th
-                rightAlign={true}
-                indent={false}
-              >
-                Cases
-              </Th>
-              <Th
-                rightAlign={true}
-                indent={false}
-              >
-                Cost
-              </Th>
-              {customColumns.map((c) => (
-                <Th
-                  key={c.key}
-                  rightAlign={c.align === 'right'}
-                  indent={false}
-                >
-                  {c.label}
-                </Th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {runs.map((run, idx) => (
-              <RunGroup
-                key={run.manifest.id}
-                run={run}
-                isLatest={idx === 0}
-                expanded={expandedIds.has(run.manifest.id)}
-                onToggle={toggleExpanded}
-                customColumns={customColumns}
-                passThreshold={passThreshold}
-                totalCols={totalCols}
-              />
             ))}
-          </tbody>
-        </Table>
-      </TableScroll>
+          </tr>
+        </thead>
+        <tbody>
+          {runs.map((run, idx) => (
+            <RunGroup
+              key={run.manifest.id}
+              run={run}
+              isLatest={idx === 0}
+              expanded={expandedRunIds.has(run.manifest.id)}
+              onToggle={onToggleExpandedRun}
+              customColumns={customColumns}
+              passThreshold={passThreshold}
+              totalCols={totalCols}
+            />
+          ))}
+        </tbody>
+      </Table>
     </TableWrap>
   );
 }
