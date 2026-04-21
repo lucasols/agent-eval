@@ -1,7 +1,7 @@
 import type { EvalTraceSpan, TraceDisplayConfig } from '@agent-evals/shared';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
-import { inline, kicker, monoFont } from '#src/style/helpers';
+import { inline, kicker, monoFont, stack } from '#src/style/helpers';
 import {
   formatTraceAttributeValue,
   getTraceAttributeItems,
@@ -9,67 +9,67 @@ import {
 import { JsonViewer } from './JsonViewer.tsx';
 
 const DetailRoot = styled.div`
-  padding: 14px 16px;
-  background: ${colors.bg.var};
-  border-radius: var(--radius-md);
-  border: 1px solid ${colors.border.var};
+  ${stack({ gap: 14 })}
   font-size: 12px;
 `;
 
 const DetailTitle = styled.div`
   ${monoFont};
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: -0.005em;
   color: ${colors.text.var};
-  margin-bottom: 12px;
 `;
 
 const DetailItems = styled.div`
-  ${inline({ gap: 16 })}
-  margin-bottom: 14px;
-  flex-wrap: wrap;
+  ${stack({ gap: 6 })}
 `;
 
-const DetailItemRoot = styled.div``;
+const DetailItemRoot = styled.div`
+  ${inline({ justify: 'space-between', align: 'center', gap: 12 })}
+  padding: 8px 10px;
+  background: ${colors.bg.var};
+  border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-sm);
+`;
 
 const DetailItemLabel = styled.div`
-  ${kicker}
+  ${kicker};
   color: ${colors.textMuted.var};
-  margin-bottom: 3px;
 `;
 
 const DetailItemValue = styled.div`
   ${monoFont};
   font-size: 11.5px;
   color: ${colors.text.var};
+  text-align: right;
+  max-width: 60%;
+  word-break: break-all;
 `;
 
 const ErrorContainer = styled.div`
   color: ${colors.error.var};
-  margin-top: 8px;
 `;
 
 const ErrorTitle = styled.div`
   font-weight: 600;
+  margin-bottom: 4px;
 `;
 
 const ErrorStack = styled.pre`
   ${monoFont};
   font-size: 10px;
   white-space: pre-wrap;
-  margin-top: 4px;
   opacity: 0.8;
 `;
 
 const JsonSectionRoot = styled.div`
-  margin-top: 8px;
+  ${stack({ gap: 6 })}
 `;
 
 const JsonSectionLabel = styled.div`
-  ${kicker}
+  ${kicker};
   color: ${colors.textMuted.var};
-  margin-bottom: 6px;
 `;
 
 const JsonSectionText = styled.pre`

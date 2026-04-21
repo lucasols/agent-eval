@@ -37,6 +37,10 @@ const DetailPane = styled.div`
   min-width: 300px;
   max-width: 460px;
   overflow: auto;
+  border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-md);
+  background: ${colors.bg.var};
+  padding: 14px 16px;
 `;
 
 const DetailOverlay = styled.div`
@@ -69,7 +73,7 @@ const OverlayLabel = styled.span`
 
 const OverlayBody = styled.div`
   overflow: auto;
-  padding: 10px;
+  padding: 14px 16px;
 `;
 
 const CloseButton = styled.button`
