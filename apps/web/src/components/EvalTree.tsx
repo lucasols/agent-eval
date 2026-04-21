@@ -174,6 +174,11 @@ const GroupLabel = styled.span`
   color: ${colors.text.var};
 `;
 
+const GroupLabelPrefix = styled.span`
+  color: ${colors.textDim.var};
+  font-weight: 400;
+`;
+
 const LeafLabel = styled.span`
   ${ellipsis};
   flex: 1;
@@ -406,7 +411,10 @@ function FolderRow({
         >
           <ChevronRight />
         </ChevronButton>
-        <GroupLabel>{folder.name}</GroupLabel>
+        <GroupLabel>
+          <GroupLabelPrefix>/</GroupLabelPrefix>
+          {folder.name}
+        </GroupLabel>
         <Tooltip content={statusTooltip}>
           <StatusDotWrap>
             <StatusDot status={combinedStatus} />
