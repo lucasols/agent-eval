@@ -10,7 +10,7 @@ import type { EvalLatestRunInfo } from './runPersistence.ts';
 type EvalSummaryMeta = Pick<
   EvalSummary,
   'id' | 'title' | 'description' | 'filePath' | 'columnDefs' | 'caseCount'
-> & { passThreshold: number };
+> & { passThreshold: number; sourceFingerprint: string | null };
 
 /** Build the API/UI summary payload for one discovered eval. */
 export function buildEvalSummary(params: {
@@ -21,14 +21,16 @@ export function buildEvalSummary(params: {
   lastRunStatus: EvalSummary['lastRunStatus'];
 }): EvalSummary {
   const { meta, config, gitState, latestRun, lastRunStatus } = params;
+  const { sourceFingerprint, ...summaryMeta } = meta;
   const freshness = deriveEvalFreshness({
     latestRun,
     gitState,
+    currentEvalSourceFingerprint: sourceFingerprint,
     staleAfterDays: config.staleAfterDays ?? 14,
   });
 
   return {
-    ...meta,
+    ...summaryMeta,
     stale: freshness.stale,
     outdated: freshness.outdated,
     freshnessStatus: freshness.freshnessStatus,

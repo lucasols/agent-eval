@@ -105,6 +105,7 @@ type EvalMeta = {
   description?: string;
   filePath: string;
   sourceFilePath: string;
+  sourceFingerprint: string | null;
   columnDefs: ColumnDef[];
   passThreshold: number;
   caseCount: number | null;
@@ -149,6 +150,10 @@ export function createRunner({
     status: ReturnType<typeof deriveStatusFromCaseRows>,
   ): EvalSummary['lastRunStatus'] {
     return status === 'pending' ? null : status;
+  }
+
+  function getSourceFingerprint(source: string): string {
+    return createHash('sha256').update(source).digest('hex');
   }
 
   const runner: EvalRunner = {
@@ -277,6 +282,7 @@ export function createRunner({
               title: meta.title,
               filePath: toWorkspaceRelativePath(meta.filePath),
               sourceFilePath: meta.filePath,
+              sourceFingerprint: getSourceFingerprint(content),
               columnDefs: [],
               passThreshold: meta.passThreshold,
               caseCount: null,
@@ -304,7 +310,7 @@ export function createRunner({
         startedAt: now,
         endedAt: null,
         commitSha: gitState.commitSha,
-        trackedChangesFingerprint: gitState.trackedChangesFingerprint,
+        evalSourceFingerprints: {},
         target: request.target,
         trials: request.trials,
         cacheMode,
@@ -348,7 +354,7 @@ export function createRunner({
           status: 'running',
           startedAt: now,
           commitSha: manifest.commitSha ?? null,
-          trackedChangesFingerprint: manifest.trackedChangesFingerprint ?? null,
+          evalSourceFingerprint: null,
         },
       });
 
@@ -489,9 +495,15 @@ export function createRunner({
         let codeFingerprint = '';
         try {
           const source = await readFile(evalFilePath, 'utf-8');
-          codeFingerprint = createHash('sha256').update(source).digest('hex');
+          codeFingerprint = getSourceFingerprint(source);
         } catch {
           codeFingerprint = '';
+        }
+        if (codeFingerprint.length > 0) {
+          runState.manifest.evalSourceFingerprints[evalMeta.id] =
+            codeFingerprint;
+        } else {
+          delete runState.manifest.evalSourceFingerprints[evalMeta.id];
         }
 
         try {
@@ -612,8 +624,8 @@ export function createRunner({
               startedAt:
                 runState.manifest.endedAt ?? runState.manifest.startedAt,
               commitSha: runState.manifest.commitSha ?? null,
-              trackedChangesFingerprint:
-                runState.manifest.trackedChangesFingerprint ?? null,
+              evalSourceFingerprint:
+                runState.manifest.evalSourceFingerprints[evalMeta.id] ?? null,
             });
           });
         } catch (error) {
@@ -627,8 +639,8 @@ export function createRunner({
             status: 'error',
             startedAt: runState.manifest.endedAt ?? runState.manifest.startedAt,
             commitSha: runState.manifest.commitSha ?? null,
-            trackedChangesFingerprint:
-              runState.manifest.trackedChangesFingerprint ?? null,
+            evalSourceFingerprint:
+              runState.manifest.evalSourceFingerprints[evalMeta.id] ?? null,
           });
         }
       }
@@ -674,8 +686,8 @@ export function createRunner({
           status: latestStatus,
           startedAt: completedRunAt,
           commitSha: runState.manifest.commitSha ?? null,
-          trackedChangesFingerprint:
-            runState.manifest.trackedChangesFingerprint ?? null,
+          evalSourceFingerprint:
+            runState.manifest.evalSourceFingerprints[evalId] ?? null,
         });
       }
 

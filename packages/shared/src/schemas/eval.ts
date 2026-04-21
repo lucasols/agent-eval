@@ -15,7 +15,7 @@ export const evalSummarySchema = z.object({
   description: z.string().optional(),
   /** Eval file path relative to the active workspace root. */
   filePath: z.string(),
-  /** Indicates tracked workspace changes make the latest passing result stale. */
+  /** Indicates the eval file changed since the latest passing result. */
   stale: z.boolean(),
   /** Indicates the latest comparable run is from an older commit and too old. */
   outdated: z.boolean(),

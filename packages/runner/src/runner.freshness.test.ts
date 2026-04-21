@@ -26,7 +26,7 @@ function runGit(workspacePath: string, args: string[]): void {
 }
 
 describe('runner freshness', () => {
-  test('rerunning in the same dirty tracked state clears stale', async () => {
+  test('rerunning after the same eval-file change clears stale', async () => {
     const workspacePath = await mkdtemp(
       join(tmpdir(), 'agent-evals-runner-stale-reset-'),
     );
@@ -52,8 +52,6 @@ defineEval({
 });
 `,
     );
-    await writeFile(join(workspacePath, 'notes.txt'), 'original\n');
-
     runGit(workspacePath, ['init']);
     runGit(workspacePath, ['config', 'user.email', 'ci@example.com']);
     runGit(workspacePath, ['config', 'user.name', 'CI']);
@@ -84,7 +82,18 @@ defineEval({
         lastRunStatus: 'pass',
       });
 
-      await writeFile(join(workspacePath, 'notes.txt'), 'modified\n');
+      await writeFile(
+        join(workspacePath, 'evals', 'stale-reset.eval.ts'),
+        `import { defineEval } from '@agent-evals/sdk';
+
+defineEval({
+  id: 'stale-reset-eval',
+  title: 'Stale Reset Eval (updated)',
+  cases: [{ id: 'case-1', input: {} }],
+  execute: async () => {},
+});
+`,
+      );
       await runner.refreshDiscovery();
 
       expect(runner.getEval('stale-reset-eval')).toMatchObject({

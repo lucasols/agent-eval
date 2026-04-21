@@ -11,7 +11,7 @@ describe('eval run rows ui', () => {
       startedAt: '2026-04-21T12:00:00.000Z',
       endedAt: '2026-04-21T12:00:03.000Z',
       commitSha: null,
-      trackedChangesFingerprint: null,
+      evalSourceFingerprints: {},
       target: { mode: 'all' },
       trials: 1,
       cacheMode: 'use',

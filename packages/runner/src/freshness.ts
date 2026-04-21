@@ -5,10 +5,10 @@ import type { GitWorktreeState } from './gitState.ts';
 export type LatestRunInfo = {
   startedAt: string;
   commitSha: string | null;
-  trackedChangesFingerprint: string | null;
+  evalSourceFingerprint: string | null;
 };
 
-/** Independent freshness flags derived from git state and latest run info. */
+/** Independent freshness flags derived from git state and eval-file history. */
 export type EvalFreshnessState = {
   freshnessStatus: EvalFreshnessStatus;
   stale: boolean;
@@ -16,19 +16,28 @@ export type EvalFreshnessState = {
 };
 
 /**
- * Derive eval freshness from the latest run, current git commit, and an age
- * threshold.
+ * Derive eval freshness from the latest run, current eval-file fingerprint,
+ * current git commit, and an age threshold.
  */
 export function deriveEvalFreshness(params: {
   latestRun: LatestRunInfo | undefined;
   gitState: GitWorktreeState;
+  currentEvalSourceFingerprint: string | null;
   staleAfterDays: number;
   now?: Date;
 }): EvalFreshnessState {
-  const { latestRun, gitState, staleAfterDays, now = new Date() } = params;
+  const {
+    latestRun,
+    gitState,
+    currentEvalSourceFingerprint,
+    staleAfterDays,
+    now = new Date(),
+  } = params;
   const stale =
-    gitState.trackedChangesFingerprint !==
-    (latestRun?.trackedChangesFingerprint ?? null);
+    latestRun?.evalSourceFingerprint !== undefined &&
+    latestRun.evalSourceFingerprint !== null &&
+    currentEvalSourceFingerprint !== null &&
+    currentEvalSourceFingerprint !== latestRun.evalSourceFingerprint;
 
   const latestRunCommitSha = latestRun?.commitSha;
   if (latestRunCommitSha === undefined || latestRunCommitSha === null) {

@@ -139,8 +139,8 @@ export function getLatestRunInfos(params: {
         status: getEvalStatusForRun(run, evalId),
         startedAt: getRunFreshnessTimestamp(run.manifest),
         commitSha: run.manifest.commitSha ?? null,
-        trackedChangesFingerprint:
-          run.manifest.trackedChangesFingerprint ?? null,
+        evalSourceFingerprint:
+          run.manifest.evalSourceFingerprints[evalId] ?? null,
       });
     }
   }

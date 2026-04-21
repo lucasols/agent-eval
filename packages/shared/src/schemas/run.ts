@@ -20,11 +20,13 @@ export const runManifestSchema = z.object({
    */
   commitSha: z.string().nullable().optional().default(null),
   /**
-   * Fingerprint of tracked changes relative to `HEAD` when the run started.
-   * `null` means no tracked changes were present or the workspace was not a
-   * comparable git worktree.
+   * Eval-file fingerprints captured for this run, keyed by eval id. Older
+   * persisted runs may not include this field.
    */
-  trackedChangesFingerprint: z.string().nullable().optional().default(null),
+  evalSourceFingerprints: z
+    .record(z.string(), z.string())
+    .optional()
+    .default({}),
   target: z.object({
     mode: z.enum(['all', 'evalIds', 'caseIds']),
     evalIds: z.array(z.string()).optional(),
