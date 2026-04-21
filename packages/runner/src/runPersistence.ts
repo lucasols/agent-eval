@@ -23,6 +23,45 @@ export type PersistedRunSnapshot = {
   caseDetails: Map<string, CaseDetail>;
 };
 
+const SHORT_ID_PATTERN = /^r(\d+)$/;
+
+/**
+ * Generate a filesystem-safe, sortable run id combining a UTC timestamp
+ * with a short random suffix.
+ */
+export function generateRunId(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const timestamp = `${String(now.getUTCFullYear())}-${pad(now.getUTCMonth() + 1)}-${pad(now.getUTCDate())}T${pad(now.getUTCHours())}-${pad(now.getUTCMinutes())}-${pad(now.getUTCSeconds())}Z`;
+  const suffix = Math.random().toString(36).slice(2, 8);
+  return `${timestamp}_${suffix}`;
+}
+
+function parseShortIdNum(shortId: string | undefined): number | null {
+  if (shortId === undefined) return null;
+  const match = SHORT_ID_PATTERN.exec(shortId);
+  if (!match) return null;
+  const num = Number(match[1]);
+  if (!Number.isFinite(num)) return null;
+  return num;
+}
+
+/**
+ * Return the next `shortId` number to assign based on the existing
+ * loaded snapshots. Legacy runs that don't match the `r\d+` format are
+ * ignored.
+ */
+export function nextShortIdFromSnapshots(
+  snapshots: PersistedRunSnapshot[],
+): number {
+  let maxNum = -1;
+  for (const snapshot of snapshots) {
+    const num = parseShortIdNum(snapshot.manifest.shortId);
+    if (num !== null && num > maxNum) maxNum = num;
+  }
+  return maxNum + 1;
+}
+
 export async function loadPersistedRunSnapshots(
   localStateDir: string,
 ): Promise<PersistedRunSnapshot[]> {

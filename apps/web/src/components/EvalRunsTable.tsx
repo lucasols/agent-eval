@@ -5,6 +5,8 @@ import type {
   RunManifest,
   RunSummary,
 } from '@agent-evals/shared';
+import { ChevronDown, ChevronRight } from 'lucide-react';
+import { useState, type MouseEvent } from 'react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import {
@@ -23,7 +25,7 @@ import {
   formatScore,
   formatTimestamp,
 } from '../utils/formatters.ts';
-import { StatusBadge, StatusDot } from './StatusBadge.tsx';
+import { StatusBadge } from './StatusBadge.tsx';
 
 export type RunRow = {
   manifest: RunManifest;
@@ -74,37 +76,84 @@ const Th = styled.th<{ rightAlign: boolean; indent: boolean }>`
 `;
 
 const RunHeaderRow = styled.tr<{ latest: boolean }>`
+  ${transition({ property: 'background' })}
+  cursor: pointer;
   border-top: 1px solid ${colors.border.var};
+  background: ${colors.bgElevated.var};
 
   &:first-child {
     border-top: none;
   }
 
+  &:hover {
+    background: ${colors.surface.var};
+  }
+
   &.latest {
-    background: ${colors.accent.alpha(0.03)};
+    background: ${colors.accent.alpha(0.06)};
+  }
+  &.latest:hover {
+    background: ${colors.accent.alpha(0.1)};
   }
 `;
 
-const RunHeaderCell = styled.td`
-  padding: 0;
+const RunHeaderTd = styled.td<{ rightAlign: boolean; mono: boolean }>`
+  padding: 12px 16px;
+  vertical-align: middle;
+  white-space: nowrap;
+  color: ${colors.text.var};
+  font-size: 12px;
+
+  &.rightAlign {
+    text-align: right;
+  }
+  &.mono {
+    ${monoFont};
+    ${tabularNums};
+    font-size: 11.5px;
+    color: ${colors.textMuted.var};
+  }
 `;
 
-const RunHeaderBar = styled.button`
-  ${inline({ gap: 16, align: 'center' })}
-  ${transition({ property: 'background' })}
-  width: 100%;
-  padding: 12px 20px;
-  flex-wrap: wrap;
+const RunCaseCell = styled.div`
+  ${inline({ gap: 8, align: 'center' })}
+`;
+
+const ChevronButton = styled.button`
+  ${transition({ property: 'color' })}
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
   background: transparent;
   border: none;
-  text-align: left;
   cursor: pointer;
-  color: inherit;
-  font: inherit;
+  color: ${colors.textMuted.var};
 
   &:hover {
-    background: ${colors.bgElevated.var};
+    color: ${colors.text.var};
   }
+`;
+
+const LatestBadge = styled.span`
+  ${kicker};
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  background: ${colors.accent.alpha(0.12)};
+  color: ${colors.accentDim.var};
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  line-height: 1;
+`;
+
+const RunIdBadge = styled.span`
+  ${monoFont};
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  background: ${colors.surface.var};
+  color: ${colors.textMuted.var};
+  font-size: 10.5px;
+  line-height: 1;
 `;
 
 const RunTime = styled.span<{ latest: boolean }>`
@@ -115,33 +164,6 @@ const RunTime = styled.span<{ latest: boolean }>`
 
   &.latest {
     color: ${colors.accentDim.var};
-  }
-`;
-
-const RunStat = styled.div`
-  ${inline({ gap: 6, align: 'center' })}
-  font-size: 11.5px;
-  color: ${colors.textMuted.var};
-  ${tabularNums};
-`;
-
-const RunStatLabel = styled.span`
-  ${kicker};
-  color: ${colors.textMuted.var};
-`;
-
-const RunStatValue = styled.span<{ accent: boolean; cost: boolean }>`
-  ${monoFont};
-  ${tabularNums};
-  font-size: 12px;
-  font-weight: 500;
-  color: ${colors.text.var};
-
-  &.accent {
-    color: ${colors.accentDim.var};
-  }
-  &.cost {
-    color: ${colors.cost.var};
   }
 `;
 
@@ -272,6 +294,20 @@ function formatCellValue(c: ColumnDef, value: CellValue | undefined): string {
 }
 
 export function EvalRunsTable({ runs, columnDefs }: EvalRunsTableProps) {
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
+    const latest = runs[0];
+    return latest ? new Set([latest.manifest.id]) : new Set();
+  });
+
+  function toggleExpanded(id: string) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   if (runs.length === 0) {
     return <Empty>Run this eval to see results</Empty>;
   }
@@ -281,7 +317,7 @@ export function EvalRunsTable({ runs, columnDefs }: EvalRunsTableProps) {
       !c.primary &&
       runs.some((r) => r.cases.some((row) => row.columns[c.key] !== undefined)),
   );
-  const totalCols = 5 + customColumns.length;
+  const totalCols = 6 + customColumns.length;
 
   return (
     <TableWrap>
@@ -290,7 +326,7 @@ export function EvalRunsTable({ runs, columnDefs }: EvalRunsTableProps) {
           <tr>
             <Th
               rightAlign={false}
-              indent={true}
+              indent={false}
             >
               Case
             </Th>
@@ -316,6 +352,12 @@ export function EvalRunsTable({ runs, columnDefs }: EvalRunsTableProps) {
               rightAlign={true}
               indent={false}
             >
+              Cases
+            </Th>
+            <Th
+              rightAlign={true}
+              indent={false}
+            >
               Cost
             </Th>
             {customColumns.map((c) => (
@@ -335,6 +377,8 @@ export function EvalRunsTable({ runs, columnDefs }: EvalRunsTableProps) {
               key={run.manifest.id}
               run={run}
               isLatest={idx === 0}
+              expanded={expandedIds.has(run.manifest.id)}
+              onToggle={toggleExpanded}
               customColumns={customColumns}
               totalCols={totalCols}
             />
@@ -367,148 +411,196 @@ function ScoreCell({ score }: { score: number | null }) {
 function RunGroup({
   run,
   isLatest,
+  expanded,
+  onToggle,
   customColumns,
   totalCols,
 }: {
   run: RunRow;
   isLatest: boolean;
+  expanded: boolean;
+  onToggle: (id: string) => void;
   customColumns: ColumnDef[];
   totalCols: number;
 }) {
   const { manifest, summary, cases } = run;
-  const passFail =
-    summary.totalCases === 0
-      ? '\u2014'
-      : `${summary.passedCases}/${summary.totalCases}`;
+  const hasCases = summary.totalCases > 0;
+  const costValue = summary.cost.totalUsd;
+  const durationValue = summary.totalDurationMs;
 
   function handleCaseClick(caseId: string) {
     void selectCase(manifest.id, caseId);
   }
 
+  function handleChevronClick(e: MouseEvent) {
+    e.stopPropagation();
+    onToggle(manifest.id);
+  }
+
   return (
     <>
-      <RunHeaderRow latest={isLatest}>
-        <RunHeaderCell colSpan={totalCols}>
-          <RunHeaderBar
-            type="button"
-            onClick={() => void selectRun(manifest.id)}
-          >
+      <RunHeaderRow
+        latest={isLatest}
+        onClick={() => void selectRun(manifest.id)}
+      >
+        <RunHeaderTd
+          rightAlign={false}
+          mono={false}
+        >
+          <RunCaseCell>
+            <ChevronButton
+              type="button"
+              onClick={handleChevronClick}
+            >
+              {expanded ? (
+                <ChevronDown size={14} />
+              ) : (
+                <ChevronRight size={14} />
+              )}
+            </ChevronButton>
+            {isLatest ? (
+              <LatestBadge>LATEST</LatestBadge>
+            ) : (
+              <RunIdBadge>#{manifest.shortId}</RunIdBadge>
+            )}
             <RunTime latest={isLatest}>
               {formatTimestamp(manifest.startedAt)}
             </RunTime>
-            <StatusBadge status={manifest.status} />
-            <RunStat>
-              <RunStatLabel>Cases</RunStatLabel>
-              <RunStatValue
-                accent={false}
-                cost={false}
-              >
-                {passFail}
-              </RunStatValue>
-            </RunStat>
-            <RunStat>
-              <RunStatLabel>Duration</RunStatLabel>
-              <RunStatValue
-                accent={false}
-                cost={false}
-              >
-                {formatDuration(summary.totalDurationMs)}
-              </RunStatValue>
-            </RunStat>
-            <RunStat>
-              <RunStatLabel>Cost</RunStatLabel>
-              <RunStatValue
-                accent={false}
-                cost={true}
-              >
-                {formatCost(summary.cost.totalUsd)}
-              </RunStatValue>
-            </RunStat>
-            <RunStat>
-              <RunStatLabel>Avg</RunStatLabel>
-              <RunStatValue
-                accent={true}
-                cost={false}
-              >
-                {formatScore(summary.averageScore)}
-              </RunStatValue>
-            </RunStat>
-          </RunHeaderBar>
-        </RunHeaderCell>
-      </RunHeaderRow>
-      {cases.length === 0 ? (
-        <PlaceholderRow>
-          <PlaceholderCell colSpan={totalCols}>
-            No cases recorded for this run
-          </PlaceholderCell>
-        </PlaceholderRow>
-      ) : (
-        cases.map((row) => (
-          <CaseRowEl
-            key={`${row.caseId}-${String(row.trial)}`}
-            active={false}
-            onClick={() => handleCaseClick(row.caseId)}
+          </RunCaseCell>
+        </RunHeaderTd>
+        <RunHeaderTd
+          rightAlign={false}
+          mono={false}
+        >
+          <StatusBadge status={manifest.status} />
+        </RunHeaderTd>
+        <RunHeaderTd
+          rightAlign={true}
+          mono={false}
+        >
+          <ScoreCell score={summary.averageScore} />
+        </RunHeaderTd>
+        <RunHeaderTd
+          rightAlign={true}
+          mono={true}
+        >
+          {durationValue !== null && durationValue > 0 ? (
+            formatDuration(durationValue)
+          ) : (
+            <Dim>{'\u2014'}</Dim>
+          )}
+        </RunHeaderTd>
+        <RunHeaderTd
+          rightAlign={true}
+          mono={true}
+        >
+          {hasCases ? (
+            `${String(summary.passedCases)}/${String(summary.totalCases)}`
+          ) : (
+            <Dim>{'\u2014'}</Dim>
+          )}
+        </RunHeaderTd>
+        <RunHeaderTd
+          rightAlign={true}
+          mono={true}
+        >
+          {costValue !== null && costValue > 0 ? (
+            <CostText>{formatCost(costValue)}</CostText>
+          ) : (
+            <Dim>{'\u2014'}</Dim>
+          )}
+        </RunHeaderTd>
+        {customColumns.map((c) => (
+          <RunHeaderTd
+            key={c.key}
+            rightAlign={c.align === 'right' || isNumericColumn(c)}
+            mono={true}
           >
-            <CaseTd
-              rightAlign={false}
-              mono={false}
-              indent={true}
+            <Dim>{'\u2014'}</Dim>
+          </RunHeaderTd>
+        ))}
+      </RunHeaderRow>
+      {expanded &&
+        (cases.length === 0 ? (
+          <PlaceholderRow>
+            <PlaceholderCell colSpan={totalCols}>
+              No cases recorded for this run
+            </PlaceholderCell>
+          </PlaceholderRow>
+        ) : (
+          cases.map((row) => (
+            <CaseRowEl
+              key={`${row.caseId}-${String(row.trial)}`}
+              active={false}
+              onClick={() => handleCaseClick(row.caseId)}
             >
-              <CaseId>{row.caseId}</CaseId>
-            </CaseTd>
-            <CaseTd
-              rightAlign={false}
-              mono={false}
-              indent={false}
-            >
-              <StatusDot status={row.status} />
-            </CaseTd>
-            <CaseTd
-              rightAlign={true}
-              mono={false}
-              indent={false}
-            >
-              <ScoreCell score={row.score} />
-            </CaseTd>
-            <CaseTd
-              rightAlign={true}
-              mono={true}
-              indent={false}
-            >
-              {row.latencyMs === null ? (
+              <CaseTd
+                rightAlign={false}
+                mono={false}
+                indent={true}
+              >
+                <CaseId>{row.caseId}</CaseId>
+              </CaseTd>
+              <CaseTd
+                rightAlign={false}
+                mono={false}
+                indent={false}
+              >
+                <StatusBadge status={row.status} />
+              </CaseTd>
+              <CaseTd
+                rightAlign={true}
+                mono={false}
+                indent={false}
+              >
+                <ScoreCell score={row.score} />
+              </CaseTd>
+              <CaseTd
+                rightAlign={true}
+                mono={true}
+                indent={false}
+              >
+                {row.latencyMs === null ? (
+                  <Dim>{'\u2014'}</Dim>
+                ) : (
+                  formatDuration(row.latencyMs)
+                )}
+              </CaseTd>
+              <CaseTd
+                rightAlign={true}
+                mono={true}
+                indent={false}
+              >
                 <Dim>{'\u2014'}</Dim>
-              ) : (
-                formatDuration(row.latencyMs)
-              )}
-            </CaseTd>
-            <CaseTd
-              rightAlign={true}
-              mono={true}
-              indent={false}
-            >
-              {row.costUsd === null ? (
-                <Dim>{'\u2014'}</Dim>
-              ) : (
-                <CostText>{formatCost(row.costUsd)}</CostText>
-              )}
-            </CaseTd>
-            {customColumns.map((c) => {
-              const v = row.columns[c.key];
-              const display = formatCellValue(c, v);
-              return (
-                <CaseTd
-                  key={c.key}
-                  rightAlign={c.align === 'right' || isNumericColumn(c)}
-                  mono={true}
-                  indent={false}
-                >
-                  {display === '\u2014' ? <Dim>{display}</Dim> : display}
-                </CaseTd>
-              );
-            })}
-          </CaseRowEl>
-        ))
-      )}
+              </CaseTd>
+              <CaseTd
+                rightAlign={true}
+                mono={true}
+                indent={false}
+              >
+                {row.costUsd === null ? (
+                  <Dim>{'\u2014'}</Dim>
+                ) : (
+                  <CostText>{formatCost(row.costUsd)}</CostText>
+                )}
+              </CaseTd>
+              {customColumns.map((c) => {
+                const v = row.columns[c.key];
+                const display = formatCellValue(c, v);
+                return (
+                  <CaseTd
+                    key={c.key}
+                    rightAlign={c.align === 'right' || isNumericColumn(c)}
+                    mono={true}
+                    indent={false}
+                  >
+                    {display === '\u2014' ? <Dim>{display}</Dim> : display}
+                  </CaseTd>
+                );
+              })}
+            </CaseRowEl>
+          ))
+        ))}
     </>
   );
 }

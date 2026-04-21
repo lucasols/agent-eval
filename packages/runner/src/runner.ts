@@ -6,9 +6,7 @@ import {
   runInEvalScope,
   buildTraceTree,
   EvalAssertionError,
-  type EvalColumnOverride,
   type EvalDefinition,
-  type EvalScoreDef,
 } from '@agent-evals/sdk';
 import type {
   EvalSummary,
@@ -23,10 +21,8 @@ import type {
   CacheMode,
   ColumnDef,
   CellValue,
-  ColumnKind,
   TraceDisplayInputConfig,
 } from '@agent-evals/shared';
-import { cellValueSchema } from '@agent-evals/shared';
 import { watch } from 'chokidar';
 import { glob } from 'glob';
 import {
@@ -34,11 +30,18 @@ import {
   type CacheClearFilter,
   type FsCacheStore,
 } from './cacheStore.ts';
+import {
+  mergeColumnDefs,
+  normalizeScoreDef,
+  toCellValue,
+} from './columnBuilder.ts';
 import { loadConfig } from './config.ts';
 import { parseEvalMetas } from './discovery.ts';
 import {
+  generateRunId,
   getLastRunStatuses,
   loadPersistedRunSnapshots,
+  nextShortIdFromSnapshots,
   persistCaseDetail,
 } from './runPersistence.ts';
 import { resolveTracePresentation } from './traceDisplay.ts';
@@ -120,6 +123,7 @@ export function createRunner({
   const runs = new Map<string, RunState>();
   const lastRunStatusMap = new Map<string, EvalSummary['lastRunStatus']>();
   const discoveryListeners = new Set<(event: SseEnvelope) => void>();
+  let nextShortIdNum = 0;
 
   function toWorkspaceRelativePath(filePath: string): string {
     return relative(workspaceRoot, filePath).replaceAll('\\', '/');
@@ -225,12 +229,14 @@ export function createRunner({
     },
     async startRun(request) {
       const runId = generateRunId();
+      const shortId = `r${String(nextShortIdNum++)}`;
       const now = new Date().toISOString();
       const cacheMode: CacheMode = request.cache?.mode ?? 'use';
       const runDir = join(localStateDir, 'runs', runId);
 
       const manifest: RunManifest = {
         id: runId,
+        shortId,
         status: 'running',
         startedAt: now,
         endedAt: null,
@@ -639,6 +645,8 @@ export function createRunner({
   async function loadPersistedRuns(): Promise<void> {
     runs.clear();
     const persistedRuns = await loadPersistedRunSnapshots(localStateDir);
+    nextShortIdNum = nextShortIdFromSnapshots(persistedRuns);
+
     for (const persistedRun of persistedRuns) {
       runs.set(persistedRun.manifest.id, {
         ...persistedRun,
@@ -836,92 +844,4 @@ async function runCase<TInput>(params: {
   };
 
   return { caseDetail, caseRowUpdate };
-}
-
-function normalizeScoreDef<TInput>(def: EvalScoreDef<TInput>): {
-  compute: (ctx: {
-    input: TInput;
-    outputs: Record<string, unknown>;
-    case: { id: string; input: TInput; tags?: string[] };
-  }) => number | Promise<number>;
-  passThreshold: number | undefined;
-  label: string | undefined;
-} {
-  if (typeof def === 'function') {
-    return { compute: def, passThreshold: undefined, label: undefined };
-  }
-  return {
-    compute: def.compute,
-    passThreshold: def.passThreshold,
-    label: def.label,
-  };
-}
-
-function mergeColumnDefs<TInput>(
-  target: Map<string, ColumnDef>,
-  columns: Record<string, CellValue>,
-  overrides: Record<string, EvalColumnOverride> | undefined,
-  scores: Record<string, EvalScoreDef<TInput>> | undefined,
-): void {
-  const scoreKeys = new Set(Object.keys(scores ?? {}));
-  const overrideMap = overrides ?? {};
-
-  for (const [key, value] of Object.entries(columns)) {
-    if (target.has(key)) continue;
-    const override = overrideMap[key];
-    const kind: ColumnKind = override?.kind ?? inferKind(value);
-    const def: ColumnDef = { key, label: override?.label ?? key, kind };
-    if (override?.format !== undefined) def.format = override.format;
-    if (override?.primary !== undefined) def.primary = override.primary;
-    if (override?.defaultVisible !== undefined)
-      def.defaultVisible = override.defaultVisible;
-    if (override?.sortable !== undefined) def.sortable = override.sortable;
-    if (override?.align !== undefined) def.align = override.align;
-    if (scoreKeys.has(key)) {
-      def.isScore = true;
-      const scoreDef = scores?.[key];
-      if (scoreDef && typeof scoreDef !== 'function') {
-        if (scoreDef.passThreshold !== undefined) {
-          def.passThreshold = scoreDef.passThreshold;
-        }
-        if (scoreDef.label !== undefined && override?.label === undefined) {
-          def.label = scoreDef.label;
-        }
-      }
-    }
-    target.set(key, def);
-  }
-}
-
-function inferKind(value: unknown): ColumnKind {
-  if (typeof value === 'number') return 'number';
-  if (typeof value === 'boolean') return 'boolean';
-  if (Array.isArray(value)) return 'blocks';
-  return 'string';
-}
-
-function toCellValue(value: unknown): CellValue | undefined {
-  if (value === null) return null;
-  if (
-    typeof value === 'string' ||
-    typeof value === 'number' ||
-    typeof value === 'boolean'
-  ) {
-    return value;
-  }
-  if (Array.isArray(value)) {
-    const parsed = cellValueSchema.safeParse(value);
-    if (parsed.success) return parsed.data;
-    return JSON.stringify(value);
-  }
-  if (value === undefined) return undefined;
-  return JSON.stringify(value);
-}
-
-function generateRunId(): string {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const timestamp = `${String(now.getUTCFullYear())}-${pad(now.getUTCMonth() + 1)}-${pad(now.getUTCDate())}T${pad(now.getUTCHours())}-${pad(now.getUTCMinutes())}-${pad(now.getUTCSeconds())}Z`;
-  const suffix = Math.random().toString(36).slice(2, 8);
-  return `${timestamp}_${suffix}`;
 }

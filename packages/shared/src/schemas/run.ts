@@ -5,6 +5,12 @@ import { evalCostSummarySchema } from './cost.ts';
 /** Schema for persisted metadata about a single run invocation. */
 export const runManifestSchema = z.object({
   id: z.string(),
+  /**
+   * Short, human-readable run id (e.g. `r0`, `r1`). Monotonic global counter
+   * assigned at creation; oldest run is `r0`. Legacy persisted runs are
+   * migrated to have a `shortId` on load.
+   */
+  shortId: z.string(),
   status: z.enum(['pending', 'running', 'completed', 'cancelled', 'error']),
   startedAt: z.string(),
   endedAt: z.string().nullable(),
