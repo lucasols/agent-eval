@@ -130,7 +130,7 @@ const RowBase = styled.button<{
   ${rowShell};
   cursor: pointer;
 
-  &:hover {
+  &:not(.active):hover {
     background: ${colors.bg.var};
     color: ${colors.text.var};
   }

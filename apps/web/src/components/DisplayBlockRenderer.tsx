@@ -1,7 +1,7 @@
 import type { DisplayBlock, FileRef } from '@agent-evals/shared';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
-import { monoFont } from '#src/style/helpers';
+import { JsonViewer } from './JsonViewer.tsx';
 
 const BlockWrapper = styled.div`
   margin-bottom: 12px;
@@ -23,18 +23,6 @@ const TextBlock = styled.p`
 const MarkdownBlock = styled.div`
   white-space: pre-wrap;
   line-height: 1.6;
-`;
-
-const JsonBlock = styled.pre`
-  ${monoFont};
-  font-size: 12px;
-  background: ${colors.bg.var};
-  padding: 12px;
-  border-radius: var(--radius-md);
-  border: 1px solid ${colors.border.var};
-  white-space: pre-wrap;
-  word-break: break-all;
-  overflow: auto;
 `;
 
 const ImageBlock = styled.img`
@@ -79,7 +67,7 @@ function renderBlock(block: DisplayBlock) {
       );
 
     case 'json':
-      return <JsonBlock>{JSON.stringify(block.value, null, 2)}</JsonBlock>;
+      return <JsonViewer value={block.value} />;
 
     case 'image':
       return (

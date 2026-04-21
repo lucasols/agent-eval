@@ -19,6 +19,7 @@
     "lucide-react": "^1.8.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react18-json-view": "^0.2.10",
     "recharts": "^3.8.1",
     "t-result": "^0.6.1",
     "t-state": "^9.8.0",

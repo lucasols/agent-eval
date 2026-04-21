@@ -6,6 +6,7 @@ import {
   formatTraceAttributeValue,
   getTraceAttributeItems,
 } from '#src/utils/traceAttributes';
+import { JsonViewer } from './JsonViewer.tsx';
 
 const DetailRoot = styled.div`
   padding: 14px 16px;
@@ -71,7 +72,7 @@ const JsonSectionLabel = styled.div`
   margin-bottom: 6px;
 `;
 
-const JsonSectionPre = styled.pre`
+const JsonSectionText = styled.pre`
   ${monoFont};
   font-size: 11px;
   line-height: 1.55;
@@ -190,9 +191,16 @@ function JsonSection({
   return (
     <JsonSectionRoot>
       <JsonSectionLabel>{label}</JsonSectionLabel>
-      <JsonSectionPre>
-        {asJson ? JSON.stringify(data, null, 2) : String(data)}
-      </JsonSectionPre>
+      {asJson ? (
+        <JsonViewer
+          value={data}
+          compact
+          maxHeight="detail"
+          collapsed={6}
+        />
+      ) : (
+        <JsonSectionText>{String(data)}</JsonSectionText>
+      )}
     </JsonSectionRoot>
   );
 }

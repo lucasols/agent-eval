@@ -22,6 +22,7 @@ import {
 import { DisplayBlockRenderer } from './DisplayBlockRenderer.tsx';
 import { IconButton } from './IconButton.tsx';
 import { ResizeHandle } from './ResizeHandle.tsx';
+import { JsonViewer } from './JsonViewer.tsx';
 import { StatusBadge } from './StatusBadge.tsx';
 import { TraceTree } from './TraceTree.tsx';
 
@@ -123,19 +124,6 @@ const TabContent = styled.div`
   padding: 16px;
 `;
 
-const OutputPre = styled.pre`
-  ${monoFont};
-  font-size: 11.5px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: ${colors.textMuted.var};
-  background: ${colors.bg.var};
-  border: 1px solid ${colors.border.var};
-  border-radius: var(--radius-md);
-  padding: 12px 14px;
-`;
-
 const ErrorContainer = styled.div`
   color: ${colors.error.var};
 `;
@@ -164,21 +152,6 @@ const RawLabel = styled.div`
   ${kicker}
   color: ${colors.textMuted.var};
   margin-bottom: 8px;
-`;
-
-const RawPre = styled.pre`
-  ${monoFont};
-  font-size: 11px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: ${colors.textMuted.var};
-  background: ${colors.bg.var};
-  padding: 12px 14px;
-  border-radius: var(--radius-md);
-  border: 1px solid ${colors.border.var};
-  max-height: 320px;
-  overflow: auto;
 `;
 
 const ColumnsGrid = styled.div`
@@ -362,9 +335,7 @@ export function CaseDrawer() {
       </TabBar>
 
       <TabContent>
-        {activeTab === 'input' ? (
-          <OutputPre>{JSON.stringify(d.input, null, 2)}</OutputPre>
-        ) : null}
+        {activeTab === 'input' ? <JsonViewer value={d.input} /> : null}
 
         {activeTab === 'output' ? (
           <div>
@@ -432,11 +403,7 @@ export function CaseDrawer() {
 
 function PrimaryBlocks({ value }: { value: CellValue | undefined }) {
   if (!Array.isArray(value)) {
-    return (
-      <OutputPre>
-        {value === undefined ? '\u2014' : JSON.stringify(value, null, 2)}
-      </OutputPre>
-    );
+    return value === undefined ? '\u2014' : <JsonViewer value={value} />;
   }
   return (
     <div>
@@ -496,7 +463,12 @@ function RawSection({ label, data }: { label: string; data: unknown }) {
   return (
     <div>
       <RawLabel>{label}</RawLabel>
-      <RawPre>{JSON.stringify(data, null, 2)}</RawPre>
+      <JsonViewer
+        value={data}
+        compact
+        maxHeight="raw"
+        collapsed={6}
+      />
     </div>
   );
 }
