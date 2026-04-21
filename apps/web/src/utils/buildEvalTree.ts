@@ -217,6 +217,53 @@ export type CombinedStatus =
   | 'pass'
   | 'pending';
 
+export type StatusBreakdown = {
+  running: number;
+  pass: number;
+  fail: number;
+  error: number;
+  cancelled: number;
+  pending: number;
+  total: number;
+};
+
+export function getStatusBreakdown(
+  evals: EvalSummary[],
+  isEvalRunning: (evalId: string) => boolean,
+): StatusBreakdown {
+  const counts: StatusBreakdown = {
+    running: 0,
+    pass: 0,
+    fail: 0,
+    error: 0,
+    cancelled: 0,
+    pending: 0,
+    total: evals.length,
+  };
+  for (const ev of evals) {
+    if (isEvalRunning(ev.id) || ev.lastRunStatus === 'running') {
+      counts.running += 1;
+    } else if (ev.lastRunStatus === 'pass') counts.pass += 1;
+    else if (ev.lastRunStatus === 'fail') counts.fail += 1;
+    else if (ev.lastRunStatus === 'error') counts.error += 1;
+    else if (ev.lastRunStatus === 'cancelled') counts.cancelled += 1;
+    else counts.pending += 1;
+  }
+  return counts;
+}
+
+export function formatStatusBreakdown(breakdown: StatusBreakdown): string {
+  const parts: string[] = [];
+  if (breakdown.running > 0) parts.push(`${breakdown.running} running`);
+  if (breakdown.pass > 0) parts.push(`${breakdown.pass} pass`);
+  if (breakdown.fail > 0) parts.push(`${breakdown.fail} fail`);
+  if (breakdown.error > 0) parts.push(`${breakdown.error} error`);
+  if (breakdown.cancelled > 0) parts.push(`${breakdown.cancelled} cancelled`);
+  if (breakdown.pending > 0) parts.push(`${breakdown.pending} pending`);
+  if (parts.length === 0) return `${breakdown.total} evals`;
+  return parts.join(' · ');
+}
+
 export function deriveCombinedStatus(
   evals: EvalSummary[],
   isEvalRunning: (evalId: string) => boolean,

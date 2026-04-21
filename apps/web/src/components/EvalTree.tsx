@@ -23,6 +23,8 @@ import {
   buildEvalTree,
   collectNodeEvals,
   deriveCombinedStatus,
+  formatStatusBreakdown,
+  getStatusBreakdown,
   type TreeFile,
   type TreeFolder,
   type TreeLeaf,
@@ -187,6 +189,12 @@ const LeafSeparator = styled.span`
   color: ${colors.textDim.var};
   font-weight: 400;
   margin: 0 4px;
+`;
+
+const StatusDotWrap = styled.span`
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
 `;
 
 const RowCounter = styled.span`
@@ -364,9 +372,10 @@ function FolderRow({
   const isOpen = expandedFolders.has(folder.path);
   const isActive =
     selection.kind === 'folder' && selection.path === folder.path;
-  const combinedStatus = deriveCombinedStatus(
-    collectNodeEvals(folder),
-    isEvalRunning,
+  const folderEvals = collectNodeEvals(folder);
+  const combinedStatus = deriveCombinedStatus(folderEvals, isEvalRunning);
+  const statusTooltip = formatStatusBreakdown(
+    getStatusBreakdown(folderEvals, isEvalRunning),
   );
 
   function handleRowClick() {
@@ -398,7 +407,9 @@ function FolderRow({
           <ChevronRight />
         </ChevronButton>
         <GroupLabel>{folder.name}</GroupLabel>
-        <StatusDot status={combinedStatus} />
+        <StatusDotWrap title={statusTooltip}>
+          <StatusDot status={combinedStatus} />
+        </StatusDotWrap>
         <RowCounter>{folder.evalCount}</RowCounter>
       </RowBase>
       {isOpen
@@ -434,6 +445,9 @@ function FileRow({
   const isOpen = expandedFolders.has(file.path);
   const isActive = selection.kind === 'folder' && selection.path === file.path;
   const combinedStatus = deriveCombinedStatus(file.evals, isEvalRunning);
+  const statusTooltip = formatStatusBreakdown(
+    getStatusBreakdown(file.evals, isEvalRunning),
+  );
 
   function handleRowClick() {
     selectFolder(file.path);
@@ -464,7 +478,9 @@ function FileRow({
           <ChevronRight />
         </ChevronButton>
         <GroupLabel>{file.name}</GroupLabel>
-        <StatusDot status={combinedStatus} />
+        <StatusDotWrap title={statusTooltip}>
+          <StatusDot status={combinedStatus} />
+        </StatusDotWrap>
         <RowCounter>{file.evals.length}</RowCounter>
       </RowBase>
       {isOpen

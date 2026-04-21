@@ -286,18 +286,22 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
       cases: r.cases.filter((c) => c.evalId === evalSummary.id),
     }));
 
-    const points = [...evalRuns]
+    const completedRuns = [...evalRuns]
       .reverse()
       .filter(
         (r) =>
           r.manifest.status === 'completed' && r.summary.averageScore !== null,
       )
-      .map((r, idx) => ({
-        index: idx + 1,
-        startedAt: r.manifest.startedAt,
-        score: r.summary.averageScore ?? 0,
-        cost: r.summary.cost.totalUsd,
-      }));
+      .slice(-20);
+
+    const points = completedRuns.map((r, index) => ({
+      axisLabel:
+        index === completedRuns.length - 1 ? 'LATEST' : r.manifest.shortId,
+      shortId: r.manifest.shortId,
+      startedAt: r.manifest.startedAt,
+      score: r.summary.averageScore ?? 0,
+      cost: r.summary.cost.totalUsd,
+    }));
 
     return {
       runRows: rows,

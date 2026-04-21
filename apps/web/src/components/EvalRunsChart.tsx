@@ -13,7 +13,8 @@ import { kicker, monoFont } from '#src/style/helpers';
 import { formatCost, formatTimestamp } from '../utils/formatters.ts';
 
 type ChartPoint = {
-  index: number;
+  axisLabel: string;
+  shortId: string;
   startedAt: string;
   score: number;
   cost: number | null;
@@ -133,12 +134,16 @@ export function EvalRunsChart({ data }: EvalRunsChartProps) {
             vertical={false}
           />
           <XAxis
-            dataKey="index"
+            dataKey="axisLabel"
             tick={tickStyle}
             stroke={colors.border.var}
             tickLine={false}
             axisLine={false}
             interval="preserveStartEnd"
+            angle={-55}
+            textAnchor="end"
+            height={56}
+            tickMargin={8}
           />
           <YAxis
             domain={[0, 1]}
