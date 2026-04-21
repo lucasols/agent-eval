@@ -21,6 +21,8 @@ import {
 } from '../stores/selectionStore.ts';
 import {
   buildEvalTree,
+  collectNodeEvals,
+  deriveCombinedStatus,
   type TreeFile,
   type TreeFolder,
   type TreeLeaf,
@@ -218,6 +220,13 @@ export function EvalTree() {
     selection: s.selection,
     expandedFolders: s.expandedFolders,
   }));
+  const { currentRun } = runStore.useSelectorRC((s) => ({
+    currentRun: s.currentRun,
+  }));
+
+  const isEvalRunning = (evalId: string): boolean =>
+    currentRun?.manifest.status === 'running' &&
+    targetIncludesEval(currentRun.manifest.target, evalId);
 
   useEffect(() => {
     if (selection.kind !== 'eval') return;
@@ -282,6 +291,7 @@ export function EvalTree() {
           selection={selection}
           expandedFolders={expandedFolders}
           showFilenamePrefix
+          isEvalRunning={isEvalRunning}
         />
       ))}
     </Root>
@@ -294,6 +304,7 @@ type NodeViewProps = {
   selection: Selection;
   expandedFolders: Set<string>;
   showFilenamePrefix: boolean;
+  isEvalRunning: (evalId: string) => boolean;
 };
 
 function NodeView({
@@ -302,6 +313,7 @@ function NodeView({
   selection,
   expandedFolders,
   showFilenamePrefix,
+  isEvalRunning,
 }: NodeViewProps) {
   if (node.kind === 'folder') {
     return (
@@ -310,6 +322,7 @@ function NodeView({
         depth={depth}
         selection={selection}
         expandedFolders={expandedFolders}
+        isEvalRunning={isEvalRunning}
       />
     );
   }
@@ -320,6 +333,7 @@ function NodeView({
         depth={depth}
         selection={selection}
         expandedFolders={expandedFolders}
+        isEvalRunning={isEvalRunning}
       />
     );
   }
@@ -329,6 +343,7 @@ function NodeView({
       depth={depth}
       selection={selection}
       showFilenamePrefix={showFilenamePrefix}
+      isEvalRunning={isEvalRunning}
     />
   );
 }
@@ -338,15 +353,21 @@ function FolderRow({
   depth,
   selection,
   expandedFolders,
+  isEvalRunning,
 }: {
   folder: TreeFolder;
   depth: number;
   selection: Selection;
   expandedFolders: Set<string>;
+  isEvalRunning: (evalId: string) => boolean;
 }) {
   const isOpen = expandedFolders.has(folder.path);
   const isActive =
     selection.kind === 'folder' && selection.path === folder.path;
+  const combinedStatus = deriveCombinedStatus(
+    collectNodeEvals(folder),
+    isEvalRunning,
+  );
 
   function handleRowClick() {
     selectFolder(folder.path);
@@ -377,6 +398,7 @@ function FolderRow({
           <ChevronRight />
         </ChevronButton>
         <GroupLabel>{folder.name}</GroupLabel>
+        <StatusDot status={combinedStatus} />
         <RowCounter>{folder.evalCount}</RowCounter>
       </RowBase>
       {isOpen
@@ -388,6 +410,7 @@ function FolderRow({
               selection={selection}
               expandedFolders={expandedFolders}
               showFilenamePrefix
+              isEvalRunning={isEvalRunning}
             />
           ))
         : null}
@@ -400,14 +423,17 @@ function FileRow({
   depth,
   selection,
   expandedFolders,
+  isEvalRunning,
 }: {
   file: TreeFile;
   depth: number;
   selection: Selection;
   expandedFolders: Set<string>;
+  isEvalRunning: (evalId: string) => boolean;
 }) {
   const isOpen = expandedFolders.has(file.path);
   const isActive = selection.kind === 'folder' && selection.path === file.path;
+  const combinedStatus = deriveCombinedStatus(file.evals, isEvalRunning);
 
   function handleRowClick() {
     selectFolder(file.path);
@@ -438,6 +464,7 @@ function FileRow({
           <ChevronRight />
         </ChevronButton>
         <GroupLabel>{file.name}</GroupLabel>
+        <StatusDot status={combinedStatus} />
         <RowCounter>{file.evals.length}</RowCounter>
       </RowBase>
       {isOpen
@@ -454,6 +481,7 @@ function FileRow({
               depth={depth + 1}
               selection={selection}
               showFilenamePrefix={false}
+              isEvalRunning={isEvalRunning}
             />
           ))
         : null}
@@ -466,22 +494,18 @@ function LeafRow({
   depth,
   selection,
   showFilenamePrefix,
+  isEvalRunning,
 }: {
   leaf: TreeLeaf;
   depth: number;
   selection: Selection;
   showFilenamePrefix: boolean;
+  isEvalRunning: (evalId: string) => boolean;
 }) {
   const ev = leaf.evalSummary;
   const isActive = selection.kind === 'eval' && selection.id === ev.id;
 
-  const { currentRun } = runStore.useSelectorRC((s) => ({
-    currentRun: s.currentRun,
-  }));
-  const isRunning =
-    currentRun?.manifest.status === 'running' &&
-    targetIncludesEval(currentRun.manifest.target, ev.id);
-  const displayStatus = isRunning ? 'running' : ev.lastRunStatus;
+  const displayStatus = isEvalRunning(ev.id) ? 'running' : ev.lastRunStatus;
   const title = ev.title ?? ev.id;
 
   return (

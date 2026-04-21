@@ -200,6 +200,51 @@ function annotateEvalCounts(folder: TreeFolder): number {
   return total;
 }
 
+export function collectNodeEvals(node: TreeNode): EvalSummary[] {
+  if (node.kind === 'leaf') return [node.evalSummary];
+  if (node.kind === 'file') return node.evals;
+  const out: EvalSummary[] = [];
+  for (const child of node.children) {
+    out.push(...collectNodeEvals(child));
+  }
+  return out;
+}
+
+export type CombinedStatus =
+  | 'running'
+  | 'fail'
+  | 'cancelled'
+  | 'pass'
+  | 'pending';
+
+export function deriveCombinedStatus(
+  evals: EvalSummary[],
+  isEvalRunning: (evalId: string) => boolean,
+): CombinedStatus {
+  if (evals.length === 0) return 'pending';
+  let hasFail = false;
+  let hasCancelled = false;
+  let allPass = true;
+  for (const ev of evals) {
+    if (isEvalRunning(ev.id)) return 'running';
+    const status = ev.lastRunStatus;
+    if (status === 'running') return 'running';
+    if (status === 'fail' || status === 'error') {
+      hasFail = true;
+      allPass = false;
+    } else if (status === 'cancelled') {
+      hasCancelled = true;
+      allPass = false;
+    } else if (status !== 'pass') {
+      allPass = false;
+    }
+  }
+  if (hasFail) return 'fail';
+  if (hasCancelled) return 'cancelled';
+  if (allPass) return 'pass';
+  return 'pending';
+}
+
 export function collectEvalsInFolder(
   evals: EvalSummary[],
   folderPath: string,
