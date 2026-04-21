@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest';
 import {
   buildEvalTree,
   collectEvalsInFolder,
+  deriveCombinedStatus,
   type TreeNode,
 } from '../../../apps/web/src/utils/buildEvalTree.ts';
 
@@ -209,12 +210,45 @@ describe('app tree ui', () => {
 
     expect(new Set(leafPaths).size).toBe(leafPaths.length);
   });
+
+  test('derives file and folder status from the latest eval result only', () => {
+    expect(
+      deriveCombinedStatus(
+        [
+          createEvalSummary('pass', 'Pass', '/tmp/pass.eval.ts', 'pass'),
+          createEvalSummary('fail', 'Fail', '/tmp/fail.eval.ts', 'fail'),
+        ],
+        () => false,
+      ),
+    ).toBe('fail');
+
+    expect(
+      deriveCombinedStatus(
+        [
+          createEvalSummary('pass', 'Pass', '/tmp/pass.eval.ts', 'pass'),
+          createEvalSummary('error', 'Error', '/tmp/error.eval.ts', 'error'),
+        ],
+        () => false,
+      ),
+    ).toBe('error');
+
+    expect(
+      deriveCombinedStatus(
+        [
+          createEvalSummary('pass', 'Pass', '/tmp/pass.eval.ts', 'pass'),
+          createEvalSummary('running', 'Running', '/tmp/run.eval.ts', 'pass'),
+        ],
+        (evalId) => evalId === 'running',
+      ),
+    ).toBe('running');
+  });
 });
 
 function createEvalSummary(
   id: string,
   title: string,
   filePath: string,
+  lastRunStatus: EvalSummary['lastRunStatus'] = null,
 ): EvalSummary {
   return {
     id,
@@ -224,7 +258,7 @@ function createEvalSummary(
     stale: false,
     columnDefs: [],
     caseCount: 1,
-    lastRunStatus: null,
+    lastRunStatus,
   };
 }
 

@@ -1,4 +1,8 @@
-import type { EvalSummary } from '@agent-evals/shared';
+import {
+  deriveStatusFromChildStatuses,
+  type DerivedStatus,
+  type EvalSummary,
+} from '@agent-evals/shared';
 
 export type TreeFolder = {
   kind: 'folder';
@@ -210,12 +214,7 @@ export function collectNodeEvals(node: TreeNode): EvalSummary[] {
   return out;
 }
 
-export type CombinedStatus =
-  | 'running'
-  | 'fail'
-  | 'cancelled'
-  | 'pass'
-  | 'pending';
+export type CombinedStatus = DerivedStatus;
 
 export type StatusBreakdown = {
   running: number;
@@ -269,27 +268,11 @@ export function deriveCombinedStatus(
   isEvalRunning: (evalId: string) => boolean,
 ): CombinedStatus {
   if (evals.length === 0) return 'pending';
-  let hasFail = false;
-  let hasCancelled = false;
-  let allPass = true;
-  for (const ev of evals) {
-    if (isEvalRunning(ev.id)) return 'running';
-    const status = ev.lastRunStatus;
-    if (status === 'running') return 'running';
-    if (status === 'fail' || status === 'error') {
-      hasFail = true;
-      allPass = false;
-    } else if (status === 'cancelled') {
-      hasCancelled = true;
-      allPass = false;
-    } else if (status !== 'pass') {
-      allPass = false;
-    }
-  }
-  if (hasFail) return 'fail';
-  if (hasCancelled) return 'cancelled';
-  if (allPass) return 'pass';
-  return 'pending';
+  return deriveStatusFromChildStatuses({
+    statuses: evals.map((ev) =>
+      isEvalRunning(ev.id) ? 'running' : ev.lastRunStatus,
+    ),
+  });
 }
 
 export function collectEvalsInFolder(

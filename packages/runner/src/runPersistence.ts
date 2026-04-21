@@ -10,6 +10,8 @@ import type {
 import {
   caseDetailSchema,
   caseRowSchema,
+  deriveStatusFromChildStatuses,
+  deriveStatusFromCaseRows,
   runManifestSchema,
   runSummarySchema,
 } from '@agent-evals/shared';
@@ -121,6 +123,12 @@ export function getLastRunStatuses(params: {
   return statuses;
 }
 
+function toLastRunStatus(
+  status: ReturnType<typeof deriveStatusFromCaseRows>,
+): EvalSummary['lastRunStatus'] {
+  return status === 'pending' ? null : status;
+}
+
 async function loadPersistedRunSnapshot(
   runDir: string,
 ): Promise<PersistedRunSnapshot | null> {
@@ -214,43 +222,36 @@ function getRunEvalIds(
   run: { manifest: RunManifest; cases: CaseRow[] },
   knownEvalIds: Iterable<string>,
 ): string[] {
-  const evalIdsFromCases = [
-    ...new Set(run.cases.map((caseRow) => caseRow.evalId)),
-  ];
-  if (evalIdsFromCases.length > 0) return evalIdsFromCases;
+  const evalIds = new Set(run.cases.map((caseRow) => caseRow.evalId));
 
   if (run.manifest.target.mode === 'evalIds') {
-    return run.manifest.target.evalIds ?? [];
+    for (const evalId of run.manifest.target.evalIds ?? []) {
+      evalIds.add(evalId);
+    }
+  } else if (run.manifest.target.mode === 'all' && evalIds.size === 0) {
+    for (const evalId of knownEvalIds) {
+      evalIds.add(evalId);
+    }
   }
 
-  if (run.manifest.target.mode === 'all') {
-    return [...knownEvalIds];
-  }
-
-  return [];
+  return [...evalIds];
 }
 
 function getEvalStatusForRun(
   run: { manifest: RunManifest; cases: CaseRow[] },
   evalId: string,
 ): EvalSummary['lastRunStatus'] {
-  if (run.manifest.status === 'running') return 'running';
-  if (run.manifest.status === 'cancelled') return 'cancelled';
-  if (run.manifest.status === 'error') return 'error';
-
   const evalCases = run.cases.filter((caseRow) => caseRow.evalId === evalId);
-  if (
-    evalCases.some(
-      (caseRow) =>
-        caseRow.status === 'fail' ||
-        caseRow.status === 'error' ||
-        caseRow.status === 'cancelled',
-    )
-  ) {
-    return 'fail';
+  if (evalCases.length > 0) {
+    return toLastRunStatus(deriveStatusFromCaseRows({ caseRows: evalCases }));
   }
 
-  return 'pass';
+  return toLastRunStatus(
+    deriveStatusFromChildStatuses({
+      statuses: [],
+      lifecycleStatus: run.manifest.status,
+    }),
+  );
 }
 
 function encodeCaseDetailFileName(caseId: string): string {

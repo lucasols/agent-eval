@@ -17,6 +17,7 @@ import { getRunsForEval, historyStore } from '../stores/historyStore.ts';
 import { clearCacheForEval, runStore, startRun } from '../stores/runStore.ts';
 import { selectFolder } from '../stores/selectionStore.ts';
 import { getDisplayFolderSegments } from '../utils/buildEvalTree.ts';
+import { buildEvalScopedRunRows } from '../utils/evalRuns.ts';
 import {
   formatCost,
   formatDuration,
@@ -280,13 +281,9 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
       merged.unshift(liveRun);
     }
 
-    const rows = merged.map((r) => ({
-      manifest: r.manifest,
-      summary: r.summary,
-      cases: r.cases.filter((c) => c.evalId === evalSummary.id),
-    }));
+    const rows = buildEvalScopedRunRows(merged, evalSummary.id);
 
-    const completedRuns = [...evalRuns]
+    const completedRuns = [...rows]
       .reverse()
       .filter(
         (r) =>

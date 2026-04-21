@@ -79,7 +79,7 @@ const Dot = styled.span<{
 `;
 
 function getTone(status: string): Tone {
-  if (status === 'pass' || status === 'completed') return 'pass';
+  if (status === 'pass') return 'pass';
   if (status === 'fail' || status === 'error') return 'fail';
   if (status === 'running') return 'running';
   if (status === 'cancelled') return 'cancelled';

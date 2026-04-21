@@ -23,6 +23,10 @@ import type {
   CellValue,
   TraceDisplayInputConfig,
 } from '@agent-evals/shared';
+import {
+  deriveStatusFromCaseRows,
+  deriveScopedSummaryFromCases,
+} from '@agent-evals/shared';
 import { watch } from 'chokidar';
 import { glob } from 'glob';
 import {
@@ -133,6 +137,12 @@ export function createRunner({
     return [...evals.values()].toSorted((a, b) =>
       a.filePath.localeCompare(b.filePath),
     );
+  }
+
+  function toLastRunStatus(
+    status: ReturnType<typeof deriveStatusFromCaseRows>,
+  ): EvalSummary['lastRunStatus'] {
+    return status === 'pending' ? null : status;
   }
 
   const runner: EvalRunner = {
@@ -433,6 +443,7 @@ export function createRunner({
             runState.summary.totalCases += cases.length * request.trials;
 
             const accumulatedColumns = new Map<string, ColumnDef>();
+            const evalCaseRows: CaseRow[] = [];
 
             for (let trial = 0; trial < request.trials; trial++) {
               for (const evalCase of cases) {
@@ -504,43 +515,35 @@ export function createRunner({
                   payload: caseRow,
                 });
 
+                evalCaseRows.push(caseRow);
                 allCaseRows.push(caseRow);
               }
             }
 
             evalMeta.columnDefs = [...accumulatedColumns.values()];
-          });
 
-          lastRunStatusMap.set(
-            evalMeta.id,
-            runState.summary.failedCases > 0 || runState.summary.errorCases > 0
-              ? 'fail'
-              : 'pass',
-          );
+            lastRunStatusMap.set(
+              evalMeta.id,
+              toLastRunStatus(
+                deriveStatusFromCaseRows({ caseRows: evalCaseRows }),
+              ),
+            );
+          });
         } catch (error) {
           console.error(`Error running eval ${evalMeta.id}:`, error);
           evalErrors.push({
             evalId: evalMeta.id,
             message: error instanceof Error ? error.message : String(error),
           });
-          lastRunStatusMap.set(evalMeta.id, 'fail');
+          lastRunStatusMap.set(evalMeta.id, 'error');
         }
       }
 
-      const allScores = allCaseRows
-        .map((c) => c.score)
-        .filter((s): s is number => s !== null);
-      runState.summary.averageScore =
-        allScores.length > 0
-          ? allScores.reduce((a, b) => a + b, 0) / allScores.length
-          : null;
-
-      const totalCostUsd = allCaseRows
-        .map((c) => c.costUsd)
-        .filter((c): c is number => c !== null)
-        .reduce((a, b) => a + b, 0);
-
-      runState.summary.cost.totalUsd = totalCostUsd > 0 ? totalCostUsd : null;
+      const derivedRunSummary = deriveScopedSummaryFromCases({
+        caseRows: allCaseRows,
+      });
+      runState.summary.averageScore = derivedRunSummary.averageScore;
+      runState.summary.cost = derivedRunSummary.cost;
 
       const endTime = new Date();
       runState.summary.totalDurationMs =

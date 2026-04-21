@@ -3,7 +3,7 @@ import type {
   CellValue,
   ColumnDef,
   RunManifest,
-  RunSummary,
+  ScopedCaseSummary,
 } from '@agent-evals/shared';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useState, type MouseEvent } from 'react';
@@ -25,12 +25,11 @@ import {
   formatScore,
   formatTimestamp,
 } from '../utils/formatters.ts';
-import { getRunDisplayStatus } from '../utils/runStatus.ts';
 import { StatusBadge } from './StatusBadge.tsx';
 
 export type RunRow = {
   manifest: RunManifest;
-  summary: RunSummary;
+  summary: ScopedCaseSummary;
   cases: CaseRow[];
 };
 
@@ -392,10 +391,24 @@ export function EvalRunsTable({ runs, columnDefs }: EvalRunsTableProps) {
   );
 }
 
-function ScoreCell({ score }: { score: number | null }) {
+function ScoreCell({
+  score,
+  status,
+}: {
+  score: number | null;
+  status?: CaseRow['status'];
+}) {
   if (score === null) return <Dim>{'\u2014'}</Dim>;
   const tone: 'pass' | 'partial' | 'fail' =
-    score >= 0.7 ? 'pass' : score >= 0.4 ? 'partial' : 'fail';
+    status === 'pass'
+      ? 'pass'
+      : status === 'fail' || status === 'error'
+        ? 'fail'
+        : score >= 0.7
+          ? 'pass'
+          : score >= 0.4
+            ? 'partial'
+            : 'fail';
   return (
     <>
       <ScoreBar>
@@ -427,7 +440,6 @@ function RunGroup({
   totalCols: number;
 }) {
   const { manifest, summary, cases } = run;
-  const displayStatus = getRunDisplayStatus(manifest, summary);
   const hasCases = summary.totalCases > 0;
   const costValue = summary.cost.totalUsd;
   const durationValue = summary.totalDurationMs;
@@ -476,13 +488,16 @@ function RunGroup({
           rightAlign={false}
           mono={false}
         >
-          <StatusBadge status={displayStatus} />
+          <StatusBadge status={summary.status} />
         </RunHeaderTd>
         <RunHeaderTd
           rightAlign={true}
           mono={false}
         >
-          <ScoreCell score={summary.averageScore} />
+          <ScoreCell
+            score={summary.averageScore}
+            status={summary.status}
+          />
         </RunHeaderTd>
         <RunHeaderTd
           rightAlign={true}
@@ -557,7 +572,10 @@ function RunGroup({
                 mono={false}
                 indent={false}
               >
-                <ScoreCell score={row.score} />
+                <ScoreCell
+                  score={row.score}
+                  status={row.status}
+                />
               </CaseTd>
               <CaseTd
                 rightAlign={true}

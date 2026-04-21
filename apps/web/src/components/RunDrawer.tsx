@@ -1,3 +1,4 @@
+import { deriveStatusFromCaseRows } from '@agent-evals/shared';
 import { X } from 'lucide-react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
@@ -15,7 +16,6 @@ import {
   formatScore,
   formatTimestamp,
 } from '../utils/formatters.ts';
-import { getRunDisplayStatus } from '../utils/runStatus.ts';
 import { IconButton } from './IconButton.tsx';
 import { StatusBadge } from './StatusBadge.tsx';
 
@@ -193,8 +193,11 @@ export function RunDrawer() {
     return <DrawerLoading>Loading run...</DrawerLoading>;
   }
 
-  const { manifest, summary } = selectedRunDetail;
-  const displayStatus = getRunDisplayStatus(manifest, summary);
+  const { manifest, summary, cases } = selectedRunDetail;
+  const displayStatus = deriveStatusFromCaseRows({
+    caseRows: cases,
+    lifecycleStatus: manifest.status,
+  });
   const failed = summary.failedCases + summary.errorCases;
   const showError =
     summary.status === 'error' &&
@@ -296,6 +299,8 @@ export function RunDrawer() {
           <MetaList>
             <MetaKey>Run id</MetaKey>
             <MetaValue>{manifest.id}</MetaValue>
+            <MetaKey>Lifecycle status</MetaKey>
+            <MetaValue>{manifest.status}</MetaValue>
             <MetaKey>Started</MetaKey>
             <MetaValue>{manifest.startedAt}</MetaValue>
             <MetaKey>Ended</MetaKey>

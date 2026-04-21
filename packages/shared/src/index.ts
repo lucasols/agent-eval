@@ -49,6 +49,13 @@ export {
   type RunSummary,
 } from './schemas/run.ts';
 export {
+  deriveStatusFromChildStatuses,
+  deriveStatusFromCaseRows,
+  deriveScopedSummaryFromCases,
+  type DerivedStatus,
+  type ScopedCaseSummary,
+} from './status.ts';
+export {
   sseEnvelopeSchema,
   type SseEnvelope,
   type SseEventType,

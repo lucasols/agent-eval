@@ -54,7 +54,10 @@ export type EvalScoreFn<TInput> = (
   ctx: EvalScoreContext<TInput>,
 ) => number | Promise<number>;
 
-/** Score definition accepted by `defineEval`, with optional UI metadata. */
+/** Score definition accepted by `defineEval`, with optional UI metadata.
+ *
+ * When `passThreshold` is omitted, scores default to a pass threshold of `0.5`.
+ */
 export type EvalScoreDef<TInput> =
   | EvalScoreFn<TInput>
   | { compute: EvalScoreFn<TInput>; passThreshold?: number; label?: string };
