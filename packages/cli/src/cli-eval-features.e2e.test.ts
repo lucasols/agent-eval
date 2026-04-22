@@ -547,10 +547,6 @@ describe('CLI eval features', () => {
         artifacts.cases,
         'assertion-failure-visible-output',
       );
-      const silentPassCase = requireCase(
-        artifacts.cases,
-        'silent-pass-demo-no-output',
-      );
       const silentAssertionCase = requireCase(
         artifacts.cases,
         'silent-assertion-no-output',
@@ -567,22 +563,16 @@ describe('CLI eval features', () => {
       expect(artifacts.summary.status).toBe('completed');
       expect(artifacts.summary.failedCases).toBe(3);
       expect(artifacts.summary.errorCases).toBe(0);
-      expect(artifacts.summary.passedCases).toBe(1);
+      expect(artifacts.summary.passedCases).toBe(0);
 
       expect(scoreThresholdCase.status).toBe('fail');
       expect(scoreThresholdCase.score).toBe(0);
       expect(assertionFailureCase.status).toBe('fail');
       expect(assertionFailureCase.score).toBe(null);
-      expect(silentPassCase.status).toBe('pass');
-      expect(silentPassCase.score).toBe(null);
       expect(silentAssertionCase.status).toBe('fail');
       expect(silentAssertionCase.score).toBe(null);
 
-      expect(silentPassCase.columns).toEqual({});
       expect(silentAssertionCase.columns).toEqual({});
-      expect(
-        requireTrace(artifacts.traces, 'silent-pass-demo-no-output.json'),
-      ).toEqual([]);
       expect(
         requireTrace(artifacts.traces, 'silent-assertion-no-output.json'),
       ).toEqual([]);
@@ -615,9 +605,6 @@ describe('CLI eval features', () => {
           traces: {
             'silent-assertion-no-output.json': summarizeTrace(
               requireTrace(artifacts.traces, 'silent-assertion-no-output.json'),
-            ),
-            'silent-pass-demo-no-output.json': summarizeTrace(
-              requireTrace(artifacts.traces, 'silent-pass-demo-no-output.json'),
             ),
           },
           caseDetails: {
@@ -690,13 +677,6 @@ describe('CLI eval features', () => {
               "status": "fail",
             },
             {
-              "caseId": "silent-pass-demo-no-output",
-              "columns": {},
-              "evalId": "silent-pass-demo",
-              "score": null,
-              "status": "pass",
-            },
-            {
               "caseId": "silent-assertion-no-output",
               "columns": {},
               "evalId": "silent-assertion-demo",
@@ -713,15 +693,14 @@ describe('CLI eval features', () => {
             "errorCases": 0,
             "errorMessage": null,
             "failedCases": 3,
-            "passedCases": 1,
+            "passedCases": 0,
             "runId": "<run-id>",
             "status": "completed",
-            "totalCases": 4,
+            "totalCases": 3,
             "totalDurationMs": "<totalDurationMs>",
           },
           "traces": {
             "silent-assertion-no-output.json": [],
-            "silent-pass-demo-no-output.json": [],
           },
         }
       `);

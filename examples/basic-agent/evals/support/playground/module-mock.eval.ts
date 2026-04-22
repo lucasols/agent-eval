@@ -4,8 +4,6 @@ import { blocks, defineEval, evalAssert, setOutput } from '@agent-evals/sdk';
 defineEval<{ customerId: string; request: string }>({
   id: 'module-mock-demo',
   title: 'Module Mock Demo',
-  description:
-    'Uses node:test module replacement to stub a dependency before importing the workflow under test',
   cases: [
     {
       id: 'mocked-customer-lookup',
