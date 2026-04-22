@@ -9,6 +9,7 @@ export {
   EvalAssertionError,
   runInEvalScope,
   getCurrentScope,
+  isInEvalScope,
   setScopeCacheContext,
   tracer,
   span,
