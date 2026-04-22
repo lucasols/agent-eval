@@ -243,6 +243,12 @@ const CaseId = styled.div`
   max-width: 260px;
 `;
 
+const ColumnText = styled.span`
+  ${ellipsis};
+  display: block;
+  max-width: 320px;
+`;
+
 const ScoreBar = styled.span`
   display: inline-block;
   width: 40px;
@@ -331,6 +337,21 @@ function formatNumericCell(c: ColumnDef, value: number): string {
   return String(value);
 }
 
+function getCellTooltipContent(value: CellValue | undefined): string | undefined {
+  if (value === null || value === undefined) return undefined;
+  if (Array.isArray(value)) return undefined;
+  if (typeof value === 'object') {
+    if ('path' in value && typeof value.path === 'string') {
+      return value.path;
+    }
+    if ('fileName' in value && typeof value.fileName === 'string') {
+      return value.fileName;
+    }
+    return undefined;
+  }
+  return String(value);
+}
+
 function averageNumericColumn(cases: CaseRow[], key: string): number | null {
   let sum = 0;
   let count = 0;
@@ -359,7 +380,7 @@ export function EvalRunsTable({
 
   const customColumns = columnDefs.filter(
     (c) =>
-      !c.primary &&
+      !c.hideInTable &&
       runs.some((r) => r.cases.some((row) => row.columns[c.key] !== undefined)),
   );
   const totalCols = 4 + customColumns.length;
@@ -617,6 +638,10 @@ function RunGroup({
               {customColumns.map((c) => {
                 const v = row.columns[c.key];
                 const display = formatCellValue(c, v);
+                const tooltipContent = getCellTooltipContent(v);
+                const showTooltip =
+                  tooltipContent !== undefined &&
+                  (tooltipContent !== display || tooltipContent.length > 48);
                 return (
                   <CaseTd
                     key={c.key}
@@ -624,7 +649,13 @@ function RunGroup({
                     mono={true}
                     indent={false}
                   >
-                    {display === EM_DASH ? <Dim>{display}</Dim> : display}
+                    {display === EM_DASH ? (
+                      <Dim>{display}</Dim>
+                    ) : (
+                      <Tooltip content={showTooltip ? tooltipContent : undefined}>
+                        <ColumnText>{display}</ColumnText>
+                      </Tooltip>
+                    )}
                   </CaseTd>
                 );
               })}

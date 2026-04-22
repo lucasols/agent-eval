@@ -29,7 +29,7 @@ export const refundWorkflowSharedConfig: Pick<
   | 'passThreshold'
 > = {
   columns: {
-    response: { label: 'Response', primary: true, format: 'markdown' },
+    response: { label: 'Response', format: 'markdown' },
     costUsd: {
       label: 'Cost',
       format: 'number',

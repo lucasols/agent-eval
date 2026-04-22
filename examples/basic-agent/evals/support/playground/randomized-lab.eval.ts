@@ -27,7 +27,7 @@ defineEval<{ prompt: string }>({
     },
   ],
   columns: {
-    response: { label: 'Response', primary: true, format: 'markdown' },
+    response: { label: 'Response', format: 'markdown' },
     randomValue: { label: 'Random Value', format: 'percent' },
   },
   execute: async ({ input }) => {

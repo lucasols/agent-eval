@@ -295,10 +295,6 @@ export function CaseDrawer() {
   const d = selectedCaseDetail;
   const evalSummary = evals.find((e) => e.id === d.evalId);
   const columnDefs = evalSummary?.columnDefs ?? [];
-  const orderedColumnDefs = [
-    ...columnDefs.filter((c) => c.primary),
-    ...columnDefs.filter((c) => !c.primary),
-  ];
   const hasOutputValue = columnDefs.some((columnDef) =>
     hasRenderableOutputValue(d.columns[columnDef.key]),
   );
@@ -370,7 +366,7 @@ export function CaseDrawer() {
         {activeTab === 'output' ? (
           hasOutputValue ? (
             <OutputLayout>
-              {orderedColumnDefs.map((c) => (
+              {columnDefs.map((c) => (
                 <ColumnCell
                   key={c.key}
                   def={c}

@@ -167,9 +167,7 @@ function createColumnDef<TInput>(params: {
   const def: ColumnDef = { key, label: override?.label ?? key, kind };
   if (override?.format !== undefined) def.format = override.format;
   if (override?.numberFormat !== undefined) def.numberFormat = override.numberFormat;
-  if (override?.primary !== undefined) def.primary = override.primary;
-  if (override?.defaultVisible !== undefined)
-    def.defaultVisible = override.defaultVisible;
+  if (override?.hideInTable !== undefined) def.hideInTable = override.hideInTable;
   if (override?.sortable !== undefined) def.sortable = override.sortable;
   if (override?.align !== undefined) def.align = override.align;
   if (!isScore) return def;

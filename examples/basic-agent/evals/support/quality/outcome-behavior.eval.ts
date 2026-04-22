@@ -16,7 +16,7 @@ defineEval<{ prompt: string }>({
     },
   ],
   columns: {
-    response: { label: 'Response', primary: true, format: 'markdown' },
+    response: { label: 'Response', format: 'markdown' },
   },
   execute: ({ input }) => {
     setOutput('response', `Borderline result for: ${input.prompt}`);
@@ -39,7 +39,7 @@ defineEval<{ ticketId: string }>({
     { id: 'assertion-failure-visible-output', input: { ticketId: 'T-441' } },
   ],
   columns: {
-    response: { label: 'Response', primary: true, format: 'markdown' },
+    response: { label: 'Response', format: 'markdown' },
   },
   execute: ({ input }) => {
     setOutput('response', `Missing audit note for ticket ${input.ticketId}.`);

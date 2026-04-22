@@ -27,10 +27,11 @@ export type EvalColumnOverride = {
    * places.
    */
   numberFormat?: NumberDisplayOptions;
-  /** Marks the column as a primary output in the UI. */
-  primary?: boolean;
-  /** Controls whether the column is visible by default. */
-  defaultVisible?: boolean;
+  /**
+   * Hides the column from the runs table while keeping it available in detail
+   * views and raw output data.
+   */
+  hideInTable?: boolean;
   /** Enables client-side sorting for the column when supported. */
   sortable?: boolean;
   /** Horizontal alignment used when rendering the column cells. */

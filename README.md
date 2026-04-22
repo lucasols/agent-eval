@@ -264,13 +264,16 @@ hover the score to see the effective eval-level threshold.
 
 ```ts
 columns: {
-  locale: { label: 'Locale', defaultVisible: true },
-  toolCalls: { label: 'Tool Calls', format: 'number', defaultVisible: true },
-  requiresManualReview: { label: 'Manual Review', format: 'boolean' },
+  locale: { label: 'Locale' },
+  toolCalls: { label: 'Tool Calls', format: 'number' },
+  previewCard: { label: 'Preview Card', format: 'image', hideInTable: true },
 }
 ```
 
 Populate values in `deriveFromTracing(...)` and/or from runtime outputs.
+Long custom column text is truncated in the runs table and reveals the full value on hover.
+Use `hideInTable: true` for rich outputs that should stay in the case detail view
+without taking up space in the runs table.
 
 ## Caching costly operations
 
@@ -358,10 +361,10 @@ booleans, `null`, JSON-safe objects/arrays for `format: 'json'`, explicit file
 refs, or native `Blob`/`File` values for `format: 'image' | 'audio' | 'video' |
 'file'`.
 
-Use the eval `columns` option to control labels, primary display, alignment,
-visibility, and rendering format. Supported `columns.format` values include
-`boolean`, `markdown`, `json`, `image`, `audio`, `video`, `file`, `percent`,
-`duration`, and `number`.
+Use the eval `columns` option to control labels, authored column order,
+alignment, visibility, and rendering format. Supported `columns.format` values
+include `boolean`, `markdown`, `json`, `image`, `audio`, `video`, `file`,
+`percent`, `duration`, and `number`.
 
 For `format: 'number'`, use `numberFormat` to customize the display:
 
@@ -379,8 +382,8 @@ import { defineEval, setOutput } from '@ls-stack/agent-eval';
 defineEval({
   id: 'receipt-preview',
   columns: {
-    response: { label: 'Response', primary: true, format: 'markdown' },
-    receipt: { label: 'Receipt', format: 'image' },
+    response: { label: 'Response', format: 'markdown' },
+    receipt: { label: 'Receipt', format: 'image', hideInTable: true },
     toolResult: { label: 'Tool Result', format: 'json' },
   },
   execute: () => {

@@ -24,7 +24,7 @@ defineEval<HighValueRefundInput>({
     },
   ],
   columns: {
-    response: { label: 'Decision', primary: true, format: 'markdown' },
+    response: { label: 'Decision', format: 'markdown' },
     escalationQueue: { label: 'Escalation Queue' },
     riskLevel: { label: 'Risk Level' },
     costUsd: {

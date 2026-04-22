@@ -35,7 +35,7 @@ defineEval<VoiceReturnFollowUpInput>({
     },
   ],
   columns: {
-    response: { label: 'Follow-up', primary: true, format: 'markdown' },
+    response: { label: 'Follow-up', format: 'markdown' },
     detectedLocale: { label: 'Locale' },
     followUpChannel: { label: 'Channel' },
     costUsd: {

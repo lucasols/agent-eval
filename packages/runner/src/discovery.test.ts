@@ -86,12 +86,11 @@ defineEval({
     response: {
       label: 'Response',
       format: 'markdown',
-      primary: true,
     },
     preview: {
       label: 'Preview',
       format: 'image',
-      defaultVisible: false,
+      hideInTable: true,
     },
     approved: {
       label: 'Approved',
@@ -101,7 +100,6 @@ defineEval({
       label: 'Cost',
       format: 'number',
       numberFormat: { prefix: '$', decimalPlaces: 2 },
-      sortable: true,
       align: 'right',
     },
   },
@@ -129,14 +127,13 @@ defineEval({
           label: 'Response',
           kind: 'string',
           format: 'markdown',
-          primary: true,
         },
         {
           key: 'preview',
           label: 'Preview',
           kind: 'string',
           format: 'image',
-          defaultVisible: false,
+          hideInTable: true,
         },
         {
           key: 'approved',
@@ -150,7 +147,6 @@ defineEval({
           kind: 'number',
           format: 'number',
           numberFormat: { prefix: '$', decimalPlaces: 2 },
-          sortable: true,
           align: 'right',
         },
         {

@@ -72,7 +72,7 @@ defineEval({
     },
   ],
   columns: {
-    response: { label: 'Response', primary: true },
+    response: { label: 'Response' },
     candidateId: { label: 'Candidate' },
   },
   execute: async ({ input }) => {

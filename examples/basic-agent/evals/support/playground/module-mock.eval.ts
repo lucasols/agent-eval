@@ -14,7 +14,7 @@ defineEval<{ customerId: string; request: string }>({
     },
   ],
   columns: {
-    response: { label: 'Response', primary: true, format: 'markdown' },
+    response: { label: 'Response', format: 'markdown' },
     appliedSegment: { label: 'Applied Segment' },
   },
   execute: async ({ input }) => {

@@ -88,10 +88,9 @@ export const columnDefSchema = z.object({
   kind: columnKindSchema,
   format: columnFormatSchema.optional(),
   numberFormat: numberDisplayOptionsSchema.optional(),
-  primary: z.boolean().optional(),
   isScore: z.boolean().optional(),
   passThreshold: z.number().optional(),
-  defaultVisible: z.boolean().optional(),
+  hideInTable: z.boolean().optional(),
   sortable: z.boolean().optional(),
   align: z.enum(['left', 'center', 'right']).optional(),
 });

@@ -25,12 +25,12 @@ defineEval({
     },
   ],
   columns: {
-    response: { label: 'Response', primary: true, format: 'markdown' },
+    response: { label: 'Response', format: 'markdown' },
     toolResult: { label: 'Tool Result', format: 'json' },
     requiresManualReview: { label: 'Manual Review', format: 'boolean' },
-    previewCard: { label: 'Preview Card', format: 'image' },
-    audioBrief: { label: 'Audio Brief', format: 'audio' },
-    attachment: { label: 'Attachment', format: 'file' },
+    previewCard: { label: 'Preview Card', format: 'image', hideInTable: true },
+    audioBrief: { label: 'Audio Brief', format: 'audio', hideInTable: true },
+    attachment: { label: 'Attachment', format: 'file', hideInTable: true },
     confidence: { label: 'Confidence', format: 'percent' },
     handlingCostUsd: {
       label: 'Handling Cost',

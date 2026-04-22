@@ -37,7 +37,7 @@ defineEval<ReceiptAuditInput>({
     },
   ],
   columns: {
-    response: { label: 'Summary', primary: true, format: 'markdown' },
+    response: { label: 'Summary', format: 'markdown' },
     auditStatus: { label: 'Audit Status' },
     discrepancyCount: { label: 'Discrepancies' },
     costUsd: {
@@ -79,7 +79,7 @@ defineEval<ReceiptFraudReviewInput>({
     },
   ],
   columns: {
-    response: { label: 'Summary', primary: true, format: 'markdown' },
+    response: { label: 'Summary', format: 'markdown' },
     reviewQueue: { label: 'Review Queue' },
     riskLevel: { label: 'Risk Level' },
     costUsd: {
