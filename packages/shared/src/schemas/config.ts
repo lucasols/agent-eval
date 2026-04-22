@@ -27,7 +27,10 @@ export type AgentEvalsConfig = {
   trialSelection?: TrialSelectionMode;
   /** Per-model pricing registry used to compute token cost estimates. */
   pricing?: Record<string, z.infer<typeof modelPricingSchema>>;
-  /** Maximum number of cases executed in parallel. Defaults to `2`. */
+  /**
+   * Maximum number of case executions that may run in parallel across one run,
+   * including trial fan-out. Defaults to `2`.
+   */
   concurrency?: number;
   /**
    * Age threshold, in days, before a latest run from a different commit is

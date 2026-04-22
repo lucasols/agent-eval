@@ -12,6 +12,34 @@ import {
 const displayBlocksSchema = z.array(displayBlockSchema);
 
 describe('CLI eval features', () => {
+  test('applies workspace concurrency to end-to-end example runs', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const result = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'refund-workflow',
+      ]);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe('');
+
+      const artifacts = await readSingleRunArtifacts(workspacePath);
+      const runDurationMs = artifacts.summary.totalDurationMs;
+      expect(runDurationMs).not.toBeNull();
+      if (runDurationMs === null) {
+        return;
+      }
+
+      let totalCaseLatencyMs = 0;
+      for (const caseRow of artifacts.cases) {
+        expect(typeof caseRow.latencyMs).toBe('number');
+        totalCaseLatencyMs += caseRow.latencyMs ?? 0;
+      }
+
+      expect(totalCaseLatencyMs - runDurationMs).toBeGreaterThan(250);
+    });
+  });
+
   test('persists output blocks, scores, and derived columns for every example case', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const result = await runExampleCli(workspacePath, [

@@ -39,6 +39,7 @@ import {
 } from './evalSummaries.ts';
 import { readGitWorktreeState } from './gitState.ts';
 import { filterEvalCases, runCase } from './runExecution.ts';
+import { executeQueuedCases, type QueuedCaseRun } from './runQueue.ts';
 import {
   persistRunState,
   recomputeEvalStatusesInRuns,
@@ -166,6 +167,18 @@ function pickWinningTrial(params: {
   return medianAttempt;
 }
 
+type PreparedEvalCase = {
+  caseId: string;
+  trialResults: TrialExecutionResult[];
+};
+
+type PreparedEvalRun = {
+  evalMeta: EvalMeta;
+  accumulatedColumns: Map<string, ColumnDef>;
+  evalCaseRows: CaseRow[];
+  preparedCases: PreparedEvalCase[];
+  mergeColumns: (columns: CaseDetail['columns']) => void;
+};
 /** Create an in-memory eval runner bound to the current workspace config. */
 export function createRunner({
   watchForChanges = true,
@@ -199,6 +212,18 @@ export function createRunner({
 
   function getSourceFingerprint(source: string): string {
     return createHash('sha256').update(source).digest('hex');
+  }
+
+  function getConfiguredConcurrency(): number {
+    const configuredConcurrency = config.concurrency;
+    if (
+      typeof configuredConcurrency !== 'number' ||
+      !Number.isFinite(configuredConcurrency)
+    ) {
+      return 1;
+    }
+
+    return Math.max(1, Math.floor(configuredConcurrency));
   }
 
   const runner: EvalRunner = {
@@ -531,6 +556,8 @@ export function createRunner({
 
       const allCaseRows: CaseRow[] = [];
       const evalErrors: { evalId: string; message: string }[] = [];
+      const queuedCases: QueuedCaseRun[] = [];
+      const preparedEvals: PreparedEvalRun[] = [];
       const cacheMode: CacheMode = runState.manifest.cacheMode ?? 'use';
       const cacheEnabled = config.cache?.enabled !== false;
 
@@ -580,11 +607,30 @@ export function createRunner({
 
             const accumulatedColumns = new Map<string, ColumnDef>();
             const evalCaseRows: CaseRow[] = [];
+            const preparedCases: PreparedEvalCase[] = [];
+            preparedEvals.push({
+              evalMeta,
+              accumulatedColumns,
+              evalCaseRows,
+              preparedCases,
+              mergeColumns: (columns) => {
+                mergeColumnDefs(
+                  accumulatedColumns,
+                  columns,
+                  evalDef.columns,
+                  evalDef.scores,
+                );
+              },
+            });
 
             for (const evalCase of cases) {
               if (runState.abortController.signal.aborted) break;
 
               const trialResults: TrialExecutionResult[] = [];
+              preparedCases.push({
+                caseId: evalCase.id,
+                trialResults,
+              });
 
               for (let trial = 0; trial < request.trials; trial++) {
                 const bufferedCacheStore =
@@ -592,102 +638,50 @@ export function createRunner({
                     ? createBufferedCacheStore(cacheStore)
                     : null;
 
-                const startTime = Date.now();
-                const { caseDetail, caseRowUpdate } = await runCase({
-                  evalDef,
-                  evalId: evalMeta.id,
-                  evalCase,
-                  globalTraceDisplay: config.traceDisplay,
-                  trial,
-                  signal: runState.abortController.signal,
-                  startTime,
-                  cacheAdapter:
-                    bufferedCacheStore ?? (cacheEnabled ? cacheStore : null),
-                  cacheMode,
-                  codeFingerprint,
-                });
+                queuedCases.push({
+                  execute: async ({
+                    startTime,
+                    signal,
+                    globalTraceDisplay,
+                  }) => {
+                    const { caseDetail, caseRowUpdate } = await runCase({
+                      evalDef,
+                      evalId: evalMeta.id,
+                      evalCase,
+                      globalTraceDisplay,
+                      trial,
+                      signal,
+                      startTime,
+                      cacheAdapter:
+                        bufferedCacheStore ?? (cacheEnabled ? cacheStore : null),
+                      cacheMode,
+                      codeFingerprint,
+                    });
 
-                trialResults.push({
-                  caseDetail,
-                  caseRow: {
-                    caseId: evalCase.id,
-                    evalId: evalMeta.id,
-                    status: caseRowUpdate.status ?? 'pending',
-                    score: caseRowUpdate.score ?? null,
-                    latencyMs: caseRowUpdate.latencyMs ?? null,
-                    costUsd: caseRowUpdate.costUsd ?? null,
-                    columns: caseRowUpdate.columns ?? {},
-                    trial,
+                    return {
+                      caseDetail,
+                      caseRow: {
+                        caseId: evalCase.id,
+                        evalId: evalMeta.id,
+                        status: caseRowUpdate.status ?? 'pending',
+                        score: caseRowUpdate.score ?? null,
+                        latencyMs: caseRowUpdate.latencyMs ?? null,
+                        costUsd: caseRowUpdate.costUsd ?? null,
+                        columns: caseRowUpdate.columns ?? {},
+                        trial,
+                      },
+                    };
                   },
-                  bufferedCacheStore,
+                  onComplete: ({ caseDetail, caseRow }) => {
+                    trialResults.push({
+                      caseDetail,
+                      caseRow,
+                      bufferedCacheStore,
+                    });
+                  },
                 });
               }
-
-              if (trialResults.length === 0) {
-                continue;
-              }
-
-              const winningTrial = pickWinningTrial({
-                strategy: runState.manifest.trialSelection,
-                attempts: trialResults,
-              });
-
-              if (winningTrial.bufferedCacheStore !== null) {
-                await winningTrial.bufferedCacheStore.commit();
-              }
-
-              runState.cases.push(winningTrial.caseRow);
-              runState.caseDetails.set(evalCase.id, winningTrial.caseDetail);
-
-              mergeColumnDefs(
-                accumulatedColumns,
-                winningTrial.caseDetail.columns,
-                evalDef.columns,
-                evalDef.scores,
-              );
-
-              if (winningTrial.caseRow.status === 'pass') {
-                runState.summary.passedCases++;
-              } else if (winningTrial.caseRow.status === 'error') {
-                runState.summary.errorCases++;
-              } else {
-                runState.summary.failedCases++;
-              }
-
-              await writeFile(
-                join(runDir, 'traces', `${evalCase.id}.json`),
-                JSON.stringify(winningTrial.caseDetail.trace, null, 2),
-              );
-              await persistCaseDetail(runDir, winningTrial.caseDetail);
-
-              emitEvent(runState, {
-                type: 'case.finished',
-                runId: runState.manifest.id,
-                timestamp: new Date().toISOString(),
-                payload: winningTrial.caseRow,
-              });
-
-              evalCaseRows.push(winningTrial.caseRow);
-              allCaseRows.push(winningTrial.caseRow);
             }
-
-            evalMeta.columnDefs = [...accumulatedColumns.values()];
-
-            lastRunStatusMap.set(
-              evalMeta.id,
-              toLastRunStatus(
-                deriveStatusFromCaseRows({ caseRows: evalCaseRows }),
-              ),
-            );
-            const latestStatus = lastRunStatusMap.get(evalMeta.id) ?? null;
-            latestRunInfoMap.set(evalMeta.id, {
-              status: latestStatus,
-              startedAt:
-                runState.manifest.endedAt ?? runState.manifest.startedAt,
-              commitSha: runState.manifest.commitSha ?? null,
-              evalSourceFingerprint:
-                runState.manifest.evalSourceFingerprints[evalMeta.id] ?? null,
-            });
           });
         } catch (error) {
           console.error(`Error running eval ${evalMeta.id}:`, error);
@@ -704,6 +698,80 @@ export function createRunner({
               runState.manifest.evalSourceFingerprints[evalMeta.id] ?? null,
           });
         }
+      }
+
+      await executeQueuedCases({
+        runState,
+        queuedCases,
+        concurrency: getConfiguredConcurrency(),
+        globalTraceDisplay: config.traceDisplay,
+      });
+
+      for (const preparedEval of preparedEvals) {
+        for (const preparedCase of preparedEval.preparedCases) {
+          if (preparedCase.trialResults.length === 0) {
+            continue;
+          }
+
+          const winningTrial = pickWinningTrial({
+            strategy: runState.manifest.trialSelection,
+            attempts: preparedCase.trialResults,
+          });
+
+          if (winningTrial.bufferedCacheStore !== null) {
+            await winningTrial.bufferedCacheStore.commit();
+          }
+
+          runState.cases.push(winningTrial.caseRow);
+          runState.caseDetails.set(preparedCase.caseId, winningTrial.caseDetail);
+          preparedEval.mergeColumns(winningTrial.caseDetail.columns);
+
+          if (winningTrial.caseRow.status === 'pass') {
+            runState.summary.passedCases++;
+          } else if (winningTrial.caseRow.status === 'error') {
+            runState.summary.errorCases++;
+          } else {
+            runState.summary.failedCases++;
+          }
+
+          await writeFile(
+            join(runDir, 'traces', `${preparedCase.caseId}.json`),
+            JSON.stringify(winningTrial.caseDetail.trace, null, 2),
+          );
+          await persistCaseDetail(runDir, winningTrial.caseDetail);
+
+          emitEvent(runState, {
+            type: 'case.finished',
+            runId: runState.manifest.id,
+            timestamp: new Date().toISOString(),
+            payload: winningTrial.caseRow,
+          });
+
+          preparedEval.evalCaseRows.push(winningTrial.caseRow);
+          allCaseRows.push(winningTrial.caseRow);
+        }
+
+        preparedEval.evalMeta.columnDefs = [
+          ...preparedEval.accumulatedColumns.values(),
+        ];
+
+        lastRunStatusMap.set(
+          preparedEval.evalMeta.id,
+          toLastRunStatus(
+            deriveStatusFromCaseRows({ caseRows: preparedEval.evalCaseRows }),
+          ),
+        );
+        const latestStatus =
+          lastRunStatusMap.get(preparedEval.evalMeta.id) ?? null;
+        latestRunInfoMap.set(preparedEval.evalMeta.id, {
+          status: latestStatus,
+          startedAt: runState.manifest.endedAt ?? runState.manifest.startedAt,
+          commitSha: runState.manifest.commitSha ?? null,
+          evalSourceFingerprint:
+            runState.manifest.evalSourceFingerprints[
+              preparedEval.evalMeta.id
+            ] ?? null,
+        });
       }
 
       const derivedRunSummary = deriveScopedSummaryFromCases({
