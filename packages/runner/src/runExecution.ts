@@ -32,10 +32,29 @@ export function filterEvalCases<TInput>(
   return cases.filter((evalCase) => selectedCaseIds.has(evalCase.id));
 }
 
-export async function runCase<TInput>(params: {
+export function resolveRunnableEvalCases(params: {
+  cases: { id: string; input: unknown; tags?: string[] }[];
+  evalId: string;
+}): { id: string; input: unknown; tags?: string[] }[] {
+  const { cases, evalId } = params;
+  if (cases.length > 0) {
+    return cases;
+  }
+
+  return [{ id: `${evalId}-no-output`, input: {} }];
+}
+
+async function callWithUnknownResult(
+  fn: CallableFunction,
+  args: unknown[],
+): Promise<unknown> {
+  return await Reflect.apply(fn, undefined, args);
+}
+
+export async function runCase<TInput, TRunInput = TInput>(params: {
   evalDef: EvalDefinition<TInput>;
   evalId: string;
-  evalCase: { id: string; input: TInput; tags?: string[] };
+  evalCase: { id: string; input: TRunInput; tags?: string[] };
   globalTraceDisplay: TraceDisplayInputConfig | undefined;
   trial: number;
   signal: AbortSignal;
@@ -60,7 +79,9 @@ export async function runCase<TInput>(params: {
   const { scope, error: executeError } = await runInEvalScope(
     evalCase.id,
     async () => {
-      await evalDef.execute({ input: evalCase.input, signal });
+      await Reflect.apply(evalDef.execute, evalDef, [
+        { input: evalCase.input, signal },
+      ]);
     },
     {
       cacheContext: cacheAdapter
@@ -79,11 +100,12 @@ export async function runCase<TInput>(params: {
 
   if (!nonAssertError && evalDef.deriveFromTracing) {
     try {
-      const derived = await evalDef.deriveFromTracing({
-        trace: traceTree,
-        input: evalCase.input,
-        case: evalCase,
-      });
+      const derived = await callWithUnknownResult(evalDef.deriveFromTracing, [
+        { trace: traceTree, input: evalCase.input, case: evalCase },
+      ]);
+      if (!isRecord(derived)) {
+        throw new Error('deriveFromTracing must return an object');
+      }
       for (const [key, value] of Object.entries(derived)) {
         if (!(key in scope.outputs)) {
           scope.outputs[key] = value;
@@ -109,11 +131,13 @@ export async function runCase<TInput>(params: {
     for (const [key, def] of Object.entries(evalDef.scores)) {
       const { compute, passThreshold, label } = normalizeScoreDef(def);
       try {
-        const value = await compute({
-          input: evalCase.input,
-          outputs: scope.outputs,
-          case: evalCase,
-        });
+        const rawValue = await callWithUnknownResult(compute, [
+          { input: evalCase.input, outputs: scope.outputs, case: evalCase },
+        ]);
+        if (typeof rawValue !== 'number') {
+          throw new Error(`score "${key}" must return a number`);
+        }
+        const value = rawValue;
         scope.outputs[key] = value;
         scoreResults.set(key, { value, passThreshold, label });
       } catch (e) {
@@ -203,4 +227,8 @@ export async function runCase<TInput>(params: {
   };
 
   return { caseDetail, caseRowUpdate };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }

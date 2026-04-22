@@ -22,7 +22,7 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
 1. **Create `agent-evals.config.ts`** at your project root:
 
    ```ts
-   import type { AgentEvalsConfig } from '@agent-evals/sdk'
+   import type { AgentEvalsConfig } from '@agent-evals/sdk';
 
    export const config: AgentEvalsConfig = {
      include: ['evals/**/*.eval.ts'],
@@ -33,14 +33,14 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
      pricing: {
        'gpt-4o': { inputPerMillionUsd: 2.5, outputPerMillionUsd: 10 },
      },
-   }
+   };
    ```
 
 2. **Write an eval** in `evals/my-agent.eval.ts`:
 
    ```ts
-   import { defineEval, setOutput, span, tracer } from '@agent-evals/sdk'
-   import { myAgent } from '../src/agent'
+   import { defineEval, setOutput, span, tracer } from '@agent-evals/sdk';
+   import { myAgent } from '../src/agent';
 
    defineEval({
      id: 'my-agent',
@@ -51,18 +51,18 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
      ],
      execute: async ({ input }) => {
        await tracer.span({ kind: 'agent', name: 'my-agent' }, async () => {
-         span.setAttribute('input', input)
-         const output = await myAgent(input)
-         span.setAttribute('output', output)
-         setOutput('output', output)
-       })
+         span.setAttribute('input', input);
+         const output = await myAgent(input);
+         span.setAttribute('output', output);
+         setOutput('output', output);
+       });
      },
      scores: {
        hasOutput: ({ outputs }) => {
-         return outputs.output !== undefined ? 1 : 0
+         return outputs.output !== undefined ? 1 : 0;
        },
      },
-   })
+   });
    ```
 
 3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`).
@@ -136,8 +136,11 @@ lower median when the number of trials is even.
 ```ts
 cases: [
   { id: 'simple-text', input: { message: 'I want a refund', locale: 'en-US' } },
-]
+];
 ```
+
+If you omit `cases` entirely, or resolve them to `[]`, the runner still executes
+the eval once with a synthetic empty-object input and a generated case id.
 
 `columns` populates your custom columns.
 
@@ -148,13 +151,13 @@ Wrap work in `tracer.span(...)` to get a trajectory tree in the UI. Span mutatio
 ```ts
 execute: async ({ input }) => {
   await tracer.span({ kind: 'agent', name: 'refund-agent' }, async () => {
-    span.setAttribute('input', input)
-    const result = await agent(input)
-    span.setAttributes({ model: 'gpt-4.1', output: result })
-    setOutput('output', result)
-  })
-  tracer.checkpoint('final-state', { approved: true })
-}
+    span.setAttribute('input', input);
+    const result = await agent(input);
+    span.setAttributes({ model: 'gpt-4.1', output: result });
+    setOutput('output', result);
+  });
+  tracer.checkpoint('final-state', { approved: true });
+};
 ```
 
 Use `traceDisplay` to tell the UI which attributes to promote in the trace tree and detail pane:
@@ -240,12 +243,12 @@ await tracer.span(
     cache: { key: { prompt: input.message, model: 'gpt-4o-mini' } },
   },
   async () => {
-    const result = await llm.complete(input.message)
-    span.setAttributes({ model: 'gpt-4o-mini', output: result })
-    incrementOutput('costUsd', computeCost(result))
-    return result
+    const result = await llm.complete(input.message);
+    span.setAttributes({ model: 'gpt-4o-mini', output: result });
+    incrementOutput('costUsd', computeCost(result));
+    return result;
   },
-)
+);
 ```
 
 Cached spans get `cache.status` in their attributes (`hit`, `miss`, `refresh`,
@@ -300,7 +303,7 @@ Disable caching globally from `agent-evals.config.ts`:
 export const config: AgentEvalsConfig = {
   include: ['evals/**/*.eval.ts'],
   cache: { enabled: false },
-}
+};
 ```
 
 ## Display blocks
@@ -325,7 +328,7 @@ displayInput: [
     { source: 'repo', path: 'evals/assets/receipt-1.png' },
     'Receipt',
   ),
-]
+];
 ```
 
 ## CLI

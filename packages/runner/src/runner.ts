@@ -38,8 +38,11 @@ import {
   setLatestRunInfoMap,
 } from './evalSummaries.ts';
 import { readGitWorktreeState } from './gitState.ts';
-import { filterEvalCases, runCase } from './runExecution.ts';
-import { executeQueuedCases, type QueuedCaseRun } from './runQueue.ts';
+import {
+  filterEvalCases,
+  resolveRunnableEvalCases,
+  runCase,
+} from './runExecution.ts';
 import {
   persistRunState,
   recomputeEvalStatusesInRuns,
@@ -54,6 +57,7 @@ import {
   persistCaseDetail,
   type EvalLatestRunInfo,
 } from './runPersistence.ts';
+import { executeQueuedCases, type QueuedCaseRun } from './runQueue.ts';
 
 /** Imperative runner interface used by the server and CLI. */
 export type EvalRunner = {
@@ -173,7 +177,10 @@ function pickWinningTrial(params: {
   return medianAttempt;
 }
 
-type PreparedEvalCase = { caseId: string; trialResults: TrialExecutionResult[] };
+type PreparedEvalCase = {
+  caseId: string;
+  trialResults: TrialExecutionResult[];
+};
 
 type PreparedEvalRun = {
   evalMeta: EvalMeta;
@@ -609,9 +616,13 @@ export function createRunner({
           await entry.use(async (evalDef) => {
             evalMeta.passThreshold = evalDef.passThreshold ?? 0.5;
             const cases = filterEvalCases(
-              typeof evalDef.cases === 'function'
-                ? await evalDef.cases()
-                : (evalDef.cases ?? []),
+              resolveRunnableEvalCases({
+                cases:
+                  typeof evalDef.cases === 'function'
+                    ? await evalDef.cases()
+                    : (evalDef.cases ?? []),
+                evalId: evalMeta.id,
+              }),
               request.target.evalIds,
               request.target.caseIds,
               evalMeta.id,
@@ -664,7 +675,8 @@ export function createRunner({
                       signal,
                       startTime,
                       cacheAdapter:
-                        bufferedCacheStore ?? (cacheEnabled ? cacheStore : null),
+                        bufferedCacheStore ??
+                        (cacheEnabled ? cacheStore : null),
                       cacheMode,
                       codeFingerprint,
                     });
@@ -734,7 +746,10 @@ export function createRunner({
           }
 
           runState.cases.push(winningTrial.caseRow);
-          runState.caseDetails.set(preparedCase.caseId, winningTrial.caseDetail);
+          runState.caseDetails.set(
+            preparedCase.caseId,
+            winningTrial.caseDetail,
+          );
           preparedEval.mergeColumns(winningTrial.caseDetail.columns);
 
           if (winningTrial.caseRow.status === 'pass') {
@@ -762,7 +777,9 @@ export function createRunner({
           allCaseRows.push(winningTrial.caseRow);
         }
 
-        preparedEval.evalMeta.columnDefs = [...preparedEval.accumulatedColumns.values()];
+        preparedEval.evalMeta.columnDefs = [
+          ...preparedEval.accumulatedColumns.values(),
+        ];
 
         lastRunStatusMap.set(
           preparedEval.evalMeta.id,
@@ -783,7 +800,9 @@ export function createRunner({
         });
       }
 
-      const derivedRunSummary = deriveScopedSummaryFromCases({ caseRows: allCaseRows });
+      const derivedRunSummary = deriveScopedSummaryFromCases({
+        caseRows: allCaseRows,
+      });
       runState.summary.averageScore = derivedRunSummary.averageScore;
       runState.summary.cost = derivedRunSummary.cost;
 

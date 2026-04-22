@@ -63,6 +63,12 @@ export type EvalScoreDef<TInput> =
 export type EvalDefinition<TInput = unknown> = {
   id: string;
   title?: string;
+  /**
+   * Authored cases for this eval.
+   *
+   * When omitted or resolved to an empty array, the runner still executes the
+   * eval once using a synthetic case with empty object input.
+   */
   cases?: EvalCase<TInput>[] | (() => Promise<EvalCase<TInput>[]>);
   columns?: EvalColumns;
   /**

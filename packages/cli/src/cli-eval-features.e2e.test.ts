@@ -485,7 +485,7 @@ describe('CLI eval features', () => {
       );
       const silentPassCase = requireCase(
         artifacts.cases,
-        'silent-pass-no-output',
+        'silent-pass-demo-no-output',
       );
       const silentAssertionCase = requireCase(
         artifacts.cases,
@@ -509,7 +509,7 @@ describe('CLI eval features', () => {
       expect(silentPassCase.columns).toEqual({});
       expect(silentAssertionCase.columns).toEqual({});
       expect(
-        requireTrace(artifacts.traces, 'silent-pass-no-output.json'),
+        requireTrace(artifacts.traces, 'silent-pass-demo-no-output.json'),
       ).toEqual([]);
       expect(
         requireTrace(artifacts.traces, 'silent-assertion-no-output.json'),
@@ -529,8 +529,8 @@ describe('CLI eval features', () => {
             'silent-assertion-no-output.json': summarizeTrace(
               requireTrace(artifacts.traces, 'silent-assertion-no-output.json'),
             ),
-            'silent-pass-no-output.json': summarizeTrace(
-              requireTrace(artifacts.traces, 'silent-pass-no-output.json'),
+            'silent-pass-demo-no-output.json': summarizeTrace(
+              requireTrace(artifacts.traces, 'silent-pass-demo-no-output.json'),
             ),
           },
         }),
@@ -567,7 +567,7 @@ describe('CLI eval features', () => {
               "status": "fail",
             },
             {
-              "caseId": "silent-pass-no-output",
+              "caseId": "silent-pass-demo-no-output",
               "columns": {},
               "evalId": "silent-pass-demo",
               "score": null,
@@ -598,7 +598,7 @@ describe('CLI eval features', () => {
           },
           "traces": {
             "silent-assertion-no-output.json": [],
-            "silent-pass-no-output.json": [],
+            "silent-pass-demo-no-output.json": [],
           },
         }
       `);
