@@ -23,8 +23,8 @@ export type EvalColumnOverride = {
   /**
    * Extra options for `format: 'number'`.
    *
-   * Use this to add a prefix or suffix, or to force a fixed number of decimal
-   * places.
+   * Use this to add a prefix or suffix, force a fixed number of decimal
+   * places, or switch to compact notation such as `1.2K`.
    */
   numberFormat?: NumberDisplayOptions;
   /**
@@ -32,6 +32,8 @@ export type EvalColumnOverride = {
    * views and raw output data.
    */
   hideInTable?: boolean;
+  /** Whether the UI should allow sorting rows by this column. */
+  sortable?: boolean;
   /** Horizontal alignment used when rendering the column cells. */
   align?: 'left' | 'center' | 'right';
 };

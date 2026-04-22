@@ -96,6 +96,11 @@ defineEval({
       label: 'Approved',
       format: 'boolean',
     },
+    requests: {
+      label: 'Requests',
+      format: 'number',
+      numberFormat: { notation: 'compact', decimalPlaces: 1 },
+    },
     cost: {
       label: 'Cost',
       format: 'number',
@@ -140,6 +145,13 @@ defineEval({
           label: 'Approved',
           kind: 'boolean',
           format: 'boolean',
+        },
+        {
+          key: 'requests',
+          label: 'Requests',
+          kind: 'number',
+          format: 'number',
+          numberFormat: { notation: 'compact', decimalPlaces: 1 },
         },
         {
           key: 'cost',

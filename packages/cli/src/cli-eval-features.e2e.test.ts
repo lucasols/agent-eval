@@ -539,6 +539,7 @@ describe('CLI eval features', () => {
           "mimeType": "image/svg+xml",
           "source": "run",
         },
+        "requestCount": 1200,
         "requiresManualReview": false,
         "response": "Prepared **refund package** for order \`A-1024\`.\n\nCustomer note: Please confirm the refund package for my damaged mug.",
         "reviewTimeMs": 1450,

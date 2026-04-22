@@ -44,6 +44,10 @@ export type FileRef = z.infer<typeof fileRefSchema>;
 
 /** Numeric presentation options for values rendered with `format: 'number'`. */
 export type NumberDisplayOptions = {
+  /** Number notation used when rendering the value. */
+  notation?: 'standard' | 'compact';
+  /** Compact style used when `notation: 'compact'` is enabled. */
+  compactDisplay?: 'short' | 'long';
   /** String prepended to the rendered number, such as `$`. */
   prefix?: string;
   /** String appended to the rendered number, such as ` ms`. */
@@ -55,6 +59,8 @@ export type NumberDisplayOptions = {
 /** Schema for numeric presentation options used by number-formatted values. */
 export const numberDisplayOptionsSchema: z.ZodType<NumberDisplayOptions> =
   z.object({
+    notation: z.enum(['standard', 'compact']).optional(),
+    compactDisplay: z.enum(['short', 'long']).optional(),
     prefix: z.string().optional(),
     suffix: z.string().optional(),
     decimalPlaces: z.number().int().min(0).optional(),

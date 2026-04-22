@@ -376,6 +376,18 @@ price: {
 }
 ```
 
+`numberFormat.notation` also supports compact rendering for shorter displays:
+
+```ts
+requestCount: {
+  label: 'Requests',
+  format: 'number',
+  numberFormat: { notation: 'compact', decimalPlaces: 1 },
+}
+```
+
+This uses the runtime locale's compact number formatting, for example `1.2K`.
+
 ```ts
 import { defineEval, setOutput } from '@ls-stack/agent-eval';
 

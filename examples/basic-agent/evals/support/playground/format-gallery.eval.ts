@@ -37,6 +37,11 @@ defineEval({
       format: 'number',
       numberFormat: { prefix: '$', decimalPlaces: 2 },
     },
+    requestCount: {
+      label: 'Requests',
+      format: 'number',
+      numberFormat: { notation: 'compact', decimalPlaces: 1 },
+    },
     reviewTimeMs: { label: 'Review Time', format: 'duration' },
   },
   execute: ({ input }) => {
@@ -65,6 +70,7 @@ defineEval({
     );
     setOutput('confidence', 0.93);
     setOutput('handlingCostUsd', 1.25);
+    setOutput('requestCount', 1200);
     setOutput('reviewTimeMs', 1450);
   },
 });

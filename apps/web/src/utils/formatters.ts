@@ -14,9 +14,20 @@ export function formatNumber(
 ): string {
   if (value === null || value === undefined) return '\u2014';
   const rendered =
-    options?.decimalPlaces === undefined
-      ? String(value)
-      : value.toFixed(options.decimalPlaces);
+    options?.notation === 'compact'
+      ? new Intl.NumberFormat(undefined, {
+          notation: 'compact',
+          compactDisplay: options.compactDisplay ?? 'short',
+          ...(options.decimalPlaces === undefined
+            ? {}
+            : {
+                maximumFractionDigits: options.decimalPlaces,
+                minimumFractionDigits: options.decimalPlaces,
+              }),
+        }).format(value)
+      : options?.decimalPlaces === undefined
+        ? String(value)
+        : value.toFixed(options.decimalPlaces);
   return `${options?.prefix ?? ''}${rendered}${options?.suffix ?? ''}`;
 }
 
