@@ -4,7 +4,7 @@ Local-first, UI-first eval tool for LLM/agent systems. Author evals in strict Ty
 
 ## Why
 
-- **Real TypeScript evals** — author evals with `defineEval(...)`, normal TypeScript, scorers, and thrown-error assertions.
+- **Real TypeScript evals** — author evals with `defineEval(...)`, normal TypeScript, scorers, and eval assertions.
 - **Manual runs by default** — no background re-runs on file save. You trigger runs from the UI or CLI.
 - **Cost + trace visibility** — per-case cost, token usage, a tree/detail view of the agent's trajectory, and custom result columns.
 - **Formatted outputs** — keep outputs as plain values and control presentation from eval `columns`.
@@ -118,6 +118,8 @@ defineEval({
 
 Notes:
 
+- `isInEvalScope()` returns `true` only while the current async execution is inside an eval case, which is useful when shared workflow code needs to branch on eval-only behavior.
+- `evalAssert(...)` records a failed assertion only while an eval case is executing. Outside an eval run, it is a no-op so shared workflow code can be reused safely.
 - `mock.module(...)` only affects modules imported after the mock is registered.
 - Use dynamic `import(...)` inside `execute`; static imports happen too early.
 - The full working example is in [`examples/basic-agent/evals/support/playground/module-mock.eval.ts`](./examples/basic-agent/evals/support/playground/module-mock.eval.ts).

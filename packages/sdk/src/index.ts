@@ -7,6 +7,7 @@ export {
   EvalAssertionError,
   runInEvalScope,
   getCurrentScope,
+  isInEvalScope,
   setScopeCacheContext,
   type EvalCaseScope,
   type CacheAdapter,

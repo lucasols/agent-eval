@@ -64,6 +64,7 @@ export type EvalCaseScope = {
 };
 
 const scopeStorage = new AsyncLocalStorage<EvalCaseScope>();
+let activeEvalScopeCount = 0;
 
 /** Error thrown when an eval assertion fails during case execution. */
 export class EvalAssertionError extends Error {
@@ -75,7 +76,18 @@ export class EvalAssertionError extends Error {
 
 /** Return the current eval scope for the active async context, if any. */
 export function getCurrentScope(): EvalCaseScope | undefined {
+  if (activeEvalScopeCount === 0) return undefined;
   return scopeStorage.getStore();
+}
+
+/**
+ * Return whether the current async execution is inside an active eval case.
+ *
+ * This is useful for shared workflow code that wants to branch on eval-only
+ * behavior without importing or inspecting the full eval scope.
+ */
+export function isInEvalScope(): boolean {
+  return getCurrentScope() !== undefined;
 }
 
 /**
@@ -122,15 +134,20 @@ export async function runInEvalScope<T>(
     replayingDepth: 0,
     cacheContext: options.cacheContext,
   };
-  return scopeStorage.run(scope, async () => {
-    try {
-      const result = await fn();
-      return { result, scope, error: undefined };
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      return { result: undefined, scope, error: err };
-    }
-  });
+  activeEvalScopeCount++;
+  try {
+    return await scopeStorage.run(scope, async () => {
+      try {
+        const result = await fn();
+        return { result, scope, error: undefined };
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        return { result: undefined, scope, error: err };
+      }
+    });
+  } finally {
+    activeEvalScopeCount--;
+  }
 }
 
 function recordOpIfActive(scope: EvalCaseScope, op: CacheRecordingOp): void {
@@ -148,7 +165,7 @@ function toAssertionFailure(
 
 /** Record or replace an output value for the current case scope. */
 export function setOutput(key: string, value: unknown): void {
-  const scope = scopeStorage.getStore();
+  const scope = getCurrentScope();
   if (!scope) return;
   scope.outputs[key] = value;
   recordOpIfActive(scope, { kind: 'setOutput', key, value });
@@ -161,7 +178,7 @@ export function setOutput(key: string, value: unknown): void {
  * assertion failure instead of mutating the output.
  */
 export function incrementOutput(key: string, delta: number): void {
-  const scope = scopeStorage.getStore();
+  const scope = getCurrentScope();
   if (!scope) return;
   const existing = scope.outputs[key];
   if (existing === undefined) {
@@ -181,13 +198,17 @@ export function incrementOutput(key: string, delta: number): void {
   recordOpIfActive(scope, { kind: 'incrementOutput', key, delta });
 }
 
-/** Assert a condition for the current case and throw on failure. */
+/**
+ * Assert a condition for the current eval case and throw on failure.
+ *
+ * Calls made outside `runInEvalScope(...)` are ignored so shared workflow code
+ * can safely reuse `evalAssert(...)` when it also runs outside an eval.
+ */
 export function evalAssert(condition: boolean, message: string): void {
   if (condition) return;
+  const scope = getCurrentScope();
+  if (!scope) return;
   const error = new EvalAssertionError(message);
-  const scope = scopeStorage.getStore();
-  if (scope) {
-    scope.assertionFailures.push(toAssertionFailure(message, error));
-  }
+  scope.assertionFailures.push(toAssertionFailure(message, error));
   throw error;
 }

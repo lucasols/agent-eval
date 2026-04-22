@@ -1,4 +1,9 @@
-import { defineEval, evalAssert, setOutput } from '@ls-stack/agent-eval';
+import {
+  defineEval,
+  evalAssert,
+  isInEvalScope,
+  setOutput,
+} from '@ls-stack/agent-eval';
 import { getResponseText } from '../../../src/evals/exampleEvalUtils.ts';
 
 defineEval<{ prompt: string }>({
@@ -45,7 +50,12 @@ defineEval<{ ticketId: string }>({
   },
 });
 
-defineEval({ id: 'silent-pass-demo', execute: () => {} });
+defineEval({
+  id: 'silent-pass-demo',
+  execute: () => {
+    evalAssert(isInEvalScope(), 'silent pass demo should run inside an eval');
+  },
+});
 
 defineEval<{ queue: string }>({
   id: 'silent-assertion-demo',
