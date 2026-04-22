@@ -6,7 +6,7 @@ import {
   Play,
   SquareArrowOutUpRight,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import {
@@ -227,9 +227,45 @@ const Section = styled.div<{ fill: boolean }>`
   }
 `;
 
-const SectionLabel = styled.div`
+const SectionLabel = styled.div<{ collapsed: boolean }>`
   ${inline({ justify: 'space-between', align: 'center' })}
   margin-bottom: 14px;
+
+  &.collapsed {
+    margin-bottom: 0;
+  }
+`;
+
+const SectionLabelLeft = styled.button`
+  ${inline({ gap: 8, align: 'center' })}
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+`;
+
+const SectionChevron = styled.span<{ open: boolean }>`
+  ${transition({ property: 'transform' })}
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  color: ${colors.textDim.var};
+  transform: rotate(-90deg);
+
+  &.open {
+    transform: rotate(0deg);
+  }
+
+  & > svg {
+    width: 14px;
+    height: 14px;
+  }
 `;
 
 const SectionLabelText = styled.span`
@@ -249,8 +285,30 @@ const SectionActions = styled.div`
   ${inline({ gap: 4, align: 'center' })}
 `;
 
+const SCORE_HISTORY_COLLAPSED_STORAGE_KEY =
+  'agent-evals.eval-card.score-history-collapsed';
+
+function readScoreHistoryCollapsed(): boolean {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.localStorage.getItem(SCORE_HISTORY_COLLAPSED_STORAGE_KEY) === '1'
+  );
+}
+
 export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [scoreHistoryCollapsed, setScoreHistoryCollapsed] = useState(
+    readScoreHistoryCollapsed,
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(
+      SCORE_HISTORY_COLLAPSED_STORAGE_KEY,
+      scoreHistoryCollapsed ? '1' : '0',
+    );
+  }, [scoreHistoryCollapsed]);
+
   const [maintenanceAction, setMaintenanceAction] = useState<
     'recompute' | 'clean' | null
   >(null);
@@ -571,13 +629,29 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
 
           {hasScoreHistory ? (
             <Section fill={false}>
-              <SectionLabel>
-                <SectionLabelText>Score history</SectionLabelText>
+              <SectionLabel collapsed={scoreHistoryCollapsed}>
+                <SectionLabelLeft
+                  type="button"
+                  onClick={() => setScoreHistoryCollapsed((v) => !v)}
+                  aria-expanded={!scoreHistoryCollapsed}
+                  aria-label={
+                    scoreHistoryCollapsed
+                      ? 'Expand score history'
+                      : 'Collapse score history'
+                  }
+                >
+                  <SectionChevron open={!scoreHistoryCollapsed}>
+                    <ChevronDown />
+                  </SectionChevron>
+                  <SectionLabelText>Score history</SectionLabelText>
+                </SectionLabelLeft>
                 <SectionMeta>
                   {chartData.length} {chartData.length === 1 ? 'run' : 'runs'}
                 </SectionMeta>
               </SectionLabel>
-              <EvalRunsChart data={chartData} />
+              {scoreHistoryCollapsed ? null : (
+                <EvalRunsChart data={chartData} />
+              )}
             </Section>
           ) : null}
 
@@ -644,7 +718,7 @@ function RunsSection({
 
   return (
     <>
-      <SectionLabel>
+      <SectionLabel collapsed={false}>
         <SectionLabelText>Runs</SectionLabelText>
         <SectionActions>
           {runs.length > 0 ? (

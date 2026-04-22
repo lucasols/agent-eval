@@ -287,6 +287,8 @@ const Dim = styled.span`
   color: ${colors.textDim.var};
 `;
 
+const RUN_SHORT_ID_PREFIX = /^r/;
+
 const PlaceholderRow = styled.tr`
   border-top: 1px solid ${colors.border.var};
 `;
@@ -461,6 +463,7 @@ function RunGroup({
   totalCols: number;
 }) {
   const { manifest, summary, cases } = run;
+  const displayShortId = manifest.shortId.replace(RUN_SHORT_ID_PREFIX, '');
   const hasCases = summary.totalCases > 0;
   const costValue = summary.cost.totalUsd;
   const durationValue = summary.totalDurationMs;
@@ -498,7 +501,7 @@ function RunGroup({
             {isLatest ? (
               <LatestBadge>LATEST</LatestBadge>
             ) : (
-              <RunIdBadge>#{manifest.shortId}</RunIdBadge>
+              <RunIdBadge>#{displayShortId}</RunIdBadge>
             )}
             <RunTime latest={isLatest}>
               {formatTimestamp(manifest.startedAt)}
