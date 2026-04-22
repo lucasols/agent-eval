@@ -26,6 +26,7 @@ import { metricId, type ChartPoint } from '../utils/chartData.ts';
 import {
   formatCost,
   formatDuration,
+  formatNumericCellValue,
   formatPercent,
   formatScore,
   formatTimestamp,
@@ -174,9 +175,7 @@ function formatColumnValue(
   if (value === null) return '—';
   if (metric.aggregate === 'passThresholdRate') return formatPercent(value);
   const column = columnsByKey.get(metric.key);
-  if (column?.format === 'percent') return formatPercent(value);
-  if (column?.format === 'usd') return formatCost(value);
-  if (column?.format === 'duration') return formatDuration(value);
+  if (column !== undefined) return formatNumericCellValue(column, value);
   return formatScore(value);
 }
 
