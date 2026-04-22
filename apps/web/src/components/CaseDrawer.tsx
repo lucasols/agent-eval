@@ -121,7 +121,36 @@ const TabButton = styled.button<{ active: boolean }>`
 const TabContent = styled.div`
   flex: 1;
   overflow: auto;
-  padding: 16px;
+  padding: 18px 20px;
+`;
+
+const OutputLayout = styled.div`
+  ${stack()}
+`;
+
+const OutputBlock = styled.div`
+  ${stack({ gap: 8 })}
+  padding: 14px 0;
+  border-bottom: 1px solid ${colors.border.var};
+
+  &:first-child {
+    padding-top: 0;
+  }
+
+  &:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+`;
+
+const OutputLabel = styled.div`
+  ${kicker};
+  color: ${colors.textMuted.var};
+`;
+
+const OutputContent = styled.div`
+  font-size: 13px;
+  color: ${colors.text.var};
 `;
 
 const ErrorContainer = styled.div`
@@ -154,46 +183,11 @@ const RawLabel = styled.div`
   margin-bottom: 8px;
 `;
 
-const ColumnsGrid = styled.div`
-  ${stack({ gap: 8 })}
-  margin-top: 12px;
-`;
-
-const ColumnRow = styled.div`
-  ${inline({ justify: 'space-between', align: 'center', gap: 12 })}
-  padding: 10px 12px;
-  background: ${colors.bg.var};
-  border: 1px solid ${colors.border.var};
-  border-radius: var(--radius-md);
-`;
-
-const ColumnLabel = styled.div`
-  ${kicker}
-  color: ${colors.textMuted.var};
-  padding: 10px 12px 0;
-`;
-
-const RichColumnCard = styled.div`
-  ${stack({ gap: 0 })}
-  overflow: hidden;
-  background: ${colors.bgElevated.var};
-  border: 1px solid ${colors.border.var};
-  border-radius: var(--radius-md);
-`;
-
-const RichColumnBody = styled.div`
-  padding: 12px;
-  background: ${colors.bg.var};
-  border-top: 1px solid ${colors.border.var};
-`;
-
-const ColumnValueText = styled.div`
+const ScalarValue = styled.div`
   ${monoFont};
-  font-size: 12px;
+  font-size: 13px;
   color: ${colors.text.var};
-  text-align: right;
-  max-width: 60%;
-  word-break: break-all;
+  word-break: break-word;
 `;
 
 const ScoreFail = styled.span`
@@ -301,7 +295,10 @@ export function CaseDrawer() {
   const d = selectedCaseDetail;
   const evalSummary = evals.find((e) => e.id === d.evalId);
   const columnDefs = evalSummary?.columnDefs ?? [];
-  const primaryCol = columnDefs.find((c) => c.primary);
+  const orderedColumnDefs = [
+    ...columnDefs.filter((c) => c.primary),
+    ...columnDefs.filter((c) => !c.primary),
+  ];
   const hasOutputValue = columnDefs.some((columnDef) =>
     hasRenderableOutputValue(d.columns[columnDef.key]),
   );
@@ -372,25 +369,15 @@ export function CaseDrawer() {
 
         {activeTab === 'output' ? (
           hasOutputValue ? (
-            <div>
-              {primaryCol ? (
-                <PrimaryValue
-                  def={primaryCol}
-                  value={d.columns[primaryCol.key]}
+            <OutputLayout>
+              {orderedColumnDefs.map((c) => (
+                <ColumnCell
+                  key={c.key}
+                  def={c}
+                  value={d.columns[c.key]}
                 />
-              ) : null}
-              <ColumnsGrid>
-                {columnDefs
-                  .filter((c) => !c.primary)
-                  .map((c) => (
-                    <ColumnCell
-                      key={c.key}
-                      def={c}
-                      value={d.columns[c.key]}
-                    />
-                  ))}
-              </ColumnsGrid>
-            </div>
+              ))}
+            </OutputLayout>
           ) : (
             <EmptyState
               title="No output recorded"
@@ -449,35 +436,6 @@ export function CaseDrawer() {
   );
 }
 
-function PrimaryValue({
-  def,
-  value,
-}: {
-  def: ColumnDef;
-  value: CellValue | undefined;
-}) {
-  if (value === undefined) return '\u2014';
-  if (hasRichColumnFormat(def)) {
-    return (
-      <RichColumnCard>
-        <ColumnLabel>{def.label}</ColumnLabel>
-        <RichColumnBody>
-          <FormattedCellValue
-            def={def}
-            value={value}
-          />
-        </RichColumnBody>
-      </RichColumnCard>
-    );
-  }
-  return (
-    <FormattedCellValue
-      def={def}
-      value={value}
-    />
-  );
-}
-
 function hasRenderableOutputValue(value: CellValue | undefined): boolean {
   if (value === undefined || value === null) return false;
   return true;
@@ -490,46 +448,43 @@ function ColumnCell({
   def: ColumnDef;
   value: CellValue | undefined;
 }) {
-  if (hasRichColumnFormat(def)) {
-    return (
-      <RichColumnCard>
-        <ColumnLabel>{def.label}</ColumnLabel>
-        <RichColumnBody>
-          <FormattedCellValue
-            def={def}
-            value={value}
-          />
-        </RichColumnBody>
-      </RichColumnCard>
-    );
-  }
-
   return (
-    <ColumnRow>
-      <ColumnLabel>{def.label}</ColumnLabel>
-      <ColumnValueText>{renderCompactCellValue(def, value)}</ColumnValueText>
-    </ColumnRow>
+    <OutputBlock>
+      <OutputLabel>{def.label}</OutputLabel>
+      <OutputContent>{renderColumnValue(def, value)}</OutputContent>
+    </OutputBlock>
   );
 }
 
-function renderCompactCellValue(def: ColumnDef, value: CellValue | undefined) {
-  if (value === undefined || value === null) return '\u2014';
+function renderColumnValue(def: ColumnDef, value: CellValue | undefined) {
+  if (value === undefined || value === null) {
+    return <ScalarValue>{'\u2014'}</ScalarValue>;
+  }
 
   if (def.isScore && typeof value === 'number') {
     const passed =
       def.passThreshold === undefined ? true : value >= def.passThreshold;
-    return passed ? (
-      <ScorePass>{formatScore(value)}</ScorePass>
-    ) : (
-      <ScoreFail>{formatScore(value)}</ScoreFail>
+    return (
+      <ScalarValue>
+        {passed ? (
+          <ScorePass>{formatScore(value)}</ScorePass>
+        ) : (
+          <ScoreFail>{formatScore(value)}</ScoreFail>
+        )}
+      </ScalarValue>
     );
   }
 
-  if (typeof value === 'number' && def.format === undefined) {
-    return formatScore(value);
+  if (hasRichColumnFormat(def) || typeof value === 'object') {
+    return (
+      <FormattedCellValue
+        def={def}
+        value={value}
+      />
+    );
   }
 
-  return summarizeCellValue(def, value);
+  return <ScalarValue>{summarizeCellValue(def, value)}</ScalarValue>;
 }
 
 function RawSection({ label, data }: { label: string; data: unknown }) {

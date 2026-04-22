@@ -14,11 +14,14 @@ import { JsonViewer } from './JsonViewer.tsx';
 const TextValue = styled.p`
   white-space: pre-wrap;
   margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
 `;
 
 const MarkdownValue = styled.div`
   color: ${colors.text.var};
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.55;
 
   & > :first-child {
     margin-top: 0;
@@ -34,7 +37,7 @@ const MarkdownValue = styled.div`
   & blockquote,
   & pre,
   & table {
-    margin: 0 0 12px;
+    margin: 0 0 10px;
   }
 
   & h1,
@@ -43,21 +46,21 @@ const MarkdownValue = styled.div`
   & h4,
   & h5,
   & h6 {
-    margin: 0 0 12px;
+    margin: 0 0 10px;
     color: ${colors.text.var};
     line-height: 1.25;
   }
 
   & h1 {
-    font-size: 22px;
-  }
-
-  & h2 {
     font-size: 18px;
   }
 
-  & h3 {
+  & h2 {
     font-size: 15px;
+  }
+
+  & h3 {
+    font-size: 13.5px;
   }
 
   & ul,
