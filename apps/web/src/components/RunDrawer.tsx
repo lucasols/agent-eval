@@ -1,4 +1,7 @@
-import { deriveStatusFromCaseRows } from '@agent-evals/shared';
+import {
+  deriveScopedSummaryFromCases,
+  deriveStatusFromCaseRows,
+} from '@agent-evals/shared';
 import { X } from 'lucide-react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
@@ -11,8 +14,11 @@ import {
 } from '#src/style/helpers';
 import { useResizableWidth } from '../hooks/useResizableWidth.ts';
 import { useWindowWidth } from '../hooks/useWindowWidth.ts';
+import { evalsStore } from '../stores/evalsStore.ts';
 import { layoutStore } from '../stores/layoutStore.ts';
 import { closeRun, runStore } from '../stores/runStore.ts';
+import { selectionStore } from '../stores/selectionStore.ts';
+import { scopeRunCases } from '../utils/evalRuns.ts';
 import {
   formatCost,
   formatDuration,
@@ -193,8 +199,12 @@ export function RunDrawer() {
   const { selectedRunDetail } = runStore.useSelectorRC((s) => ({
     selectedRunDetail: s.selectedRunDetail,
   }));
+  const { evals } = evalsStore.useSelectorRC((s) => ({ evals: s.evals }));
   const { sidebarWidth } = layoutStore.useSelectorRC((s) => ({
     sidebarWidth: s.sidebarWidth,
+  }));
+  const { selection } = selectionStore.useSelectorRC((s) => ({
+    selection: s.selection,
   }));
   const windowWidth = useWindowWidth();
   const minWidth = 360;
@@ -217,12 +227,26 @@ export function RunDrawer() {
   }
 
   const { manifest, summary, cases } = selectedRunDetail;
+  const scopedRunCases = scopeRunCases({
+    cases,
+    evals,
+    selectedEvalId: selection.kind === 'eval' ? selection.id : null,
+    selectedFolderPath: selection.kind === 'folder' ? selection.path : null,
+  });
+  const scopedSummary =
+    scopedRunCases.label === null
+      ? summary
+      : deriveScopedSummaryFromCases({
+          caseRows: scopedRunCases.cases,
+          lifecycleStatus: manifest.status,
+        });
   const displayStatus = deriveStatusFromCaseRows({
-    caseRows: cases,
+    caseRows: scopedRunCases.cases,
     lifecycleStatus: manifest.status,
   });
-  const failed = summary.failedCases + summary.errorCases;
+  const failed = scopedSummary.failedCases + scopedSummary.errorCases;
   const showError =
+    scopedRunCases.label === null &&
     summary.status === 'error' &&
     summary.errorMessage !== null &&
     summary.errorMessage.length > 0;
@@ -264,7 +288,7 @@ export function RunDrawer() {
               cost={false}
               error={false}
             >
-              {String(summary.totalCases)}
+              {String(scopedSummary.totalCases)}
             </StatValue>
           </Stat>
           <Stat>
@@ -274,7 +298,7 @@ export function RunDrawer() {
               cost={false}
               error={false}
             >
-              {String(summary.passedCases)}
+              {String(scopedSummary.passedCases)}
             </StatValue>
           </Stat>
           <Stat>
@@ -294,7 +318,7 @@ export function RunDrawer() {
               cost={false}
               error={false}
             >
-              {formatDuration(summary.totalDurationMs)}
+              {formatDuration(scopedSummary.totalDurationMs)}
             </StatValue>
           </Stat>
           <Stat>
@@ -304,7 +328,7 @@ export function RunDrawer() {
               cost={true}
               error={false}
             >
-              {formatCost(summary.cost.totalUsd)}
+              {formatCost(scopedSummary.cost.totalUsd)}
             </StatValue>
           </Stat>
           <Stat>
@@ -314,7 +338,7 @@ export function RunDrawer() {
               cost={false}
               error={false}
             >
-              {formatScore(summary.averageScore)}
+              {formatScore(scopedSummary.averageScore)}
             </StatValue>
           </Stat>
         </StatGrid>
@@ -331,6 +355,12 @@ export function RunDrawer() {
           <MetaList>
             <MetaKey>Run id</MetaKey>
             <MetaValue>{manifest.id}</MetaValue>
+            {scopedRunCases.label !== null ? (
+              <>
+                <MetaKey>Scope</MetaKey>
+                <MetaValue>{scopedRunCases.label}</MetaValue>
+              </>
+            ) : null}
             <MetaKey>Lifecycle status</MetaKey>
             <MetaValue>{manifest.status}</MetaValue>
             <MetaKey>Started</MetaKey>
