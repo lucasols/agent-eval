@@ -12,6 +12,10 @@ import {
   runStore,
 } from '../stores/runStore.ts';
 import { selectFolder } from '../stores/selectionStore.ts';
+import {
+  getStatusBreakdown,
+  type StatusBreakdown,
+} from '../utils/buildEvalTree.ts';
 import { EmptyState } from './EmptyState.tsx';
 import { EvalCard } from './EvalCard.tsx';
 import { MenuButton } from './MenuButton.tsx';
@@ -44,9 +48,116 @@ const HeaderMeta = styled.div`
 `;
 
 const Count = styled.div`
-  ${kicker}
-  color: ${colors.textDim.var};
+  ${inline({ gap: 6, align: 'center' })}
+  flex-wrap: wrap;
 `;
+
+const TotalPill = styled.span`
+  ${inline({ gap: 5, align: 'center' })}
+  ${kicker};
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: ${colors.surface.var};
+  color: ${colors.textMuted.var};
+  font-size: 9.5px;
+  line-height: 1;
+  letter-spacing: 0.04em;
+`;
+
+const TotalPillValue = styled.span`
+  font-size: 11px;
+  font-weight: 600;
+  color: ${colors.text.var};
+  letter-spacing: -0.01em;
+`;
+
+type BreakdownTone =
+  | 'running'
+  | 'pass'
+  | 'fail'
+  | 'stale'
+  | 'outdated'
+  | 'cancelled'
+  | 'pending';
+
+const BreakdownPill = styled.span<{
+  running: boolean;
+  pass: boolean;
+  fail: boolean;
+  stale: boolean;
+  outdated: boolean;
+  cancelled: boolean;
+  pending: boolean;
+}>`
+  ${inline({ gap: 5, align: 'center' })}
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: ${colors.textMuted.var};
+  background: ${colors.surface.var};
+  border: 1px solid transparent;
+
+  &.pass {
+    color: ${colors.success.var};
+    background: ${colors.success.alpha(0.08)};
+    border-color: ${colors.success.alpha(0.18)};
+  }
+  &.fail {
+    color: ${colors.error.var};
+    background: ${colors.error.alpha(0.08)};
+    border-color: ${colors.error.alpha(0.18)};
+  }
+  &.running {
+    color: ${colors.accentDim.var};
+    background: ${colors.accent.alpha(0.1)};
+    border-color: ${colors.accent.alpha(0.22)};
+  }
+  &.cancelled {
+    color: ${colors.warning.var};
+    background: ${colors.warning.alpha(0.08)};
+    border-color: ${colors.warning.alpha(0.18)};
+  }
+  &.stale {
+    color: ${colors.textMuted.var};
+    background: ${colors.surfaceActive.var};
+    border-color: ${colors.border.var};
+  }
+  &.outdated {
+    color: ${colors.warning.var};
+    background: ${colors.warning.alpha(0.1)};
+    border-color: ${colors.warning.alpha(0.22)};
+  }
+  &.pending {
+    color: ${colors.textMuted.var};
+    background: ${colors.surface.var};
+    border-color: ${colors.border.var};
+  }
+`;
+
+const BreakdownValue = styled.span`
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+`;
+
+const BREAKDOWN_STATUS_ORDER: Array<{
+  key: Exclude<keyof StatusBreakdown, 'total'>;
+  label: string;
+  tone: BreakdownTone;
+}> = [
+  { key: 'running', label: 'running', tone: 'running' },
+  { key: 'pass', label: 'pass', tone: 'pass' },
+  { key: 'fail', label: 'fail', tone: 'fail' },
+  { key: 'error', label: 'error', tone: 'fail' },
+  { key: 'stale', label: 'stale', tone: 'stale' },
+  { key: 'outdated', label: 'outdated', tone: 'outdated' },
+  { key: 'cancelled', label: 'cancelled', tone: 'cancelled' },
+  { key: 'pending', label: 'pending', tone: 'pending' },
+];
 
 const Stack = styled.div`
   ${stack({ gap: 20 })}
@@ -71,11 +182,18 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
       path: displaySegments.slice(0, index + 1).join('/'),
     }));
   const evalIds = evals.map((ev) => ev.id);
+  const isEvalRunning = (evalId: string): boolean =>
+    currentRun?.manifest.status === 'running' &&
+    targetIncludesEval(currentRun.manifest.target, evalId);
   const isRunning =
     currentRun?.manifest.status === 'running' &&
     evalIds.some((evalId) =>
       targetIncludesEval(currentRun.manifest.target, evalId),
     );
+  const breakdown = getStatusBreakdown(evals, isEvalRunning);
+  const breakdownItems = BREAKDOWN_STATUS_ORDER.filter(
+    ({ key }) => breakdown[key] > 0,
+  );
 
   function handleRunAll() {
     if (evalIds.length === 0) return;
@@ -181,7 +299,25 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
           />
           <HeaderMeta>
             <Count>
-              {evals.length} {evals.length === 1 ? 'eval' : 'evals'}
+              <TotalPill>
+                <TotalPillValue>{evals.length}</TotalPillValue>
+                {evals.length === 1 ? 'eval' : 'evals'}
+              </TotalPill>
+              {breakdownItems.map(({ key, label, tone }) => (
+                <BreakdownPill
+                  key={key}
+                  pass={tone === 'pass'}
+                  fail={tone === 'fail'}
+                  running={tone === 'running'}
+                  cancelled={tone === 'cancelled'}
+                  stale={tone === 'stale'}
+                  outdated={tone === 'outdated'}
+                  pending={tone === 'pending'}
+                >
+                  <BreakdownValue>{breakdown[key]}</BreakdownValue>
+                  {label}
+                </BreakdownPill>
+              ))}
             </Count>
             <SplitButton
               label={isRunning ? 'Running' : 'Run all'}
