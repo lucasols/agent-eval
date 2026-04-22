@@ -359,7 +359,7 @@ visibility, and rendering format. Supported `columns.format` values include
 `duration`, and `number`.
 
 ```ts
-import { defineEval, repoFile, setOutput } from '@agent-evals/sdk';
+import { defineEval, repoFile, setOutput } from '@ls-stack/agent-eval';
 
 defineEval({
   id: 'receipt-preview',

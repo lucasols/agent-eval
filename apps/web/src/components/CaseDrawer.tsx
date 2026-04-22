@@ -1,4 +1,4 @@
-import type { CellValue, ColumnDef, DisplayBlock } from '@ls-stack/agent-eval';
+import type { CellValue, ColumnDef } from '@ls-stack/agent-eval';
 import { Maximize2, Minimize2, X } from 'lucide-react';
 import { useRef } from 'react';
 import { styled } from 'vindur';

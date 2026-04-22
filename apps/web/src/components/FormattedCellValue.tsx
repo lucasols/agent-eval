@@ -1,4 +1,4 @@
-import type { CellValue, ColumnDef, FileRef } from '@agent-evals/shared';
+import type { CellValue, ColumnDef, FileRef } from '@ls-stack/agent-eval';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { styled } from 'vindur';

@@ -2,7 +2,6 @@ export { createRunner, type EvalRunner } from '@agent-evals/runner';
 export {
   defineEval,
   getEvalRegistry,
-  blocks,
   repoFile,
   setOutput,
   incrementOutput,

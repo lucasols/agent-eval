@@ -1,4 +1,4 @@
-import { defineEval, repoFile, setOutput } from '@agent-evals/sdk';
+import { defineEval, repoFile, setOutput } from '@ls-stack/agent-eval';
 
 defineEval({
   id: 'format-gallery',
