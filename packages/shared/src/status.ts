@@ -29,7 +29,6 @@ export type ScopedCaseSummary = {
   cancelledCases: number;
   pendingCases: number;
   runningCases: number;
-  averageScore: number | null;
   totalDurationMs: number | null;
   cost: EvalCostSummary;
 };
@@ -124,8 +123,6 @@ export function deriveScopedSummaryFromCases(params: {
   let totalCostUsd = 0;
   let hasCost = false;
 
-  const scoreValues: number[] = [];
-
   for (const caseRow of caseRows) {
     if (caseRow.status === 'pass') passedCases += 1;
     else if (caseRow.status === 'fail') failedCases += 1;
@@ -134,9 +131,6 @@ export function deriveScopedSummaryFromCases(params: {
     else if (caseRow.status === 'running') runningCases += 1;
     else pendingCases += 1;
 
-    if (caseRow.score !== null) {
-      scoreValues.push(caseRow.score);
-    }
     if (caseRow.latencyMs !== null) {
       totalDurationMs += caseRow.latencyMs;
       hasDuration = true;
@@ -146,11 +140,6 @@ export function deriveScopedSummaryFromCases(params: {
       hasCost = true;
     }
   }
-
-  const averageScore =
-    scoreValues.length > 0
-      ? scoreValues.reduce((sum, value) => sum + value, 0) / scoreValues.length
-      : null;
 
   return {
     status: deriveStatusFromCaseRows({
@@ -164,7 +153,6 @@ export function deriveScopedSummaryFromCases(params: {
     cancelledCases,
     pendingCases,
     runningCases,
-    averageScore,
     totalDurationMs: hasDuration ? totalDurationMs : null,
     cost: { totalUsd: hasCost && totalCostUsd > 0 ? totalCostUsd : null },
   };

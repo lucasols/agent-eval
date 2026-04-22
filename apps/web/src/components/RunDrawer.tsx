@@ -27,11 +27,7 @@ import {
 } from '../stores/runStore.ts';
 import { selectionStore } from '../stores/selectionStore.ts';
 import { scopeRunCases } from '../utils/evalRuns.ts';
-import {
-  formatDuration,
-  formatScore,
-  formatTimestamp,
-} from '../utils/formatters.ts';
+import { formatDuration, formatTimestamp } from '../utils/formatters.ts';
 import { IconButton } from './IconButton.tsx';
 import { MenuButton } from './MenuButton.tsx';
 import { ResizeHandle } from './ResizeHandle.tsx';
@@ -258,11 +254,6 @@ const ErrorBlock = styled.pre`
   margin: 0;
 `;
 
-function formatCaseScore(caseRow: CaseRow): string {
-  if (caseRow.score === null) return '—';
-  return formatScore(caseRow.score);
-}
-
 function formatCaseDuration(caseRow: CaseRow): string {
   if (caseRow.latencyMs === null || caseRow.latencyMs <= 0) return '—';
   return formatDuration(caseRow.latencyMs);
@@ -431,12 +422,14 @@ export function RunDrawer() {
             </StatValue>
           </Stat>
           <Stat>
-            <StatLabel>Avg score</StatLabel>
+            <StatLabel>Pass rate</StatLabel>
             <StatValue
               accent={true}
               error={false}
             >
-              {formatScore(scopedSummary.averageScore)}
+              {scopedSummary.totalCases > 0
+                ? `${String(scopedSummary.passedCases)}/${String(scopedSummary.totalCases)}`
+                : '\u2014'}
             </StatValue>
           </Stat>
         </StatGrid>
@@ -463,7 +456,6 @@ export function RunDrawer() {
                     ) : null}
                   </CaseMain>
                   <CaseMetrics>
-                    <CaseMetric>{formatCaseScore(caseRow)}</CaseMetric>
                     <CaseMetric>{formatCaseDuration(caseRow)}</CaseMetric>
                   </CaseMetrics>
                 </CaseItem>

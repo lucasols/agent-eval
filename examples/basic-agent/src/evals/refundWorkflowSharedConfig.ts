@@ -21,12 +21,7 @@ function sampleReviewConfidence(seed: string): number {
 
 export const refundWorkflowSharedConfig: Pick<
   EvalDefinition<WorkflowInput>,
-  | 'columns'
-  | 'traceDisplay'
-  | 'execute'
-  | 'deriveFromTracing'
-  | 'scores'
-  | 'passThreshold'
+  'columns' | 'traceDisplay' | 'execute' | 'deriveFromTracing' | 'scores'
 > = {
   columns: {
     response: { label: 'Response', format: 'markdown' },
@@ -106,5 +101,4 @@ export const refundWorkflowSharedConfig: Pick<
       },
     },
   },
-  passThreshold: 0.5,
 };

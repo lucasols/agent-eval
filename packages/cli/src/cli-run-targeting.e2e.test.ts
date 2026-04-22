@@ -136,7 +136,6 @@ describe('CLI run targeting', () => {
           persistedCases: artifacts.cases.map((caseRow) => ({
             caseId: caseRow.caseId,
             response: caseRow.columns.response,
-            score: caseRow.score,
             status: caseRow.status,
             toolCalls: caseRow.columns.toolCalls,
           })),
@@ -153,21 +152,19 @@ describe('CLI run targeting', () => {
         Passed: 2
         Failed: 0
         Errors: 0
-        Avg Score: 0.87
+        Pass Rate: 2/2
         Duration: <duration>
         Cost: $0.0017",
           "persistedCases": [
             {
               "caseId": "simple-text",
               "response": "Approved refund for: I want a refund for order #123",
-              "score": 0.8200000000000001,
               "status": "pass",
               "toolCalls": 1,
             },
             {
               "caseId": "with-image",
               "response": "Approved refund for: Please refund this damaged item",
-              "score": 0.9199999999999999,
               "status": "pass",
               "toolCalls": 2,
             },
@@ -219,7 +216,6 @@ describe('CLI run targeting', () => {
             reviewQueue: caseRow.columns.reviewQueue,
             riskLevel: caseRow.columns.riskLevel,
             response: caseRow.columns.response,
-            score: caseRow.score,
             status: caseRow.status,
             toolCalls: caseRow.columns.toolCalls,
           })),
@@ -236,7 +232,7 @@ describe('CLI run targeting', () => {
         Passed: 1
         Failed: 0
         Errors: 0
-        Avg Score: 1.00
+        Pass Rate: 1/1
         Duration: <duration>
         Cost: $0.0015",
           "persistedCases": [
@@ -246,7 +242,6 @@ describe('CLI run targeting', () => {
               "response": "Opened a risk review for order #RISK-12 after detecting receipt tampering signals.",
               "reviewQueue": "risk-ops",
               "riskLevel": "high",
-              "score": 1,
               "status": "pass",
               "toolCalls": 2,
             },
@@ -291,7 +286,6 @@ describe('CLI run targeting', () => {
             followUpChannel: caseRow.columns.followUpChannel,
             llmTurns: caseRow.columns.llmTurns,
             response: caseRow.columns.response,
-            score: caseRow.score,
           })),
         }),
       ).toMatchInlineSnapshot(`
@@ -303,7 +297,6 @@ describe('CLI run targeting', () => {
               "followUpChannel": "sms",
               "llmTurns": 2,
               "response": "Prepared a sms follow-up with return steps for order #RET-44.",
-              "score": 1,
             },
           ],
         }
@@ -341,7 +334,6 @@ describe('CLI run targeting', () => {
             evalId: caseRow.evalId,
             response: caseRow.columns.response,
             riskLevel: caseRow.columns.riskLevel,
-            score: caseRow.score,
             status: caseRow.status,
             toolCalls: caseRow.columns.toolCalls,
           })),
@@ -358,7 +350,7 @@ describe('CLI run targeting', () => {
         Passed: 1
         Failed: 0
         Errors: 0
-        Avg Score: 1.00
+        Pass Rate: 1/1
         Duration: <duration>
         Cost: $0.0014",
           "persistedCases": [
@@ -368,7 +360,6 @@ describe('CLI run targeting', () => {
               "evalId": "high-value-refund",
               "response": "Escalated a $1299.00 refund for order #9001 to finance review.",
               "riskLevel": "high",
-              "score": 1,
               "status": "pass",
               "toolCalls": 2,
             },
@@ -418,14 +409,14 @@ describe('CLI run targeting', () => {
           persistedCases: artifacts.cases.map((caseRow) => ({
             caseId: caseRow.caseId,
             response: caseRow.columns.response,
-            score: caseRow.score,
+            mentionsRefund: caseRow.columns.mentionsRefund,
+            reviewConfidence: caseRow.columns.reviewConfidence,
             trial: caseRow.trial,
           })),
         }),
       ).toMatchInlineSnapshot(`
         {
           "jsonSummary": {
-            "averageScore": 0.8200000000000001,
             "cancelledCases": 0,
             "cost": {
               "totalUsd": 0.0008749999999999999,
@@ -442,8 +433,9 @@ describe('CLI run targeting', () => {
           "persistedCases": [
             {
               "caseId": "simple-text",
+              "mentionsRefund": 1,
               "response": "Approved refund for: I want a refund for order #123",
-              "score": 0.8200000000000001,
+              "reviewConfidence": 0.64,
               "trial": 0,
             },
           ],
@@ -476,9 +468,9 @@ describe('CLI run targeting', () => {
       expect(artifacts.cases).toHaveLength(1);
       expect(artifacts.cases[0]).toMatchObject({
         caseId: 'damaged-order',
-        score: 0.64,
         trial: 2,
       });
+      expect(artifacts.cases[0]?.columns.quality).toBe(0.64);
 
       expect(
         normalizeSnapshotValue(workspacePath, {
@@ -486,15 +478,14 @@ describe('CLI run targeting', () => {
           persistedCases: artifacts.cases.map((caseRow) => ({
             candidateId: caseRow.columns.candidateId,
             caseId: caseRow.caseId,
+            quality: caseRow.columns.quality,
             response: caseRow.columns.response,
-            score: caseRow.score,
             trial: caseRow.trial,
           })),
         }),
       ).toMatchInlineSnapshot(`
         {
           "jsonSummary": {
-            "averageScore": 0.64,
             "cancelledCases": 0,
             "cost": {
               "totalUsd": null,
@@ -512,8 +503,8 @@ describe('CLI run targeting', () => {
             {
               "candidateId": "balanced-review",
               "caseId": "damaged-order",
+              "quality": 0.64,
               "response": "Offer a replacement after a quick damage review.",
-              "score": 0.64,
               "trial": 2,
             },
           ],

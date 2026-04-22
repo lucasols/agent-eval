@@ -61,5 +61,4 @@ defineEval<VoiceReturnFollowUpInput>({
           : 0,
     },
   },
-  passThreshold: 0.5,
 });

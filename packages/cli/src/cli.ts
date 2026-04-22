@@ -305,8 +305,10 @@ async function commandRun(args: CliArgs): Promise<void> {
     console.info(`Passed: ${String(summary.passedCases)}`);
     console.info(`Failed: ${String(summary.failedCases)}`);
     console.info(`Errors: ${String(summary.errorCases)}`);
-    if (summary.averageScore !== null) {
-      console.info(`Avg Score: ${summary.averageScore.toFixed(2)}`);
+    if (summary.totalCases > 0) {
+      console.info(
+        `Pass Rate: ${String(summary.passedCases)}/${String(summary.totalCases)}`,
+      );
     }
     if (summary.totalDurationMs !== null) {
       console.info(`Duration: ${(summary.totalDurationMs / 1000).toFixed(1)}s`);

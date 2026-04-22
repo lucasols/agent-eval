@@ -169,7 +169,6 @@ defineEval({
           failedCases: 0,
           errorCases: 0,
           cancelledCases: 0,
-          averageScore: 1,
           totalDurationMs: 2000,
           cost: { totalUsd: 0.12 },
           errorMessage: null,
@@ -190,7 +189,6 @@ defineEval({
         caseId: 'saved-case',
         evalId: 'persisted-eval',
         status: 'pass',
-        score: 1,
         latencyMs: 234,
         costUsd: 0.12,
         columns: { answer: 'ok' },
@@ -400,7 +398,6 @@ defineEval({ id: 'errored-eval', title: 'Errored Eval' });
           failedCases: 1,
           errorCases: 0,
           cancelledCases: 0,
-          averageScore: 0,
           totalDurationMs: 2000,
           cost: { totalUsd: 0.12 },
           errorMessage: null,
@@ -421,7 +418,6 @@ defineEval({ id: 'errored-eval', title: 'Errored Eval' });
         caseId: 'saved-case',
         evalId: 'persisted-eval',
         status: 'fail',
-        score: 0,
         latencyMs: 234,
         costUsd: 0.12,
         columns: {},
@@ -473,7 +469,6 @@ defineEval({ id: 'errored-eval', title: 'Errored Eval' });
           failedCases: 0,
           errorCases: 0,
           cancelledCases: 0,
-          averageScore: 1,
           totalDurationMs: 1000,
           cost: { totalUsd: 0.08 },
           errorMessage: '[errored-eval] import failed',
@@ -494,7 +489,6 @@ defineEval({ id: 'errored-eval', title: 'Errored Eval' });
         caseId: 'new-case',
         evalId: 'persisted-eval',
         status: 'pass',
-        score: 1,
         latencyMs: 120,
         costUsd: 0.08,
         columns: {},
@@ -517,9 +511,9 @@ defineEval({ id: 'errored-eval', title: 'Errored Eval' });
     }
   });
 
-  test('defaults score passThreshold to 0.5 when omitted', async () => {
+  test('treats scores without an explicit threshold as informational (no gating)', async () => {
     const workspacePath = await mkdtemp(
-      join(tmpdir(), 'agent-evals-runner-default-threshold-'),
+      join(tmpdir(), 'agent-evals-runner-informational-score-'),
     );
     createdWorkspaces.push(workspacePath);
 
@@ -532,13 +526,13 @@ defineEval({ id: 'errored-eval', title: 'Errored Eval' });
 `,
     );
     await writeFile(
-      join(workspacePath, 'evals', 'default-threshold.eval.ts'),
+      join(workspacePath, 'evals', 'informational-score.eval.ts'),
       `import { defineEval } from '@agent-evals/sdk';
 
 defineEval({
-  id: 'default-threshold-eval',
-  title: 'Default Threshold Eval',
-  cases: [{ id: 'below-default-threshold', input: {} }],
+  id: 'informational-score-eval',
+  title: 'Informational Score Eval',
+  cases: [{ id: 'low-score', input: {} }],
   execute: async () => {},
   scores: {
     quality: {
@@ -571,14 +565,14 @@ defineEval({
       const run = runner.getRun(startedRun.manifest.id);
       expect(run?.cases).toMatchObject([
         {
-          caseId: 'below-default-threshold',
-          evalId: 'default-threshold-eval',
-          status: 'fail',
-          score: 0.2,
+          caseId: 'low-score',
+          evalId: 'informational-score-eval',
+          status: 'pass',
+          columns: { quality: 0.2 },
         },
       ]);
-      expect(runner.getEval('default-threshold-eval')?.lastRunStatus).toBe(
-        'fail',
+      expect(runner.getEval('informational-score-eval')?.lastRunStatus).toBe(
+        'pass',
       );
     } finally {
       process.chdir(previousCwd);
@@ -623,6 +617,7 @@ defineEval({
     quality: {
       label: 'Quality',
       compute: () => 0.2,
+      passThreshold: 0.5,
     },
   },
 });
@@ -669,7 +664,6 @@ defineEval({
           failedCases: 0,
           errorCases: 0,
           cancelledCases: 0,
-          averageScore: 0.2,
           totalDurationMs: 1000,
           cost: { totalUsd: null },
           errorMessage: null,
@@ -690,7 +684,6 @@ defineEval({
         caseId: 'old-case',
         evalId: 'recompute-eval',
         status: 'pass',
-        score: 0.2,
         latencyMs: 111,
         costUsd: null,
         columns: { quality: 0.2 },
@@ -817,7 +810,6 @@ defineEval({ id: 'cleanup-eval', title: 'Cleanup Eval' });
           failedCases: 0,
           errorCases: 0,
           cancelledCases: 0,
-          averageScore: null,
           totalDurationMs: 1000,
           cost: { totalUsd: null },
           errorMessage: null,

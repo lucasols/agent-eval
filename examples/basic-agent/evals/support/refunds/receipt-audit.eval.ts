@@ -60,7 +60,6 @@ defineEval<ReceiptAuditInput>({
       compute: ({ outputs }) => (outputs.auditStatus === 'verified' ? 1 : 0),
     },
   },
-  passThreshold: 0.5,
 });
 
 defineEval<ReceiptFraudReviewInput>({
@@ -102,5 +101,4 @@ defineEval<ReceiptFraudReviewInput>({
       compute: ({ outputs }) => (outputs.reviewQueue === 'risk-ops' ? 1 : 0),
     },
   },
-  passThreshold: 0.5,
 });

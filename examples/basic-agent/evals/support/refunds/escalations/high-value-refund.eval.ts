@@ -48,5 +48,4 @@ defineEval<HighValueRefundInput>({
         outputs.escalationQueue === 'finance-review' ? 1 : 0,
     },
   },
-  passThreshold: 0.5,
 });

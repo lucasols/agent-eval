@@ -42,7 +42,6 @@ export type EvalMeta = {
   sourceFilePath: string;
   sourceFingerprint: string | null;
   columnDefs: ColumnDef[];
-  passThreshold: number;
   caseCount: number | null;
 };
 
@@ -72,6 +71,7 @@ type PreparedEvalRun = {
   accumulatedColumns: Map<string, ColumnDef>;
   evalCaseRows: CaseRow[];
   preparedCases: PreparedEvalCase[];
+  scoreKeys: readonly string[];
   mergeColumns: (columns: CaseDetail['columns']) => void;
 };
 
@@ -92,17 +92,45 @@ type ExecuteRunParams = {
   getTargetEvals: (request: CreateRunRequest) => EvalMeta[];
 };
 
-function toComparableTrialScore(score: number | null): number {
-  return score ?? Number.NEGATIVE_INFINITY;
+/**
+ * Ranks case statuses from worst to best. Used to order trial attempts so the
+ * pessimistic (`lowestScore`) strategy can pick the worst attempt. Any
+ * non-terminal status outside `pass`/`fail`/`error` is treated as indistinct
+ * from `fail` for comparison purposes.
+ */
+function statusRank(status: CaseRow['status']): number {
+  if (status === 'pass') return 2;
+  if (status === 'error') return 0;
+  return 1;
+}
+
+/**
+ * Returns the minimum numeric value across the declared score columns for a
+ * trial, or `-Infinity` when no score has a numeric value. Used as a
+ * tiebreaker between trials that share the same status.
+ */
+function minScoreValue(caseRow: CaseRow, scoreKeys: readonly string[]): number {
+  let min = Number.POSITIVE_INFINITY;
+  for (const key of scoreKeys) {
+    const v = caseRow.columns[key];
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      if (v < min) min = v;
+    }
+  }
+  return Number.isFinite(min) ? min : Number.NEGATIVE_INFINITY;
 }
 
 function compareTrialResults(
   left: TrialExecutionResult,
   right: TrialExecutionResult,
+  scoreKeys: readonly string[],
 ): number {
+  const statusDiff =
+    statusRank(left.caseRow.status) - statusRank(right.caseRow.status);
+  if (statusDiff !== 0) return statusDiff;
   const scoreDiff =
-    toComparableTrialScore(left.caseRow.score) -
-    toComparableTrialScore(right.caseRow.score);
+    minScoreValue(left.caseRow, scoreKeys) -
+    minScoreValue(right.caseRow, scoreKeys);
   if (scoreDiff !== 0) return scoreDiff;
   return left.caseRow.trial - right.caseRow.trial;
 }
@@ -110,8 +138,11 @@ function compareTrialResults(
 function pickWinningTrial(params: {
   strategy: TrialSelectionMode;
   attempts: TrialExecutionResult[];
+  scoreKeys: readonly string[];
 }): TrialExecutionResult {
-  const orderedAttempts = [...params.attempts].toSorted(compareTrialResults);
+  const orderedAttempts = [...params.attempts].toSorted((left, right) =>
+    compareTrialResults(left, right, params.scoreKeys),
+  );
   if (params.strategy === 'lowestScore') {
     const [lowestAttempt] = orderedAttempts;
     if (lowestAttempt === undefined) {
@@ -192,7 +223,6 @@ export async function executeRun({
         }
 
         await entry.use(async (evalDef) => {
-          evalMeta.passThreshold = evalDef.passThreshold ?? 0.5;
           const cases = filterEvalCases(
             resolveRunnableEvalCases({
               cases:
@@ -211,11 +241,13 @@ export async function executeRun({
           const accumulatedColumns = new Map<string, ColumnDef>();
           const evalCaseRows: CaseRow[] = [];
           const preparedCases: PreparedEvalCase[] = [];
+          const scoreKeys = Object.freeze(Object.keys(evalDef.scores ?? {}));
           preparedEvals.push({
             evalMeta,
             accumulatedColumns,
             evalCaseRows,
             preparedCases,
+            scoreKeys,
             mergeColumns: (columns) => {
               mergeColumnDefs(
                 accumulatedColumns,
@@ -262,7 +294,6 @@ export async function executeRun({
                       caseId: evalCase.id,
                       evalId: evalMeta.id,
                       status: caseRowUpdate.status ?? 'pending',
-                      score: caseRowUpdate.score ?? null,
                       latencyMs: caseRowUpdate.latencyMs ?? null,
                       costUsd: caseRowUpdate.costUsd ?? null,
                       columns: caseRowUpdate.columns ?? {},
@@ -314,6 +345,7 @@ export async function executeRun({
         const winningTrial = pickWinningTrial({
           strategy: runState.manifest.trialSelection,
           attempts: preparedCase.trialResults,
+          scoreKeys: preparedEval.scoreKeys,
         });
 
         if (winningTrial.bufferedCacheStore !== null) {
@@ -374,7 +406,6 @@ export async function executeRun({
     const derivedRunSummary = deriveScopedSummaryFromCases({
       caseRows: allCaseRows,
     });
-    runState.summary.averageScore = derivedRunSummary.averageScore;
     runState.summary.cost = derivedRunSummary.cost;
 
     const endTime = new Date();

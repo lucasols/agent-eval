@@ -26,6 +26,14 @@ export async function persistRunState(runState: {
   await writeFile(join(runState.runDir, 'cases.jsonl'), casesJsonl);
 }
 
+/**
+ * Recompute a persisted case's status after score definitions changed.
+ *
+ * Pass/fail gates are per-score: a case fails when any score with a declared
+ * `passThreshold` reports a numeric value below that threshold. Scores
+ * without a threshold are informational and never gate. Cancelled and
+ * errored cases retain their terminal status.
+ */
 export function recomputePersistedCaseStatus(
   caseRow: CaseRow,
   caseDetail: CaseDetail | undefined,
@@ -36,15 +44,12 @@ export function recomputePersistedCaseStatus(
     return 'error';
   if ((caseDetail?.assertionFailures.length ?? 0) > 0) return 'fail';
 
-  let sawScore = false;
   for (const [key, passThreshold] of scoreThresholds) {
     const rawValue = caseRow.columns[key] ?? caseDetail?.columns[key];
     if (typeof rawValue !== 'number') continue;
-    sawScore = true;
     if (rawValue < passThreshold) return 'fail';
   }
 
-  if (sawScore) return 'pass';
   return caseRow.status === 'error' ? 'error' : 'pass';
 }
 
@@ -122,7 +127,6 @@ export async function recomputeEvalStatusesInRuns(params: {
     run.summary.failedCases = derivedSummary.failedCases;
     run.summary.errorCases = derivedSummary.errorCases;
     run.summary.cancelledCases = derivedSummary.cancelledCases;
-    run.summary.averageScore = derivedSummary.averageScore;
     run.summary.cost = derivedSummary.cost;
 
     await persistRunState(run);

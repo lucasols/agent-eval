@@ -55,7 +55,6 @@ export const runSummarySchema = z.object({
   failedCases: z.number(),
   errorCases: z.number(),
   cancelledCases: z.number(),
-  averageScore: z.number().nullable(),
   totalDurationMs: z.number().nullable(),
   cost: evalCostSummarySchema,
   errorMessage: z.string().nullable().default(null),

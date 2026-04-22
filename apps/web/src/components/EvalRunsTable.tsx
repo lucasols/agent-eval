@@ -38,7 +38,6 @@ export type RunRow = {
 type EvalRunsTableProps = {
   runs: RunRow[];
   columnDefs: ColumnDef[];
-  passThreshold: number;
   expandedRunIds: Set<string>;
   onToggleExpandedRun: (runId: string) => void;
   fillHeight: boolean;
@@ -369,7 +368,6 @@ function averageNumericColumn(cases: CaseRow[], key: string): number | null {
 export function EvalRunsTable({
   runs,
   columnDefs,
-  passThreshold,
   expandedRunIds,
   onToggleExpandedRun,
   fillHeight,
@@ -378,12 +376,14 @@ export function EvalRunsTable({
     return <Empty>Run this eval to see results</Empty>;
   }
 
-  const customColumns = columnDefs.filter(
+  const scoreColumns = columnDefs.filter((c) => c.isScore === true);
+  const otherCustomColumns = columnDefs.filter(
     (c) =>
       !c.hideInTable &&
+      c.isScore !== true &&
       runs.some((r) => r.cases.some((row) => row.columns[c.key] !== undefined)),
   );
-  const totalCols = 4 + customColumns.length;
+  const totalCols = 3 + scoreColumns.length + otherCustomColumns.length;
 
   return (
     <TableWrap fillHeight={fillHeight}>
@@ -402,19 +402,22 @@ export function EvalRunsTable({
             >
               Status
             </Th>
-            <Th
-              rightAlign={true}
-              indent={false}
-            >
-              Score
-            </Th>
+            {scoreColumns.map((c) => (
+              <Th
+                key={c.key}
+                rightAlign={true}
+                indent={false}
+              >
+                {c.label}
+              </Th>
+            ))}
             <Th
               rightAlign={true}
               indent={false}
             >
               Duration
             </Th>
-            {customColumns.map((c) => (
+            {otherCustomColumns.map((c) => (
               <Th
                 key={c.key}
                 rightAlign={c.align === 'right' || isNumericColumn(c)}
@@ -433,8 +436,8 @@ export function EvalRunsTable({
               isLatest={idx === 0}
               expanded={expandedRunIds.has(run.manifest.id)}
               onToggle={onToggleExpandedRun}
-              customColumns={customColumns}
-              passThreshold={passThreshold}
+              scoreColumns={scoreColumns}
+              otherCustomColumns={otherCustomColumns}
               totalCols={totalCols}
             />
           ))}
@@ -446,38 +449,39 @@ export function EvalRunsTable({
 
 function ScoreCell({
   score,
-  status,
   passThreshold,
 }: {
   score: number | null;
-  status?: CaseRow['status'];
-  passThreshold: number;
+  passThreshold: number | undefined;
 }) {
   if (score === null) return <Dim>{EM_DASH}</Dim>;
   const tone: 'pass' | 'partial' | 'fail' =
-    status === 'pass'
-      ? 'pass'
-      : status === 'fail' || status === 'error'
-        ? 'fail'
-        : score >= 0.7
-          ? 'pass'
-          : score >= 0.4
-            ? 'partial'
-            : 'fail';
-  const tooltipContent = `Pass threshold: ${formatScore(passThreshold)}`;
+    passThreshold !== undefined
+      ? score >= passThreshold
+        ? 'pass'
+        : 'fail'
+      : score >= 0.7
+        ? 'pass'
+        : score >= 0.4
+          ? 'partial'
+          : 'fail';
+  const bar = (
+    <ScoreCellWrap>
+      <ScoreBar>
+        <ScoreBarFill
+          pass={tone === 'pass'}
+          partial={tone === 'partial'}
+          fail={tone === 'fail'}
+          style={{ width: `${score * 100}%` }}
+        />
+      </ScoreBar>
+      <ScoreText>{formatScore(score)}</ScoreText>
+    </ScoreCellWrap>
+  );
+  if (passThreshold === undefined) return bar;
   return (
-    <Tooltip content={tooltipContent}>
-      <ScoreCellWrap>
-        <ScoreBar>
-          <ScoreBarFill
-            pass={tone === 'pass'}
-            partial={tone === 'partial'}
-            fail={tone === 'fail'}
-            style={{ width: `${score * 100}%` }}
-          />
-        </ScoreBar>
-        <ScoreText>{formatScore(score)}</ScoreText>
-      </ScoreCellWrap>
+    <Tooltip content={`Pass threshold: ${formatScore(passThreshold)}`}>
+      {bar}
     </Tooltip>
   );
 }
@@ -487,16 +491,16 @@ function RunGroup({
   isLatest,
   expanded,
   onToggle,
-  customColumns,
-  passThreshold,
+  scoreColumns,
+  otherCustomColumns,
   totalCols,
 }: {
   run: RunRow;
   isLatest: boolean;
   expanded: boolean;
   onToggle: (id: string) => void;
-  customColumns: ColumnDef[];
-  passThreshold: number;
+  scoreColumns: ColumnDef[];
+  otherCustomColumns: ColumnDef[];
   totalCols: number;
 }) {
   const { manifest, summary, cases } = run;
@@ -550,16 +554,21 @@ function RunGroup({
         >
           <StatusBadge status={summary.status} />
         </RunHeaderTd>
-        <RunHeaderTd
-          rightAlign={true}
-          mono={false}
-        >
-          <ScoreCell
-            score={summary.averageScore}
-            status={summary.status}
-            passThreshold={passThreshold}
-          />
-        </RunHeaderTd>
+        {scoreColumns.map((c) => {
+          const avg = averageNumericColumn(cases, c.key);
+          return (
+            <RunHeaderTd
+              key={c.key}
+              rightAlign={true}
+              mono={false}
+            >
+              <ScoreCell
+                score={avg}
+                passThreshold={c.passThreshold}
+              />
+            </RunHeaderTd>
+          );
+        })}
         <RunHeaderTd
           rightAlign={true}
           mono={true}
@@ -570,7 +579,7 @@ function RunGroup({
             <Dim>{EM_DASH}</Dim>
           )}
         </RunHeaderTd>
-        {customColumns.map((c) => {
+        {otherCustomColumns.map((c) => {
           const avg = isNumericColumn(c)
             ? averageNumericColumn(cases, c.key)
             : null;
@@ -613,17 +622,24 @@ function RunGroup({
               >
                 <StatusBadge status={row.status} />
               </CaseTd>
-              <CaseTd
-                rightAlign={true}
-                mono={false}
-                indent={false}
-              >
-                <ScoreCell
-                  score={row.score}
-                  status={row.status}
-                  passThreshold={passThreshold}
-                />
-              </CaseTd>
+              {scoreColumns.map((c) => {
+                const v = row.columns[c.key];
+                const score =
+                  typeof v === 'number' && Number.isFinite(v) ? v : null;
+                return (
+                  <CaseTd
+                    key={c.key}
+                    rightAlign={true}
+                    mono={false}
+                    indent={false}
+                  >
+                    <ScoreCell
+                      score={score}
+                      passThreshold={c.passThreshold}
+                    />
+                  </CaseTd>
+                );
+              })}
               <CaseTd
                 rightAlign={true}
                 mono={true}
@@ -635,7 +651,7 @@ function RunGroup({
                   formatDuration(row.latencyMs)
                 )}
               </CaseTd>
-              {customColumns.map((c) => {
+              {otherCustomColumns.map((c) => {
                 const v = row.columns[c.key];
                 const display = formatCellValue(c, v);
                 const tooltipContent = getCellTooltipContent(v);

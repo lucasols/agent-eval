@@ -188,7 +188,8 @@ export function createRunner({
       const scoreThresholds = new Map<string, number>();
       entry.use((evalDef) => {
         for (const [key, def] of Object.entries(evalDef.scores ?? {})) {
-          scoreThresholds.set(key, normalizeScoreDef(def).passThreshold ?? 0.5);
+          const threshold = normalizeScoreDef(def).passThreshold;
+          if (threshold !== undefined) scoreThresholds.set(key, threshold);
         }
       });
 
@@ -291,11 +292,9 @@ export function createRunner({
           for (const meta of discoveredMetas) {
             const discoveredEntry = registry.get(meta.id);
             const title = meta.title;
-            let passThreshold = meta.passThreshold;
             let columnDefs = buildDeclaredColumnDefs(undefined, undefined);
 
             discoveredEntry?.use((evalDef) => {
-              passThreshold = evalDef.passThreshold ?? 0.5;
               columnDefs = buildDeclaredColumnDefs(
                 evalDef.columns,
                 evalDef.scores,
@@ -309,7 +308,6 @@ export function createRunner({
               sourceFilePath: meta.filePath,
               sourceFingerprint,
               columnDefs,
-              passThreshold,
               caseCount: null,
             });
           }
@@ -350,7 +348,6 @@ export function createRunner({
         failedCases: 0,
         errorCases: 0,
         cancelledCases: 0,
-        averageScore: null,
         totalDurationMs: null,
         cost: { totalUsd: null },
         errorMessage: null,

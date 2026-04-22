@@ -1,16 +1,7 @@
-type EvalDiscoveryMeta = {
-  filePath: string;
-  id: string;
-  title?: string;
-  passThreshold: number;
-};
+type EvalDiscoveryMeta = { filePath: string; id: string; title?: string };
 
 const evalIdMatchRegex = /\bid\s*:\s*['"]([^'"]+)['"]/;
 const evalTitleMatchRegex = /\btitle\s*:\s*['"]([^'"]+)['"]/;
-const identifierCharRegex = /[A-Za-z0-9_$]/;
-const whitespaceRegex = /\s/;
-const nullLiteralRegex = /^null\b/;
-const numberLiteralRegex = /^-?\d+(?:\.\d+)?/;
 
 export function parseEvalMetas(
   filePath: string,
@@ -32,11 +23,7 @@ export function parseEvalMetas(
     const idMatch = evalIdMatchRegex.exec(extracted.objectText);
     const id = idMatch?.[1];
     if (id !== undefined) {
-      const result: EvalDiscoveryMeta = {
-        filePath,
-        id,
-        passThreshold: parseEvalPassThreshold(extracted.objectText),
-      };
+      const result: EvalDiscoveryMeta = { filePath, id };
 
       const titleMatch = evalTitleMatchRegex.exec(extracted.objectText);
       const title = titleMatch?.[1];
@@ -137,103 +124,4 @@ function extractDefineEvalObject(
   }
 
   return undefined;
-}
-
-function parseEvalPassThreshold(objectText: string): number {
-  const key = 'passThreshold';
-  let depth = 0;
-  let quote: '"' | "'" | '`' | undefined;
-  let inBlockComment = false;
-  let inLineComment = false;
-  let isEscaped = false;
-
-  for (let index = 0; index < objectText.length; index++) {
-    const currentChar = objectText[index];
-    const nextChar = objectText[index + 1];
-
-    if (inLineComment) {
-      if (currentChar === '\n') {
-        inLineComment = false;
-      }
-      continue;
-    }
-
-    if (inBlockComment) {
-      if (currentChar === '*' && nextChar === '/') {
-        inBlockComment = false;
-        index++;
-      }
-      continue;
-    }
-
-    if (quote) {
-      if (isEscaped) {
-        isEscaped = false;
-        continue;
-      }
-      if (currentChar === '\\') {
-        isEscaped = true;
-        continue;
-      }
-      if (currentChar === quote) {
-        quote = undefined;
-      }
-      continue;
-    }
-
-    if (currentChar === '/' && nextChar === '/') {
-      inLineComment = true;
-      index++;
-      continue;
-    }
-
-    if (currentChar === '/' && nextChar === '*') {
-      inBlockComment = true;
-      index++;
-      continue;
-    }
-
-    if (currentChar === '"' || currentChar === "'" || currentChar === '`') {
-      quote = currentChar;
-      continue;
-    }
-
-    if (currentChar === '{') {
-      depth++;
-      continue;
-    }
-
-    if (currentChar === '}') {
-      depth--;
-      continue;
-    }
-
-    if (depth !== 1) continue;
-    if (!objectText.startsWith(key, index)) continue;
-
-    const previousChar = objectText[index - 1];
-    if (previousChar !== undefined && identifierCharRegex.test(previousChar)) {
-      continue;
-    }
-
-    let valueStart = index + key.length;
-    while (whitespaceRegex.test(objectText[valueStart] ?? '')) {
-      valueStart++;
-    }
-    if (objectText[valueStart] !== ':') continue;
-    valueStart++;
-    while (whitespaceRegex.test(objectText[valueStart] ?? '')) {
-      valueStart++;
-    }
-
-    if (nullLiteralRegex.test(objectText.slice(valueStart))) {
-      return 0.5;
-    }
-
-    const valueMatch = numberLiteralRegex.exec(objectText.slice(valueStart));
-    if (!valueMatch) return 0.5;
-    return Number(valueMatch[0]);
-  }
-
-  return 0.5;
 }

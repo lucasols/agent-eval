@@ -138,11 +138,10 @@ describe('runner trial selection', () => {
       expect(firstRun).toBeDefined();
       expect(firstRun?.cases).toHaveLength(1);
       expect(firstRun?.summary.totalCases).toBe(1);
-      expect(firstRun?.summary.averageScore).toBe(0.22);
       expect(firstRun?.cases[0]).toMatchObject({
         caseId: 'damaged-order',
         evalId: 'trial-selection-eval',
-        score: 0.22,
+        columns: { quality: 0.22 },
         trial: 1,
       });
 
@@ -205,10 +204,9 @@ describe('runner trial selection', () => {
       const run = runner.getRun(startedRun.manifest.id);
       expect(run?.cases).toHaveLength(1);
       expect(run?.summary.totalCases).toBe(1);
-      expect(run?.summary.averageScore).toBe(0.64);
       expect(run?.cases[0]).toMatchObject({
         caseId: 'damaged-order',
-        score: 0.64,
+        columns: { quality: 0.64 },
         trial: 2,
       });
 

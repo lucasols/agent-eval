@@ -26,7 +26,6 @@ describe('CLI eval features', () => {
           caseRows: artifacts.cases.map((caseRow) => ({
             caseId: caseRow.caseId,
             columns: caseRow.columns,
-            score: caseRow.score,
             status: caseRow.status,
           })),
           summary: artifacts.summary,
@@ -41,12 +40,10 @@ describe('CLI eval features', () => {
                 "response": "Priority refund approved for vip-100: Please refund the duplicate charge",
                 "usedVipSegment": 1,
               },
-              "score": 1,
               "status": "pass",
             },
           ],
           "summary": {
-            "averageScore": 1,
             "cancelledCases": 0,
             "cost": {
               "totalUsd": null,
@@ -111,10 +108,12 @@ describe('CLI eval features', () => {
 
       for (const caseRow of artifacts.cases) {
         expect(caseRow.status).toBe('pass');
-        expect(typeof caseRow.score).toBe('number');
-        expect(caseRow.score).toBeGreaterThan(0.8);
         expect(caseRow.columns.mentionsRefund).toBe(1);
-        expect(typeof caseRow.columns.reviewConfidence).toBe('number');
+        const reviewConfidence = caseRow.columns.reviewConfidence;
+        expect(typeof reviewConfidence).toBe('number');
+        if (typeof reviewConfidence === 'number') {
+          expect(reviewConfidence).toBeGreaterThanOrEqual(0.6);
+        }
         expect(caseRow.columns.llmTurns).toBe(1);
         expect(typeof caseRow.columns.costUsd).toBe('number');
         expect(typeof caseRow.columns.response).toBe('string');
@@ -135,8 +134,8 @@ describe('CLI eval features', () => {
             costUsd: caseRow.columns.costUsd,
             llmTurns: caseRow.columns.llmTurns,
             mentionsRefund: caseRow.columns.mentionsRefund,
+            reviewConfidence: caseRow.columns.reviewConfidence,
             response: caseRow.columns.response,
-            score: caseRow.score,
             status: caseRow.status,
             toolCalls: caseRow.columns.toolCalls,
           })),
@@ -149,7 +148,7 @@ describe('CLI eval features', () => {
             "llmTurns": 1,
             "mentionsRefund": 1,
             "response": "Approved refund for: I want a refund for order #123",
-            "score": 0.8200000000000001,
+            "reviewConfidence": 0.64,
             "status": "pass",
             "toolCalls": 1,
           },
@@ -159,7 +158,7 @@ describe('CLI eval features', () => {
             "llmTurns": 1,
             "mentionsRefund": 1,
             "response": "Approved refund for: Please refund this damaged item",
-            "score": 0.9199999999999999,
+            "reviewConfidence": 0.84,
             "status": "pass",
             "toolCalls": 2,
           },
@@ -169,7 +168,7 @@ describe('CLI eval features', () => {
             "llmTurns": 1,
             "mentionsRefund": 1,
             "response": "Approved refund for: I need to return this product",
-            "score": 0.98,
+            "reviewConfidence": 0.96,
             "status": "pass",
             "toolCalls": 1,
           },
@@ -253,7 +252,6 @@ describe('CLI eval features', () => {
       ).toMatchInlineSnapshot(`
         {
           "summary": {
-            "averageScore": 0.9066666666666666,
             "cancelledCases": 0,
             "cost": {
               "totalUsd": 0.0026249999999999997,
@@ -603,13 +601,10 @@ describe('CLI eval features', () => {
       expect(artifacts.summary.passedCases).toBe(1);
 
       expect(scoreThresholdCase.status).toBe('fail');
-      expect(scoreThresholdCase.score).toBe(0);
+      expect(scoreThresholdCase.columns.matchesGoldAnswer).toBe(0);
       expect(assertionFailureCase.status).toBe('fail');
-      expect(assertionFailureCase.score).toBe(null);
       expect(silentPassCase.status).toBe('pass');
-      expect(silentPassCase.score).toBe(null);
       expect(silentAssertionCase.status).toBe('fail');
-      expect(silentAssertionCase.score).toBe(null);
 
       expect(silentPassCase.columns).toEqual({});
       expect(silentAssertionCase.columns).toEqual({});
@@ -642,7 +637,6 @@ describe('CLI eval features', () => {
             caseId: caseRow.caseId,
             columns: caseRow.columns,
             evalId: caseRow.evalId,
-            score: caseRow.score,
             status: caseRow.status,
           })),
           traces: {
@@ -700,7 +694,6 @@ describe('CLI eval features', () => {
                 "response": "Borderline result for: Review the refund summary against the gold answer.",
               },
               "evalId": "score-threshold-demo",
-              "score": 0,
               "status": "fail",
             },
             {
@@ -709,26 +702,22 @@ describe('CLI eval features', () => {
                 "response": "Missing audit note for ticket T-441.",
               },
               "evalId": "assertion-failure-demo",
-              "score": null,
               "status": "fail",
             },
             {
               "caseId": "silent-pass-demo-no-output",
               "columns": {},
               "evalId": "silent-pass-demo",
-              "score": null,
               "status": "pass",
             },
             {
               "caseId": "silent-assertion-no-output",
               "columns": {},
               "evalId": "silent-assertion-demo",
-              "score": null,
               "status": "fail",
             },
           ],
           "summary": {
-            "averageScore": 0,
             "cancelledCases": 0,
             "cost": {
               "totalUsd": null,

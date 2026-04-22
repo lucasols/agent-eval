@@ -73,7 +73,14 @@ export type EvalScoreFn<TInput> = (
   ctx: EvalScoreContext<TInput>,
 ) => number | Promise<number>;
 
-/** Score definition accepted by `defineEval`, with optional UI metadata. */
+/**
+ * Score definition accepted by `defineEval`, with optional UI metadata.
+ *
+ * When `passThreshold` is provided, this score gates the case pass/fail:
+ * a case fails if its computed value is strictly below the threshold. A
+ * score without a `passThreshold` is informational only and never causes
+ * a case to fail on its own.
+ */
 export type EvalScoreDef<TInput> =
   | EvalScoreFn<TInput>
   | { compute: EvalScoreFn<TInput>; passThreshold?: number; label?: string };
@@ -103,6 +110,4 @@ export type EvalDefinition<TInput = unknown> = {
     ctx: EvalDeriveContext<TInput>,
   ) => Record<string, unknown> | Promise<Record<string, unknown>>;
   scores?: Record<string, EvalScoreDef<TInput>>;
-  /** Minimum average case score required to pass. Defaults to `0.5`. */
-  passThreshold?: number | null;
 };

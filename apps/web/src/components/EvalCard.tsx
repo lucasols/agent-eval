@@ -34,7 +34,7 @@ import {
 import { selectEval, selectFolder } from '../stores/selectionStore.ts';
 import { getDisplayFolderSegments } from '../utils/buildEvalTree.ts';
 import { buildEvalScopedRunRows } from '../utils/evalRuns.ts';
-import { formatDuration, formatScore } from '../utils/formatters.ts';
+import { formatDuration } from '../utils/formatters.ts';
 import { getFreshnessTooltip } from '../utils/freshness.ts';
 import { EvalRunsChart } from './EvalRunsChart.tsx';
 import { EvalRunsTable } from './EvalRunsTable.tsx';
@@ -342,8 +342,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
           .reverse()
           .filter(
             (r) =>
-              r.manifest.status === 'completed' &&
-              r.summary.averageScore !== null,
+              r.manifest.status === 'completed' && r.summary.totalCases > 0,
           )
           .slice(-20)
           .map((r, index, completedRuns) => ({
@@ -353,7 +352,10 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
                 : r.manifest.shortId.replace(RUN_SHORT_ID_PREFIX, ''),
             shortId: r.manifest.shortId,
             startedAt: r.manifest.startedAt,
-            score: r.summary.averageScore ?? 0,
+            passRate:
+              r.summary.totalCases > 0
+                ? r.summary.passedCases / r.summary.totalCases
+                : 0,
             cost: r.summary.cost.totalUsd,
           }))
       : [];
@@ -582,9 +584,11 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
               </StatValue>
             </Stat>
             <Stat>
-              <StatLabel>Avg score</StatLabel>
+              <StatLabel>Pass rate</StatLabel>
               <StatValue accent={true}>
-                {formatScore(latestSummary?.averageScore ?? null)}
+                {latestSummary && latestSummary.totalCases > 0
+                  ? `${String(latestSummary.passedCases)}/${String(latestSummary.totalCases)}`
+                  : '\u2014'}
               </StatValue>
             </Stat>
             <Stat>
@@ -611,7 +615,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
                   <SectionChevron open={!scoreHistoryCollapsed}>
                     <ChevronDown />
                   </SectionChevron>
-                  <SectionLabelText>Score history</SectionLabelText>
+                  <SectionLabelText>Pass rate history</SectionLabelText>
                 </SectionLabelLeft>
                 <SectionMeta>
                   {chartData.length} {chartData.length === 1 ? 'run' : 'runs'}
@@ -628,7 +632,6 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
               key={visibleRunRows.map((run) => run.manifest.id).join(':')}
               runs={visibleRunRows}
               columnDefs={evalSummary.columnDefs}
-              passThreshold={evalSummary.passThreshold ?? 0.5}
               fillHeight={isSingle}
             />
           </Section>
@@ -652,12 +655,10 @@ function runTargetsEvalLocal(
 function RunsSection({
   runs,
   columnDefs,
-  passThreshold,
   fillHeight,
 }: {
   runs: Parameters<typeof EvalRunsTable>[0]['runs'];
   columnDefs: Parameters<typeof EvalRunsTable>[0]['columnDefs'];
-  passThreshold: number;
   fillHeight: boolean;
 }) {
   const [expandedRunIds, setExpandedRunIds] = useState<Set<string>>(() => {
@@ -719,7 +720,6 @@ function RunsSection({
       <EvalRunsTable
         runs={runs}
         columnDefs={columnDefs}
-        passThreshold={passThreshold}
         expandedRunIds={expandedRunIds}
         onToggleExpandedRun={toggleExpandedRun}
         fillHeight={fillHeight}

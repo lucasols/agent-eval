@@ -27,8 +27,6 @@ export const evalSummarySchema = z.object({
   /** Current workspace commit SHA when the summary was requested. */
   currentCommitSha: z.string().nullable(),
   columnDefs: z.array(columnDefSchema),
-  /** Effective eval-level average score threshold. Defaults to `0.5`. */
-  passThreshold: z.number().optional(),
   caseCount: z.number().nullable(),
   lastRunStatus: z
     .enum(['pass', 'fail', 'error', 'running', 'cancelled'])
@@ -42,7 +40,6 @@ export const caseRowSchema = z.object({
   caseId: z.string(),
   evalId: z.string(),
   status: z.enum(['pending', 'running', 'pass', 'fail', 'error', 'cancelled']),
-  score: z.number().nullable(),
   latencyMs: z.number().nullable(),
   costUsd: z.number().nullable(),
   columns: z.record(z.string(), cellValueSchema),

@@ -172,7 +172,6 @@ lower median when the number of trials is even.
 | `deriveFromTracing` |          | Derive output columns from the finished trace tree                              |
 | `scores`            |          | Record of scoring functions returning `0..1`                                    |
 | `columns`           |          | Custom columns shown in the results table                                       |
-| `passThreshold`     |          | Minimum average score for a case to pass                                        |
 
 ### Cases
 
@@ -247,18 +246,31 @@ Use `key` when you want to display the same source attribute more than once, suc
 
 ```ts
 scores: {
-  mentionsRefund: ({ outputs }) => {
-    return typeof outputs.output === 'string' && /refund/i.test(outputs.output) ?
-      1
-    : 0
+  mentionsRefund: {
+    label: 'Mentions Refund',
+    passThreshold: 1,
+    compute: ({ outputs }) =>
+      typeof outputs.output === 'string' && /refund/i.test(outputs.output)
+        ? 1
+        : 0,
+  },
+  reviewConfidence: {
+    label: 'Review Confidence',
+    // no passThreshold — purely informational
+    compute: ({ outputs }) => sampleReviewConfidence(outputs),
   },
 }
 ```
 
-Cases default to a pass threshold of `0.5` on the average score unless you set
-the eval-level `passThreshold` explicitly. Individual scores only enforce a
-threshold when that score definition sets `passThreshold`. In the UI runs table,
-hover the score to see the effective eval-level threshold.
+Every score is a first-class column in the run table, rendered as its own
+progress bar (both per-case and as the per-run average). Scores are **not**
+combined into a single average — each column stands on its own.
+
+Pass/fail is per-score: a case fails if any score that declares a
+`passThreshold` falls below that threshold (or if an assertion failed, or the
+case errored). A run fails if any of its cases fail. Scores without
+`passThreshold` are purely informational and never gate pass/fail. Hover a
+score column in the UI to see its threshold.
 
 ### Custom columns
 

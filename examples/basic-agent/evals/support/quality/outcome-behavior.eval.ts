@@ -29,7 +29,6 @@ defineEval<{ prompt: string }>({
         getResponseText(outputs.response).includes('Approved refund') ? 1 : 0,
     },
   },
-  passThreshold: 0.5,
 });
 
 defineEval<{ ticketId: string }>({

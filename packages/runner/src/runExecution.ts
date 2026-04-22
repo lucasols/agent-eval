@@ -166,13 +166,6 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
     }
   }
 
-  const scoreValues = [...scoreResults.values()].map((s) => s.value);
-  const avgScore =
-    scoreValues.length > 0
-      ? scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length
-      : null;
-  const casePassThreshold = evalDef.passThreshold ?? 0.5;
-
   let passed = scope.assertionFailures.length === 0 && !nonAssertError;
   if (passed) {
     for (const [, scoreEntry] of scoreResults) {
@@ -184,9 +177,6 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
         break;
       }
     }
-  }
-  if (passed && avgScore !== null && avgScore < casePassThreshold) {
-    passed = false;
   }
 
   const status: CaseRow['status'] = nonAssertError
@@ -245,7 +235,6 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
 
   const caseRowUpdate: Partial<CaseRow> = {
     status,
-    score: avgScore,
     latencyMs: elapsedMs,
     costUsd,
     columns,

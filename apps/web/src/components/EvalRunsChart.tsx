@@ -16,7 +16,7 @@ type ChartPoint = {
   axisLabel: string;
   shortId: string;
   startedAt: string;
-  score: number;
+  passRate: number;
   cost: number | null;
 };
 
@@ -85,8 +85,8 @@ function CustomTooltip({
         <span>{formatTimestamp(point.startedAt)}</span>
       </TooltipRow>
       <TooltipRow>
-        <TooltipKey>score</TooltipKey>
-        <TooltipScore>{point.score.toFixed(2)}</TooltipScore>
+        <TooltipKey>pass rate</TooltipKey>
+        <TooltipScore>{`${(point.passRate * 100).toFixed(0)}%`}</TooltipScore>
       </TooltipRow>
       <TooltipRow>
         <TooltipKey>cost</TooltipKey>
@@ -164,7 +164,7 @@ export function EvalRunsChart({ data }: EvalRunsChartProps) {
           />
           <Area
             type="monotone"
-            dataKey="score"
+            dataKey="passRate"
             stroke={colors.accent.var}
             strokeWidth={1.75}
             fill="url(#evalScoreFill)"
