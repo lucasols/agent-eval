@@ -52,6 +52,20 @@ export const caseRowSchema = z.object({
 /** Flattened per-case row rendered in run tables and streamed updates. */
 export type CaseRow = z.infer<typeof caseRowSchema>;
 
+/** Structured assertion failure metadata captured for one case run. */
+export const assertionFailureSchema = z.object({
+  /** Human-readable assertion failure message shown in the UI and artifacts. */
+  message: z.string(),
+  /** Stack trace captured from the originating error when available. */
+  stack: z.string().optional(),
+});
+/** Assertion failure metadata captured for one case run. */
+export type AssertionFailure = z.infer<typeof assertionFailureSchema>;
+
+const legacyAssertionFailureSchema = z
+  .string()
+  .transform((message): AssertionFailure => ({ message }));
+
 /** Schema for the detailed payload shown when opening a specific case. */
 export const caseDetailSchema = z.object({
   caseId: z.string(),
@@ -62,7 +76,9 @@ export const caseDetailSchema = z.object({
   traceDisplay: traceDisplayConfigSchema,
   cost: evalCostSummarySchema,
   columns: z.record(z.string(), cellValueSchema),
-  assertionFailures: z.array(z.string()),
+  assertionFailures: z.array(
+    z.union([assertionFailureSchema, legacyAssertionFailureSchema]),
+  ),
   error: z
     .object({
       name: z.string().optional(),

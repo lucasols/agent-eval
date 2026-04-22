@@ -181,15 +181,15 @@ const Body = styled.div<{ scroll: boolean }>`
 
 const StatsGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(max(25%, 140px), 1fr));
   gap: 1px;
   background: ${colors.border.var};
   border-bottom: 1px solid ${colors.border.var};
 `;
 
 const Stat = styled.div`
-  ${stack({ gap: 10 })}
-  padding: 18px 22px 20px;
+  ${stack({ gap: 6 })}
+  padding: 12px 16px 13px;
   background: ${colors.bg.var};
 `;
 
@@ -201,11 +201,11 @@ const StatLabel = styled.div`
 
 const StatValue = styled.div<{ accent: boolean }>`
   ${tabularNums};
-  font-size: 30px;
+  font-size: 20px;
   font-weight: 500;
   color: ${colors.text.var};
-  letter-spacing: -0.03em;
-  line-height: 1;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 
   &.accent {
     color: ${colors.accentDim.var};

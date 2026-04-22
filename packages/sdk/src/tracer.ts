@@ -437,9 +437,9 @@ function applyRecordingOp(
     } else if (typeof existing === 'number') {
       scope.outputs[op.key] = existing + op.delta;
     } else {
-      scope.assertionFailures.push(
-        `replay incrementOutput("${op.key}"): existing value is ${typeof existing}, expected number`,
-      );
+      scope.assertionFailures.push({
+        message: `replay incrementOutput("${op.key}"): existing value is ${typeof existing}, expected number`,
+      });
     }
     return;
   }

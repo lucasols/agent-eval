@@ -35,10 +35,12 @@ export {
   type TraceDisplayInputConfig,
 } from './schemas/trace.ts';
 export {
+  assertionFailureSchema,
   evalFreshnessStatusSchema,
   evalSummarySchema,
   caseRowSchema,
   caseDetailSchema,
+  type AssertionFailure,
   type EvalFreshnessStatus,
   type EvalSummary,
   type CaseRow,

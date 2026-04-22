@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type {
+  AssertionFailure,
   CacheEntry,
   CacheMode,
   CacheRecordingOp,
@@ -42,7 +43,8 @@ export type CacheRecordingFrame = {
 export type EvalCaseScope = {
   caseId: string;
   outputs: Record<string, unknown>;
-  assertionFailures: string[];
+  /** Structured assertion failures recorded for the current case. */
+  assertionFailures: AssertionFailure[];
   spans: EvalTraceSpan[];
   checkpoints: Map<string, unknown>;
   spanStack: string[];
@@ -137,6 +139,13 @@ function recordOpIfActive(scope: EvalCaseScope, op: CacheRecordingOp): void {
   if (top) top.ops.push(op);
 }
 
+function toAssertionFailure(
+  message: string,
+  error: Error | undefined = undefined,
+): AssertionFailure {
+  return error?.stack ? { message, stack: error.stack } : { message };
+}
+
 /** Record or replace an output value for the current case scope. */
 export function setOutput(key: string, value: unknown): void {
   const scope = scopeStorage.getStore();
@@ -162,7 +171,9 @@ export function incrementOutput(key: string, delta: number): void {
   }
   if (typeof existing !== 'number') {
     scope.assertionFailures.push(
-      `incrementOutput("${key}"): existing value is ${typeof existing}, expected number`,
+      toAssertionFailure(
+        `incrementOutput("${key}"): existing value is ${typeof existing}, expected number`,
+      ),
     );
     return;
   }
@@ -173,9 +184,10 @@ export function incrementOutput(key: string, delta: number): void {
 /** Assert a condition for the current case and throw on failure. */
 export function evalAssert(condition: boolean, message: string): void {
   if (condition) return;
+  const error = new EvalAssertionError(message);
   const scope = scopeStorage.getStore();
   if (scope) {
-    scope.assertionFailures.push(message);
+    scope.assertionFailures.push(toAssertionFailure(message, error));
   }
-  throw new EvalAssertionError(message);
+  throw error;
 }

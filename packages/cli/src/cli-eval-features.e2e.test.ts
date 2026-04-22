@@ -491,6 +491,14 @@ describe('CLI eval features', () => {
         artifacts.cases,
         'silent-assertion-no-output',
       );
+      const assertionFailureDetail = requireCaseDetail(
+        artifacts.caseDetails,
+        'assertion-failure-visible-output',
+      );
+      const silentAssertionDetail = requireCaseDetail(
+        artifacts.caseDetails,
+        'silent-assertion-no-output',
+      );
 
       expect(artifacts.summary.status).toBe('completed');
       expect(artifacts.summary.failedCases).toBe(3);
@@ -515,6 +523,21 @@ describe('CLI eval features', () => {
         requireTrace(artifacts.traces, 'silent-assertion-no-output.json'),
       ).toEqual([]);
 
+      expect(assertionFailureDetail.assertionFailures).toHaveLength(1);
+      expect(assertionFailureDetail.assertionFailures[0]?.message).toBe(
+        'operator note must be attached before closing the ticket',
+      );
+      expect(assertionFailureDetail.assertionFailures[0]?.stack).toContain(
+        'EvalAssertionError: operator note must be attached before closing the ticket',
+      );
+      expect(silentAssertionDetail.assertionFailures).toHaveLength(1);
+      expect(silentAssertionDetail.assertionFailures[0]?.message).toBe(
+        'manual review queue must leave a handoff note',
+      );
+      expect(silentAssertionDetail.assertionFailures[0]?.stack).toContain(
+        'EvalAssertionError: manual review queue must leave a handoff note',
+      );
+
       expect(
         normalizeSnapshotValue(workspacePath, {
           summary: artifacts.summary,
@@ -533,9 +556,45 @@ describe('CLI eval features', () => {
               requireTrace(artifacts.traces, 'silent-pass-demo-no-output.json'),
             ),
           },
+          caseDetails: {
+            'assertion-failure-visible-output.json': {
+              assertionFailures: assertionFailureDetail.assertionFailures.map(
+                (failure) => ({
+                  message: failure.message,
+                  stack: failure.stack ? '<stack>' : undefined,
+                }),
+              ),
+            },
+            'silent-assertion-no-output.json': {
+              assertionFailures: silentAssertionDetail.assertionFailures.map(
+                (failure) => ({
+                  message: failure.message,
+                  stack: failure.stack ? '<stack>' : undefined,
+                }),
+              ),
+            },
+          },
         }),
       ).toMatchInlineSnapshot(`
         {
+          "caseDetails": {
+            "assertion-failure-visible-output.json": {
+              "assertionFailures": [
+                {
+                  "message": "operator note must be attached before closing the ticket",
+                  "stack": "<stack>",
+                },
+              ],
+            },
+            "silent-assertion-no-output.json": {
+              "assertionFailures": [
+                {
+                  "message": "manual review queue must leave a handoff note",
+                  "stack": "<stack>",
+                },
+              ],
+            },
+          },
           "cases": [
             {
               "caseId": "score-threshold-miss",
@@ -615,6 +674,17 @@ function requireCase<TCase extends { caseId: string }>(
     throw new Error(`Expected case ${caseId}`);
   }
   return caseRow;
+}
+
+function requireCaseDetail<TCaseDetail extends { caseId: string }>(
+  caseDetails: Record<string, TCaseDetail>,
+  caseId: string,
+): TCaseDetail {
+  const caseDetail = caseDetails[`${encodeURIComponent(caseId)}.json`];
+  if (caseDetail === undefined) {
+    throw new Error(`Expected case detail ${caseId}`);
+  }
+  return caseDetail;
 }
 
 function requireTrace(

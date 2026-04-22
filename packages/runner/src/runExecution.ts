@@ -98,6 +98,15 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
       ? executeError
       : null;
 
+  if (
+    executeError instanceof EvalAssertionError &&
+    scope.assertionFailures.length === 0
+  ) {
+    scope.assertionFailures.push(
+      toAssertionFailure(executeError.message, executeError),
+    );
+  }
+
   if (!nonAssertError && evalDef.deriveFromTracing) {
     try {
       const derived = await callWithUnknownResult(evalDef.deriveFromTracing, [
@@ -112,8 +121,9 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
         }
       }
     } catch (e) {
+      const message = `deriveFromTracing threw: ${e instanceof Error ? e.message : String(e)}`;
       scope.assertionFailures.push(
-        `deriveFromTracing threw: ${e instanceof Error ? e.message : String(e)}`,
+        toAssertionFailure(message, e instanceof Error ? e : undefined),
       );
     }
   }
@@ -141,8 +151,9 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
         scope.outputs[key] = value;
         scoreResults.set(key, { value, passThreshold, label });
       } catch (e) {
+        const message = `score "${key}" threw: ${e instanceof Error ? e.message : String(e)}`;
         scope.assertionFailures.push(
-          `score "${key}" threw: ${e instanceof Error ? e.message : String(e)}`,
+          toAssertionFailure(message, e instanceof Error ? e : undefined),
         );
         scope.outputs[key] = 0;
         scoreResults.set(key, { value: 0, passThreshold, label });
@@ -231,4 +242,11 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function toAssertionFailure(
+  message: string,
+  error: Error | undefined = undefined,
+) {
+  return error?.stack ? { message, stack: error.stack } : { message };
 }

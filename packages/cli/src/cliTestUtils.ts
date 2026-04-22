@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  caseDetailSchema,
   caseRowSchema,
   runManifestSchema,
   runSummarySchema,
@@ -132,6 +133,7 @@ export async function readSingleRunArtifacts(
   workspacePath: string,
 ): Promise<{
   cases: ReturnType<typeof caseRowSchema.parse>[];
+  caseDetails: Record<string, ReturnType<typeof caseDetailSchema.parse>>;
   manifest: ReturnType<typeof runManifestSchema.parse>;
   summary: ReturnType<typeof runSummarySchema.parse>;
   traceFiles: string[];
@@ -162,6 +164,20 @@ export async function readSingleRunArtifacts(
     .filter((line) => line.length > 0)
     .map((line) => parseJson(caseRowSchema, line));
 
+  const caseDetailDirectoryPath = resolve(runPath, 'case-details');
+  const caseDetailFiles = (await readdir(caseDetailDirectoryPath)).sort();
+  const caseDetails = Object.fromEntries(
+    await Promise.all(
+      caseDetailFiles.map(async (caseDetailFileName) => {
+        const caseDetail = await readJsonFile(
+          caseDetailSchema,
+          resolve(caseDetailDirectoryPath, caseDetailFileName),
+        );
+        return [caseDetailFileName, caseDetail] as const;
+      }),
+    ),
+  );
+
   const traceDirectoryPath = resolve(runPath, 'traces');
   const traceFiles = (await readdir(traceDirectoryPath)).sort();
   const traces = Object.fromEntries(
@@ -176,7 +192,7 @@ export async function readSingleRunArtifacts(
     ),
   );
 
-  return { cases, manifest, summary, traceFiles, traces };
+  return { cases, caseDetails, manifest, summary, traceFiles, traces };
 }
 
 export function normalizeTextSnapshot(

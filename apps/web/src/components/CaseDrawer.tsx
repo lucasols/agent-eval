@@ -191,8 +191,21 @@ const ScorePass = styled.span`
 `;
 
 const FailureList = styled.ul`
+  ${stack({ gap: 10 })}
+  list-style: none;
+  padding: 0;
+  margin: 0;
+`;
+
+const FailureItem = styled.li`
   ${stack({ gap: 6 })}
-  list-style: disc inside;
+  padding: 12px;
+  background: ${colors.bg.var};
+  border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-md);
+`;
+
+const FailureMessage = styled.div`
   color: ${colors.error.var};
   font-size: 12.5px;
   line-height: 1.5;
@@ -395,8 +408,13 @@ export function CaseDrawer() {
 
         {activeTab === 'failures' ? (
           <FailureList>
-            {d.assertionFailures.map((msg, i) => (
-              <li key={i}>{msg}</li>
+            {d.assertionFailures.map((failure, i) => (
+              <FailureItem key={`${failure.message}-${String(i)}`}>
+                <FailureMessage>{failure.message}</FailureMessage>
+                {failure.stack ? (
+                  <ErrorStack>{failure.stack}</ErrorStack>
+                ) : null}
+              </FailureItem>
             ))}
           </FailureList>
         ) : null}
