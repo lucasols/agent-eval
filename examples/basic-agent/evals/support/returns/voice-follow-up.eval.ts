@@ -38,7 +38,11 @@ defineEval<VoiceReturnFollowUpInput>({
     response: { label: 'Follow-up', primary: true, format: 'markdown' },
     detectedLocale: { label: 'Locale' },
     followUpChannel: { label: 'Channel' },
-    costUsd: { label: 'Cost', format: 'usd' },
+    costUsd: {
+      label: 'Cost',
+      format: 'number',
+      numberFormat: { prefix: '$', decimalPlaces: 4 },
+    },
     toolCalls: { label: 'Tool Calls' },
     llmTurns: { label: 'LLM Turns' },
   },

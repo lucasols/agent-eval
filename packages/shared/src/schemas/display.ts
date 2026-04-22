@@ -42,6 +42,24 @@ export const fileRefSchema = z.union([repoFileRefSchema, runArtifactRefSchema]);
 /** File reference supported by media and file columns. */
 export type FileRef = z.infer<typeof fileRefSchema>;
 
+/** Numeric presentation options for values rendered with `format: 'number'`. */
+export type NumberDisplayOptions = {
+  /** String prepended to the rendered number, such as `$`. */
+  prefix?: string;
+  /** String appended to the rendered number, such as ` ms`. */
+  suffix?: string;
+  /** Fixed number of decimal places to render. */
+  decimalPlaces?: number;
+};
+
+/** Schema for numeric presentation options used by number-formatted values. */
+export const numberDisplayOptionsSchema: z.ZodType<NumberDisplayOptions> =
+  z.object({
+    prefix: z.string().optional(),
+    suffix: z.string().optional(),
+    decimalPlaces: z.number().int().min(0).optional(),
+  });
+
 /** Schema for the supported column rendering kinds in list views. */
 export const columnKindSchema = z.enum(['string', 'number', 'boolean']);
 /** Display kind used by a column definition in the UI. */
@@ -49,13 +67,13 @@ export type ColumnKind = z.infer<typeof columnKindSchema>;
 
 /** Schema for the built-in column formatting presets. */
 export const columnFormatSchema = z.enum([
+  'boolean',
   'markdown',
   'json',
   'image',
   'audio',
   'video',
   'file',
-  'usd',
   'duration',
   'percent',
   'number',
@@ -69,6 +87,7 @@ export const columnDefSchema = z.object({
   label: z.string(),
   kind: columnKindSchema,
   format: columnFormatSchema.optional(),
+  numberFormat: numberDisplayOptionsSchema.optional(),
   primary: z.boolean().optional(),
   isScore: z.boolean().optional(),
   passThreshold: z.number().optional(),

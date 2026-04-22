@@ -79,7 +79,9 @@ export function buildDeclaredColumnDefs<TInput>(
         key,
         override,
         scoreDef: scores?.[key],
-        inferredKind: inferKindFromFormat(override.format),
+        inferredKind:
+          inferKindFromFormat(override.format) ??
+          (override.numberFormat === undefined ? undefined : 'number'),
         isScore: scores?.[key] !== undefined,
       }),
     );
@@ -139,8 +141,10 @@ export function toCellValue(
 function inferKindFromFormat(
   format: ColumnFormat | undefined,
 ): ColumnKind | undefined {
+  if (format === 'boolean') {
+    return 'boolean';
+  }
   if (
-    format === 'usd' ||
     format === 'duration' ||
     format === 'percent' ||
     format === 'number'
@@ -159,10 +163,10 @@ function createColumnDef<TInput>(params: {
   isScore: boolean;
 }): ColumnDef {
   const { key, override, scoreDef, inferredKind, isScore } = params;
-  const kind =
-    override?.kind ?? inferredKind ?? (isScore ? 'number' : 'string');
+  const kind = inferredKind ?? (isScore ? 'number' : 'string');
   const def: ColumnDef = { key, label: override?.label ?? key, kind };
   if (override?.format !== undefined) def.format = override.format;
+  if (override?.numberFormat !== undefined) def.numberFormat = override.numberFormat;
   if (override?.primary !== undefined) def.primary = override.primary;
   if (override?.defaultVisible !== undefined)
     def.defaultVisible = override.defaultVisible;

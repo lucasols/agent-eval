@@ -5,8 +5,8 @@ import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import { monoFont } from '#src/style/helpers';
 import {
-  formatCost,
   formatDuration,
+  formatNumber,
   formatPercent,
 } from '../utils/formatters.ts';
 import { JsonViewer } from './JsonViewer.tsx';
@@ -213,7 +213,7 @@ export function FormattedCellValue({
   }
 
   if (typeof value === 'number') {
-    if (def.format === 'usd') return formatCost(value);
+    if (def.format === 'number') return formatNumber(value, def.numberFormat);
     if (def.format === 'duration') return formatDuration(value);
     if (def.format === 'percent') return formatPercent(value);
     return String(value);
@@ -239,7 +239,7 @@ export function summarizeCellValue(
 ): string {
   if (value === undefined || value === null) return '\u2014';
   if (typeof value === 'number') {
-    if (def.format === 'usd') return formatCost(value);
+    if (def.format === 'number') return formatNumber(value, def.numberFormat);
     if (def.format === 'duration') return formatDuration(value);
     if (def.format === 'percent') return formatPercent(value);
     return String(value);

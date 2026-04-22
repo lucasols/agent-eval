@@ -134,7 +134,7 @@ export function SpanDetail({ span, spans, traceDisplay }: SpanDetailProps) {
           <DetailItem
             key={item.config.path}
             label={item.config.label ?? item.config.path}
-            value={formatTraceAttributeValue(item.value, item.config.format)}
+            value={formatTraceAttributeValue(item.value, item.config)}
           />
         ))}
       </DetailItems>

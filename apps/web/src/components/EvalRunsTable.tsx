@@ -19,8 +19,8 @@ import {
 } from '#src/style/helpers';
 import { selectCase, selectRun } from '../stores/runStore.ts';
 import {
-  formatCost,
   formatDuration,
+  formatNumber,
   formatPercent,
   formatScore,
   formatTimestamp,
@@ -324,7 +324,7 @@ function formatCellValue(c: ColumnDef, value: CellValue | undefined): string {
 }
 
 function formatNumericCell(c: ColumnDef, value: number): string {
-  if (c.format === 'usd') return formatCost(value);
+  if (c.format === 'number') return formatNumber(value, c.numberFormat);
   if (c.format === 'duration') return formatDuration(value);
   if (c.format === 'percent') return formatPercent(value);
   if (c.isScore) return formatScore(value);

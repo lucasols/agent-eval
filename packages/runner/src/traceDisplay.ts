@@ -80,6 +80,7 @@ export function resolveTracePresentation(
       path: resolvedPath,
       label: attribute.label,
       format: attribute.format,
+      numberFormat: attribute.numberFormat,
       placements: attribute.placements,
       scope: attribute.scope,
       mode: attribute.mode,

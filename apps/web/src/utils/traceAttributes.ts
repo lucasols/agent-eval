@@ -4,7 +4,7 @@ import type {
   TraceAttributeDisplayPlacement,
   TraceDisplayConfig,
 } from '@agent-evals/shared';
-import { formatCost, formatDuration } from './formatters.ts';
+import { formatDuration, formatNumber } from './formatters.ts';
 
 type TraceAttributeItem = { config: TraceAttributeDisplay; value: unknown };
 
@@ -119,20 +119,19 @@ export function getTraceAttributeItems(
 
 export function formatTraceAttributeValue(
   value: unknown,
-  format: TraceAttributeDisplay['format'],
+  config: Pick<TraceAttributeDisplay, 'format' | 'numberFormat'>,
 ): string {
+  const { format, numberFormat } = config;
   if (value === undefined) return '';
-
-  if (format === 'usd') {
-    return formatCost(typeof value === 'number' ? value : null);
-  }
 
   if (format === 'duration') {
     return formatDuration(typeof value === 'number' ? value : null);
   }
 
   if (format === 'number') {
-    return typeof value === 'number' ? String(value) : JSON.stringify(value);
+    return typeof value === 'number'
+      ? formatNumber(value, numberFormat)
+      : JSON.stringify(value);
   }
 
   if (format === 'json') {
@@ -141,7 +140,7 @@ export function formatTraceAttributeValue(
 
   if (Array.isArray(value)) {
     return value
-      .map((item) => formatTraceAttributeValue(item, format))
+      .map((item) => formatTraceAttributeValue(item, config))
       .join(', ');
   }
 

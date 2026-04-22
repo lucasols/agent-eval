@@ -1,4 +1,5 @@
 import { z } from 'zod/v4';
+import { numberDisplayOptionsSchema } from './display.ts';
 
 /** Schema for the semantic categories used to classify trace spans. */
 export const traceSpanKindSchema = z.enum([
@@ -18,7 +19,6 @@ export type TraceSpanKind = z.infer<typeof traceSpanKindSchema>;
 export const traceAttributeDisplayFormatSchema = z.enum([
   'string',
   'number',
-  'usd',
   'duration',
   'json',
 ]);
@@ -48,6 +48,7 @@ export const traceAttributeDisplaySchema = z.object({
   path: z.string(),
   label: z.string().optional(),
   format: traceAttributeDisplayFormatSchema.optional(),
+  numberFormat: numberDisplayOptionsSchema.optional(),
   placements: z.array(traceAttributeDisplayPlacementSchema).optional(),
   scope: z.enum(['self', 'subtree']).optional(),
   mode: z.enum(['all', 'last', 'sum']).optional(),
@@ -88,6 +89,7 @@ export const traceAttributeDisplayInputSchema = z.object({
   path: z.string(),
   label: z.string().optional(),
   format: traceAttributeDisplayFormatSchema.optional(),
+  numberFormat: numberDisplayOptionsSchema.optional(),
   placements: z.array(traceAttributeDisplayPlacementSchema).optional(),
   scope: z.enum(['self', 'subtree']).optional(),
   mode: z.enum(['all', 'last', 'sum']).optional(),
@@ -102,7 +104,8 @@ export const traceAttributeDisplayInputSchema = z.object({
  * Authored trace display rule accepted in eval definitions and config files.
  *
  * `key` allows the same source `path` to be displayed multiple ways, such as
- * USD and BRL views of a single `costUsd` attribute. `transform` runs in the
+ * USD and BRL views of a single `costUsd` attribute. `numberFormat` customizes
+ * `format: 'number'` values. `transform` runs in the
  * runner before the UI receives the resolved trace payload.
  */
 export type TraceAttributeDisplayInput = z.infer<

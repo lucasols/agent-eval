@@ -682,10 +682,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
                       ) : null}
                       {treeAttributeItems.map((item) => (
                         <TreeAttributeLabel key={item.config.path}>
-                          {formatTraceAttributeValue(
-                            item.value,
-                            item.config.format,
-                          )}
+                          {formatTraceAttributeValue(item.value, item.config)}
                         </TreeAttributeLabel>
                       ))}
                     </LabelCell>

@@ -214,7 +214,8 @@ traceDisplay: {
     {
       path: 'costUsd',
       label: 'Cost',
-      format: 'usd',
+      format: 'number',
+      numberFormat: { prefix: '$', decimalPlaces: 4 },
       placements: ['tree', 'detail'],
       scope: 'subtree',
       mode: 'sum',
@@ -263,8 +264,9 @@ hover the score to see the effective eval-level threshold.
 
 ```ts
 columns: {
-  locale: { label: 'Locale', kind: 'string', defaultVisible: true },
-  toolCalls: { label: 'Tool Calls', kind: 'number', defaultVisible: true },
+  locale: { label: 'Locale', defaultVisible: true },
+  toolCalls: { label: 'Tool Calls', format: 'number', defaultVisible: true },
+  requiresManualReview: { label: 'Manual Review', format: 'boolean' },
 }
 ```
 
@@ -358,8 +360,18 @@ refs, or native `Blob`/`File` values for `format: 'image' | 'audio' | 'video' |
 
 Use the eval `columns` option to control labels, primary display, alignment,
 visibility, and rendering format. Supported `columns.format` values include
-`markdown`, `json`, `image`, `audio`, `video`, `file`, `usd`, `percent`,
+`boolean`, `markdown`, `json`, `image`, `audio`, `video`, `file`, `percent`,
 `duration`, and `number`.
+
+For `format: 'number'`, use `numberFormat` to customize the display:
+
+```ts
+price: {
+  label: 'Price',
+  format: 'number',
+  numberFormat: { prefix: '$', decimalPlaces: 2 },
+}
+```
 
 ```ts
 import { defineEval, setOutput } from '@ls-stack/agent-eval';

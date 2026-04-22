@@ -30,7 +30,11 @@ export const refundWorkflowSharedConfig: Pick<
 > = {
   columns: {
     response: { label: 'Response', primary: true, format: 'markdown' },
-    costUsd: { label: 'Cost', format: 'usd' },
+    costUsd: {
+      label: 'Cost',
+      format: 'number',
+      numberFormat: { prefix: '$', decimalPlaces: 4 },
+    },
     toolCalls: { label: 'Tool Calls' },
     llmTurns: { label: 'LLM Turns' },
     reviewConfidence: { label: 'Review Confidence' },
@@ -53,7 +57,8 @@ export const refundWorkflowSharedConfig: Pick<
       {
         path: 'costUsd',
         label: 'Cost',
-        format: 'usd',
+        format: 'number',
+        numberFormat: { prefix: '$', decimalPlaces: 4 },
         placements: ['tree', 'detail'],
         scope: 'subtree',
         mode: 'sum',

@@ -493,6 +493,69 @@ describe('CLI eval features', () => {
     });
   });
 
+  test('supports multiple column formats from plain output values', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const result = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'format-gallery',
+      ]);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe('');
+
+      const artifacts = await readSingleRunArtifacts(workspacePath);
+      expect(
+        normalizeSnapshotValue(workspacePath, {
+          caseRows: artifacts.cases.map((caseRow) => ({
+            caseId: caseRow.caseId,
+            columns: caseRow.columns,
+            status: caseRow.status,
+          })),
+        }),
+      ).toMatchInlineSnapshot(`
+{
+  "caseRows": [
+    {
+      "caseId": "all-column-formats",
+      "columns": {
+        "attachment": {
+          "mimeType": "text/plain",
+          "path": "evals/datasets/assets/refund-template.txt",
+          "source": "repo",
+        },
+        "audioBrief": {
+          "mimeType": "audio/wav",
+          "path": "evals/datasets/assets/chime.wav",
+          "source": "repo",
+        },
+        "confidence": 0.93,
+        "handlingCostUsd": 1.25,
+        "previewCard": {
+          "mimeType": "image/svg+xml",
+          "path": "evals/datasets/assets/status-card.svg",
+          "source": "repo",
+        },
+        "requiresManualReview": false,
+        "response": "Prepared **refund package** for order \`A-1024\`.\n\nCustomer note: Please confirm the refund package for my damaged mug.",
+        "reviewTimeMs": 1450,
+        "toolResult": {
+          "matchedReceipt": true,
+          "nextStep": "send-refund-confirmation",
+          "orderId": "A-1024",
+          "reviewer": {
+            "name": "Avery",
+            "queue": "refund-ops",
+          },
+        },
+      },
+      "status": "pass",
+    },
+  ],
+}
+      `);
+    });
+  });
   test('treats score failures and assertion failures as failed cases while allowing silent no-trace cases', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const result = await runExampleCli(workspacePath, [

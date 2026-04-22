@@ -27,11 +27,16 @@ defineEval({
   columns: {
     response: { label: 'Response', primary: true, format: 'markdown' },
     toolResult: { label: 'Tool Result', format: 'json' },
+    requiresManualReview: { label: 'Manual Review', format: 'boolean' },
     previewCard: { label: 'Preview Card', format: 'image' },
     audioBrief: { label: 'Audio Brief', format: 'audio' },
     attachment: { label: 'Attachment', format: 'file' },
     confidence: { label: 'Confidence', format: 'percent' },
-    handlingCostUsd: { label: 'Handling Cost', format: 'usd' },
+    handlingCostUsd: {
+      label: 'Handling Cost',
+      format: 'number',
+      numberFormat: { prefix: '$', decimalPlaces: 2 },
+    },
     reviewTimeMs: { label: 'Review Time', format: 'duration' },
   },
   execute: ({ input }) => {
@@ -45,6 +50,7 @@ defineEval({
       nextStep: 'send-refund-confirmation',
       reviewer: { name: 'Avery', queue: 'refund-ops' },
     });
+    setOutput('requiresManualReview', false);
     setOutput(
       'previewCard',
       new Blob([previewCardSvg], { type: 'image/svg+xml' }),

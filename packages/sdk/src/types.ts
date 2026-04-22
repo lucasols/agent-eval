@@ -1,6 +1,6 @@
 import type {
   ColumnFormat,
-  ColumnKind,
+  NumberDisplayOptions,
   EvalTraceSpan,
   TraceDisplayInputConfig,
 } from '@agent-evals/shared';
@@ -10,13 +10,31 @@ export type EvalCase<TInput> = { id: string; input: TInput; tags?: string[] };
 
 /** UI overrides for a derived or scored column emitted by an eval. */
 export type EvalColumnOverride = {
+  /** Display label shown for the column in tables and detail views. */
   label?: string;
+  /**
+   * Presentation preset for the value.
+   *
+   * Use this to control how the UI renders the cell and infer table behavior,
+   * for example `number`, `boolean`, `duration`, `markdown`, `json`, or
+   * file/media previews.
+   */
   format?: ColumnFormat;
+  /**
+   * Extra options for `format: 'number'`.
+   *
+   * Use this to add a prefix or suffix, or to force a fixed number of decimal
+   * places.
+   */
+  numberFormat?: NumberDisplayOptions;
+  /** Marks the column as a primary output in the UI. */
   primary?: boolean;
+  /** Controls whether the column is visible by default. */
   defaultVisible?: boolean;
+  /** Enables client-side sorting for the column when supported. */
   sortable?: boolean;
+  /** Horizontal alignment used when rendering the column cells. */
   align?: 'left' | 'center' | 'right';
-  kind?: ColumnKind;
 };
 
 /** Column override map keyed by output or score field name. */
