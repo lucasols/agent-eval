@@ -47,6 +47,8 @@ import { Tooltip } from './Tooltip.tsx';
 
 type EvalCardProps = { evalSummary: EvalSummary; mode: 'single' | 'stacked' };
 
+const RUN_SHORT_ID_PREFIX = /^r/;
+
 const Card = styled.section<{ stacked: boolean; single: boolean }>`
   ${stack({ gap: 0 })}
   background: transparent;
@@ -351,7 +353,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
             axisLabel:
               index === completedRuns.length - 1
                 ? 'LATEST'
-                : r.manifest.shortId,
+                : r.manifest.shortId.replace(RUN_SHORT_ID_PREFIX, ''),
             shortId: r.manifest.shortId,
             startedAt: r.manifest.startedAt,
             score: r.summary.averageScore ?? 0,
