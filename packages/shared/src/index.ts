@@ -75,7 +75,9 @@ export {
   type PricingRegistry,
 } from './schemas/cost.ts';
 export {
+  trialSelectionModeSchema,
   agentEvalsConfigSchema,
+  type TrialSelectionMode,
   type AgentEvalsConfig,
 } from './schemas/config.ts';
 export {

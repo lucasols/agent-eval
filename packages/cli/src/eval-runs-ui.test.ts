@@ -17,6 +17,7 @@ describe('eval run rows ui', () => {
       evalSourceFingerprints: {},
       target: { mode: 'all' },
       trials: 1,
+      trialSelection: 'lowestScore',
       cacheMode: 'use',
     };
     const cases: CaseRow[] = [

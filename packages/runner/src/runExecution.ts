@@ -3,7 +3,7 @@ import {
   EvalAssertionError,
   runInEvalScope,
 } from '@agent-evals/sdk';
-import type { EvalDefinition } from '@agent-evals/sdk';
+import type { CacheAdapter, EvalDefinition } from '@agent-evals/sdk';
 import type {
   CacheMode,
   CaseDetail,
@@ -11,7 +11,6 @@ import type {
   CellValue,
   TraceDisplayInputConfig,
 } from '@agent-evals/shared';
-import type { FsCacheStore } from './cacheStore.ts';
 import { normalizeScoreDef, toCellValue } from './columnBuilder.ts';
 import { resolveTracePresentation } from './traceDisplay.ts';
 
@@ -41,7 +40,7 @@ export async function runCase<TInput>(params: {
   trial: number;
   signal: AbortSignal;
   startTime: number;
-  cacheAdapter: FsCacheStore | null;
+  cacheAdapter: CacheAdapter | null;
   cacheMode: CacheMode;
   codeFingerprint: string;
 }): Promise<{ caseDetail: CaseDetail; caseRowUpdate: Partial<CaseRow> }> {

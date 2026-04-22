@@ -47,6 +47,7 @@ export const caseRowSchema = z.object({
   latencyMs: z.number().nullable(),
   costUsd: z.number().nullable(),
   columns: z.record(z.string(), cellValueSchema),
+  /** Winning trial index for the persisted case result. */
   trial: z.number(),
 });
 /** Flattened per-case row rendered in run tables and streamed updates. */
@@ -70,6 +71,7 @@ export const caseDetailSchema = z.object({
       stack: z.string().optional(),
     })
     .nullable(),
+  /** Winning trial index for the persisted case detail. */
   trial: z.number(),
 });
 /** Full case payload including inputs, trace, outputs, and failures. */

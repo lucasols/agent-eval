@@ -27,6 +27,7 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
    export const config: AgentEvalsConfig = {
      include: ['evals/**/*.eval.ts'],
      defaultTrials: 1,
+     trialSelection: 'lowestScore',
      concurrency: 2,
      staleAfterDays: 14,
      pricing: {
@@ -104,10 +105,15 @@ AGENT_EVALS_DEV_WEB_PORT=5200
 | `include`        | `string[]`                                                     | Glob patterns for eval files (e.g. `['evals/**/*.eval.ts']`)                  |
 | `workspaceRoot`  | `string?`                                                      | Root directory; defaults to `process.cwd()`                                   |
 | `defaultTrials`  | `number?`                                                      | Trials per case when not overridden (default: `1`)                            |
+| `trialSelection` | `'lowestScore' \| 'median'?`                                   | Winner selection strategy for persisted multi-trial case results              |
 | `concurrency`    | `number?`                                                      | Max parallel case executions (default: `2`)                                   |
 | `staleAfterDays` | `number?`                                                      | Days before a mismatched-commit latest run is marked outdated (default: `14`) |
 | `pricing`        | `Record<string, { inputPerMillionUsd, outputPerMillionUsd }>?` | Per-model pricing used to compute cost                                        |
 | `traceDisplay`   | `TraceDisplayConfig?`                                          | Global trace attribute display config for the UI                              |
+
+When `trials > 1`, the runner executes the case repeatedly but persists a
+single winning result per case. `lowestScore` is the default. `median` uses the
+lower median when the number of trials is even.
 
 ## Writing evals
 
@@ -279,6 +285,9 @@ Server API (`/api/cache`):
   source — so editing the eval produces a miss instead of a stale hit.
 - Modes: `bypass` never reads or writes; `refresh` skips the read and always
   writes; `use` reads on hit and writes on miss.
+- Multi-trial runs isolate cache writes per trial attempt and only flush the
+  winning trial's writes into the shared cache, so later trials in the same run
+  never reuse cache entries produced by earlier sibling trials.
 - Only SDK-mediated side effects replay (`tracer.span`, `tracer.checkpoint`,
   `setOutput`, `incrementOutput`, span attributes). External side effects
   (network, DB writes) do _not_ replay on cache hits — use caching only for

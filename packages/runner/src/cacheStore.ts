@@ -10,7 +10,11 @@ import {
 } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import type { CacheAdapter } from '@agent-evals/sdk';
-import { cacheEntrySchema, type CacheListItem } from '@agent-evals/shared';
+import {
+  cacheEntrySchema,
+  type CacheEntry,
+  type CacheListItem,
+} from '@agent-evals/shared';
 import { resultify } from 't-result';
 
 /** Filter accepted by `FsCacheStore.clear` to narrow the set of entries removed. */
@@ -24,6 +28,13 @@ export type FsCacheStore = CacheAdapter & {
   clear(filter?: CacheClearFilter): Promise<void>;
   /** Resolve the on-disk directory used for cache entries. */
   dir(): string;
+};
+
+export type BufferedCacheStore = CacheAdapter & {
+  /** Persist buffered writes into the backing store. */
+  commit(): Promise<void>;
+  /** Return the entries written during the buffered session. */
+  getPendingEntries(): CacheEntry[];
 };
 
 /**
@@ -129,12 +140,52 @@ export function createFsCacheStore(options: {
   };
 }
 
+/**
+ * Create a write-buffered cache adapter for one trial attempt.
+ *
+ * Lookups first consult entries written earlier in the same trial, then fall
+ * back to the shared backing store. Call `commit()` after selecting the
+ * winning trial so only that trial's writes reach the shared cache.
+ */
+export function createBufferedCacheStore(
+  backingStore: CacheAdapter,
+): BufferedCacheStore {
+  const pendingEntries = new Map<string, CacheEntry>();
+
+  return {
+    async lookup(namespace, keyHash) {
+      const buffered = pendingEntries.get(toPendingKey(namespace, keyHash));
+      if (buffered !== undefined) return buffered;
+      return backingStore.lookup(namespace, keyHash);
+    },
+
+    write(entry) {
+      pendingEntries.set(toPendingKey(entry.namespace, entry.key), entry);
+      return Promise.resolve();
+    },
+
+    async commit() {
+      for (const entry of pendingEntries.values()) {
+        await backingStore.write(entry);
+      }
+    },
+
+    getPendingEntries() {
+      return [...pendingEntries.values()];
+    },
+  };
+}
+
 function entryPath(
   cacheDir: string,
   namespace: string,
   keyHash: string,
 ): string {
   return join(cacheDir, sanitizeSegment(namespace), `${keyHash}.json`);
+}
+
+function toPendingKey(namespace: string, keyHash: string): string {
+  return `${namespace}::${keyHash}`;
 }
 
 function sanitizeSegment(segment: string): string {

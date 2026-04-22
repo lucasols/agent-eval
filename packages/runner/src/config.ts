@@ -15,6 +15,7 @@ const configModuleSchema = z.object({
 const defaultConfig: AgentEvalsConfig = {
   include: ['**/*.eval.ts'],
   defaultTrials: 1,
+  trialSelection: 'lowestScore',
   concurrency: 2,
   staleAfterDays: 14,
   traceDisplay: {

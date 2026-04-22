@@ -1,3 +1,5 @@
+import { readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { runSummarySchema } from '@agent-evals/shared';
 import { describe, expect, test } from 'vitest';
 import {
@@ -7,6 +9,94 @@ import {
   runExampleCli,
   withIsolatedExampleWorkspace,
 } from './cliTestUtils.ts';
+
+async function writeTrialSelectionEval(
+  workspacePath: string,
+  trialSelection: 'lowestScore' | 'median',
+): Promise<void> {
+  const configPath = join(workspacePath, 'agent-evals.config.ts');
+  const nextConfig = (await readFile(configPath, 'utf8')).replace(
+    "trialSelection: 'lowestScore',",
+    `trialSelection: '${trialSelection}',`,
+  );
+  await writeFile(configPath, nextConfig);
+
+  await writeFile(
+    join(workspacePath, 'evals', 'trial-selection.eval.ts'),
+    `import { blocks, defineEval, setOutput, tracer, span } from '@agent-evals/sdk';
+
+const candidates = [
+  {
+    candidateId: 'careful-follow-up',
+    response: 'Ask for photos before issuing a refund.',
+    score: 0.91,
+  },
+  {
+    candidateId: 'unsafe-refund',
+    response: 'Approve the refund immediately with no verification.',
+    score: 0.22,
+  },
+  {
+    candidateId: 'balanced-review',
+    response: 'Offer a replacement after a quick damage review.',
+    score: 0.64,
+  },
+];
+
+let executionCount = 0;
+
+function nextCandidate() {
+  const candidate = candidates[executionCount % candidates.length];
+  executionCount += 1;
+  return candidate;
+}
+
+defineEval({
+  id: 'trial-selection-eval',
+  title: 'Trial Selection Eval',
+  cases: [
+    {
+      id: 'damaged-order',
+      input: { message: 'The order arrived damaged.' },
+    },
+  ],
+  columns: {
+    response: { label: 'Response', primary: true },
+    candidateId: { label: 'Candidate' },
+  },
+  execute: async ({ input }) => {
+    await tracer.span({ kind: 'agent', name: 'trial-selection' }, async () => {
+      span.setAttribute('input', input);
+
+      const candidate = await tracer.span(
+        {
+          kind: 'llm',
+          name: 'draft-response',
+          cache: { key: { message: input.message } },
+        },
+        async () => {
+          const next = nextCandidate();
+          setOutput('candidateId', next.candidateId);
+          setOutput('response', [blocks.markdown(next.response)]);
+          setOutput('scorePreview', next.score);
+          span.setAttribute('output', next);
+          return next;
+        },
+      );
+
+      span.setAttribute('output', candidate);
+    });
+  },
+  scores: {
+    quality: {
+      compute: ({ outputs }) =>
+        typeof outputs.scorePreview === 'number' ? outputs.scorePreview : 0,
+    },
+  },
+});
+`,
+  );
+}
 
 describe('CLI run targeting', () => {
   test('supports eval filters and comma-separated case filters', async () => {
@@ -319,7 +409,7 @@ describe('CLI run targeting', () => {
     });
   });
 
-  test('supports json summaries and persists one case row per trial', async () => {
+  test('supports json summaries and persists one winning case row for multi-trial runs', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const result = await runExampleCli(workspacePath, [
         'run',
@@ -339,12 +429,11 @@ describe('CLI run targeting', () => {
       const artifacts = await readSingleRunArtifacts(workspacePath);
 
       expect(summary.status).toBe('completed');
-      expect(summary.totalCases).toBe(2);
-      expect(summary.passedCases).toBe(2);
-      expect(artifacts.cases).toHaveLength(2);
-      expect(artifacts.cases.map((caseRow) => caseRow.trial)).toEqual([0, 1]);
+      expect(summary.totalCases).toBe(1);
+      expect(summary.passedCases).toBe(1);
+      expect(artifacts.cases).toHaveLength(1);
+      expect(artifacts.cases.map((caseRow) => caseRow.trial)).toEqual([0]);
       expect(artifacts.cases.map((caseRow) => caseRow.caseId)).toEqual([
-        'simple-text',
         'simple-text',
       ]);
 
@@ -364,15 +453,15 @@ describe('CLI run targeting', () => {
             "averageScore": 0.8200000000000001,
             "cancelledCases": 0,
             "cost": {
-              "totalUsd": 0.0017499999999999998,
+              "totalUsd": 0.0008749999999999999,
             },
             "errorCases": 0,
             "errorMessage": null,
             "failedCases": 0,
-            "passedCases": 2,
+            "passedCases": 1,
             "runId": "<run-id>",
             "status": "completed",
-            "totalCases": 2,
+            "totalCases": 1,
             "totalDurationMs": "<totalDurationMs>",
           },
           "persistedCases": [
@@ -387,16 +476,80 @@ describe('CLI run targeting', () => {
               "score": 0.8200000000000001,
               "trial": 0,
             },
+          ],
+        }
+      `);
+    });
+  });
+
+  test('supports median trial selection from config', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      await writeTrialSelectionEval(workspacePath, 'median');
+
+      const result = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'trial-selection-eval',
+        '--trials',
+        '3',
+        '--json',
+      ]);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe('');
+
+      const summary = runSummarySchema.parse(JSON.parse(result.stdout));
+      const artifacts = await readSingleRunArtifacts(workspacePath);
+
+      expect(summary.status).toBe('completed');
+      expect(summary.totalCases).toBe(1);
+      expect(artifacts.cases).toHaveLength(1);
+      expect(artifacts.cases[0]).toMatchObject({
+        caseId: 'damaged-order',
+        score: 0.64,
+        trial: 2,
+      });
+
+      expect(
+        normalizeSnapshotValue(workspacePath, {
+          jsonSummary: summary,
+          persistedCases: artifacts.cases.map((caseRow) => ({
+            candidateId: caseRow.columns.candidateId,
+            caseId: caseRow.caseId,
+            response: caseRow.columns.response,
+            score: caseRow.score,
+            trial: caseRow.trial,
+          })),
+        }),
+      ).toMatchInlineSnapshot(`
+        {
+          "jsonSummary": {
+            "averageScore": 0.64,
+            "cancelledCases": 0,
+            "cost": {
+              "totalUsd": null,
+            },
+            "errorCases": 0,
+            "errorMessage": null,
+            "failedCases": 0,
+            "passedCases": 1,
+            "runId": "<run-id>",
+            "status": "completed",
+            "totalCases": 1,
+            "totalDurationMs": "<totalDurationMs>",
+          },
+          "persistedCases": [
             {
-              "caseId": "simple-text",
+              "candidateId": "balanced-review",
+              "caseId": "damaged-order",
               "response": [
                 {
                   "kind": "markdown",
-                  "text": "Approved refund for: I want a refund for order #123",
+                  "text": "Offer a replacement after a quick damage review.",
                 },
               ],
-              "score": 0.8200000000000001,
-              "trial": 1,
+              "score": 0.64,
+              "trial": 2,
             },
           ],
         }

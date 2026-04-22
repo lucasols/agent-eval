@@ -5,6 +5,11 @@ import {
   type TraceDisplayInputConfig,
 } from './trace.ts';
 
+/** Strategy used to collapse repeated trials into one stored case result. */
+export const trialSelectionModeSchema = z.enum(['lowestScore', 'median']);
+/** Strategy used to collapse repeated trials into one stored case result. */
+export type TrialSelectionMode = z.infer<typeof trialSelectionModeSchema>;
+
 /** Top-level config authored in `agent-evals.config.ts`. */
 export type AgentEvalsConfig = {
   /** Root directory used to resolve all relative paths. Defaults to `process.cwd()`. */
@@ -13,6 +18,13 @@ export type AgentEvalsConfig = {
   include: string[];
   /** Number of trials per case when none is specified. Defaults to `1`. */
   defaultTrials?: number;
+  /**
+   * Strategy used to pick the single persisted result when `trials > 1`.
+   *
+   * `lowestScore` is the default. `median` uses the lower median when the
+   * number of trials is even.
+   */
+  trialSelection?: TrialSelectionMode;
   /** Per-model pricing registry used to compute token cost estimates. */
   pricing?: Record<string, z.infer<typeof modelPricingSchema>>;
   /** Maximum number of cases executed in parallel. Defaults to `2`. */
@@ -46,6 +58,7 @@ export const agentEvalsConfigSchema = z.object({
   workspaceRoot: z.string().optional(),
   include: z.array(z.string()),
   defaultTrials: z.number().optional(),
+  trialSelection: trialSelectionModeSchema.optional(),
   pricing: z.record(z.string(), modelPricingSchema).optional(),
   concurrency: z.number().optional(),
   staleAfterDays: z.number().optional(),

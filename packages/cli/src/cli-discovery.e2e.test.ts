@@ -130,6 +130,7 @@ describe('CLI discovery', () => {
             commitSha: '1111111111111111111111111111111111111111',
             target: { mode: 'evalIds', evalIds: ['refund-workflow'] },
             trials: 1,
+            trialSelection: 'lowestScore',
             cacheMode: 'use',
           },
           null,

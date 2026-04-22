@@ -1,5 +1,6 @@
 import { z } from 'zod/v4';
 import { cacheModeSchema } from './cache.ts';
+import { trialSelectionModeSchema } from './config.ts';
 import { evalCostSummarySchema } from './cost.ts';
 
 /** Schema for persisted metadata about a single run invocation. */
@@ -32,7 +33,13 @@ export const runManifestSchema = z.object({
     evalIds: z.array(z.string()).optional(),
     caseIds: z.array(z.string()).optional(),
   }),
+  /** Number of trial attempts executed for each case in this run. */
   trials: z.number(),
+  /**
+   * Strategy used to collapse repeated trials into the single persisted case
+   * result for this run. Older persisted runs may not include this field.
+   */
+  trialSelection: trialSelectionModeSchema.optional().default('lowestScore'),
   /** Cache mode used for this run. Defaults to `use` when absent. */
   cacheMode: cacheModeSchema.optional(),
 });

@@ -3,6 +3,7 @@ import type { AgentEvalsConfig } from '@agent-evals/shared';
 export const config: AgentEvalsConfig = {
   include: ['evals/**/*.eval.ts'],
   defaultTrials: 1,
+  trialSelection: 'lowestScore',
   pricing: {
     'gpt-4o': { inputPerMillionUsd: 2.5, outputPerMillionUsd: 10 },
     'claude-sonnet-4-20250514': {
