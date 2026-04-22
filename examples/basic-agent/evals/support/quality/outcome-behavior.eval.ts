@@ -52,7 +52,6 @@ defineEval<{ queue: string }>({
   id: 'silent-pass-demo',
   title: 'Silent Pass Demo',
   description: 'Shows a passing eval with no outputs and no tracing',
-  cases: [{ id: 'silent-pass-no-output', input: { queue: 'manual-review' } }],
   execute: () => {},
 });
 
