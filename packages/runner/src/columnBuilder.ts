@@ -1,6 +1,11 @@
 import type { EvalColumnOverride, EvalScoreDef } from '@agent-evals/sdk';
-import type { CellValue, ColumnDef, ColumnKind } from '@agent-evals/shared';
-import { cellValueSchema } from '@agent-evals/shared';
+import type {
+  CellValue,
+  ColumnDef,
+  ColumnFormat,
+  ColumnKind,
+} from '@agent-evals/shared';
+import { fileRefSchema, jsonCellSchema } from '@agent-evals/shared';
 
 /**
  * Normalize a user-provided score definition (either a function or an
@@ -43,43 +48,69 @@ export function mergeColumnDefs<TInput>(
   for (const [key, value] of Object.entries(columns)) {
     if (target.has(key)) continue;
     const override = overrideMap[key];
-    const kind: ColumnKind = override?.kind ?? inferKind(value);
-    const def: ColumnDef = { key, label: override?.label ?? key, kind };
-    if (override?.format !== undefined) def.format = override.format;
-    if (override?.primary !== undefined) def.primary = override.primary;
-    if (override?.defaultVisible !== undefined)
-      def.defaultVisible = override.defaultVisible;
-    if (override?.sortable !== undefined) def.sortable = override.sortable;
-    if (override?.align !== undefined) def.align = override.align;
-    if (scoreKeys.has(key)) {
-      def.isScore = true;
-      const scoreDef = scores?.[key];
-      if (scoreDef && typeof scoreDef !== 'function') {
-        if (scoreDef.passThreshold !== undefined) {
-          def.passThreshold = scoreDef.passThreshold;
-        }
-        if (scoreDef.label !== undefined && override?.label === undefined) {
-          def.label = scoreDef.label;
-        }
-      }
-    }
-    target.set(key, def);
+    target.set(
+      key,
+      createColumnDef({
+        key,
+        override,
+        scoreDef: scores?.[key],
+        inferredKind: inferKind(value),
+        isScore: scoreKeys.has(key),
+      }),
+    );
   }
+}
+
+/**
+ * Build the column definitions declared directly on an eval before any runtime
+ * output values exist. This lets discovery metadata describe authored rich
+ * output columns even for runs created by another process.
+ */
+export function buildDeclaredColumnDefs<TInput>(
+  overrides: Record<string, EvalColumnOverride> | undefined,
+  scores: Record<string, EvalScoreDef<TInput>> | undefined,
+): ColumnDef[] {
+  const declaredDefs = new Map<string, ColumnDef>();
+
+  for (const [key, override] of Object.entries(overrides ?? {})) {
+    declaredDefs.set(
+      key,
+      createColumnDef({
+        key,
+        override,
+        scoreDef: scores?.[key],
+        inferredKind: inferKindFromFormat(override.format),
+        isScore: scores?.[key] !== undefined,
+      }),
+    );
+  }
+
+  for (const [key, scoreDef] of Object.entries(scores ?? {})) {
+    if (declaredDefs.has(key)) continue;
+    declaredDefs.set(
+      key,
+      createColumnDef({ key, scoreDef, inferredKind: 'number', isScore: true }),
+    );
+  }
+
+  return [...declaredDefs.values()];
 }
 
 /** Infer a `ColumnKind` from a runtime value when no override is set. */
 export function inferKind(value: unknown): ColumnKind {
   if (typeof value === 'number') return 'number';
   if (typeof value === 'boolean') return 'boolean';
-  if (Array.isArray(value)) return 'blocks';
   return 'string';
 }
 
 /**
  * Coerce an arbitrary runtime value into a serializable `CellValue`.
- * Non-primitive, non-array values fall back to `JSON.stringify`.
+ * Non-primitive values fall back to `JSON.stringify`.
  */
-export function toCellValue(value: unknown): CellValue | undefined {
+export function toCellValue(
+  value: unknown,
+  override: EvalColumnOverride | undefined = undefined,
+): CellValue | undefined {
   if (value === null) return null;
   if (
     typeof value === 'string' ||
@@ -88,11 +119,66 @@ export function toCellValue(value: unknown): CellValue | undefined {
   ) {
     return value;
   }
-  if (Array.isArray(value)) {
-    const parsed = cellValueSchema.safeParse(value);
-    if (parsed.success) return parsed.data;
-    return JSON.stringify(value);
-  }
   if (value === undefined) return undefined;
+  if (
+    override?.format === 'image' ||
+    override?.format === 'audio' ||
+    override?.format === 'video' ||
+    override?.format === 'file'
+  ) {
+    const parsed = fileRefSchema.safeParse(value);
+    if (parsed.success) return parsed.data;
+  }
+  if (override?.format === 'json') {
+    const parsed = jsonCellSchema.safeParse(value);
+    if (parsed.success) return parsed.data;
+  }
   return JSON.stringify(value);
+}
+
+function inferKindFromFormat(
+  format: ColumnFormat | undefined,
+): ColumnKind | undefined {
+  if (
+    format === 'usd' ||
+    format === 'duration' ||
+    format === 'percent' ||
+    format === 'number'
+  ) {
+    return 'number';
+  }
+  if (format === undefined) return undefined;
+  return 'string';
+}
+
+function createColumnDef<TInput>(params: {
+  key: string;
+  override?: EvalColumnOverride;
+  scoreDef?: EvalScoreDef<TInput>;
+  inferredKind: ColumnKind | undefined;
+  isScore: boolean;
+}): ColumnDef {
+  const { key, override, scoreDef, inferredKind, isScore } = params;
+  const kind =
+    override?.kind ?? inferredKind ?? (isScore ? 'number' : 'string');
+  const def: ColumnDef = { key, label: override?.label ?? key, kind };
+  if (override?.format !== undefined) def.format = override.format;
+  if (override?.primary !== undefined) def.primary = override.primary;
+  if (override?.defaultVisible !== undefined)
+    def.defaultVisible = override.defaultVisible;
+  if (override?.sortable !== undefined) def.sortable = override.sortable;
+  if (override?.align !== undefined) def.align = override.align;
+  if (!isScore) return def;
+
+  def.isScore = true;
+  if (typeof scoreDef === 'function' || scoreDef === undefined) {
+    return def;
+  }
+  if (scoreDef.passThreshold !== undefined) {
+    def.passThreshold = scoreDef.passThreshold;
+  }
+  if (scoreDef.label !== undefined && override?.label === undefined) {
+    def.label = scoreDef.label;
+  }
+  return def;
 }

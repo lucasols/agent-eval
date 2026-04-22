@@ -25,6 +25,7 @@ import {
   formatScore,
   formatTimestamp,
 } from '../utils/formatters.ts';
+import { summarizeCellValue } from './FormattedCellValue.tsx';
 import { StatusBadge } from './StatusBadge.tsx';
 import { Tooltip } from './Tooltip.tsx';
 
@@ -313,7 +314,6 @@ function isNumericColumn(c: ColumnDef): boolean {
 
 function formatCellValue(c: ColumnDef, value: CellValue | undefined): string {
   if (value === null || value === undefined) return '\u2014';
-  if (Array.isArray(value)) return `${String(value.length)} block(s)`;
   if (typeof value === 'number') {
     if (c.format === 'usd') return formatCost(value);
     if (c.format === 'duration') return formatDuration(value);
@@ -321,7 +321,7 @@ function formatCellValue(c: ColumnDef, value: CellValue | undefined): string {
     if (c.isScore) return formatScore(value);
     return String(value);
   }
-  return String(value);
+  return summarizeCellValue(c, value);
 }
 
 export function EvalRunsTable({

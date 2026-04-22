@@ -1,5 +1,4 @@
 import {
-  blocks,
   evalAssert,
   incrementOutput,
   setOutput,
@@ -80,7 +79,7 @@ export async function triggerWorkflow(
 
     tracer.checkpoint('decision', { approved: result.approved });
 
-    setOutput('response', [blocks.markdown(result.finalText)]);
+    setOutput('response', result.finalText);
     evalAssert(
       REFUND_REGEX.test(result.finalText),
       'workflow output should mention refund',

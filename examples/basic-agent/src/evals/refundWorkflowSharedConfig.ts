@@ -19,17 +19,6 @@ function sampleReviewConfidence(seed: string): number {
   return Math.round((0.6 + (hash / 10_000) * 0.39) * 100) / 100;
 }
 
-function isTextBlock(
-  value: unknown,
-): value is { kind: 'text' | 'markdown'; text: string } {
-  if (typeof value !== 'object' || value === null) return false;
-  if (!('kind' in value) || !('text' in value)) return false;
-  return (
-    (value.kind === 'text' || value.kind === 'markdown') &&
-    typeof value.text === 'string'
-  );
-}
-
 export const refundWorkflowSharedConfig: Pick<
   EvalDefinition<WorkflowInput>,
   | 'columns'
@@ -40,7 +29,7 @@ export const refundWorkflowSharedConfig: Pick<
   | 'passThreshold'
 > = {
   columns: {
-    response: { label: 'Response', primary: true },
+    response: { label: 'Response', primary: true, format: 'markdown' },
     costUsd: { label: 'Cost', format: 'usd' },
     toolCalls: { label: 'Tool Calls' },
     llmTurns: { label: 'LLM Turns' },
@@ -99,12 +88,9 @@ export const refundWorkflowSharedConfig: Pick<
       passThreshold: 1,
       compute: ({ outputs }) => {
         const response = outputs.response;
-        if (!Array.isArray(response)) return 0;
-        const text = response
-          .filter(isTextBlock)
-          .map((block) => block.text)
-          .join(' ');
-        return REFUND_REGEX.test(text) ? 1 : 0;
+        return typeof response === 'string' && REFUND_REGEX.test(response)
+          ? 1
+          : 0;
       },
     },
     reviewConfidence: {

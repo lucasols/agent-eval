@@ -1,4 +1,4 @@
-import { blocks, defineEval, evalAssert, setOutput } from '@agent-evals/sdk';
+import { defineEval, evalAssert, setOutput } from '@agent-evals/sdk';
 import { getResponseText } from '../../../src/evals/exampleEvalUtils.ts';
 
 defineEval<{ prompt: string }>({
@@ -10,11 +10,11 @@ defineEval<{ prompt: string }>({
       input: { prompt: 'Review the refund summary against the gold answer.' },
     },
   ],
-  columns: { response: { label: 'Response', primary: true } },
+  columns: {
+    response: { label: 'Response', primary: true, format: 'markdown' },
+  },
   execute: ({ input }) => {
-    setOutput('response', [
-      blocks.markdown(`Borderline result for: ${input.prompt}`),
-    ]);
+    setOutput('response', `Borderline result for: ${input.prompt}`);
   },
   scores: {
     matchesGoldAnswer: {
@@ -33,11 +33,11 @@ defineEval<{ ticketId: string }>({
   cases: [
     { id: 'assertion-failure-visible-output', input: { ticketId: 'T-441' } },
   ],
-  columns: { response: { label: 'Response', primary: true } },
+  columns: {
+    response: { label: 'Response', primary: true, format: 'markdown' },
+  },
   execute: ({ input }) => {
-    setOutput('response', [
-      blocks.markdown(`Missing audit note for ticket ${input.ticketId}.`),
-    ]);
+    setOutput('response', `Missing audit note for ticket ${input.ticketId}.`);
     evalAssert(
       false,
       'operator note must be attached before closing the ticket',

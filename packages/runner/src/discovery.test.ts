@@ -60,4 +60,97 @@ defineEval({
       process.chdir(previousCwd);
     }
   });
+
+  test('discovers declared output and score columns before any run executes', async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), 'agent-evals-runner-discovered-columns-'),
+    );
+    createdWorkspaces.push(workspacePath);
+
+    await mkdir(join(workspacePath, 'evals'), { recursive: true });
+    await writeFile(
+      join(workspacePath, 'agent-evals.config.ts'),
+      `export default {
+  include: ['evals/**/*.eval.ts'],
+};
+`,
+    );
+    await writeFile(
+      join(workspacePath, 'evals', 'columns.eval.ts'),
+      `import { defineEval } from '@agent-evals/sdk';
+
+defineEval({
+  id: 'columns-eval',
+  title: 'Columns Eval',
+  columns: {
+    response: {
+      label: 'Response',
+      format: 'markdown',
+      primary: true,
+    },
+    preview: {
+      label: 'Preview',
+      format: 'image',
+      defaultVisible: false,
+    },
+    cost: {
+      label: 'Cost',
+      format: 'usd',
+      sortable: true,
+      align: 'right',
+    },
+  },
+  scores: {
+    correctness: {
+      compute: () => 1,
+      passThreshold: 0.9,
+      label: 'Correctness',
+    },
+  },
+});
+`,
+    );
+
+    const previousCwd = process.cwd();
+    process.chdir(workspacePath);
+
+    try {
+      const runner = createRunner({ watchForChanges: false });
+      await runner.init();
+
+      expect(runner.getEval('columns-eval')?.columnDefs).toEqual([
+        {
+          key: 'response',
+          label: 'Response',
+          kind: 'string',
+          format: 'markdown',
+          primary: true,
+        },
+        {
+          key: 'preview',
+          label: 'Preview',
+          kind: 'string',
+          format: 'image',
+          defaultVisible: false,
+        },
+        {
+          key: 'cost',
+          label: 'Cost',
+          kind: 'number',
+          format: 'usd',
+          sortable: true,
+          align: 'right',
+        },
+        {
+          key: 'correctness',
+          label: 'Correctness',
+          kind: 'number',
+          isScore: true,
+          passThreshold: 0.9,
+        },
+      ]);
+    } finally {
+      process.chdir(previousCwd);
+    }
+  });
 });

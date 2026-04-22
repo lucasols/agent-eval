@@ -21,9 +21,10 @@ import {
   type CacheClearFilter,
   type FsCacheStore,
 } from './cacheStore.ts';
-import { normalizeScoreDef } from './columnBuilder.ts';
+import { buildDeclaredColumnDefs, normalizeScoreDef } from './columnBuilder.ts';
 import { loadConfig } from './config.ts';
 import { parseEvalMetas } from './discovery.ts';
+import { loadEvalModule } from './evalModuleLoader.ts';
 import {
   buildEvalSummary,
   getTargetEvalIds,
@@ -35,6 +36,11 @@ import {
   runTouchesEval,
 } from './runMaintenance.ts';
 import {
+  executeRun,
+  type EvalMeta,
+  type RunState,
+} from './runOrchestration.ts';
+import {
   generateRunId,
   getLastRunStatuses,
   getLatestRunInfos,
@@ -43,11 +49,6 @@ import {
   persistCaseDetail,
   type EvalLatestRunInfo,
 } from './runPersistence.ts';
-import {
-  executeRun,
-  type EvalMeta,
-  type RunState,
-} from './runOrchestration.ts';
 
 /** Imperative runner interface used by the server and CLI. */
 export type EvalRunner = {
@@ -176,7 +177,10 @@ export function createRunner({
       if (!evalMeta) return { updatedRuns: 0 };
 
       const registry = getEvalRegistry();
-      await import(evalMeta.sourceFilePath);
+      await loadEvalModule(
+        evalMeta.sourceFilePath,
+        evalMeta.sourceFingerprint ?? undefined,
+      );
       const entry = registry.get(evalId);
       if (!entry) return { updatedRuns: 0 };
 
@@ -276,15 +280,35 @@ export function createRunner({
         try {
           const content = await readFile(filePath, 'utf-8');
           const discoveredMetas = parseEvalMetas(filePath, content);
+          const sourceFingerprint = getSourceFingerprint(content);
+          const registry = getEvalRegistry();
+          try {
+            await loadEvalModule(filePath, sourceFingerprint);
+          } catch {
+            // Fall back to statically parsed metadata when the module fails to load.
+          }
           for (const meta of discoveredMetas) {
+            const discoveredEntry = registry.get(meta.id);
+            const title = meta.title;
+            let passThreshold = meta.passThreshold;
+            let columnDefs = buildDeclaredColumnDefs(undefined, undefined);
+
+            discoveredEntry?.use((evalDef) => {
+              passThreshold = evalDef.passThreshold ?? 0.5;
+              columnDefs = buildDeclaredColumnDefs(
+                evalDef.columns,
+                evalDef.scores,
+              );
+            });
+
             evals.set(meta.id, {
               id: meta.id,
-              title: meta.title,
+              title,
               filePath: toWorkspaceRelativePath(meta.filePath),
               sourceFilePath: meta.filePath,
-              sourceFingerprint: getSourceFingerprint(content),
-              columnDefs: [],
-              passThreshold: meta.passThreshold,
+              sourceFingerprint,
+              columnDefs,
+              passThreshold,
               caseCount: null,
             });
           }

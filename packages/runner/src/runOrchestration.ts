@@ -24,6 +24,7 @@ import {
   type FsCacheStore,
 } from './cacheStore.ts';
 import { mergeColumnDefs } from './columnBuilder.ts';
+import { loadEvalModule } from './evalModuleLoader.ts';
 import { getTargetEvalIds } from './evalSummaries.ts';
 import {
   filterEvalCases,
@@ -31,10 +32,7 @@ import {
   runCase,
 } from './runExecution.ts';
 import { persistRunState } from './runMaintenance.ts';
-import {
-  persistCaseDetail,
-  type EvalLatestRunInfo,
-} from './runPersistence.ts';
+import { persistCaseDetail, type EvalLatestRunInfo } from './runPersistence.ts';
 import { executeQueuedCases, type QueuedCaseRun } from './runQueue.ts';
 
 export type EvalMeta = {
@@ -182,7 +180,7 @@ export async function executeRun({
 
       try {
         const registry = getEvalRegistry();
-        await import(evalFilePath);
+        await loadEvalModule(evalFilePath, codeFingerprint);
 
         const entry = registry.get(evalMeta.id);
         if (!entry) {
@@ -359,7 +357,8 @@ export async function executeRun({
           deriveStatusFromCaseRows({ caseRows: preparedEval.evalCaseRows }),
         ),
       );
-      const latestStatus = lastRunStatusMap.get(preparedEval.evalMeta.id) ?? null;
+      const latestStatus =
+        lastRunStatusMap.get(preparedEval.evalMeta.id) ?? null;
       latestRunInfoMap.set(preparedEval.evalMeta.id, {
         status: latestStatus,
         startedAt: runState.manifest.endedAt ?? runState.manifest.startedAt,
@@ -391,7 +390,9 @@ export async function executeRun({
     runState.manifest.endedAt = completedRunAt;
     runState.summary.errorMessage =
       evalErrors.length > 0
-        ? evalErrors.map((entry) => `[${entry.evalId}] ${entry.message}`).join('\n')
+        ? evalErrors
+            .map((entry) => `[${entry.evalId}] ${entry.message}`)
+            .join('\n')
         : null;
 
     for (const evalId of getTargetEvalIds({

@@ -9,6 +9,18 @@ export const scalarCellSchema = z.union([
 /** Primitive table cell value supported by the eval UI. */
 export type ScalarCell = z.infer<typeof scalarCellSchema>;
 
+export const jsonCellSchema: z.ZodType<
+  string | number | boolean | null | Record<string, unknown> | unknown[]
+> = z.lazy(() =>
+  z.union([
+    scalarCellSchema,
+    z.array(jsonCellSchema),
+    z.record(z.string(), jsonCellSchema),
+  ]),
+);
+/** JSON-safe value supported by `format: 'json'` columns. */
+export type JsonCell = z.infer<typeof jsonCellSchema>;
+
 export const repoFileRefSchema = z.object({
   source: z.literal('repo'),
   path: z.string(),
@@ -27,72 +39,28 @@ export const runArtifactRefSchema = z.object({
 export type RunArtifactRef = z.infer<typeof runArtifactRefSchema>;
 
 export const fileRefSchema = z.union([repoFileRefSchema, runArtifactRefSchema]);
-/** Union of all file reference shapes supported by display blocks. */
+/** File reference supported by media and file columns. */
 export type FileRef = z.infer<typeof fileRefSchema>;
 
-/** Schema for the rich content blocks rendered in case detail views. */
-export const displayBlockSchema = z.discriminatedUnion('kind', [
-  z.object({
-    kind: z.literal('text'),
-    label: z.string().optional(),
-    text: z.string(),
-  }),
-  z.object({
-    kind: z.literal('markdown'),
-    label: z.string().optional(),
-    text: z.string(),
-  }),
-  z.object({
-    kind: z.literal('json'),
-    label: z.string().optional(),
-    value: z.unknown(),
-  }),
-  z.object({
-    kind: z.literal('image'),
-    label: z.string().optional(),
-    ref: fileRefSchema,
-    alt: z.string().optional(),
-  }),
-  z.object({
-    kind: z.literal('audio'),
-    label: z.string().optional(),
-    ref: fileRefSchema,
-    title: z.string().optional(),
-  }),
-  z.object({
-    kind: z.literal('video'),
-    label: z.string().optional(),
-    ref: fileRefSchema,
-    title: z.string().optional(),
-  }),
-  z.object({
-    kind: z.literal('file'),
-    label: z.string().optional(),
-    ref: fileRefSchema,
-    title: z.string().optional(),
-  }),
-]);
-/** Rich content block displayed in a case detail panel. */
-export type DisplayBlock = z.infer<typeof displayBlockSchema>;
-
 /** Schema for the supported column rendering kinds in list views. */
-export const columnKindSchema = z.enum([
-  'string',
-  'number',
-  'boolean',
-  'blocks',
-]);
+export const columnKindSchema = z.enum(['string', 'number', 'boolean']);
 /** Display kind used by a column definition in the UI. */
 export type ColumnKind = z.infer<typeof columnKindSchema>;
 
-/** Schema for the built-in numeric formatting presets. */
+/** Schema for the built-in column formatting presets. */
 export const columnFormatSchema = z.enum([
+  'markdown',
+  'json',
+  'image',
+  'audio',
+  'video',
+  'file',
   'usd',
   'duration',
   'percent',
   'number',
 ]);
-/** Formatting preset applied to numeric column values. */
+/** Formatting preset applied to a column value in the UI. */
 export type ColumnFormat = z.infer<typeof columnFormatSchema>;
 
 /** Schema describing a rendered column in the eval results table. */
@@ -112,9 +80,6 @@ export const columnDefSchema = z.object({
 export type ColumnDef = z.infer<typeof columnDefSchema>;
 
 /** Schema for any supported value that can populate a table cell. */
-export const cellValueSchema = z.union([
-  scalarCellSchema,
-  z.array(displayBlockSchema),
-]);
+export const cellValueSchema = z.union([jsonCellSchema, fileRefSchema]);
 /** Value stored in a rendered eval result table cell. */
 export type CellValue = z.infer<typeof cellValueSchema>;

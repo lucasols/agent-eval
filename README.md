@@ -1,13 +1,13 @@
 # agent-eval
 
-Local-first, UI-first eval tool for LLM/agent systems. Author evals in strict TypeScript inside `*.eval.ts` files, run them manually from a minimal UI or the CLI, and inspect trajectory, cost, and inputs/outputs.
+Local-first, UI-first eval tool for LLM/agent systems. Author evals in strict TypeScript inside `*.eval.ts` files, run them manually from a minimal UI or the CLI, and inspect trajectory, cost, and column-based inputs/outputs.
 
 ## Why
 
 - **Real TypeScript evals** — author evals with `defineEval(...)`, normal TypeScript, scorers, and thrown-error assertions.
 - **Manual runs by default** — no background re-runs on file save. You trigger runs from the UI or CLI.
 - **Cost + trace visibility** — per-case cost, token usage, a tree/detail view of the agent's trajectory, and custom result columns.
-- **Multimodal** — attach images, audio, video, and files to case inputs/outputs for display in the UI.
+- **Formatted outputs** — keep outputs as plain values and control presentation from eval `columns`.
 
 ## Install
 
@@ -94,8 +94,8 @@ node --experimental-test-module-mocks ./node_modules/@agent-evals/cli/src/bin.ts
 Example:
 
 ```ts
-import { mock } from 'node:test'
-import { blocks, defineEval, evalAssert, setOutput } from '@agent-evals/sdk'
+import { mock } from 'node:test';
+import { defineEval, evalAssert, setOutput } from '@agent-evals/sdk';
 
 defineEval({
   id: 'module-mock-demo',
@@ -105,15 +105,15 @@ defineEval({
       namedExports: {
         lookupCustomer: async () => ({ segment: 'vip' as const }),
       },
-    })
+    });
 
-    const { runWorkflow } = await import('../src/workflow.ts')
-    const result = await runWorkflow(input)
+    const { runWorkflow } = await import('../src/workflow.ts');
+    const result = await runWorkflow(input);
 
-    setOutput('segment', result.segment)
-    evalAssert(result.segment === 'vip', 'expected the mocked dependency')
+    setOutput('segment', result.segment);
+    evalAssert(result.segment === 'vip', 'expected the mocked dependency');
   },
-})
+});
 ```
 
 Notes:
@@ -347,30 +347,37 @@ export const config: AgentEvalsConfig = {
 };
 ```
 
-## Display blocks
+## Output formatting
 
-`blocks` helpers build rich content for `displayInput` / `displayOutput`:
+Store output values with `setOutput(...)` as plain data: strings, numbers,
+booleans, `null`, JSON-safe objects/arrays for `format: 'json'`, or file refs
+for `format: 'image' | 'audio' | 'video' | 'file'`.
 
-| Helper            | Use                                      |
-| ----------------- | ---------------------------------------- |
-| `blocks.text(s)`  | Plain text                               |
-| `blocks.markdown` | Rendered markdown                        |
-| `blocks.json(v)`  | Formatted JSON                           |
-| `blocks.image`    | Image from repo file or runtime artifact |
-| `blocks.audio`    | Audio from repo file or runtime artifact |
-| `blocks.video`    | Video from repo file or runtime artifact |
-| `blocks.file`     | Arbitrary file download                  |
-
-File references are either repo files (`{ source: 'repo', path, mimeType? }`) or runtime artifacts produced via `span.addArtifact(...)` during a run.
+Use the eval `columns` option to control labels, primary display, alignment,
+visibility, and rendering format. Supported `columns.format` values include
+`markdown`, `json`, `image`, `audio`, `video`, `file`, `usd`, `percent`,
+`duration`, and `number`.
 
 ```ts
-displayInput: [
-  blocks.image(
-    { source: 'repo', path: 'evals/assets/receipt-1.png' },
-    'Receipt',
-  ),
-];
+import { defineEval, repoFile, setOutput } from '@agent-evals/sdk';
+
+defineEval({
+  id: 'receipt-preview',
+  columns: {
+    response: { label: 'Response', primary: true, format: 'markdown' },
+    receipt: { label: 'Receipt', format: 'image' },
+    toolResult: { label: 'Tool Result', format: 'json' },
+  },
+  execute: () => {
+    setOutput('response', 'Refund prepared for **order #123**.');
+    setOutput('receipt', repoFile('evals/assets/receipt-1.png', 'image/png'));
+    setOutput('toolResult', { matched: true, confidence: 0.93 });
+  },
+});
 ```
+
+A full working example lives in
+[`examples/basic-agent/evals/support/playground/format-gallery.eval.ts`](./examples/basic-agent/evals/support/playground/format-gallery.eval.ts).
 
 ## CLI
 

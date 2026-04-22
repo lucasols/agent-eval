@@ -1,5 +1,4 @@
 import {
-  blocks,
   evalAssert,
   incrementOutput,
   setOutput,
@@ -110,7 +109,7 @@ export async function runVoiceReturnFollowUpWorkflow(
         followUpChannel: result.followUpChannel,
       });
 
-      setOutput('response', [blocks.markdown(result.finalText)]);
+      setOutput('response', result.finalText);
       setOutput('detectedLocale', result.detectedLocale);
       setOutput('followUpChannel', result.followUpChannel);
       evalAssert(

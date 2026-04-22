@@ -1,5 +1,4 @@
 import {
-  blocks,
   evalAssert,
   incrementOutput,
   setOutput,
@@ -88,7 +87,7 @@ export async function runHighValueRefundWorkflow(
       escalationQueue: result.escalationQueue,
     });
 
-    setOutput('response', [blocks.markdown(result.finalText)]);
+    setOutput('response', result.finalText);
     setOutput('escalationQueue', result.escalationQueue);
     setOutput('riskLevel', result.riskLevel);
     evalAssert(

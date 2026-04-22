@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" role="img" aria-labelledby="title desc">
+  <title id="title">Format gallery status card</title>
+  <desc id="desc">A sample refund review card with a completed badge.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f3efe2" />
+      <stop offset="100%" stop-color="#e3f0ea" />
+    </linearGradient>
+  </defs>
+  <rect width="320" height="180" rx="20" fill="url(#bg)" />
+  <rect x="24" y="24" width="272" height="132" rx="16" fill="#fffdf8" stroke="#d7d2c5" />
+  <circle cx="56" cy="58" r="10" fill="#2e7d32" />
+  <text x="78" y="64" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#213547">Refund Review</text>
+  <text x="32" y="102" font-family="Helvetica, Arial, sans-serif" font-size="14" fill="#4d5b63">Order #A-1024 confirmed with receipt match.</text>
+  <rect x="32" y="118" width="96" height="24" rx="12" fill="#e6f4ea" />
+  <text x="80" y="134" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#2e7d32">COMPLETE</text>
+</svg>

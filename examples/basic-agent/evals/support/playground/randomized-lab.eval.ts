@@ -1,4 +1,4 @@
-import { blocks, defineEval, setOutput, span, tracer } from '@agent-evals/sdk';
+import { defineEval, setOutput, span, tracer } from '@agent-evals/sdk';
 
 function samplePercent(): number {
   return Math.round(Math.random() * 100) / 100;
@@ -27,7 +27,7 @@ defineEval<{ prompt: string }>({
     },
   ],
   columns: {
-    response: { label: 'Response', primary: true },
+    response: { label: 'Response', primary: true, format: 'markdown' },
     randomValue: { label: 'Random Value', format: 'percent' },
   },
   execute: async ({ input }) => {
@@ -64,7 +64,7 @@ defineEval<{ prompt: string }>({
         },
       );
 
-      setOutput('response', [blocks.markdown(responseText)]);
+      setOutput('response', responseText);
       setOutput('randomValue', randomValue);
 
       span.setAttribute('output', {

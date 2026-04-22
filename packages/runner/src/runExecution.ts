@@ -198,7 +198,7 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
 
   const columns: Record<string, CellValue> = {};
   for (const [key, value] of Object.entries(scope.outputs)) {
-    const cell = toCellValue(value);
+    const cell = toCellValue(value, evalDef.columns?.[key]);
     if (cell !== undefined) {
       columns[key] = cell;
     }

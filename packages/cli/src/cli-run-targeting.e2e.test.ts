@@ -23,7 +23,7 @@ async function writeTrialSelectionEval(
 
   await writeFile(
     join(workspacePath, 'evals', 'trial-selection.eval.ts'),
-    `import { blocks, defineEval, setOutput, tracer, span } from '@agent-evals/sdk';
+    `import { defineEval, setOutput, tracer, span } from '@agent-evals/sdk';
 
 const candidates = [
   {
@@ -77,7 +77,7 @@ defineEval({
         async () => {
           const next = nextCandidate();
           setOutput('candidateId', next.candidateId);
-          setOutput('response', [blocks.markdown(next.response)]);
+          setOutput('response', next.response);
           setOutput('scorePreview', next.score);
           span.setAttribute('output', next);
           return next;
@@ -159,24 +159,14 @@ describe('CLI run targeting', () => {
           "persistedCases": [
             {
               "caseId": "simple-text",
-              "response": [
-                {
-                  "kind": "markdown",
-                  "text": "Approved refund for: I want a refund for order #123",
-                },
-              ],
+              "response": "Approved refund for: I want a refund for order #123",
               "score": 0.8200000000000001,
               "status": "pass",
               "toolCalls": 1,
             },
             {
               "caseId": "with-image",
-              "response": [
-                {
-                  "kind": "markdown",
-                  "text": "Approved refund for: Please refund this damaged item",
-                },
-              ],
+              "response": "Approved refund for: Please refund this damaged item",
               "score": 0.9199999999999999,
               "status": "pass",
               "toolCalls": 2,
@@ -253,12 +243,7 @@ describe('CLI run targeting', () => {
             {
               "caseId": "tampered-total",
               "evalId": "receipt-fraud-review",
-              "response": [
-                {
-                  "kind": "markdown",
-                  "text": "Opened a risk review for order #RISK-12 after detecting receipt tampering signals.",
-                },
-              ],
+              "response": "Opened a risk review for order #RISK-12 after detecting receipt tampering signals.",
               "reviewQueue": "risk-ops",
               "riskLevel": "high",
               "score": 1,
@@ -317,12 +302,7 @@ describe('CLI run targeting', () => {
               "detectedLocale": "pt-BR",
               "followUpChannel": "sms",
               "llmTurns": 2,
-              "response": [
-                {
-                  "kind": "markdown",
-                  "text": "Prepared a sms follow-up with return steps for order #RET-44.",
-                },
-              ],
+              "response": "Prepared a sms follow-up with return steps for order #RET-44.",
               "score": 1,
             },
           ],
@@ -386,12 +366,7 @@ describe('CLI run targeting', () => {
               "caseId": "espresso-machine",
               "escalationQueue": "finance-review",
               "evalId": "high-value-refund",
-              "response": [
-                {
-                  "kind": "markdown",
-                  "text": "Escalated a $1299.00 refund for order #9001 to finance review.",
-                },
-              ],
+              "response": "Escalated a $1299.00 refund for order #9001 to finance review.",
               "riskLevel": "high",
               "score": 1,
               "status": "pass",
@@ -467,12 +442,7 @@ describe('CLI run targeting', () => {
           "persistedCases": [
             {
               "caseId": "simple-text",
-              "response": [
-                {
-                  "kind": "markdown",
-                  "text": "Approved refund for: I want a refund for order #123",
-                },
-              ],
+              "response": "Approved refund for: I want a refund for order #123",
               "score": 0.8200000000000001,
               "trial": 0,
             },
@@ -542,12 +512,7 @@ describe('CLI run targeting', () => {
             {
               "candidateId": "balanced-review",
               "caseId": "damaged-order",
-              "response": [
-                {
-                  "kind": "markdown",
-                  "text": "Offer a replacement after a quick damage review.",
-                },
-              ],
+              "response": "Offer a replacement after a quick damage review.",
               "score": 0.64,
               "trial": 2,
             },

@@ -1,6 +1,5 @@
-import { displayBlockSchema, type EvalTraceSpan } from '@agent-evals/shared';
+import type { EvalTraceSpan } from '@agent-evals/shared';
 import { describe, expect, test } from 'vitest';
-import { z } from 'zod/v4';
 import {
   normalizeSnapshotValue,
   readSingleRunArtifacts,
@@ -9,18 +8,13 @@ import {
   withIsolatedExampleWorkspace,
 } from './cliTestUtils.ts';
 
-const displayBlocksSchema = z.array(displayBlockSchema);
-
 describe('CLI eval features', () => {
   test('runs a module-mocked eval when node:test module mocks are enabled', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const result = await runExampleCli(
         workspacePath,
         ['run', '--eval', 'module-mock-demo'],
-        {
-          env: undefined,
-          nodeArgs: ['--experimental-test-module-mocks'],
-        },
+        { env: undefined, nodeArgs: ['--experimental-test-module-mocks'] },
       );
 
       expect(result.exitCode).toBe(0);
@@ -44,12 +38,7 @@ describe('CLI eval features', () => {
               "caseId": "mocked-customer-lookup",
               "columns": {
                 "appliedSegment": "vip",
-                "response": [
-                  {
-                    "kind": "markdown",
-                    "text": "Priority refund approved for vip-100: Please refund the duplicate charge",
-                  },
-                ],
+                "response": "Priority refund approved for vip-100: Please refund the duplicate charge",
                 "usedVipSegment": 1,
               },
               "score": 1,
@@ -104,7 +93,7 @@ describe('CLI eval features', () => {
     });
   });
 
-  test('persists output blocks, scores, and derived columns for every example case', async () => {
+  test('persists output columns, scores, and derived columns for every example case', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const result = await runExampleCli(workspacePath, [
         'run',
@@ -121,10 +110,6 @@ describe('CLI eval features', () => {
       const withAudioCase = requireCase(artifacts.cases, 'with-audio');
 
       for (const caseRow of artifacts.cases) {
-        const responseBlocks = displayBlocksSchema.parse(
-          caseRow.columns.response,
-        );
-
         expect(caseRow.status).toBe('pass');
         expect(typeof caseRow.score).toBe('number');
         expect(caseRow.score).toBeGreaterThan(0.8);
@@ -132,19 +117,15 @@ describe('CLI eval features', () => {
         expect(typeof caseRow.columns.reviewConfidence).toBe('number');
         expect(caseRow.columns.llmTurns).toBe(1);
         expect(typeof caseRow.columns.costUsd).toBe('number');
-        expect(responseBlocks).toHaveLength(1);
-        expect(responseBlocks[0]?.kind).toBe('markdown');
+        expect(typeof caseRow.columns.response).toBe('string');
       }
 
       expect(simpleTextCase.columns.toolCalls).toBe(1);
       expect(withImageCase.columns.toolCalls).toBe(2);
       expect(withAudioCase.columns.toolCalls).toBe(1);
-      expect(withImageCase.columns.response).toEqual([
-        {
-          kind: 'markdown',
-          text: 'Approved refund for: Please refund this damaged item',
-        },
-      ]);
+      expect(withImageCase.columns.response).toBe(
+        'Approved refund for: Please refund this damaged item',
+      );
 
       expect(
         normalizeSnapshotValue(
@@ -154,7 +135,7 @@ describe('CLI eval features', () => {
             costUsd: caseRow.columns.costUsd,
             llmTurns: caseRow.columns.llmTurns,
             mentionsRefund: caseRow.columns.mentionsRefund,
-            response: displayBlocksSchema.parse(caseRow.columns.response),
+            response: caseRow.columns.response,
             score: caseRow.score,
             status: caseRow.status,
             toolCalls: caseRow.columns.toolCalls,
@@ -167,12 +148,7 @@ describe('CLI eval features', () => {
             "costUsd": 0.0008749999999999999,
             "llmTurns": 1,
             "mentionsRefund": 1,
-            "response": [
-              {
-                "kind": "markdown",
-                "text": "Approved refund for: I want a refund for order #123",
-              },
-            ],
+            "response": "Approved refund for: I want a refund for order #123",
             "score": 0.8200000000000001,
             "status": "pass",
             "toolCalls": 1,
@@ -182,12 +158,7 @@ describe('CLI eval features', () => {
             "costUsd": 0.0008749999999999999,
             "llmTurns": 1,
             "mentionsRefund": 1,
-            "response": [
-              {
-                "kind": "markdown",
-                "text": "Approved refund for: Please refund this damaged item",
-              },
-            ],
+            "response": "Approved refund for: Please refund this damaged item",
             "score": 0.9199999999999999,
             "status": "pass",
             "toolCalls": 2,
@@ -197,12 +168,7 @@ describe('CLI eval features', () => {
             "costUsd": 0.0008749999999999999,
             "llmTurns": 1,
             "mentionsRefund": 1,
-            "response": [
-              {
-                "kind": "markdown",
-                "text": "Approved refund for: I need to return this product",
-              },
-            ],
+            "response": "Approved refund for: I need to return this product",
             "score": 0.98,
             "status": "pass",
             "toolCalls": 1,
@@ -527,6 +493,69 @@ describe('CLI eval features', () => {
     });
   });
 
+  test('supports multiple column formats from plain output values', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const result = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'format-gallery',
+      ]);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe('');
+
+      const artifacts = await readSingleRunArtifacts(workspacePath);
+      expect(
+        normalizeSnapshotValue(workspacePath, {
+          caseRows: artifacts.cases.map((caseRow) => ({
+            caseId: caseRow.caseId,
+            columns: caseRow.columns,
+            status: caseRow.status,
+          })),
+        }),
+      ).toMatchInlineSnapshot(`
+{
+  "caseRows": [
+    {
+      "caseId": "all-column-formats",
+      "columns": {
+        "attachment": {
+          "mimeType": "text/plain",
+          "path": "evals/datasets/assets/refund-template.txt",
+          "source": "repo",
+        },
+        "audioBrief": {
+          "mimeType": "audio/wav",
+          "path": "evals/datasets/assets/chime.wav",
+          "source": "repo",
+        },
+        "confidence": 0.93,
+        "handlingCostUsd": 1.25,
+        "previewCard": {
+          "mimeType": "image/svg+xml",
+          "path": "evals/datasets/assets/status-card.svg",
+          "source": "repo",
+        },
+        "response": "Prepared **refund package** for order \`A-1024\`.\n\nCustomer note: Please confirm the refund package for my damaged mug.",
+        "reviewTimeMs": 1450,
+        "toolResult": {
+          "matchedReceipt": true,
+          "nextStep": "send-refund-confirmation",
+          "orderId": "A-1024",
+          "reviewer": {
+            "name": "Avery",
+            "queue": "refund-ops",
+          },
+        },
+      },
+      "status": "pass",
+    },
+  ],
+}
+      `);
+    });
+  });
+
   test('treats score failures and assertion failures as failed cases while allowing silent no-trace cases', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const result = await runExampleCli(workspacePath, [
@@ -664,12 +693,7 @@ describe('CLI eval features', () => {
               "caseId": "score-threshold-miss",
               "columns": {
                 "matchesGoldAnswer": 0,
-                "response": [
-                  {
-                    "kind": "markdown",
-                    "text": "Borderline result for: Review the refund summary against the gold answer.",
-                  },
-                ],
+                "response": "Borderline result for: Review the refund summary against the gold answer.",
               },
               "evalId": "score-threshold-demo",
               "score": 0,
@@ -678,12 +702,7 @@ describe('CLI eval features', () => {
             {
               "caseId": "assertion-failure-visible-output",
               "columns": {
-                "response": [
-                  {
-                    "kind": "markdown",
-                    "text": "Missing audit note for ticket T-441.",
-                  },
-                ],
+                "response": "Missing audit note for ticket T-441.",
               },
               "evalId": "assertion-failure-demo",
               "score": null,

@@ -34,7 +34,7 @@ async function createTrialSelectionWorkspace(
   );
   await writeFile(
     join(workspacePath, 'evals', 'trial-selection.eval.ts'),
-    `import { blocks, defineEval, setOutput, tracer, span } from '@agent-evals/sdk';
+    `import { defineEval, setOutput, tracer, span } from '@agent-evals/sdk';
 
 const candidates = [
   {
@@ -88,7 +88,7 @@ defineEval({
         async () => {
           const next = nextCandidate();
           setOutput('candidateId', next.candidateId);
-          setOutput('response', [blocks.markdown(next.response)]);
+          setOutput('response', next.response);
           setOutput('scorePreview', next.score);
           span.setAttribute('output', next);
           return next;

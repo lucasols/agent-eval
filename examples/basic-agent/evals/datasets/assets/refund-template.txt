@@ -1,0 +1,5 @@
+Refund handoff template
+
+1. Confirm the order identifier.
+2. Attach the receipt review summary.
+3. Tell the customer when the refund will settle.

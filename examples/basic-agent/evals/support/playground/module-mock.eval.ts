@@ -1,5 +1,5 @@
 import { mock } from 'node:test';
-import { blocks, defineEval, evalAssert, setOutput } from '@agent-evals/sdk';
+import { defineEval, evalAssert, setOutput } from '@agent-evals/sdk';
 
 defineEval<{ customerId: string; request: string }>({
   id: 'module-mock-demo',
@@ -14,7 +14,7 @@ defineEval<{ customerId: string; request: string }>({
     },
   ],
   columns: {
-    response: { label: 'Response', primary: true },
+    response: { label: 'Response', primary: true, format: 'markdown' },
     appliedSegment: { label: 'Applied Segment' },
   },
   execute: async ({ input }) => {
@@ -28,12 +28,11 @@ defineEval<{ customerId: string; request: string }>({
       },
     });
 
-    const { runMockModuleWorkflow } = await import(
-      '../../../src/workflows/mockModuleWorkflow.ts'
-    );
+    const { runMockModuleWorkflow } =
+      await import('../../../src/workflows/mockModuleWorkflow.ts');
     const result = await runMockModuleWorkflow(input);
 
-    setOutput('response', [blocks.markdown(result.response)]);
+    setOutput('response', result.response);
     setOutput('appliedSegment', result.segment);
 
     evalAssert(

@@ -1,4 +1,4 @@
-import type { CellValue, ColumnDef, DisplayBlock } from '@agent-evals/shared';
+import type { CellValue, ColumnDef } from '@agent-evals/shared';
 import { Maximize2, Minimize2, X } from 'lucide-react';
 import { useRef } from 'react';
 import { styled } from 'vindur';
@@ -13,14 +13,13 @@ import { useWindowWidth } from '../hooks/useWindowWidth.ts';
 import { evalsStore } from '../stores/evalsStore.ts';
 import { layoutStore } from '../stores/layoutStore.ts';
 import { closeCase, runStore } from '../stores/runStore.ts';
-import {
-  formatCost,
-  formatDuration,
-  formatPercent,
-  formatScore,
-} from '../utils/formatters.ts';
-import { DisplayBlockRenderer } from './DisplayBlockRenderer.tsx';
+import { formatScore } from '../utils/formatters.ts';
 import { EmptyState } from './EmptyState.tsx';
+import {
+  FormattedCellValue,
+  hasRichColumnFormat,
+  summarizeCellValue,
+} from './FormattedCellValue.tsx';
 import { IconButton } from './IconButton.tsx';
 import { JsonViewer } from './JsonViewer.tsx';
 import { ResizeHandle } from './ResizeHandle.tsx';
@@ -171,6 +170,21 @@ const ColumnRow = styled.div`
 const ColumnLabel = styled.div`
   ${kicker}
   color: ${colors.textMuted.var};
+  padding: 10px 12px 0;
+`;
+
+const RichColumnCard = styled.div`
+  ${stack({ gap: 0 })}
+  overflow: hidden;
+  background: ${colors.bgElevated.var};
+  border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-md);
+`;
+
+const RichColumnBody = styled.div`
+  padding: 12px;
+  background: ${colors.bg.var};
+  border-top: 1px solid ${colors.border.var};
 `;
 
 const ColumnValueText = styled.div`
@@ -360,7 +374,10 @@ export function CaseDrawer() {
           hasOutputValue ? (
             <div>
               {primaryCol ? (
-                <PrimaryBlocks value={d.columns[primaryCol.key]} />
+                <PrimaryValue
+                  def={primaryCol}
+                  value={d.columns[primaryCol.key]}
+                />
               ) : null}
               <ColumnsGrid>
                 {columnDefs
@@ -432,25 +449,37 @@ export function CaseDrawer() {
   );
 }
 
-function PrimaryBlocks({ value }: { value: CellValue | undefined }) {
-  if (!Array.isArray(value)) {
-    return value === undefined ? '\u2014' : <JsonViewer value={value} />;
+function PrimaryValue({
+  def,
+  value,
+}: {
+  def: ColumnDef;
+  value: CellValue | undefined;
+}) {
+  if (value === undefined) return '\u2014';
+  if (hasRichColumnFormat(def)) {
+    return (
+      <RichColumnCard>
+        <ColumnLabel>{def.label}</ColumnLabel>
+        <RichColumnBody>
+          <FormattedCellValue
+            def={def}
+            value={value}
+          />
+        </RichColumnBody>
+      </RichColumnCard>
+    );
   }
   return (
-    <div>
-      {value.map((block: DisplayBlock, i) => (
-        <DisplayBlockRenderer
-          key={i}
-          block={block}
-        />
-      ))}
-    </div>
+    <FormattedCellValue
+      def={def}
+      value={value}
+    />
   );
 }
 
 function hasRenderableOutputValue(value: CellValue | undefined): boolean {
   if (value === undefined || value === null) return false;
-  if (Array.isArray(value)) return value.length > 0;
   return true;
 }
 
@@ -461,15 +490,29 @@ function ColumnCell({
   def: ColumnDef;
   value: CellValue | undefined;
 }) {
+  if (hasRichColumnFormat(def)) {
+    return (
+      <RichColumnCard>
+        <ColumnLabel>{def.label}</ColumnLabel>
+        <RichColumnBody>
+          <FormattedCellValue
+            def={def}
+            value={value}
+          />
+        </RichColumnBody>
+      </RichColumnCard>
+    );
+  }
+
   return (
     <ColumnRow>
       <ColumnLabel>{def.label}</ColumnLabel>
-      <ColumnValueText>{renderCellValue(def, value)}</ColumnValueText>
+      <ColumnValueText>{renderCompactCellValue(def, value)}</ColumnValueText>
     </ColumnRow>
   );
 }
 
-function renderCellValue(def: ColumnDef, value: CellValue | undefined) {
+function renderCompactCellValue(def: ColumnDef, value: CellValue | undefined) {
   if (value === undefined || value === null) return '\u2014';
 
   if (def.isScore && typeof value === 'number') {
@@ -482,18 +525,11 @@ function renderCellValue(def: ColumnDef, value: CellValue | undefined) {
     );
   }
 
-  if (typeof value === 'number') {
-    if (def.format === 'usd') return formatCost(value);
-    if (def.format === 'duration') return formatDuration(value);
-    if (def.format === 'percent') return formatPercent(value);
+  if (typeof value === 'number' && def.format === undefined) {
     return formatScore(value);
   }
 
-  if (Array.isArray(value)) {
-    return `${String(value.length)} block(s)`;
-  }
-
-  return String(value);
+  return summarizeCellValue(def, value);
 }
 
 function RawSection({ label, data }: { label: string; data: unknown }) {

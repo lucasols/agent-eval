@@ -1,5 +1,4 @@
 export { defineEval, getEvalRegistry } from './defineEval.ts';
-export { blocks } from './blocks.ts';
 export { repoFile } from './repoFile.ts';
 export {
   setOutput,
@@ -23,7 +22,7 @@ export {
   type TraceActiveSpan,
   type TraceSpanInfo,
 } from './tracer.ts';
-export type { DisplayBlock, FileRef } from '@agent-evals/shared';
+export type { FileRef, RepoFileRef, RunArtifactRef } from '@agent-evals/shared';
 export type {
   EvalCase,
   EvalColumnOverride,

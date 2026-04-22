@@ -2,23 +2,8 @@ import type { EvalDefinition, EvalTraceTree } from '@agent-evals/sdk';
 
 const USD_TO_BRL = 5.7;
 
-export function isTextBlock(
-  value: unknown,
-): value is { kind: 'text' | 'markdown'; text: string } {
-  if (typeof value !== 'object' || value === null) return false;
-  if (!('kind' in value) || !('text' in value)) return false;
-  return (
-    (value.kind === 'text' || value.kind === 'markdown') &&
-    typeof value.text === 'string'
-  );
-}
-
 export function getResponseText(value: unknown): string {
-  if (!Array.isArray(value)) return '';
-  return value
-    .filter(isTextBlock)
-    .map((block) => block.text)
-    .join(' ');
+  return typeof value === 'string' ? value : '';
 }
 
 export function getTraceCounts(trace: EvalTraceTree): {

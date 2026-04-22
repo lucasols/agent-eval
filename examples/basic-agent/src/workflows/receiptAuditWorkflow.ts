@@ -1,5 +1,4 @@
 import {
-  blocks,
   evalAssert,
   incrementOutput,
   setOutput,
@@ -80,7 +79,7 @@ export async function runReceiptAuditWorkflow(
 
     tracer.checkpoint('audit-decision', { auditStatus: result.auditStatus });
 
-    setOutput('response', [blocks.markdown(result.finalText)]);
+    setOutput('response', result.finalText);
     setOutput('auditStatus', result.auditStatus);
     setOutput('discrepancyCount', result.discrepancyCount);
     evalAssert(

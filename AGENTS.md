@@ -14,7 +14,7 @@ pnpm 10 workspaces (do not invoke npm or yarn):
 - `apps/web` — React 19 + Vite 7 frontend (`@agent-evals/web`)
 - `packages/cli` — CLI binary (`@agent-evals/cli`)
 - `packages/runner` — Core eval runner (Vitest + chokidar)
-- `packages/sdk` — Public SDK (`defineEval`, matchers, blocks, pricing)
+- `packages/sdk` — Public SDK (`defineEval`, matchers, repoFile, pricing)
 - `packages/shared` — Shared Zod schemas / types
 - `examples/basic-agent` — Demo with `*.eval.ts` files
 
@@ -81,12 +81,12 @@ Once the implementation is in place, complete the following before marking the t
 Use `t-result`. Do not use `try`/`catch`.
 
 ```ts
-import { Result, resultify } from 't-result'
+import { Result, resultify } from 't-result';
 
 function doSomething(input: string): Result<string, Error> {
-  const parsed = resultify(() => JSON.parse(input))
-  if (parsed.error) return parsed.errResult()
-  return Result.ok(parsed.value)
+  const parsed = resultify(() => JSON.parse(input));
+  if (parsed.error) return parsed.errResult();
+  return Result.ok(parsed.value);
 }
 ```
 
@@ -98,41 +98,41 @@ Split routes by resource into their own files, then mount them on the root app v
 
 ```ts
 // routes/tasks.ts
-import { Hono } from 'hono'
-import { zValidator } from '@hono/zod-validator'
-import { createTaskHandler, getTasksHandler } from './tasks.handlers'
-import { taskCreateSchema, taskQuerySchema } from './tasks.schemas'
+import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
+import { createTaskHandler, getTasksHandler } from './tasks.handlers';
+import { taskCreateSchema, taskQuerySchema } from './tasks.schemas';
 
 export const taskRoutes = new Hono()
   .get('/tasks', zValidator('query', taskQuerySchema), async (c) => {
-    return getTasksHandler(c, c.req.valid('query'))
+    return getTasksHandler(c, c.req.valid('query'));
   })
   .post('/tasks', zValidator('json', taskCreateSchema), async (c) => {
-    return createTaskHandler(c, c.req.valid('json'))
-  })
+    return createTaskHandler(c, c.req.valid('json'));
+  });
 ```
 
 ```ts
 // index.ts
-import { Hono } from 'hono'
-import { taskRoutes } from './routes/tasks'
-import { projectRoutes } from './routes/projects'
+import { Hono } from 'hono';
+import { taskRoutes } from './routes/tasks';
+import { projectRoutes } from './routes/projects';
 
-const app = new Hono()
+const app = new Hono();
 
 // routes must be chained in order for hono rpc to work
-const routes_ = app.route('/api', taskRoutes).route('/api', projectRoutes)
+const routes_ = app.route('/api', taskRoutes).route('/api', projectRoutes);
 
-export type AppType = typeof routes_
+export type AppType = typeof routes_;
 ```
 
 ```ts
 // client
-import { hc } from 'hono/client'
-import type { AppType } from '../backend/src'
+import { hc } from 'hono/client';
+import type { AppType } from '../backend/src';
 
-const client = hc<AppType>('http://localhost:4100')
-const res = await client.api.tasks.$post({ json: { title: 'New Task' } })
+const client = hc<AppType>('http://localhost:4100');
+const res = await client.api.tasks.$post({ json: { title: 'New Task' } });
 ```
 
 # Frontend
@@ -146,9 +146,14 @@ Vindur is a compile-time CSS-in-JS framework. Place styles at the top of compone
 - Light mode only.
 
 ```tsx
-import { styled } from 'vindur'
-import { colors } from '#src/style/colors'
-import { inline, stack, centerContent, fillContainer } from '#src/style/helpers'
+import { styled } from 'vindur';
+import { colors } from '#src/style/colors';
+import {
+  inline,
+  stack,
+  centerContent,
+  fillContainer,
+} from '#src/style/helpers';
 
 const Button = styled.button`
   background: ${colors.accent.var};
@@ -158,7 +163,7 @@ const Button = styled.button`
   &:hover {
     background: ${colors.accent.darken(0.1)};
   }
-`
+`;
 ```
 
 Conditional styling — use style flags, not inline ternaries:
@@ -169,7 +174,7 @@ const Card = styled.div<{ isActive: boolean }>`
   &.isActive {
     border: 2px solid ${colors.accent.var};
   }
-`
+`;
 ```
 
 Use the `cx` prop for additional conditional classes: `<Button cx={{ disabled, loading }} />`. Use camelCase modifiers (`isActive`, `isFocused`).
@@ -181,16 +186,16 @@ Layout helpers replace manual flexbox:
 ```tsx
 const Header = styled.div`
   ${inline({ justify: 'space-between', gap: 16 })}
-`
+`;
 const Sidebar = styled.div`
   ${stack({ align: 'center', gap: 12 })}
-`
+`;
 const Modal = styled.div`
   ${centerContent}
-`
+`;
 const Overlay = styled.div`
   ${fillContainer}
-`
+`;
 ```
 
 Don't use conditional style functions inside styled components — Vindur doesn't support them. Use style flags instead. Don't use `colorAlpha` with static colors — use `color.name.alpha(n)`.
@@ -214,10 +219,10 @@ Use `useActionFn` from `@ls-stack/react-utils/useActionFn` instead of tracking p
 ```tsx
 const doSomething = useActionFn(async (...args) => {
   /* ... */
-})
+});
 
-doSomething.call(...args)
-doSomething.isInProgress
+doSomething.call(...args);
+doSomething.isInProgress;
 ```
 
 The hook internally prevents concurrent calls — don't guard with `isInProgress` inside the callback.
@@ -229,11 +234,11 @@ For multi-input forms with validation, use `useForm` from `t-state-form`:
 ```tsx
 const { formTypedCtx, handleChange, forceFormValidation } = useForm({
   initialConfig: { name: { initialValue: '', required: true } },
-})
+});
 
-const { formIsValid, formFields, fieldEntries } = useFormState(formTypedCtx)
+const { formIsValid, formFields, fieldEntries } = useFormState(formTypedCtx);
 
 function handleSubmit() {
-  if (!formIsValid) forceFormValidation()
+  if (!formIsValid) forceFormValidation();
 }
 ```

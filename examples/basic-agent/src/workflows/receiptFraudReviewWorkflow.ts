@@ -1,5 +1,4 @@
 import {
-  blocks,
   evalAssert,
   incrementOutput,
   setOutput,
@@ -91,7 +90,7 @@ export async function runReceiptFraudReviewWorkflow(
 
       tracer.checkpoint('risk-escalation', { reviewQueue: result.reviewQueue });
 
-      setOutput('response', [blocks.markdown(result.finalText)]);
+      setOutput('response', result.finalText);
       setOutput('reviewQueue', result.reviewQueue);
       setOutput('riskLevel', result.riskLevel);
       evalAssert(
