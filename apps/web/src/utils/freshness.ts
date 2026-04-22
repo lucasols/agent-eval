@@ -1,4 +1,4 @@
-import type { EvalSummary } from '@ls-stack/agent-eval';
+import type { EvalSummary } from '@agent-evals/shared';
 import { formatTimestamp } from './formatters.ts';
 
 function shortCommitSha(commitSha: string | null): string {

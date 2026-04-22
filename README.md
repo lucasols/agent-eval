@@ -352,8 +352,9 @@ export const config: AgentEvalsConfig = {
 ## Output formatting
 
 Store output values with `setOutput(...)` as plain data: strings, numbers,
-booleans, `null`, JSON-safe objects/arrays for `format: 'json'`, or file refs
-for `format: 'image' | 'audio' | 'video' | 'file'`.
+booleans, `null`, JSON-safe objects/arrays for `format: 'json'`, explicit file
+refs, or native `Blob`/`File` values for `format: 'image' | 'audio' | 'video' |
+'file'`.
 
 Use the eval `columns` option to control labels, primary display, alignment,
 visibility, and rendering format. Supported `columns.format` values include
@@ -361,7 +362,7 @@ visibility, and rendering format. Supported `columns.format` values include
 `duration`, and `number`.
 
 ```ts
-import { defineEval, repoFile, setOutput } from '@ls-stack/agent-eval';
+import { defineEval, setOutput } from '@ls-stack/agent-eval';
 
 defineEval({
   id: 'receipt-preview',
@@ -372,7 +373,10 @@ defineEval({
   },
   execute: () => {
     setOutput('response', 'Refund prepared for **order #123**.');
-    setOutput('receipt', repoFile('evals/assets/receipt-1.png', 'image/png'));
+    setOutput(
+      'receipt',
+      new File([imageBytes], 'receipt-1.png', { type: 'image/png' }),
+    );
     setOutput('toolResult', { matched: true, confidence: 0.93 });
   },
 });

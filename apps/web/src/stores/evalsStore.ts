@@ -1,4 +1,4 @@
-import { evalSummarySchema, type EvalSummary } from '@ls-stack/agent-eval';
+import { evalSummarySchema, type EvalSummary } from '@agent-evals/shared';
 import { resultify } from 't-result';
 import { Store } from 't-state';
 import { z } from 'zod/v4';

@@ -1,4 +1,15 @@
-import { defineEval, repoFile, setOutput } from '@ls-stack/agent-eval';
+import { readFileSync } from 'node:fs';
+import { defineEval, setOutput } from '@ls-stack/agent-eval';
+
+const previewCardSvg = readFileSync(
+  new URL('../../datasets/assets/status-card.svg', import.meta.url),
+);
+const audioBriefWav = readFileSync(
+  new URL('../../datasets/assets/chime.wav', import.meta.url),
+);
+const attachmentText = readFileSync(
+  new URL('../../datasets/assets/refund-template.txt', import.meta.url),
+);
 
 defineEval({
   id: 'format-gallery',
@@ -36,15 +47,15 @@ defineEval({
     });
     setOutput(
       'previewCard',
-      repoFile('evals/datasets/assets/status-card.svg', 'image/svg+xml'),
+      new Blob([previewCardSvg], { type: 'image/svg+xml' }),
     );
     setOutput(
       'audioBrief',
-      repoFile('evals/datasets/assets/chime.wav', 'audio/wav'),
+      new File([audioBriefWav], 'chime.wav', { type: 'audio/wav' }),
     );
     setOutput(
       'attachment',
-      repoFile('evals/datasets/assets/refund-template.txt', 'text/plain'),
+      new File([attachmentText], 'refund-template.txt', { type: 'text/plain' }),
     );
     setOutput('confidence', 0.93);
     setOutput('handlingCostUsd', 1.25);

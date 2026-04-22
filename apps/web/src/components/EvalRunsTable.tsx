@@ -4,7 +4,7 @@ import type {
   ColumnDef,
   RunManifest,
   ScopedCaseSummary,
-} from '@ls-stack/agent-eval';
+} from '@agent-evals/shared';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { type MouseEvent } from 'react';
 import { styled } from 'vindur';
@@ -550,19 +550,16 @@ function RunGroup({
           )}
         </RunHeaderTd>
         {customColumns.map((c) => {
-          const avg =
-            isNumericColumn(c) ? averageNumericColumn(cases, c.key) : null;
+          const avg = isNumericColumn(c)
+            ? averageNumericColumn(cases, c.key)
+            : null;
           return (
             <RunHeaderTd
               key={c.key}
               rightAlign={c.align === 'right' || isNumericColumn(c)}
               mono={true}
             >
-              {avg === null ? (
-                <Dim>{EM_DASH}</Dim>
-              ) : (
-                formatNumericCell(c, avg)
-              )}
+              {avg === null ? <Dim>{EM_DASH}</Dim> : formatNumericCell(c, avg)}
             </RunHeaderTd>
           );
         })}

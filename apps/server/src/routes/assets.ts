@@ -29,6 +29,8 @@ export const assetsRoutes = new Hono()
   })
   .get('/artifacts/:artifactId', async (c) => {
     const artifactId = c.req.param('artifactId');
+    const mimeType = c.req.query('mimeType') ?? 'application/octet-stream';
+    const fileName = c.req.query('fileName');
     const runner = getRunnerInstance();
     const artifactPath = runner.getArtifactPath(artifactId);
 
@@ -38,7 +40,11 @@ export const assetsRoutes = new Hono()
 
     try {
       const content = await readFile(artifactPath);
-      return c.body(content, 200);
+      const headers: Record<string, string> = { 'Content-Type': mimeType };
+      if (fileName) {
+        headers['Content-Disposition'] = `inline; filename="${fileName}"`;
+      }
+      return c.body(content, 200, headers);
     } catch {
       return c.json({ error: 'Artifact not found' }, 404);
     }

@@ -3,7 +3,7 @@ import type {
   TraceAttributeDisplay,
   TraceAttributeDisplayPlacement,
   TraceDisplayConfig,
-} from '@ls-stack/agent-eval';
+} from '@agent-evals/shared';
 import { formatCost, formatDuration } from './formatters.ts';
 
 type TraceAttributeItem = { config: TraceAttributeDisplay; value: unknown };

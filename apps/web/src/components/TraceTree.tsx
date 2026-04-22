@@ -1,4 +1,4 @@
-import type { EvalTraceSpan, TraceDisplayConfig } from '@ls-stack/agent-eval';
+import type { EvalTraceSpan, TraceDisplayConfig } from '@agent-evals/shared';
 import { ChevronRight, PanelRightClose, PanelRightOpen, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { styled } from 'vindur';

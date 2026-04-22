@@ -11,7 +11,7 @@
     "eslint": "eslint ."
   },
   "dependencies": {
-    "@ls-stack/agent-eval": "workspace:*",
+    "@agent-evals/shared": "workspace:*",
     "@floating-ui/react": "^0.27.19",
     "@ls-stack/react-utils": "^0.12.1",
     "@ls-stack/utils": "^3.75.0",

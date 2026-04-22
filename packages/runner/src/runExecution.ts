@@ -12,6 +12,7 @@ import type {
   TraceDisplayInputConfig,
 } from '@agent-evals/shared';
 import { normalizeScoreDef, toCellValue } from './columnBuilder.ts';
+import { persistInlineArtifact } from './outputArtifacts.ts';
 import { resolveTracePresentation } from './traceDisplay.ts';
 
 export function filterEvalCases<TInput>(
@@ -62,6 +63,8 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
   cacheAdapter: CacheAdapter | null;
   cacheMode: CacheMode;
   codeFingerprint: string;
+  artifactDir: string;
+  runId: string;
 }): Promise<{ caseDetail: CaseDetail; caseRowUpdate: Partial<CaseRow> }> {
   const {
     evalDef,
@@ -74,6 +77,8 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
     cacheAdapter,
     cacheMode,
     codeFingerprint,
+    artifactDir,
+    runId,
   } = params;
 
   const { scope, error: executeError } = await runInEvalScope(
@@ -198,7 +203,16 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
 
   const columns: Record<string, CellValue> = {};
   for (const [key, value] of Object.entries(scope.outputs)) {
-    const cell = toCellValue(value, evalDef.columns?.[key]);
+    const cell = isBlob(value)
+      ? await persistInlineArtifact({
+          artifactDir,
+          runId,
+          caseId: evalCase.id,
+          outputKey: key,
+          trial,
+          value,
+        })
+      : toCellValue(value, evalDef.columns?.[key]);
     if (cell !== undefined) {
       columns[key] = cell;
     }
@@ -242,6 +256,10 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function isBlob(value: unknown): value is Blob {
+  return value instanceof Blob;
 }
 
 function toAssertionFailure(

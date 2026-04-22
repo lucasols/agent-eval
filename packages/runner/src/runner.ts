@@ -31,6 +31,7 @@ import {
   setLatestRunInfoMap,
 } from './evalSummaries.ts';
 import { readGitWorktreeState } from './gitState.ts';
+import { resolveArtifactPath } from './outputArtifacts.ts';
 import {
   recomputeEvalStatusesInRuns,
   runTouchesEval,
@@ -460,7 +461,7 @@ export function createRunner({
     },
 
     getArtifactPath(artifactId_) {
-      return undefined;
+      return resolveArtifactPath(join(localStateDir, 'runs'), artifactId_);
     },
   };
 

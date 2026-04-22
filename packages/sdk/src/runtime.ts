@@ -163,7 +163,12 @@ function toAssertionFailure(
   return error?.stack ? { message, stack: error.stack } : { message };
 }
 
-/** Record or replace an output value for the current case scope. */
+/**
+ * Record or replace an output value for the current case scope.
+ *
+ * Supported values include scalars, JSON-safe objects/arrays, explicit file
+ * refs, and native `Blob`/`File` instances for media or file columns.
+ */
 export function setOutput(key: string, value: unknown): void {
   const scope = getCurrentScope();
   if (!scope) return;

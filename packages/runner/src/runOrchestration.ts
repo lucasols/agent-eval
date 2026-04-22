@@ -252,6 +252,8 @@ export async function executeRun({
                       bufferedCacheStore ?? (cacheEnabled ? cacheStore : null),
                     cacheMode,
                     codeFingerprint,
+                    artifactDir: join(runDir, 'artifacts'),
+                    runId: runState.manifest.id,
                   });
 
                   return {

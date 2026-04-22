@@ -2,7 +2,7 @@ import {
   deriveScopedSummaryFromCases,
   deriveStatusFromCaseRows,
   type CaseRow,
-} from '@ls-stack/agent-eval';
+} from '@agent-evals/shared';
 import { X } from 'lucide-react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
@@ -339,8 +339,7 @@ export function RunDrawer() {
     summary.errorMessage.length > 0;
 
   const scopedCases = scopedRunCases.cases;
-  const showEvalIdInCase =
-    new Set(scopedCases.map((c) => c.evalId)).size > 1;
+  const showEvalIdInCase = new Set(scopedCases.map((c) => c.evalId)).size > 1;
 
   const runIsRunning = manifest.status === 'running';
   const menuEntries: SplitButtonMenuEntry[] = [

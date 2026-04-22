@@ -5,7 +5,7 @@ import {
   type CaseRow,
   type RunManifest,
   type RunSummary,
-} from '@ls-stack/agent-eval';
+} from '@agent-evals/shared';
 import { resultify } from 't-result';
 import { Store } from 't-state';
 import { z } from 'zod/v4';

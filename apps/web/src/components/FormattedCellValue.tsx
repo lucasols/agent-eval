@@ -1,4 +1,4 @@
-import type { CellValue, ColumnDef, FileRef } from '@ls-stack/agent-eval';
+import type { CellValue, ColumnDef, FileRef } from '@agent-evals/shared';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { styled } from 'vindur';
@@ -276,7 +276,11 @@ function getFileUrl(ref: FileRef): string {
     }
     return `/api/repo-file?${params.toString()}`;
   }
-  return `/api/artifacts/${ref.artifactId}`;
+  const params = new URLSearchParams({ mimeType: ref.mimeType });
+  if (ref.fileName) {
+    params.set('fileName', ref.fileName);
+  }
+  return `/api/artifacts/${ref.artifactId}?${params.toString()}`;
 }
 
 function getFileLabel(ref: FileRef): string {

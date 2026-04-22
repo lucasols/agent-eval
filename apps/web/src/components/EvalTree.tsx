@@ -1,4 +1,4 @@
-import { getEvalDisplayStatus, getEvalTitle } from '@ls-stack/agent-eval';
+import { getEvalDisplayStatus, getEvalTitle } from '@agent-evals/shared';
 import { ChevronRight } from 'lucide-react';
 import { useEffect } from 'react';
 import { css, styled } from 'vindur';

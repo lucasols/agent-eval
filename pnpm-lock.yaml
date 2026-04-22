@@ -72,12 +72,12 @@ importers:
 
   apps/web:
     dependencies:
+      '@agent-evals/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@floating-ui/react':
         specifier: ^0.27.19
         version: 0.27.19(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@ls-stack/agent-eval':
-        specifier: workspace:*
-        version: link:../../packages/cli
       '@ls-stack/react-utils':
         specifier: ^0.12.1
         version: 0.12.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)

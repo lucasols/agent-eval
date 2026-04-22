@@ -1,4 +1,4 @@
-import type { EvalSummary } from '@ls-stack/agent-eval';
+import type { EvalSummary } from '@agent-evals/shared';
 import { Play } from 'lucide-react';
 import { useState } from 'react';
 import { styled } from 'vindur';
