@@ -45,11 +45,7 @@ defineEval<{ ticketId: string }>({
   },
 });
 
-defineEval({
-  id: 'silent-pass-demo',
-  title: 'Silent Pass Demo',
-  execute: () => {},
-});
+defineEval({ id: 'silent-pass-demo', execute: () => {} });
 
 defineEval<{ queue: string }>({
   id: 'silent-assertion-demo',
