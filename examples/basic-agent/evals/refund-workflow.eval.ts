@@ -7,7 +7,6 @@ import {
 defineEval<WorkflowInput>({
   id: 'refund-workflow',
   title: 'Refund Workflow',
-  description: 'Runs the refund workflow end-to-end',
   cases: [
     {
       id: 'simple-text',

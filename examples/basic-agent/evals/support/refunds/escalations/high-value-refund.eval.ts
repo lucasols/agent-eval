@@ -11,7 +11,6 @@ import {
 defineEval<HighValueRefundInput>({
   id: 'high-value-refund',
   title: 'High Value Refund',
-  description: 'Covers premium purchase refund escalations in a deeper folder',
   cases: [
     {
       id: 'espresso-machine',

@@ -63,7 +63,6 @@ export type EvalScoreDef<TInput> =
 export type EvalDefinition<TInput = unknown> = {
   id: string;
   title?: string;
-  description?: string;
   cases?: EvalCase<TInput>[] | (() => Promise<EvalCase<TInput>[]>);
   columns?: EvalColumns;
   /**

@@ -113,7 +113,6 @@ type CreateRunnerOptions = { watchForChanges?: boolean };
 type EvalMeta = {
   id: string;
   title?: string;
-  description?: string;
   filePath: string;
   sourceFilePath: string;
   sourceFingerprint: string | null;

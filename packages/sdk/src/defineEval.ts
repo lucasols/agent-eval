@@ -9,7 +9,6 @@ import type { EvalDefinition } from './types.ts';
 export type EvalRegistryEntry = {
   id: string;
   title?: string;
-  description?: string;
   use: <R>(fn: <TInput>(def: EvalDefinition<TInput>) => R) => R;
 };
 
@@ -39,7 +38,6 @@ export function defineEval<TInput>(definition: EvalDefinition<TInput>): void {
   evalRegistry.set(definition.id, {
     id: definition.id,
     title: definition.title,
-    description: definition.description,
     use: (fn) => fn(definition),
   });
 

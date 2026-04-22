@@ -12,7 +12,6 @@ export type EvalFreshnessStatus = z.infer<typeof evalFreshnessStatusSchema>;
 export const evalSummarySchema = z.object({
   id: z.string(),
   title: z.string().optional(),
-  description: z.string().optional(),
   /** Eval file path relative to the active workspace root. */
   filePath: z.string(),
   /** Indicates the eval file changed since the latest passing result. */

@@ -15,7 +15,6 @@ import {
 defineEval<ReceiptAuditInput>({
   id: 'receipt-audit',
   title: 'Receipt Audit',
-  description: 'Exercises receipt-heavy refund reviews for support queues',
   cases: [
     {
       id: 'damaged-mug',
@@ -63,7 +62,6 @@ defineEval<ReceiptAuditInput>({
 defineEval<ReceiptFraudReviewInput>({
   id: 'receipt-fraud-review',
   title: 'Receipt Fraud Review',
-  description: 'Escalates suspicious receipts into the fraud review queue',
   cases: [
     {
       id: 'tampered-total',

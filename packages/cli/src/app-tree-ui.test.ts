@@ -267,7 +267,6 @@ function createEvalSummary(
   return {
     id,
     title,
-    description: `${title} example eval`,
     filePath,
     stale: false,
     outdated: false,

@@ -11,8 +11,6 @@ import {
 defineEval<VoiceReturnFollowUpInput>({
   id: 'voice-return-follow-up',
   title: 'Voice Return Follow-up',
-  description:
-    'Adds voice-note return requests so the example tree has another branch',
   cases: [
     {
       id: 'wrong-size-jacket',
