@@ -1,4 +1,4 @@
-import type { EvalTraceSpan, TraceDisplayConfig } from '@agent-evals/shared';
+import type { EvalTraceSpan, TraceDisplayConfig } from '@ls-stack/agent-eval';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';

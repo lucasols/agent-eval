@@ -1,4 +1,4 @@
-import type { EvalDefinition, EvalTraceTree } from '@agent-evals/sdk';
+import type { EvalDefinition, EvalTraceTree } from '@ls-stack/agent-eval';
 
 const USD_TO_BRL = 5.7;
 

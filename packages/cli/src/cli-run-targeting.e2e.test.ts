@@ -23,7 +23,7 @@ async function writeTrialSelectionEval(
 
   await writeFile(
     join(workspacePath, 'evals', 'trial-selection.eval.ts'),
-    `import { defineEval, setOutput, tracer, span } from '@agent-evals/sdk';
+    `import { defineEval, setOutput, tracer, span } from '@ls-stack/agent-eval';
 
 const candidates = [
   {

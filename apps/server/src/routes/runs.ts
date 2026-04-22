@@ -1,4 +1,4 @@
-import { createRunRequestSchema } from '@agent-evals/shared';
+import { createRunRequestSchema } from '@ls-stack/agent-eval';
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';

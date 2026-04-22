@@ -1,4 +1,4 @@
-import { defineEval } from '@agent-evals/sdk';
+import { defineEval } from '@ls-stack/agent-eval';
 import {
   getTraceCounts,
   sharedTraceDisplay,

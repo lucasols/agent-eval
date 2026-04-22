@@ -3,7 +3,7 @@ import {
   getEvalTitle,
   type EvalDisplayStatus,
   type EvalSummary,
-} from '@agent-evals/shared';
+} from '@ls-stack/agent-eval';
 
 export type TreeFolder = {
   kind: 'folder';

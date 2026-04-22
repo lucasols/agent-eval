@@ -2,7 +2,7 @@ import {
   getEvalDisplayStatus,
   getEvalTitle,
   type EvalSummary,
-} from '@agent-evals/shared';
+} from '@ls-stack/agent-eval';
 import {
   ChevronDown,
   ChevronsDownUp,

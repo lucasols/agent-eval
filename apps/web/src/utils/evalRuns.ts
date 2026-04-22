@@ -4,7 +4,7 @@ import {
   type EvalSummary,
   type RunManifest,
   type ScopedCaseSummary,
-} from '@agent-evals/shared';
+} from '@ls-stack/agent-eval';
 
 export type ScopedRunRow = {
   manifest: RunManifest;

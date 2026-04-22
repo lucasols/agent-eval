@@ -1,4 +1,4 @@
-import { defineEval, setOutput, span, tracer } from '@agent-evals/sdk';
+import { defineEval, setOutput, span, tracer } from '@ls-stack/agent-eval';
 
 function samplePercent(): number {
   return Math.round(Math.random() * 100) / 100;

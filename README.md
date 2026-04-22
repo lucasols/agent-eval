@@ -12,7 +12,7 @@ Local-first, UI-first eval tool for LLM/agent systems. Author evals in strict Ty
 ## Install
 
 ```sh
-pnpm add -D @agent-evals/sdk @agent-evals/cli
+pnpm add -D @ls-stack/agent-eval
 ```
 
 ## Quick start
@@ -20,7 +20,7 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli
 1. **Create `agent-evals.config.ts`** at your project root:
 
    ```ts
-   import type { AgentEvalsConfig } from '@agent-evals/sdk';
+   import type { AgentEvalsConfig } from '@ls-stack/agent-eval';
 
    export const config: AgentEvalsConfig = {
      include: ['evals/**/*.eval.ts'],
@@ -37,7 +37,7 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli
 2. **Write an eval** in `evals/my-agent.eval.ts`:
 
    ```ts
-   import { defineEval, setOutput, span, tracer } from '@agent-evals/sdk';
+   import { defineEval, setOutput, span, tracer } from '@ls-stack/agent-eval';
    import { myAgent } from '../src/agent';
 
    defineEval({
@@ -88,14 +88,14 @@ exercise.
 Node requires the `--experimental-test-module-mocks` flag for this API:
 
 ```sh
-node --experimental-test-module-mocks ./node_modules/@agent-evals/cli/src/bin.ts run --eval module-mock-demo
+node --experimental-test-module-mocks ./node_modules/@ls-stack/agent-eval/src/bin.ts run --eval module-mock-demo
 ```
 
 Example:
 
 ```ts
 import { mock } from 'node:test';
-import { defineEval, evalAssert, setOutput } from '@agent-evals/sdk';
+import { defineEval, evalAssert, setOutput } from '@ls-stack/agent-eval';
 
 defineEval({
   id: 'module-mock-demo',

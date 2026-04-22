@@ -44,18 +44,15 @@ importers:
 
   apps/server:
     dependencies:
-      '@agent-evals/runner':
-        specifier: workspace:*
-        version: link:../../packages/runner
-      '@agent-evals/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@hono/node-server':
         specifier: ^1.14.3
         version: 1.19.11(hono@4.12.9)
       '@hono/zod-validator':
         specifier: ^0.7.3
         version: 0.7.6(hono@4.12.9)(zod@4.3.6)
+      '@ls-stack/agent-eval':
+        specifier: workspace:*
+        version: link:../../packages/cli
       hono:
         specifier: ^4.9.9
         version: 4.12.9
@@ -75,12 +72,12 @@ importers:
 
   apps/web:
     dependencies:
-      '@agent-evals/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@floating-ui/react':
         specifier: ^0.27.19
         version: 0.27.19(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@ls-stack/agent-eval':
+        specifier: workspace:*
+        version: link:../../packages/cli
       '@ls-stack/react-utils':
         specifier: ^0.12.1
         version: 0.12.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -163,12 +160,9 @@ importers:
 
   examples/basic-agent:
     dependencies:
-      '@agent-evals/sdk':
+      '@ls-stack/agent-eval':
         specifier: workspace:*
-        version: link:../../packages/sdk
-      '@agent-evals/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
+        version: link:../../packages/cli
     devDependencies:
       '@types/node':
         specifier: ^24.12.0
@@ -182,6 +176,9 @@ importers:
       '@agent-evals/runner':
         specifier: workspace:*
         version: link:../runner
+      '@agent-evals/sdk':
+        specifier: workspace:*
+        version: link:../sdk
       '@agent-evals/shared':
         specifier: workspace:*
         version: link:../shared

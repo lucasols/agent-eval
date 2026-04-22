@@ -1,4 +1,4 @@
-import type { EvalDefinition } from '@agent-evals/sdk';
+import type { EvalDefinition } from '@ls-stack/agent-eval';
 import {
   triggerWorkflow,
   type WorkflowInput,

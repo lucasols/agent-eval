@@ -1,5 +1,5 @@
 {
-  "name": "@agent-evals/cli",
+  "name": "@ls-stack/agent-eval",
   "version": "0.0.1",
   "type": "module",
   "bin": {
@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@agent-evals/runner": "workspace:*",
+    "@agent-evals/sdk": "workspace:*",
     "@agent-evals/shared": "workspace:*",
     "@hono/node-server": "^1.14.3",
     "hono": "^4.9.9"

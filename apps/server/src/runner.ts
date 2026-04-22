@@ -1,5 +1,5 @@
-import type { EvalRunner } from '@agent-evals/runner';
-import { createRunner } from '@agent-evals/runner';
+import type { EvalRunner } from '@ls-stack/agent-eval';
+import { createRunner } from '@ls-stack/agent-eval';
 
 let runnerInstance: EvalRunner | null = null;
 

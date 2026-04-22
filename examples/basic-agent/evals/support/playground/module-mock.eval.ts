@@ -1,5 +1,5 @@
 import { mock } from 'node:test';
-import { defineEval, evalAssert, setOutput } from '@agent-evals/sdk';
+import { defineEval, evalAssert, setOutput } from '@ls-stack/agent-eval';
 
 defineEval<{ customerId: string; request: string }>({
   id: 'module-mock-demo',

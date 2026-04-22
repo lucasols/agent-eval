@@ -10,8 +10,7 @@
     "eslint": "eslint ."
   },
   "dependencies": {
-    "@agent-evals/runner": "workspace:*",
-    "@agent-evals/shared": "workspace:*",
+    "@ls-stack/agent-eval": "workspace:*",
     "@hono/node-server": "^1.14.3",
     "@hono/zod-validator": "^0.7.3",
     "hono": "^4.9.9",

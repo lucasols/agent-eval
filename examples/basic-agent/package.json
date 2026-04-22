@@ -12,8 +12,7 @@
     "eslint": "eslint ."
   },
   "dependencies": {
-    "@agent-evals/sdk": "workspace:*",
-    "@agent-evals/shared": "workspace:*"
+    "@ls-stack/agent-eval": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.12.0",

@@ -1,4 +1,4 @@
-import type { AgentEvalsConfig } from '@agent-evals/shared';
+import type { AgentEvalsConfig } from '@ls-stack/agent-eval';
 
 export const config: AgentEvalsConfig = {
   include: ['evals/**/*.eval.ts'],

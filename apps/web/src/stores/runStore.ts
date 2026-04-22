@@ -8,7 +8,7 @@ import {
   type RunManifest,
   type RunSummary,
   type CaseDetail,
-} from '@agent-evals/shared';
+} from '@ls-stack/agent-eval';
 import { resultify } from 't-result';
 import { Store } from 't-state';
 import { z } from 'zod/v4';

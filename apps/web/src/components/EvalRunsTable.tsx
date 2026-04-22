@@ -4,7 +4,7 @@ import type {
   ColumnDef,
   RunManifest,
   ScopedCaseSummary,
-} from '@agent-evals/shared';
+} from '@ls-stack/agent-eval';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { type MouseEvent } from 'react';
 import { styled } from 'vindur';

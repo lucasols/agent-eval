@@ -1,4 +1,4 @@
-import { defineEval, evalAssert, setOutput } from '@agent-evals/sdk';
+import { defineEval, evalAssert, setOutput } from '@ls-stack/agent-eval';
 import { getResponseText } from '../../../src/evals/exampleEvalUtils.ts';
 
 defineEval<{ prompt: string }>({

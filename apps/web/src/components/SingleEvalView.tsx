@@ -1,4 +1,4 @@
-import type { EvalSummary } from '@agent-evals/shared';
+import type { EvalSummary } from '@ls-stack/agent-eval';
 import { styled } from 'vindur';
 import { EvalCard } from './EvalCard.tsx';
 

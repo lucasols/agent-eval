@@ -2,7 +2,7 @@ import {
   deriveScopedSummaryFromCases,
   deriveStatusFromCaseRows,
   type CaseRow,
-} from '@agent-evals/shared';
+} from '@ls-stack/agent-eval';
 import { X } from 'lucide-react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';

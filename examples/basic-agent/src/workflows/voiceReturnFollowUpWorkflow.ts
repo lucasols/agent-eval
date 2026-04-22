@@ -4,7 +4,7 @@ import {
   setOutput,
   span,
   tracer,
-} from '@agent-evals/sdk';
+} from '@ls-stack/agent-eval';
 import { waitForWorkflowDelay } from './simulatedDelay.ts';
 import { calculateWorkflowCostUsd } from './workflowCost.ts';
 

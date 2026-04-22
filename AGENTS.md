@@ -12,7 +12,7 @@ pnpm 10 workspaces (do not invoke npm or yarn):
 
 - `apps/server` — Hono backend (`@agent-evals/server`)
 - `apps/web` — React 19 + Vite 7 frontend (`@agent-evals/web`)
-- `packages/cli` — CLI binary (`@agent-evals/cli`)
+- `packages/cli` — Public package + CLI binary (`@ls-stack/agent-eval`)
 - `packages/runner` — Core eval runner (Vitest + chokidar)
 - `packages/sdk` — Public SDK (`defineEval`, matchers, repoFile, pricing)
 - `packages/shared` — Shared Zod schemas / types
