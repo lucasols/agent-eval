@@ -1,22 +1,30 @@
 import {
   deriveScopedSummaryFromCases,
   deriveStatusFromCaseRows,
+  type CaseRow,
 } from '@agent-evals/shared';
 import { X } from 'lucide-react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import {
+  ellipsis,
   inline,
   kicker,
   monoFont,
   stack,
   tabularNums,
+  transition,
 } from '#src/style/helpers';
 import { useResizableWidth } from '../hooks/useResizableWidth.ts';
 import { useWindowWidth } from '../hooks/useWindowWidth.ts';
 import { evalsStore } from '../stores/evalsStore.ts';
 import { layoutStore } from '../stores/layoutStore.ts';
-import { closeRun, deleteRun, runStore } from '../stores/runStore.ts';
+import {
+  closeRun,
+  deleteRun,
+  runStore,
+  selectCase,
+} from '../stores/runStore.ts';
 import { selectionStore } from '../stores/selectionStore.ts';
 import { scopeRunCases } from '../utils/evalRuns.ts';
 import {
@@ -165,6 +173,77 @@ const MetaValue = styled.dd`
   word-break: break-all;
 `;
 
+const CaseList = styled.div`
+  ${stack({ gap: 0 })}
+  border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: ${colors.bg.var};
+`;
+
+const CaseItem = styled.button`
+  ${transition({ property: 'background' })}
+  ${inline({ gap: 10, align: 'center' })}
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-top: 1px solid ${colors.border.var};
+  cursor: pointer;
+  text-align: left;
+
+  &:first-child {
+    border-top: none;
+  }
+
+  &:hover {
+    background: ${colors.surface.var};
+  }
+`;
+
+const CaseMain = styled.div`
+  ${stack({ gap: 2 })}
+  flex: 1;
+  min-width: 0;
+`;
+
+const CaseId = styled.div`
+  ${ellipsis};
+  ${monoFont};
+  font-size: 12px;
+  color: ${colors.text.var};
+`;
+
+const CaseSubline = styled.div`
+  ${ellipsis};
+  ${monoFont};
+  font-size: 10.5px;
+  color: ${colors.textMuted.var};
+`;
+
+const CaseMetrics = styled.div`
+  ${inline({ gap: 10, align: 'center' })}
+  flex-shrink: 0;
+`;
+
+const CaseMetric = styled.span`
+  ${monoFont};
+  ${tabularNums};
+  font-size: 11px;
+  color: ${colors.textMuted.var};
+  min-width: 44px;
+  text-align: right;
+`;
+
+const EmptyCases = styled.div`
+  padding: 18px 14px;
+  text-align: center;
+  font-size: 11.5px;
+  color: ${colors.textMuted.var};
+  border: 1px dashed ${colors.border.var};
+  border-radius: var(--radius-md);
+`;
+
 const ErrorBlock = styled.pre`
   ${monoFont};
   font-size: 11.5px;
@@ -178,6 +257,16 @@ const ErrorBlock = styled.pre`
   padding: 12px 14px;
   margin: 0;
 `;
+
+function formatCaseScore(caseRow: CaseRow): string {
+  if (caseRow.score === null) return '—';
+  return formatScore(caseRow.score);
+}
+
+function formatCaseDuration(caseRow: CaseRow): string {
+  if (caseRow.latencyMs === null || caseRow.latencyMs <= 0) return '—';
+  return formatDuration(caseRow.latencyMs);
+}
 
 function formatTarget(target: {
   mode: 'all' | 'evalIds' | 'caseIds';
@@ -248,6 +337,10 @@ export function RunDrawer() {
     summary.status === 'error' &&
     summary.errorMessage !== null &&
     summary.errorMessage.length > 0;
+
+  const scopedCases = scopedRunCases.cases;
+  const showEvalIdInCase =
+    new Set(scopedCases.map((c) => c.evalId)).size > 1;
 
   const runIsRunning = manifest.status === 'running';
   const menuEntries: SplitButtonMenuEntry[] = [
@@ -348,6 +441,37 @@ export function RunDrawer() {
             </StatValue>
           </Stat>
         </StatGrid>
+
+        <Section>
+          <SectionLabel>
+            Cases{scopedCases.length > 0 ? ` (${scopedCases.length})` : ''}
+          </SectionLabel>
+          {scopedCases.length === 0 ? (
+            <EmptyCases>No cases in this run</EmptyCases>
+          ) : (
+            <CaseList>
+              {scopedCases.map((caseRow) => (
+                <CaseItem
+                  key={`${caseRow.caseId}-${String(caseRow.trial)}`}
+                  type="button"
+                  onClick={() => void selectCase(manifest.id, caseRow.caseId)}
+                >
+                  <StatusBadge status={caseRow.status} />
+                  <CaseMain>
+                    <CaseId>{caseRow.caseId}</CaseId>
+                    {showEvalIdInCase ? (
+                      <CaseSubline>{caseRow.evalId}</CaseSubline>
+                    ) : null}
+                  </CaseMain>
+                  <CaseMetrics>
+                    <CaseMetric>{formatCaseScore(caseRow)}</CaseMetric>
+                    <CaseMetric>{formatCaseDuration(caseRow)}</CaseMetric>
+                  </CaseMetrics>
+                </CaseItem>
+              ))}
+            </CaseList>
+          )}
+        </Section>
 
         {showError && summary.errorMessage !== null ? (
           <Section>
