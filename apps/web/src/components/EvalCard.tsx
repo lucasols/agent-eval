@@ -34,11 +34,7 @@ import {
 import { selectEval, selectFolder } from '../stores/selectionStore.ts';
 import { getDisplayFolderSegments } from '../utils/buildEvalTree.ts';
 import { buildEvalScopedRunRows } from '../utils/evalRuns.ts';
-import {
-  formatCost,
-  formatDuration,
-  formatScore,
-} from '../utils/formatters.ts';
+import { formatDuration, formatScore } from '../utils/formatters.ts';
 import { getFreshnessTooltip } from '../utils/freshness.ts';
 import { EvalRunsChart } from './EvalRunsChart.tsx';
 import { EvalRunsTable } from './EvalRunsTable.tsx';
@@ -185,7 +181,7 @@ const Body = styled.div<{ scroll: boolean }>`
 
 const StatsGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 1px;
   background: ${colors.border.var};
   border-bottom: 1px solid ${colors.border.var};
@@ -203,7 +199,7 @@ const StatLabel = styled.div`
   color: ${colors.textMuted.var};
 `;
 
-const StatValue = styled.div<{ accent: boolean; cost: boolean }>`
+const StatValue = styled.div<{ accent: boolean }>`
   ${tabularNums};
   font-size: 30px;
   font-weight: 500;
@@ -213,9 +209,6 @@ const StatValue = styled.div<{ accent: boolean; cost: boolean }>`
 
   &.accent {
     color: ${colors.accentDim.var};
-  }
-  &.cost {
-    color: ${colors.cost.var};
   }
 `;
 
@@ -584,49 +577,20 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
           <StatsGrid>
             <Stat>
               <StatLabel>Cases</StatLabel>
-              <StatValue
-                accent={false}
-                cost={false}
-              >
+              <StatValue accent={false}>
                 {evalSummary.caseCount ?? '\u2014'}
               </StatValue>
             </Stat>
             <Stat>
               <StatLabel>Avg score</StatLabel>
-              <StatValue
-                accent={true}
-                cost={false}
-              >
+              <StatValue accent={true}>
                 {formatScore(latestSummary?.averageScore ?? null)}
               </StatValue>
             </Stat>
             <Stat>
-              <StatLabel>Pass / Fail</StatLabel>
-              <StatValue
-                accent={false}
-                cost={false}
-              >
-                {latestSummary
-                  ? `${latestSummary.passedCases}/${latestSummary.failedCases + latestSummary.errorCases}`
-                  : '\u2014'}
-              </StatValue>
-            </Stat>
-            <Stat>
               <StatLabel>Duration</StatLabel>
-              <StatValue
-                accent={false}
-                cost={false}
-              >
+              <StatValue accent={false}>
                 {formatDuration(latestSummary?.totalDurationMs ?? null)}
-              </StatValue>
-            </Stat>
-            <Stat>
-              <StatLabel>Cost</StatLabel>
-              <StatValue
-                accent={false}
-                cost={true}
-              >
-                {formatCost(latestSummary?.cost.totalUsd ?? null)}
               </StatValue>
             </Stat>
           </StatsGrid>

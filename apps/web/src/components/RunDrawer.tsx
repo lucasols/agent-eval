@@ -20,7 +20,6 @@ import { closeRun, deleteRun, runStore } from '../stores/runStore.ts';
 import { selectionStore } from '../stores/selectionStore.ts';
 import { scopeRunCases } from '../utils/evalRuns.ts';
 import {
-  formatCost,
   formatDuration,
   formatScore,
   formatTimestamp,
@@ -130,11 +129,7 @@ const StatLabel = styled.span`
   color: ${colors.textMuted.var};
 `;
 
-const StatValue = styled.span<{
-  accent: boolean;
-  cost: boolean;
-  error: boolean;
-}>`
+const StatValue = styled.span<{ accent: boolean; error: boolean }>`
   ${tabularNums};
   font-size: 18px;
   font-weight: 500;
@@ -143,9 +138,6 @@ const StatValue = styled.span<{
 
   &.accent {
     color: ${colors.accentDim.var};
-  }
-  &.cost {
-    color: ${colors.cost.var};
   }
   &.error {
     color: ${colors.error.var};
@@ -314,7 +306,6 @@ export function RunDrawer() {
             <StatLabel>Cases</StatLabel>
             <StatValue
               accent={false}
-              cost={false}
               error={false}
             >
               {String(scopedSummary.totalCases)}
@@ -324,7 +315,6 @@ export function RunDrawer() {
             <StatLabel>Passed</StatLabel>
             <StatValue
               accent={false}
-              cost={false}
               error={false}
             >
               {String(scopedSummary.passedCases)}
@@ -334,7 +324,6 @@ export function RunDrawer() {
             <StatLabel>Failed</StatLabel>
             <StatValue
               accent={false}
-              cost={false}
               error={failed > 0}
             >
               {String(failed)}
@@ -344,27 +333,15 @@ export function RunDrawer() {
             <StatLabel>Duration</StatLabel>
             <StatValue
               accent={false}
-              cost={false}
               error={false}
             >
               {formatDuration(scopedSummary.totalDurationMs)}
             </StatValue>
           </Stat>
           <Stat>
-            <StatLabel>Cost</StatLabel>
-            <StatValue
-              accent={false}
-              cost={true}
-              error={false}
-            >
-              {formatCost(scopedSummary.cost.totalUsd)}
-            </StatValue>
-          </Stat>
-          <Stat>
             <StatLabel>Avg score</StatLabel>
             <StatValue
               accent={true}
-              cost={false}
               error={false}
             >
               {formatScore(scopedSummary.averageScore)}

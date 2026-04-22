@@ -173,6 +173,17 @@ const RunIdBadge = styled.span`
   line-height: 1;
 `;
 
+const CasesChip = styled.span`
+  ${kicker};
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  background: ${colors.surface.var};
+  color: ${colors.textMuted.var};
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  line-height: 1;
+`;
+
 const RunTime = styled.span<{ latest: boolean }>`
   font-size: 12.5px;
   font-weight: 500;
@@ -279,10 +290,6 @@ const ScoreCellWrap = styled.span`
   display: inline-flex;
 `;
 
-const CostText = styled.span`
-  color: ${colors.cost.var};
-`;
-
 const Dim = styled.span`
   color: ${colors.textDim.var};
 `;
@@ -334,7 +341,7 @@ export function EvalRunsTable({
       !c.primary &&
       runs.some((r) => r.cases.some((row) => row.columns[c.key] !== undefined)),
   );
-  const totalCols = 6 + customColumns.length;
+  const totalCols = 4 + customColumns.length;
 
   return (
     <TableWrap fillHeight={fillHeight}>
@@ -363,19 +370,7 @@ export function EvalRunsTable({
               rightAlign={true}
               indent={false}
             >
-              Latency
-            </Th>
-            <Th
-              rightAlign={true}
-              indent={false}
-            >
-              Cases
-            </Th>
-            <Th
-              rightAlign={true}
-              indent={false}
-            >
-              Cost
+              Duration
             </Th>
             {customColumns.map((c) => (
               <Th
@@ -464,8 +459,6 @@ function RunGroup({
 }) {
   const { manifest, summary, cases } = run;
   const displayShortId = manifest.shortId.replace(RUN_SHORT_ID_PREFIX, '');
-  const hasCases = summary.totalCases > 0;
-  const costValue = summary.cost.totalUsd;
   const durationValue = summary.totalDurationMs;
 
   function handleCaseClick(caseId: string) {
@@ -506,6 +499,7 @@ function RunGroup({
             <RunTime latest={isLatest}>
               {formatTimestamp(manifest.startedAt)}
             </RunTime>
+            {cases.length > 1 && <CasesChip>{cases.length} cases</CasesChip>}
           </RunCaseCell>
         </RunHeaderTd>
         <RunHeaderTd
@@ -530,26 +524,6 @@ function RunGroup({
         >
           {durationValue !== null && durationValue > 0 ? (
             formatDuration(durationValue)
-          ) : (
-            <Dim>{'\u2014'}</Dim>
-          )}
-        </RunHeaderTd>
-        <RunHeaderTd
-          rightAlign={true}
-          mono={true}
-        >
-          {hasCases ? (
-            `${String(summary.passedCases)}/${String(summary.totalCases)}`
-          ) : (
-            <Dim>{'\u2014'}</Dim>
-          )}
-        </RunHeaderTd>
-        <RunHeaderTd
-          rightAlign={true}
-          mono={true}
-        >
-          {costValue !== null && costValue > 0 ? (
-            <CostText>{formatCost(costValue)}</CostText>
           ) : (
             <Dim>{'\u2014'}</Dim>
           )}
@@ -612,24 +586,6 @@ function RunGroup({
                   <Dim>{'\u2014'}</Dim>
                 ) : (
                   formatDuration(row.latencyMs)
-                )}
-              </CaseTd>
-              <CaseTd
-                rightAlign={true}
-                mono={true}
-                indent={false}
-              >
-                <Dim>{'\u2014'}</Dim>
-              </CaseTd>
-              <CaseTd
-                rightAlign={true}
-                mono={true}
-                indent={false}
-              >
-                {row.costUsd === null ? (
-                  <Dim>{'\u2014'}</Dim>
-                ) : (
-                  <CostText>{formatCost(row.costUsd)}</CostText>
                 )}
               </CaseTd>
               {customColumns.map((c) => {
