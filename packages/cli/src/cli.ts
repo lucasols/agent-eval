@@ -3,7 +3,11 @@ import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRunner } from '@agent-evals/runner';
-import { getEvalDisplayStatus, type CacheMode } from '@agent-evals/shared';
+import {
+  getEvalDisplayStatus,
+  getEvalTitle,
+  type CacheMode,
+} from '@agent-evals/shared';
 
 type CliArgs = {
   command: 'app' | 'list' | 'run' | 'cache' | 'help';
@@ -230,7 +234,7 @@ async function commandList(args_: CliArgs): Promise<void> {
       outdated: ev.outdated,
       lastRunStatus: ev.lastRunStatus,
     });
-    const title = ev.title ?? ev.id;
+    const title = getEvalTitle(ev);
     console.info(`  ${title}`);
     console.info(`    id: ${ev.id}`);
     console.info(`    file: ${ev.filePath}`);

@@ -1,5 +1,6 @@
 import {
   getEvalDisplayStatus,
+  getEvalTitle,
   type EvalDisplayStatus,
   type EvalSummary,
 } from '@agent-evals/shared';
@@ -146,8 +147,8 @@ export function buildEvalTree(evals: EvalSummary[]): TreeNode[] {
       });
     } else {
       const sortedEvals = [...group.evals].sort((a, b) => {
-        const aName = a.title ?? a.id;
-        const bName = b.title ?? b.id;
+        const aName = getEvalTitle(a);
+        const bName = getEvalTitle(b);
         return aName.localeCompare(bName);
       });
       parent.children.push({
@@ -169,7 +170,7 @@ export function buildEvalTree(evals: EvalSummary[]): TreeNode[] {
 function nodeSortName(node: TreeNode): string {
   if (node.kind === 'folder') return node.name;
   if (node.kind === 'file') return node.name;
-  return node.evalSummary.title ?? node.evalSummary.id;
+  return getEvalTitle(node.evalSummary);
 }
 
 function nodeKindRank(node: TreeNode): number {

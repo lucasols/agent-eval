@@ -1,3 +1,4 @@
+import { getEvalTitle } from '@agent-evals/shared';
 import type { describe as VitestDescribe, it as VitestIt } from 'vitest';
 import type { EvalDefinition } from './types.ts';
 
@@ -44,7 +45,7 @@ export function defineEval<TInput>(definition: EvalDefinition<TInput>): void {
   const describe = describeFn;
   const it = itFn;
   if (describe && it) {
-    describe(definition.title ?? definition.id, () => {
+    describe(getEvalTitle(definition), () => {
       it.todo(`eval: ${definition.id}`);
     });
   }

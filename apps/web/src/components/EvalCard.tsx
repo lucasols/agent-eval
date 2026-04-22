@@ -1,4 +1,8 @@
-import { getEvalDisplayStatus, type EvalSummary } from '@agent-evals/shared';
+import {
+  getEvalDisplayStatus,
+  getEvalTitle,
+  type EvalSummary,
+} from '@agent-evals/shared';
 import {
   ChevronDown,
   ChevronsDownUp,
@@ -528,9 +532,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
             ) : null}
             <TitleBlock>
               <TitleRow>
-                <Title large={isSingle}>
-                  {evalSummary.title ?? evalSummary.id}
-                </Title>
+                <Title large={isSingle}>{getEvalTitle(evalSummary)}</Title>
                 <StatusWrap title={statusTooltip ?? undefined}>
                   <StatusBadge status={displayStatus} />
                 </StatusWrap>

@@ -211,6 +211,27 @@ describe('app tree ui', () => {
     expect(new Set(leafPaths).size).toBe(leafPaths.length);
   });
 
+  test('sorts evals by derived title when title is omitted', () => {
+    expect(
+      simplifyTree(
+        buildEvalTree([
+          createEvalSummary('zebra-case', undefined, '/tmp/demo.eval.ts'),
+          createEvalSummary('alpha-case', undefined, '/tmp/demo.eval.ts'),
+        ]),
+      ),
+    ).toEqual([
+      {
+        kind: 'file',
+        name: 'demo',
+        path: '/tmp/demo.eval.ts',
+        evals: [
+          { id: 'alpha-case', title: undefined },
+          { id: 'zebra-case', title: undefined },
+        ],
+      },
+    ]);
+  });
+
   test('derives file and folder status from the latest eval result only', () => {
     expect(
       deriveCombinedStatus(
@@ -259,7 +280,7 @@ describe('app tree ui', () => {
 
 function createEvalSummary(
   id: string,
-  title: string,
+  title: string | undefined,
   filePath: string,
   lastRunStatus: EvalSummary['lastRunStatus'] = null,
   overrides: Partial<EvalSummary> = {},

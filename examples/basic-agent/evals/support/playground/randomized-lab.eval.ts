@@ -20,7 +20,6 @@ async function waitForDelay(ms: number): Promise<void> {
 
 defineEval<{ prompt: string }>({
   id: 'randomized-lab',
-  title: 'Randomized Lab',
   cases: [
     {
       id: 'random-sanity-check',

@@ -58,6 +58,7 @@ export {
   type ScopedCaseSummary,
 } from './status.ts';
 export { getEvalDisplayStatus, type EvalDisplayStatus } from './evalStatus.ts';
+export { getEvalTitle } from './evalTitle.ts';
 export {
   sseEnvelopeSchema,
   type SseEnvelope,

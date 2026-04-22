@@ -122,7 +122,7 @@ lower median when the number of trials is even.
 | Field               | Required | Purpose                                                                         |
 | ------------------- | -------- | ------------------------------------------------------------------------------- |
 | `id`                | yes      | Unique eval id                                                                  |
-| `title`             |          | Display title                                                                   |
+| `title`             |          | Display title (defaults to a humanized version of `id`)                         |
 | `cases`             | yes      | `EvalCase[]` or `() => Promise<EvalCase[]>` (async loader for dynamic datasets) |
 | `execute`           | yes      | `async ({ input, signal }) => { ... }`                                          |
 | `traceDisplay`      |          | Per-eval trace attribute display overrides for the UI                           |

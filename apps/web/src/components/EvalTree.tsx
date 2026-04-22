@@ -1,4 +1,4 @@
-import { getEvalDisplayStatus } from '@agent-evals/shared';
+import { getEvalDisplayStatus, getEvalTitle } from '@agent-evals/shared';
 import { ChevronRight } from 'lucide-react';
 import { useEffect } from 'react';
 import { css, styled } from 'vindur';
@@ -530,7 +530,7 @@ function LeafRow({
     lastRunStatus: ev.lastRunStatus,
     isRunning: isEvalRunning(ev.id),
   });
-  const title = ev.title ?? ev.id;
+  const title = getEvalTitle(ev);
   const rowTooltip =
     ev.stale || ev.outdated ? getFreshnessTooltip(ev) : undefined;
 
