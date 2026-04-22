@@ -48,7 +48,7 @@ defineEval<{ ticketId: string }>({
   },
 });
 
-defineEval<{ queue: string }>({
+defineEval({
   id: 'silent-pass-demo',
   title: 'Silent Pass Demo',
   description: 'Shows a passing eval with no outputs and no tracing',
