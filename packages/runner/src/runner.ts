@@ -174,10 +174,7 @@ function pickWinningTrial(params: {
   return medianAttempt;
 }
 
-type PreparedEvalCase = {
-  caseId: string;
-  trialResults: TrialExecutionResult[];
-};
+type PreparedEvalCase = { caseId: string; trialResults: TrialExecutionResult[] };
 
 type PreparedEvalRun = {
   evalMeta: EvalMeta;
@@ -645,10 +642,7 @@ export function createRunner({
               if (runState.abortController.signal.aborted) break;
 
               const trialResults: TrialExecutionResult[] = [];
-              preparedCases.push({
-                caseId: evalCase.id,
-                trialResults,
-              });
+              preparedCases.push({ caseId: evalCase.id, trialResults });
 
               for (let trial = 0; trial < request.trials; trial++) {
                 const bufferedCacheStore =
@@ -769,9 +763,7 @@ export function createRunner({
           allCaseRows.push(winningTrial.caseRow);
         }
 
-        preparedEval.evalMeta.columnDefs = [
-          ...preparedEval.accumulatedColumns.values(),
-        ];
+        preparedEval.evalMeta.columnDefs = [...preparedEval.accumulatedColumns.values()];
 
         lastRunStatusMap.set(
           preparedEval.evalMeta.id,
@@ -792,9 +784,7 @@ export function createRunner({
         });
       }
 
-      const derivedRunSummary = deriveScopedSummaryFromCases({
-        caseRows: allCaseRows,
-      });
+      const derivedRunSummary = deriveScopedSummaryFromCases({ caseRows: allCaseRows });
       runState.summary.averageScore = derivedRunSummary.averageScore;
       runState.summary.cost = derivedRunSummary.cost;
 
