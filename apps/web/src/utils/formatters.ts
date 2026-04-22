@@ -1,4 +1,4 @@
-import type { NumberDisplayOptions } from '@ls-stack/agent-eval';
+import type { NumberDisplayOptions } from '@agent-evals/shared';
 
 export function formatCost(value: number | null | undefined): string {
   if (value === null || value === undefined) return '\u2014';
