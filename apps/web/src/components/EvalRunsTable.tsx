@@ -297,6 +297,8 @@ const Dim = styled.span`
 
 const RUN_SHORT_ID_PREFIX = /^r/;
 
+const EM_DASH = '—';
+
 const PlaceholderRow = styled.tr`
   border-top: 1px solid ${colors.border.var};
 `;
@@ -313,15 +315,34 @@ function isNumericColumn(c: ColumnDef): boolean {
 }
 
 function formatCellValue(c: ColumnDef, value: CellValue | undefined): string {
-  if (value === null || value === undefined) return '\u2014';
+  if (value === null || value === undefined) return EM_DASH;
+  if (Array.isArray(value)) return `${String(value.length)} block(s)`;
   if (typeof value === 'number') {
-    if (c.format === 'usd') return formatCost(value);
-    if (c.format === 'duration') return formatDuration(value);
-    if (c.format === 'percent') return formatPercent(value);
-    if (c.isScore) return formatScore(value);
-    return String(value);
+    return formatNumericCell(c, value);
   }
   return summarizeCellValue(c, value);
+}
+
+function formatNumericCell(c: ColumnDef, value: number): string {
+  if (c.format === 'usd') return formatCost(value);
+  if (c.format === 'duration') return formatDuration(value);
+  if (c.format === 'percent') return formatPercent(value);
+  if (c.isScore) return formatScore(value);
+  return String(value);
+}
+
+function averageNumericColumn(cases: CaseRow[], key: string): number | null {
+  let sum = 0;
+  let count = 0;
+  for (const row of cases) {
+    const v = row.columns[key];
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      sum += v;
+      count += 1;
+    }
+  }
+  if (count === 0) return null;
+  return sum / count;
 }
 
 export function EvalRunsTable({
@@ -411,7 +432,7 @@ function ScoreCell({
   status?: CaseRow['status'];
   passThreshold: number;
 }) {
-  if (score === null) return <Dim>{'\u2014'}</Dim>;
+  if (score === null) return <Dim>{EM_DASH}</Dim>;
   const tone: 'pass' | 'partial' | 'fail' =
     status === 'pass'
       ? 'pass'
@@ -525,18 +546,26 @@ function RunGroup({
           {durationValue !== null && durationValue > 0 ? (
             formatDuration(durationValue)
           ) : (
-            <Dim>{'\u2014'}</Dim>
+            <Dim>{EM_DASH}</Dim>
           )}
         </RunHeaderTd>
-        {customColumns.map((c) => (
-          <RunHeaderTd
-            key={c.key}
-            rightAlign={c.align === 'right' || isNumericColumn(c)}
-            mono={true}
-          >
-            <Dim>{'\u2014'}</Dim>
-          </RunHeaderTd>
-        ))}
+        {customColumns.map((c) => {
+          const avg =
+            isNumericColumn(c) ? averageNumericColumn(cases, c.key) : null;
+          return (
+            <RunHeaderTd
+              key={c.key}
+              rightAlign={c.align === 'right' || isNumericColumn(c)}
+              mono={true}
+            >
+              {avg === null ? (
+                <Dim>{EM_DASH}</Dim>
+              ) : (
+                formatNumericCell(c, avg)
+              )}
+            </RunHeaderTd>
+          );
+        })}
       </RunHeaderRow>
       {expanded &&
         (cases.length === 0 ? (
@@ -583,7 +612,7 @@ function RunGroup({
                 indent={false}
               >
                 {row.latencyMs === null ? (
-                  <Dim>{'\u2014'}</Dim>
+                  <Dim>{EM_DASH}</Dim>
                 ) : (
                   formatDuration(row.latencyMs)
                 )}
@@ -598,7 +627,7 @@ function RunGroup({
                     mono={true}
                     indent={false}
                   >
-                    {display === '\u2014' ? <Dim>{display}</Dim> : display}
+                    {display === EM_DASH ? <Dim>{display}</Dim> : display}
                   </CaseTd>
                 );
               })}
