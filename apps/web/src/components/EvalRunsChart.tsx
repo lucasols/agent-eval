@@ -46,7 +46,7 @@ const ChartFrame = styled.div`
 `;
 
 const ChartTitle = styled.div`
-  ${kicker}
+  ${kicker};
   color: ${colors.textMuted.var};
   padding: 0 2px 4px;
 `;
@@ -55,10 +55,14 @@ const ChartStack = styled.div`
   display: flex;
   flex-direction: column;
   gap: 4px;
+
+  & + & {
+    margin-top: 16px;
+  }
 `;
 
 const TooltipBox = styled.div`
-  ${monoFont}
+  ${monoFont};
   padding: 10px 12px;
   font-size: 11px;
   line-height: 1.5;
@@ -77,7 +81,7 @@ const TooltipRow = styled.div`
 `;
 
 const TooltipKey = styled.span`
-  ${kicker}
+  ${kicker};
   color: ${colors.textMuted.var};
 `;
 

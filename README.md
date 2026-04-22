@@ -323,6 +323,59 @@ Supported kinds:
   column definition. Only finite numeric values participate; if none exist the
   stat renders an em dash.
 
+### History charts
+
+The eval page can render one or more history charts at the top of each eval
+card that trend across the last 20 completed runs. Charts are **opt-in**:
+when `charts` is omitted (or empty) no chart is rendered.
+
+```ts
+charts: [
+  {
+    heading: 'Scores',
+    type: 'line',
+    metrics: [
+      { source: 'builtin', metric: 'passRate', color: 'accent' },
+      {
+        source: 'column',
+        key: 'randomScore',
+        aggregate: 'avg',
+        color: 'accentDim',
+      },
+      {
+        source: 'column',
+        key: 'randomValue',
+        aggregate: 'avg',
+        color: 'warning',
+        axis: 'right',
+      },
+    ],
+    yDomain: { left: { min: 0, max: 1 }, right: { min: 0, max: 1 } },
+    tooltipExtras: [{ source: 'builtin', metric: 'cost' }],
+  },
+  {
+    heading: 'Cost per run',
+    type: 'area',
+    metrics: [{ source: 'builtin', metric: 'cost', color: 'cost' }],
+  },
+];
+```
+
+Each chart declares:
+
+- `type` — `area`, `line`, or `bar`.
+- `metrics` — one or more plotted series. `builtin` metrics (`passRate`,
+  `cost`, `durationMs`) come from the per-run summary. `column` metrics
+  aggregate a score or numeric `setOutput` column across the run using an
+  `aggregate` reducer: `avg | sum | min | max | latest | passThresholdRate`.
+  `passThresholdRate` requires a score column with `passThreshold` — it
+  reports the fraction of cases whose value met the threshold.
+- `heading` (optional) — label shown above the chart.
+- `axis` (`'left' | 'right'`) per metric enables a dual-axis chart.
+- `yDomain` — per-axis `{ min, max }`. Omit for automatic scaling.
+- `color` — semantic token: `accent | accentDim | success | error | warning | cost | textMuted`.
+- `tooltipExtras` — extra metrics shown only on hover.
+
 ## Caching costly operations
 
 Wrap a costly span (LLM call, remote tool, etc.) with `cache: { key }` to skip
