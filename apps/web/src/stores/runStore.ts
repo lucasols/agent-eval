@@ -483,3 +483,23 @@ export async function cleanRunsForEval(evalId: string): Promise<void> {
   await refetchHistory();
   await fetchEvals();
 }
+
+/**
+ * Delete a persisted run from disk and close any open drawers scoped to it.
+ *
+ * Server refuses to delete in-flight runs. Refreshes history and eval summaries
+ * after the delete so affected aggregates (last run status, counts) update.
+ */
+export async function deleteRun(runId: string): Promise<void> {
+  const result = await resultify(() =>
+    fetch(`/api/runs/${encodeURIComponent(runId)}`, { method: 'DELETE' }),
+  );
+  if (result.error) return;
+  if (!result.value.ok) return;
+
+  if (runStore.state.selectedRunId === runId) closeRun();
+  if (runStore.state.selectedCaseRunId === runId) closeCase();
+
+  await refetchHistory();
+  await fetchEvals();
+}

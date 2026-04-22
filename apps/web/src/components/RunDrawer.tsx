@@ -16,7 +16,7 @@ import { useResizableWidth } from '../hooks/useResizableWidth.ts';
 import { useWindowWidth } from '../hooks/useWindowWidth.ts';
 import { evalsStore } from '../stores/evalsStore.ts';
 import { layoutStore } from '../stores/layoutStore.ts';
-import { closeRun, runStore } from '../stores/runStore.ts';
+import { closeRun, deleteRun, runStore } from '../stores/runStore.ts';
 import { selectionStore } from '../stores/selectionStore.ts';
 import { scopeRunCases } from '../utils/evalRuns.ts';
 import {
@@ -26,7 +26,9 @@ import {
   formatTimestamp,
 } from '../utils/formatters.ts';
 import { IconButton } from './IconButton.tsx';
+import { MenuButton } from './MenuButton.tsx';
 import { ResizeHandle } from './ResizeHandle.tsx';
+import type { SplitButtonMenuEntry } from './SplitButton.tsx';
 import { StatusBadge } from './StatusBadge.tsx';
 
 const DrawerLoading = styled.div`
@@ -59,6 +61,10 @@ const Header = styled.div`
 
 const HeaderTop = styled.div`
   ${inline({ justify: 'space-between', align: 'center', gap: 10 })}
+`;
+
+const HeaderActions = styled.div`
+  ${inline({ align: 'center', gap: 6 })}
 `;
 
 const HeaderKicker = styled.span`
@@ -251,6 +257,23 @@ export function RunDrawer() {
     summary.errorMessage !== null &&
     summary.errorMessage.length > 0;
 
+  const runIsRunning = manifest.status === 'running';
+  const menuEntries: SplitButtonMenuEntry[] = [
+    {
+      id: 'delete-run',
+      label: 'Delete run',
+      description: runIsRunning
+        ? 'Cancel the run before deleting.'
+        : 'Remove this run from history and disk.',
+      tone: 'danger',
+      onSelect: () => {
+        if (runIsRunning) return;
+        if (!window.confirm('Delete this run? This cannot be undone.')) return;
+        void deleteRun(manifest.id);
+      },
+    },
+  ];
+
   return (
     <DrawerRoot
       ref={rootRef}
@@ -265,12 +288,18 @@ export function RunDrawer() {
       <Header>
         <HeaderTop>
           <HeaderKicker>Run</HeaderKicker>
-          <IconButton
-            onClick={closeRun}
-            aria-label="Close run drawer"
-          >
-            <X />
-          </IconButton>
+          <HeaderActions>
+            <MenuButton
+              menu={menuEntries}
+              aria-label="Run actions"
+            />
+            <IconButton
+              onClick={closeRun}
+              aria-label="Close run drawer"
+            >
+              <X />
+            </IconButton>
+          </HeaderActions>
         </HeaderTop>
         <HeaderLeft>
           <RunTag>RUN</RunTag>

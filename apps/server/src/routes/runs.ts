@@ -43,6 +43,18 @@ export const runsRoutes = new Hono()
     runner.cancelRun(runId);
     return c.json({ ok: true }, 200);
   })
+  .delete('/:runId', async (c) => {
+    const runId = c.req.param('runId');
+    const runner = getRunnerInstance();
+    const result = await runner.deleteRun(runId);
+    if (!result.deleted) {
+      return c.json(
+        { error: 'Run not found or still running', deleted: false },
+        404,
+      );
+    }
+    return c.json(result, 200);
+  })
   .get('/:runId/cases/:caseId', (c) => {
     const runId = c.req.param('runId');
     const caseId = c.req.param('caseId');

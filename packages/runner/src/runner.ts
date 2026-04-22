@@ -99,6 +99,13 @@ export type EvalRunner = {
   recomputeStatusesForEval(evalId: string): Promise<{ updatedRuns: number }>;
   /** Delete terminal persisted runs that touch one eval from in-memory history and disk. */
   cleanRunsForEval(evalId: string): Promise<{ deletedRuns: number }>;
+  /**
+   * Delete one persisted run from in-memory history and disk.
+   *
+   * Ignored for in-flight runs — cancel first, then delete.
+   * Returns `deleted: false` when the run is missing or still running.
+   */
+  deleteRun(runId: string): Promise<{ deleted: boolean }>;
 };
 
 type CreateRunnerOptions = { watchForChanges?: boolean };
@@ -301,6 +308,17 @@ export function createRunner({
 
       emitDiscoveryEvent();
       return { deletedRuns };
+    },
+    async deleteRun(runId) {
+      const run = runs.get(runId);
+      if (!run) return { deleted: false };
+      if (run.manifest.status === 'running') return { deleted: false };
+
+      runs.delete(runId);
+      await rm(run.runDir, { recursive: true, force: true });
+
+      emitDiscoveryEvent();
+      return { deleted: true };
     },
     getEvals() {
       const gitState = readGitWorktreeState(workspaceRoot);
