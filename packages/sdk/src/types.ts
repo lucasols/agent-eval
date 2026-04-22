@@ -32,8 +32,6 @@ export type EvalColumnOverride = {
    * views and raw output data.
    */
   hideInTable?: boolean;
-  /** Enables client-side sorting for the column when supported. */
-  sortable?: boolean;
   /** Horizontal alignment used when rendering the column cells. */
   align?: 'left' | 'center' | 'right';
 };
