@@ -57,15 +57,20 @@ export async function withIsolatedExampleWorkspace<T>(
 export async function runExampleCli(
   workspacePath: string,
   args: string[],
+  options: {
+    env: NodeJS.ProcessEnv | undefined;
+    nodeArgs: string[] | undefined;
+  } = { env: undefined, nodeArgs: undefined },
 ): Promise<CommandResult> {
   const childEnv: NodeJS.ProcessEnv = { ...process.env, FORCE_COLOR: '0' };
   delete childEnv.VITEST;
   delete childEnv.VITEST_MODE;
   delete childEnv.VITEST_POOL_ID;
   delete childEnv.VITEST_WORKER_ID;
+  Object.assign(childEnv, options.env);
 
   return new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn(process.execPath, [cliBinPath, ...args], {
+    const child = spawn(process.execPath, [...(options.nodeArgs ?? []), cliBinPath, ...args], {
       cwd: workspacePath,
       env: childEnv,
       stdio: ['ignore', 'pipe', 'pipe'],

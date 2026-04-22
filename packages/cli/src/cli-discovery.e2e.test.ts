@@ -23,6 +23,7 @@ describe('CLI discovery', () => {
       expect(result.stdout).toContain('Assertion Failure Demo');
       expect(result.stdout).toContain('Silent Pass Demo');
       expect(result.stdout).toContain('Silent Assertion Demo');
+      expect(result.stdout).toContain('Module Mock Demo');
       expect(result.stdout).toContain('Randomized Lab');
       expect(result.stdout).toContain('Voice Return Follow-up');
       expect(result.stdout).toContain('Refund Workflow');
@@ -34,6 +35,10 @@ describe('CLI discovery', () => {
           Refund Workflow
             id: refund-workflow
             file: evals/refund-workflow.eval.ts
+
+          Module Mock Demo
+            id: module-mock-demo
+            file: evals/support/playground/module-mock.eval.ts
 
           Randomized Lab
             id: randomized-lab

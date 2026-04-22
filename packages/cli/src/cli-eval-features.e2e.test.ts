@@ -12,6 +12,70 @@ import {
 const displayBlocksSchema = z.array(displayBlockSchema);
 
 describe('CLI eval features', () => {
+  test('runs a module-mocked eval when node:test module mocks are enabled', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const result = await runExampleCli(
+        workspacePath,
+        ['run', '--eval', 'module-mock-demo'],
+        {
+          env: undefined,
+          nodeArgs: ['--experimental-test-module-mocks'],
+        },
+      );
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe('');
+
+      const artifacts = await readSingleRunArtifacts(workspacePath);
+      expect(
+        normalizeSnapshotValue(workspacePath, {
+          caseRows: artifacts.cases.map((caseRow) => ({
+            caseId: caseRow.caseId,
+            columns: caseRow.columns,
+            score: caseRow.score,
+            status: caseRow.status,
+          })),
+          summary: artifacts.summary,
+        }),
+      ).toMatchInlineSnapshot(`
+        {
+          "caseRows": [
+            {
+              "caseId": "mocked-customer-lookup",
+              "columns": {
+                "appliedSegment": "vip",
+                "response": [
+                  {
+                    "kind": "markdown",
+                    "text": "Priority refund approved for vip-100: Please refund the duplicate charge",
+                  },
+                ],
+                "usedVipSegment": 1,
+              },
+              "score": 1,
+              "status": "pass",
+            },
+          ],
+          "summary": {
+            "averageScore": 1,
+            "cancelledCases": 0,
+            "cost": {
+              "totalUsd": null,
+            },
+            "errorCases": 0,
+            "errorMessage": null,
+            "failedCases": 0,
+            "passedCases": 1,
+            "runId": "<run-id>",
+            "status": "completed",
+            "totalCases": 1,
+            "totalDurationMs": "<totalDurationMs>",
+          },
+        }
+      `);
+    });
+  });
+
   test('applies workspace concurrency to end-to-end example runs', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const result = await runExampleCli(workspacePath, [

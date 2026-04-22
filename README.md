@@ -12,10 +12,8 @@ Local-first, UI-first eval tool for LLM/agent systems. Author evals in strict Ty
 ## Install
 
 ```sh
-pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
+pnpm add -D @agent-evals/sdk @agent-evals/cli
 ```
-
-`vitest` is a peer dependency (>= 3.0.0).
 
 ## Quick start
 
@@ -80,6 +78,49 @@ pnpm add -D @agent-evals/sdk @agent-evals/cli vitest
    Run artifacts are persisted under `.agent-evals/runs/<run-id>/` with `run.json`, `summary.json`, per-case `cases.jsonl`, and trace JSON files for the executed cases.
 
 A complete working example lives at [`examples/basic-agent`](./examples/basic-agent).
+
+## Module mocking
+
+For true module replacement, use `mock.module(...)` from `node:test` and
+register the mock before dynamically importing the module graph you want to
+exercise.
+
+Node requires the `--experimental-test-module-mocks` flag for this API:
+
+```sh
+node --experimental-test-module-mocks ./node_modules/@agent-evals/cli/src/bin.ts run --eval module-mock-demo
+```
+
+Example:
+
+```ts
+import { mock } from 'node:test'
+import { blocks, defineEval, evalAssert, setOutput } from '@agent-evals/sdk'
+
+defineEval({
+  id: 'module-mock-demo',
+  cases: [{ id: 'mocked-dependency', input: { customerId: 'vip-100' } }],
+  execute: async ({ input }) => {
+    mock.module('../src/customerLookup.ts', {
+      namedExports: {
+        lookupCustomer: async () => ({ segment: 'vip' as const }),
+      },
+    })
+
+    const { runWorkflow } = await import('../src/workflow.ts')
+    const result = await runWorkflow(input)
+
+    setOutput('segment', result.segment)
+    evalAssert(result.segment === 'vip', 'expected the mocked dependency')
+  },
+})
+```
+
+Notes:
+
+- `mock.module(...)` only affects modules imported after the mock is registered.
+- Use dynamic `import(...)` inside `execute`; static imports happen too early.
+- The full working example is in [`examples/basic-agent/evals/support/playground/module-mock.eval.ts`](./examples/basic-agent/evals/support/playground/module-mock.eval.ts).
 
 ## Local development
 

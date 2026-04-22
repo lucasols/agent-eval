@@ -56,6 +56,11 @@ const exampleEvals: EvalSummary[] = [
     `${exampleWorkspace}/evals/support/quality/outcome-behavior.eval.ts`,
   ),
   createEvalSummary(
+    'module-mock-demo',
+    'Module Mock Demo',
+    `${exampleWorkspace}/evals/support/playground/module-mock.eval.ts`,
+  ),
+  createEvalSummary(
     'randomized-lab',
     'Randomized Lab',
     `${exampleWorkspace}/evals/support/playground/randomized-lab.eval.ts`,
@@ -71,13 +76,19 @@ describe('app tree ui', () => {
             {
               "children": [
                 {
+                  "fileName": "module-mock",
+                  "id": "module-mock-demo",
+                  "kind": "leaf",
+                  "title": "Module Mock Demo",
+                },
+                {
                   "fileName": "randomized-lab",
                   "id": "randomized-lab",
                   "kind": "leaf",
                   "title": "Randomized Lab",
                 },
               ],
-              "evalCount": 1,
+              "evalCount": 2,
               "kind": "folder",
               "name": "playground",
               "path": "support/playground",
@@ -165,7 +176,7 @@ describe('app tree ui', () => {
               "path": "support/returns",
             },
           ],
-          "evalCount": 9,
+          "evalCount": 10,
           "kind": "folder",
           "name": "support",
           "path": "support",
@@ -194,6 +205,7 @@ describe('app tree ui', () => {
     ).toEqual([
       'assertion-failure-demo',
       'high-value-refund',
+      'module-mock-demo',
       'randomized-lab',
       'receipt-audit',
       'receipt-fraud-review',

@@ -14,7 +14,7 @@ pnpm 10 workspaces (do not invoke npm or yarn):
 - `apps/web` — React 19 + Vite 7 frontend (`@agent-evals/web`)
 - `packages/cli` — CLI binary (`@agent-evals/cli`)
 - `packages/runner` — Core eval runner (Vitest + chokidar)
-- `packages/sdk` — Public SDK (`defineEval`, matchers, blocks, pricing); vitest is a peer dep
+- `packages/sdk` — Public SDK (`defineEval`, matchers, blocks, pricing)
 - `packages/shared` — Shared Zod schemas / types
 - `examples/basic-agent` — Demo with `*.eval.ts` files
 

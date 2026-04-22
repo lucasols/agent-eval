@@ -1,5 +1,3 @@
-import { getEvalTitle } from '@agent-evals/shared';
-import type { describe as VitestDescribe, it as VitestIt } from 'vitest';
 import type { EvalDefinition } from './types.ts';
 
 /**
@@ -15,25 +13,14 @@ export type EvalRegistryEntry = {
 
 const evalRegistry = new Map<string, EvalRegistryEntry>();
 
-let describeFn: typeof VitestDescribe | null = null;
-let itFn: typeof VitestIt | null = null;
-
-if (process.env.VITEST) {
-  const vitest = await import('vitest');
-  describeFn = vitest.describe;
-  itFn = vitest.it;
-}
-
 /** Return the in-memory registry of evals defined in the current process. */
 export function getEvalRegistry(): Map<string, EvalRegistryEntry> {
   return evalRegistry;
 }
 
 /**
- * Register an eval definition with the SDK and expose it to the runner.
- *
- * When invoked inside Vitest, this also creates a placeholder test so eval
- * files appear in the test tree.
+ * Register an eval definition with the SDK so the runner can discover it
+ * after importing the eval module.
  */
 export function defineEval<TInput>(definition: EvalDefinition<TInput>): void {
   evalRegistry.set(definition.id, {
@@ -41,12 +28,4 @@ export function defineEval<TInput>(definition: EvalDefinition<TInput>): void {
     title: definition.title,
     use: (fn) => fn(definition),
   });
-
-  const describe = describeFn;
-  const it = itFn;
-  if (describe && it) {
-    describe(getEvalTitle(definition), () => {
-      it.todo(`eval: ${definition.id}`);
-    });
-  }
 }
