@@ -128,4 +128,62 @@ defineEval({
       process.chdir(previousCwd);
     }
   });
+
+  test('surfaces the stats row config on discovered eval summaries', async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), 'agent-evals-runner-stats-config-'),
+    );
+    createdWorkspaces.push(workspacePath);
+
+    await mkdir(join(workspacePath, 'evals'), { recursive: true });
+    await writeFile(
+      join(workspacePath, 'agent-evals.config.ts'),
+      `export default {
+  include: ['evals/**/*.eval.ts'],
+};
+`,
+    );
+    await writeFile(
+      join(workspacePath, 'evals', 'stats.eval.ts'),
+      `import { defineEval } from '@agent-evals/sdk';
+
+defineEval({
+  id: 'stats-eval',
+  title: 'Stats Eval',
+  stats: [
+    { kind: 'cases' },
+    { kind: 'passRate', accent: true },
+    { kind: 'column', key: 'accuracy', aggregate: 'avg', format: 'percent' },
+    { kind: 'cost' },
+  ],
+  scores: {
+    accuracy: { compute: () => 1, label: 'Accuracy' },
+  },
+  execute: () => {},
+});
+`,
+    );
+
+    const previousCwd = process.cwd();
+    process.chdir(workspacePath);
+
+    try {
+      const runner = createRunner({ watchForChanges: false });
+      await runner.init();
+
+      expect(runner.getEval('stats-eval')?.stats).toEqual([
+        { kind: 'cases' },
+        { kind: 'passRate', accent: true },
+        {
+          kind: 'column',
+          key: 'accuracy',
+          aggregate: 'avg',
+          format: 'percent',
+        },
+        { kind: 'cost' },
+      ]);
+    } finally {
+      process.chdir(previousCwd);
+    }
+  });
 });

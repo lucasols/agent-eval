@@ -9,7 +9,7 @@ import type { EvalLatestRunInfo } from './runPersistence.ts';
 
 type EvalSummaryMeta = Pick<
   EvalSummary,
-  'id' | 'title' | 'filePath' | 'columnDefs' | 'caseCount'
+  'id' | 'title' | 'filePath' | 'columnDefs' | 'caseCount' | 'stats' | 'charts'
 > & { sourceFingerprint: string | null };
 
 /** Build the API/UI summary payload for one discovered eval. */

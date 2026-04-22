@@ -18,6 +18,17 @@ defineEval<{ prompt: string }>({
   columns: {
     response: { label: 'Response', format: 'markdown' },
   },
+  stats: [
+    { kind: 'cases' },
+    { kind: 'passRate', accent: true },
+    {
+      kind: 'column',
+      key: 'matchesGoldAnswer',
+      aggregate: 'avg',
+      format: 'percent',
+    },
+    { kind: 'duration' },
+  ],
   execute: ({ input }) => {
     setOutput('response', `Borderline result for: ${input.prompt}`);
   },
@@ -29,6 +40,21 @@ defineEval<{ prompt: string }>({
         getResponseText(outputs.response).includes('Approved refund') ? 1 : 0,
     },
   },
+  charts: [
+    {
+      type: 'bar',
+      metrics: [
+        {
+          source: 'column',
+          key: 'matchesGoldAnswer',
+          aggregate: 'passThresholdRate',
+          color: 'success',
+        },
+        { source: 'builtin', metric: 'cost', color: 'cost', axis: 'right' },
+      ],
+      yDomain: { left: { min: 0, max: 1 } },
+    },
+  ],
 });
 
 defineEval<{ ticketId: string }>({

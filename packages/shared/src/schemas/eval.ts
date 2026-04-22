@@ -1,12 +1,54 @@
 import { z } from 'zod/v4';
+import { evalChartsConfigSchema } from './chart.ts';
 import { evalCostSummarySchema } from './cost.ts';
-import { cellValueSchema, columnDefSchema } from './display.ts';
+import {
+  cellValueSchema,
+  columnDefSchema,
+  columnFormatSchema,
+} from './display.ts';
 import { traceDisplayConfigSchema, traceSpanSchema } from './trace.ts';
 
 /** Freshness signal derived from the latest relevant run plus git state. */
 export const evalFreshnessStatusSchema = z.enum(['fresh', 'stale', 'outdated']);
 /** Freshness signal derived from the latest relevant run plus git state. */
 export type EvalFreshnessStatus = z.infer<typeof evalFreshnessStatusSchema>;
+
+/** Reducer used to collapse a column's per-case values into a single stat. */
+export const evalStatAggregateSchema = z.enum([
+  'avg',
+  'min',
+  'max',
+  'sum',
+  'last',
+]);
+/** Reducer used to collapse a column's per-case values into a single stat. */
+export type EvalStatAggregate = z.infer<typeof evalStatAggregateSchema>;
+
+/**
+ * One entry in the EvalCard stats row. Built-in kinds use latest run totals;
+ * `column` aggregates a score or numeric output column across the latest run.
+ */
+export const evalStatItemSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('cases') }),
+  z.object({ kind: z.literal('passRate'), accent: z.boolean().optional() }),
+  z.object({ kind: z.literal('duration') }),
+  z.object({ kind: z.literal('cost') }),
+  z.object({
+    kind: z.literal('column'),
+    key: z.string(),
+    label: z.string().optional(),
+    aggregate: evalStatAggregateSchema,
+    format: columnFormatSchema.optional(),
+    accent: z.boolean().optional(),
+  }),
+]);
+/** Single stat rendered in the EvalCard stats row. */
+export type EvalStatItem = z.infer<typeof evalStatItemSchema>;
+
+/** Ordered list of stats rendered in the EvalCard stats row. */
+export const evalStatsConfigSchema = z.array(evalStatItemSchema);
+/** Ordered list of stats rendered in the EvalCard stats row. */
+export type EvalStatsConfig = z.infer<typeof evalStatsConfigSchema>;
 
 /** Schema summarizing a discovered eval for list and overview screens. */
 export const evalSummarySchema = z.object({
@@ -31,6 +73,16 @@ export const evalSummarySchema = z.object({
   lastRunStatus: z
     .enum(['pass', 'fail', 'error', 'running', 'cancelled'])
     .nullable(),
+  /**
+   * Optional per-eval stats row configuration for the EvalCard. Opt-in: when
+   * omitted or empty, the UI renders no stats row at all.
+   */
+  stats: evalStatsConfigSchema.optional(),
+  /**
+   * Ordered per-eval history chart configuration for the EvalCard. Opt-in:
+   * when omitted or empty, the UI renders no history chart at all.
+   */
+  charts: evalChartsConfigSchema.optional(),
 });
 /** Metadata shown for one discovered eval in the explorer UI. */
 export type EvalSummary = z.infer<typeof evalSummarySchema>;

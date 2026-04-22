@@ -1,4 +1,4 @@
-import type { NumberDisplayOptions } from '@agent-evals/shared';
+import type { ColumnDef, NumberDisplayOptions } from '@agent-evals/shared';
 
 export function formatCost(value: number | null | undefined): string {
   if (value === null || value === undefined) return '\u2014';
@@ -29,6 +29,19 @@ export function formatNumber(
         ? String(value)
         : value.toFixed(options.decimalPlaces);
   return `${options?.prefix ?? ''}${rendered}${options?.suffix ?? ''}`;
+}
+
+/**
+ * Render a numeric cell value using the column's declared format. Falls back
+ * to `formatScore` for score columns without a format, and `String(value)`
+ * otherwise. Keeps stat/cell rendering visually consistent across the UI.
+ */
+export function formatNumericCellValue(c: ColumnDef, value: number): string {
+  if (c.format === 'number') return formatNumber(value, c.numberFormat);
+  if (c.format === 'duration') return formatDuration(value);
+  if (c.format === 'percent') return formatPercent(value);
+  if (c.isScore === true) return formatScore(value);
+  return String(value);
 }
 
 export function formatDuration(ms: number | null | undefined): string {

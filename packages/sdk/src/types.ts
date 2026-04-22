@@ -1,9 +1,36 @@
 import type {
   ColumnFormat,
   NumberDisplayOptions,
+  EvalChartAggregate,
+  EvalChartAxis,
+  EvalChartBuiltinMetric,
+  EvalChartColor,
+  EvalChartConfig,
+  EvalChartMetric,
+  EvalChartsConfig,
+  EvalChartTooltipExtra,
+  EvalChartType,
+  EvalStatAggregate,
+  EvalStatItem,
+  EvalStatsConfig,
   EvalTraceSpan,
   TraceDisplayInputConfig,
 } from '@agent-evals/shared';
+
+export type {
+  EvalChartAggregate,
+  EvalChartAxis,
+  EvalChartBuiltinMetric,
+  EvalChartColor,
+  EvalChartConfig,
+  EvalChartMetric,
+  EvalChartsConfig,
+  EvalChartTooltipExtra,
+  EvalChartType,
+  EvalStatAggregate,
+  EvalStatItem,
+  EvalStatsConfig,
+};
 
 /** Single authored eval case with its stable identifier and input payload. */
 export type EvalCase<TInput> = { id: string; input: TInput; tags?: string[] };
@@ -110,4 +137,33 @@ export type EvalDefinition<TInput = unknown> = {
     ctx: EvalDeriveContext<TInput>,
   ) => Record<string, unknown> | Promise<Record<string, unknown>>;
   scores?: Record<string, EvalScoreDef<TInput>>;
+  /**
+   * Optional stats row configuration for the EvalCard in the web UI.
+   *
+   * Opt-in: when omitted (or empty) the EvalCard renders no stats row at all.
+   * When provided, the stats render in order, left to right.
+   *
+   * Built-in kinds (`cases`, `passRate`, `duration`, `cost`) read from the
+   * latest run summary. `kind: 'column'` aggregates a score or numeric output
+   * column across the latest run's cases — `key` must match one of the eval's
+   * score or column keys, and only finite numeric values participate in the
+   * reduction. When no case has a numeric value for the key the stat renders
+   * an em dash. `label` and `format` default to the matching `ColumnDef`.
+   */
+  stats?: EvalStatsConfig;
+  /**
+   * Optional history chart configuration for the EvalCard in the web UI.
+   *
+   * Opt-in: when omitted (or empty) the EvalCard renders no history chart at
+   * all. Each entry in the list renders as its own chart frame, stacked in
+   * authoring order.
+   *
+   * Each chart declares its `type` (`area | line | bar`) and one or more
+   * `metrics`. Built-in metrics (`passRate`, `cost`, `durationMs`) aggregate
+   * the run summary. Column metrics aggregate a score or numeric `setOutput`
+   * column across the run using an `aggregate` reducer (`avg`, `sum`, `min`,
+   * `max`, `latest`, `passThresholdRate`). `passThresholdRate` requires a
+   * score column with `passThreshold`.
+   */
+  charts?: EvalChartsConfig;
 };

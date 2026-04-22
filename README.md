@@ -172,6 +172,8 @@ lower median when the number of trials is even.
 | `deriveFromTracing` |          | Derive output columns from the finished trace tree                              |
 | `scores`            |          | Record of scoring functions returning `0..1`                                    |
 | `columns`           |          | Custom columns shown in the results table                                       |
+| `stats`             |          | Opt-in stats row on the eval page (see [Stats row](#stats-row))                 |
+| `charts`            |          | Opt-in history charts on the eval page (see [History charts](#history-charts))  |
 
 ### Cases
 
@@ -286,6 +288,40 @@ Populate values in `deriveFromTracing(...)` and/or from runtime outputs.
 Long custom column text is truncated in the runs table and reveals the full value on hover.
 Use `hideInTable: true` for rich outputs that should stay in the case detail view
 without taking up space in the runs table.
+
+### Stats row
+
+The eval page can show a stats row at the top of each eval card. This is
+**opt-in**: when `stats` is omitted (or empty) the row is not rendered. Set
+`stats` to declare which stats appear, including score and numeric output
+columns:
+
+```ts
+stats: [
+  { kind: 'cases' },
+  { kind: 'passRate', accent: true },
+  {
+    kind: 'column',
+    key: 'matchesGoldAnswer',
+    aggregate: 'avg',
+    format: 'percent',
+  },
+  { kind: 'cost' },
+  { kind: 'duration' },
+];
+```
+
+Supported kinds:
+
+- `cases` — declared case count.
+- `passRate` — latest run's `passed/total`. Set `accent: true` to tint the value.
+- `duration` — latest run's total duration.
+- `cost` — latest run's total cost in USD.
+- `column` — aggregate a score or numeric output column across the latest
+  run's cases. `key` matches a score key or output column key. `aggregate` is
+  `avg | min | max | sum | last`. `label` and `format` default to the matching
+  column definition. Only finite numeric values participate; if none exist the
+  stat renders an em dash.
 
 ## Caching costly operations
 

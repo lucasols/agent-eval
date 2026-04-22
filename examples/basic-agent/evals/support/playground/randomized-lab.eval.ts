@@ -77,4 +77,32 @@ defineEval<{ prompt: string }>({
   scores: {
     randomScore: { label: 'Random Score', compute: () => sampleScore() },
   },
+  charts: [
+    {
+      heading: 'Scores',
+      type: 'line',
+      metrics: [
+        { source: 'builtin', metric: 'passRate', color: 'accent' },
+        {
+          source: 'column',
+          key: 'randomScore',
+          aggregate: 'avg',
+          color: 'accentDim',
+        },
+        {
+          source: 'column',
+          key: 'randomValue',
+          aggregate: 'avg',
+          color: 'warning',
+          axis: 'right',
+        },
+      ],
+      yDomain: { left: { min: 0, max: 1 }, right: { min: 0, max: 1 } },
+    },
+    {
+      heading: 'Cost per run',
+      type: 'area',
+      metrics: [{ source: 'builtin', metric: 'cost', color: 'cost' }],
+    },
+  ],
 });

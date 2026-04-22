@@ -8,6 +8,8 @@ import type {
   CaseRow,
   ColumnDef,
   CreateRunRequest,
+  EvalChartsConfig,
+  EvalStatsConfig,
   EvalSummary,
   RunManifest,
   RunSummary,
@@ -43,6 +45,8 @@ export type EvalMeta = {
   sourceFingerprint: string | null;
   columnDefs: ColumnDef[];
   caseCount: number | null;
+  stats?: EvalStatsConfig;
+  charts?: EvalChartsConfig;
 };
 
 export type RunState = {

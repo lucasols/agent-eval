@@ -33,8 +33,9 @@ import {
 } from '../stores/runStore.ts';
 import { selectEval, selectFolder } from '../stores/selectionStore.ts';
 import { getDisplayFolderSegments } from '../utils/buildEvalTree.ts';
+import { buildChartPoints } from '../utils/chartData.ts';
 import { buildEvalScopedRunRows } from '../utils/evalRuns.ts';
-import { formatDuration } from '../utils/formatters.ts';
+import { computeStatDisplay } from '../utils/evalStats.ts';
 import { getFreshnessTooltip } from '../utils/freshness.ts';
 import { EvalRunsChart } from './EvalRunsChart.tsx';
 import { EvalRunsTable } from './EvalRunsTable.tsx';
@@ -46,8 +47,6 @@ import { StatusBadge } from './StatusBadge.tsx';
 import { Tooltip } from './Tooltip.tsx';
 
 type EvalCardProps = { evalSummary: EvalSummary; mode: 'single' | 'stacked' };
-
-const RUN_SHORT_ID_PREFIX = /^r/;
 
 const Card = styled.section<{ stacked: boolean; single: boolean }>`
   ${stack({ gap: 0 })}
@@ -320,7 +319,14 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     currentRun: s.currentRun,
   }));
 
-  const { visibleRunRows, chartData, latestSummary } = useMemo(() => {
+  const charts = evalSummary.charts ?? [];
+  const {
+    visibleRunRows,
+    perChartData,
+    completedRunCount,
+    latestSummary,
+    latestCases,
+  } = useMemo(() => {
     const evalRuns = getRunsForEval(runs, evalSummary.id);
     const liveRun =
       currentRun &&
@@ -337,40 +343,49 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
 
     const rows = buildEvalScopedRunRows(merged, evalSummary.id);
 
-    const points = isSingle
-      ? [...rows]
-          .reverse()
-          .filter(
-            (r) =>
-              r.manifest.status === 'completed' && r.summary.totalCases > 0,
+    const perChart =
+      isSingle && charts.length > 0
+        ? charts.map((config) =>
+            buildChartPoints({
+              rows,
+              config,
+              columnDefs: evalSummary.columnDefs,
+              limit: 20,
+            }),
           )
-          .slice(-20)
-          .map((r, index, completedRuns) => ({
-            axisLabel:
-              index === completedRuns.length - 1
-                ? 'LATEST'
-                : r.manifest.shortId.replace(RUN_SHORT_ID_PREFIX, ''),
-            shortId: r.manifest.shortId,
-            startedAt: r.manifest.startedAt,
-            passRate:
-              r.summary.totalCases > 0
-                ? r.summary.passedCases / r.summary.totalCases
-                : 0,
-            cost: r.summary.cost.totalUsd,
-          }))
-      : [];
+        : [];
+
+    const completed = rows.filter(
+      (r) => r.manifest.status === 'completed' && r.summary.totalCases > 0,
+    );
 
     return {
       visibleRunRows: isStacked ? rows.slice(0, 1) : rows,
-      chartData: points,
+      perChartData: perChart,
+      completedRunCount: Math.min(completed.length, 20),
       latestSummary: rows[0]?.summary ?? null,
+      latestCases: rows[0]?.cases ?? [],
     };
-  }, [runs, currentRun, evalSummary.id, isSingle, isStacked]);
+  }, [
+    runs,
+    currentRun,
+    evalSummary.id,
+    evalSummary.columnDefs,
+    isSingle,
+    isStacked,
+    charts,
+  ]);
+
+  const stats = evalSummary.stats ?? [];
+  const statDisplays = stats.map((stat) =>
+    computeStatDisplay(stat, { evalSummary, latestSummary, latestCases }),
+  );
 
   const isRunning =
     currentRun?.manifest.status === 'running' &&
     runTargetsEvalLocal(currentRun.manifest.target, evalSummary.id);
-  const hasScoreHistory = isSingle && chartData.length > 1;
+  const hasScoreHistory =
+    isSingle && charts.length > 0 && completedRunCount > 1;
   const displayStatus = getEvalDisplayStatus({
     freshnessStatus: evalSummary.freshnessStatus,
     stale: evalSummary.stale,
@@ -576,28 +591,16 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
 
       {showBody ? (
         <Body scroll={isSingle}>
-          <StatsGrid>
-            <Stat>
-              <StatLabel>Cases</StatLabel>
-              <StatValue accent={false}>
-                {evalSummary.caseCount ?? '\u2014'}
-              </StatValue>
-            </Stat>
-            <Stat>
-              <StatLabel>Pass rate</StatLabel>
-              <StatValue accent={true}>
-                {latestSummary && latestSummary.totalCases > 0
-                  ? `${String(latestSummary.passedCases)}/${String(latestSummary.totalCases)}`
-                  : '\u2014'}
-              </StatValue>
-            </Stat>
-            <Stat>
-              <StatLabel>Duration</StatLabel>
-              <StatValue accent={false}>
-                {formatDuration(latestSummary?.totalDurationMs ?? null)}
-              </StatValue>
-            </Stat>
-          </StatsGrid>
+          {statDisplays.length > 0 ? (
+            <StatsGrid>
+              {statDisplays.map((stat, index) => (
+                <Stat key={`${stat.label}-${index}`}>
+                  <StatLabel>{stat.label}</StatLabel>
+                  <StatValue accent={stat.accent}>{stat.value}</StatValue>
+                </Stat>
+              ))}
+            </StatsGrid>
+          ) : null}
 
           {hasScoreHistory ? (
             <Section fill={false}>
@@ -608,22 +611,29 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
                   aria-expanded={!scoreHistoryCollapsed}
                   aria-label={
                     scoreHistoryCollapsed
-                      ? 'Expand score history'
-                      : 'Collapse score history'
+                      ? 'Expand history charts'
+                      : 'Collapse history charts'
                   }
                 >
                   <SectionChevron open={!scoreHistoryCollapsed}>
                     <ChevronDown />
                   </SectionChevron>
-                  <SectionLabelText>Pass rate history</SectionLabelText>
+                  <SectionLabelText>History</SectionLabelText>
                 </SectionLabelLeft>
                 <SectionMeta>
-                  {chartData.length} {chartData.length === 1 ? 'run' : 'runs'}
+                  {completedRunCount} {completedRunCount === 1 ? 'run' : 'runs'}
                 </SectionMeta>
               </SectionLabel>
-              {scoreHistoryCollapsed ? null : (
-                <EvalRunsChart data={chartData} />
-              )}
+              {scoreHistoryCollapsed
+                ? null
+                : charts.map((config, i) => (
+                    <EvalRunsChart
+                      key={`chart-${i}`}
+                      config={config}
+                      data={perChartData[i] ?? []}
+                      columnDefs={evalSummary.columnDefs}
+                    />
+                  ))}
             </Section>
           ) : null}
 

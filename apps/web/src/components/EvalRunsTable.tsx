@@ -20,8 +20,7 @@ import {
 import { selectCase, selectRun } from '../stores/runStore.ts';
 import {
   formatDuration,
-  formatNumber,
-  formatPercent,
+  formatNumericCellValue,
   formatScore,
   formatTimestamp,
 } from '../utils/formatters.ts';
@@ -323,17 +322,9 @@ function formatCellValue(c: ColumnDef, value: CellValue | undefined): string {
   if (value === null || value === undefined) return EM_DASH;
   if (Array.isArray(value)) return `${String(value.length)} block(s)`;
   if (typeof value === 'number') {
-    return formatNumericCell(c, value);
+    return formatNumericCellValue(c, value);
   }
   return summarizeCellValue(c, value);
-}
-
-function formatNumericCell(c: ColumnDef, value: number): string {
-  if (c.format === 'number') return formatNumber(value, c.numberFormat);
-  if (c.format === 'duration') return formatDuration(value);
-  if (c.format === 'percent') return formatPercent(value);
-  if (c.isScore) return formatScore(value);
-  return String(value);
 }
 
 function getCellTooltipContent(value: CellValue | undefined): string | undefined {
@@ -350,7 +341,6 @@ function getCellTooltipContent(value: CellValue | undefined): string | undefined
   }
   return String(value);
 }
-
 function averageNumericColumn(cases: CaseRow[], key: string): number | null {
   let sum = 0;
   let count = 0;
@@ -589,7 +579,11 @@ function RunGroup({
               rightAlign={c.align === 'right' || isNumericColumn(c)}
               mono={true}
             >
-              {avg === null ? <Dim>{EM_DASH}</Dim> : formatNumericCell(c, avg)}
+              {avg === null ? (
+                <Dim>{EM_DASH}</Dim>
+              ) : (
+                formatNumericCellValue(c, avg)
+              )}
             </RunHeaderTd>
           );
         })}

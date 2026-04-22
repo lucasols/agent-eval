@@ -21,6 +21,7 @@ import {
   type CacheClearFilter,
   type FsCacheStore,
 } from './cacheStore.ts';
+import { validateCharts } from './chartValidation.ts';
 import { buildDeclaredColumnDefs, normalizeScoreDef } from './columnBuilder.ts';
 import { loadConfig } from './config.ts';
 import { parseEvalMetas } from './discovery.ts';
@@ -293,12 +294,24 @@ export function createRunner({
             const discoveredEntry = registry.get(meta.id);
             const title = meta.title;
             let columnDefs = buildDeclaredColumnDefs(undefined, undefined);
+            let stats: EvalMeta['stats'];
+            let charts: EvalMeta['charts'];
 
             discoveredEntry?.use((evalDef) => {
               columnDefs = buildDeclaredColumnDefs(
                 evalDef.columns,
                 evalDef.scores,
               );
+              stats = evalDef.stats;
+              const validated = validateCharts({
+                charts: evalDef.charts,
+                columnDefs,
+                evalId: meta.id,
+              });
+              for (const warning of validated.warnings) {
+                console.warn(warning);
+              }
+              charts = validated.charts;
             });
 
             evals.set(meta.id, {
@@ -309,6 +322,8 @@ export function createRunner({
               sourceFingerprint,
               columnDefs,
               caseCount: null,
+              stats,
+              charts,
             });
           }
         } catch {
