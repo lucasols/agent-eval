@@ -17,7 +17,7 @@ import {
   tabularNums,
   transition,
 } from '#src/style/helpers';
-import { selectCase, selectRun } from '../stores/runStore.ts';
+import { runStore, selectCase, selectRun } from '../stores/runStore.ts';
 import {
   formatDuration,
   formatNumericCellValue,
@@ -94,10 +94,11 @@ const Th = styled.th<{ rightAlign: boolean; indent: boolean }>`
   }
 `;
 
-const RunHeaderRow = styled.tr<{ latest: boolean }>`
+const RunHeaderRow = styled.tr<{ latest: boolean; active: boolean }>`
   ${transition({ property: 'background' })}
   cursor: pointer;
   border-top: 1px solid ${colors.border.var};
+  border-left: 3px solid transparent;
   background: ${colors.bgElevated.var};
 
   &:first-child {
@@ -113,6 +114,9 @@ const RunHeaderRow = styled.tr<{ latest: boolean }>`
   }
   &.latest:hover {
     background: ${colors.accent.alpha(0.1)};
+  }
+  &.active {
+    border-left-color: ${colors.accent.var};
   }
 `;
 
@@ -201,13 +205,14 @@ const CaseRowEl = styled.tr<{ active: boolean }>`
   ${transition({ property: 'background' })}
   cursor: pointer;
   border-top: 1px solid ${colors.border.var};
+  border-left: 3px solid transparent;
 
   &:hover {
     background: ${colors.bgElevated.var};
   }
 
   &.active {
-    background: ${colors.surface.var};
+    border-left-color: ${colors.accent.var};
   }
 `;
 
@@ -320,6 +325,13 @@ export function EvalRunsTable({
   fillHeight,
   runScope,
 }: EvalRunsTableProps) {
+  const { selectedRunId, selectedCaseRunId, selectedCaseId } =
+    runStore.useSelectorRC((s) => ({
+      selectedRunId: s.selectedRunId,
+      selectedCaseRunId: s.selectedCaseRunId,
+      selectedCaseId: s.selectedCaseId,
+    }));
+
   if (runs.length === 0) {
     return <Empty>Run this eval to see results</Empty>;
   }
@@ -388,6 +400,9 @@ export function EvalRunsTable({
               otherCustomColumns={otherCustomColumns}
               totalCols={totalCols}
               runScope={runScope}
+              selectedRunId={selectedRunId}
+              selectedCaseRunId={selectedCaseRunId}
+              selectedCaseId={selectedCaseId}
             />
           ))}
         </tbody>
@@ -405,6 +420,9 @@ function RunGroup({
   otherCustomColumns,
   totalCols,
   runScope,
+  selectedRunId,
+  selectedCaseRunId,
+  selectedCaseId,
 }: {
   run: RunRow;
   isLatest: boolean;
@@ -414,10 +432,15 @@ function RunGroup({
   otherCustomColumns: ColumnDef[];
   totalCols: number;
   runScope: RunScope | null;
+  selectedRunId: string | null;
+  selectedCaseRunId: string | null;
+  selectedCaseId: string | null;
 }) {
   const { manifest, summary, cases } = run;
   const displayShortId = manifest.shortId.replace(RUN_SHORT_ID_PREFIX, '');
   const durationValue = summary.totalDurationMs;
+  const runHasOpenDrawer =
+    selectedRunId === manifest.id || selectedCaseRunId === manifest.id;
 
   function handleCaseClick(caseId: string) {
     void selectCase(manifest.id, caseId);
@@ -432,6 +455,7 @@ function RunGroup({
     <>
       <RunHeaderRow
         latest={isLatest}
+        active={runHasOpenDrawer}
         onClick={() => void selectRun(manifest.id, runScope)}
       >
         <RunHeaderTd
@@ -522,7 +546,10 @@ function RunGroup({
           cases.map((row) => (
             <CaseRowEl
               key={`${row.caseId}-${String(row.trial)}`}
-              active={false}
+              active={
+                selectedCaseRunId === manifest.id &&
+                selectedCaseId === row.caseId
+              }
               onClick={() => handleCaseClick(row.caseId)}
             >
               <CaseTd
