@@ -63,7 +63,7 @@ pnpm add -D @ls-stack/agent-eval
    });
    ```
 
-3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`).
+3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). Use the sidebar status counts to filter visible evals by one or more states.
 
 4. **Or use the CLI**:
 
@@ -264,15 +264,51 @@ scores: {
 }
 ```
 
-Every score is a first-class column in the run table, rendered as its own
-progress bar (both per-case and as the per-run average). Scores are **not**
-combined into a single average — each column stands on its own.
+Every score is a first-class column in the run table, rendered per case and as
+the per-run average. Scores are **not** combined into a single average — each
+column stands on its own.
 
 Pass/fail is per-score: a case fails if any score that declares a
 `passThreshold` falls below that threshold (or if an assertion failed, or the
 case errored). A run fails if any of its cases fail. Scores without
 `passThreshold` are purely informational and never gate pass/fail. Hover a
 score column in the UI to see its threshold.
+
+Scores can choose a numeric visualization with `format`. In addition to the
+standard numeric formats, score columns support `format: 'passFail'` and
+`format: 'stars'`:
+
+```ts
+scores: {
+  automatedQuality: {
+    label: 'Automated Quality',
+    format: 'stars',
+    maxStars: 5,
+    compute: ({ outputs }) => scoreQuality(outputs),
+  },
+}
+```
+
+Manual scores are separate from computed `scores`. They are created as pending
+score columns during a run, then filled directly in the web UI. Values are
+stored as normalized `0..1` numbers. While the latest run for an eval has any
+pending manual scores, the eval is shown as `unscored`; older runs do not affect
+that state.
+
+```ts
+manualScores: {
+  reviewerDecision: {
+    label: 'Reviewer Decision',
+    format: 'passFail',
+    passThreshold: 0.5,
+  },
+  reviewerQuality: {
+    label: 'Reviewer Quality',
+    format: 'stars',
+    maxStars: 5,
+  },
+}
+```
 
 ### Custom columns
 
@@ -465,7 +501,7 @@ refs, or native `Blob`/`File` values for `format: 'image' | 'audio' | 'video' |
 Use the eval `columns` option to control labels, authored column order,
 alignment, visibility, and rendering format. Supported `columns.format` values
 include `boolean`, `markdown`, `json`, `image`, `audio`, `video`, `file`,
-`percent`, `duration`, and `number`.
+`percent`, `duration`, `number`, `passFail`, and `stars`.
 
 For `format: 'number'`, use `numberFormat` to customize the display:
 

@@ -529,6 +529,7 @@ describe('CLI eval features', () => {
           "mimeType": "audio/wav",
           "source": "run",
         },
+        "automatedQuality": 0.8,
         "confidence": 0.93,
         "handlingCostUsd": 1.25,
         "previewCard": {
@@ -541,6 +542,8 @@ describe('CLI eval features', () => {
         "requiresManualReview": false,
         "response": "Prepared **refund package** for order \`A-1024\`.\n\nCustomer note: Please confirm the refund package for my damaged mug.",
         "reviewTimeMs": 1450,
+        "reviewerDecision": null,
+        "reviewerQuality": null,
         "toolResult": {
           "matchedReceipt": true,
           "nextStep": "send-refund-confirmation",

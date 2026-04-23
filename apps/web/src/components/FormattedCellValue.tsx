@@ -7,7 +7,9 @@ import { monoFont } from '#src/style/helpers';
 import {
   formatDuration,
   formatNumber,
+  formatPassFail,
   formatPercent,
+  formatStars,
 } from '../utils/formatters.ts';
 import { JsonViewer } from './JsonViewer.tsx';
 
@@ -216,6 +218,8 @@ export function FormattedCellValue({
     if (def.format === 'number') return formatNumber(value, def.numberFormat);
     if (def.format === 'duration') return formatDuration(value);
     if (def.format === 'percent') return formatPercent(value);
+    if (def.format === 'passFail') return formatPassFail(value);
+    if (def.format === 'stars') return formatStars(value, def.maxStars);
     return String(value);
   }
 
@@ -242,6 +246,8 @@ export function summarizeCellValue(
     if (def.format === 'number') return formatNumber(value, def.numberFormat);
     if (def.format === 'duration') return formatDuration(value);
     if (def.format === 'percent') return formatPercent(value);
+    if (def.format === 'passFail') return formatPassFail(value);
+    if (def.format === 'stars') return formatStars(value, def.maxStars);
     return String(value);
   }
   if (def.format === 'json' && typeof value === 'object') return 'JSON';

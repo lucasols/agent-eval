@@ -99,7 +99,9 @@ export {
 } from './schemas/sse.ts';
 export {
   createRunRequestSchema,
+  updateManualScoreRequestSchema,
   type CreateRunRequest,
+  type UpdateManualScoreRequest,
 } from './schemas/api.ts';
 export {
   evalCostSummarySchema,

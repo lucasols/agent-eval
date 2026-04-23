@@ -1,3 +1,4 @@
+import type { EvalDisplayStatus } from '@agent-evals/shared';
 import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { styled } from 'vindur';
@@ -12,15 +13,20 @@ import {
   SIDEBAR_MIN_WIDTH,
   SIDEBAR_WIDTH_STORAGE_KEY,
 } from '../stores/layoutStore.ts';
+import { runStore } from '../stores/runStore.ts';
 import {
   collapseAllFolders,
+  EVAL_STATUS_FILTER_OPTIONS,
   expandAllFolders,
   selectionStore,
   selectFolder,
+  toggleEvalStatusFilter,
 } from '../stores/selectionStore.ts';
 import {
   buildEvalTree,
   collectCollapsiblePaths,
+  filterEvalsByStatuses,
+  getStatusBreakdown,
 } from '../utils/buildEvalTree.ts';
 import { EvalTree } from './EvalTree.tsx';
 import { ResizeHandle } from './ResizeHandle.tsx';
@@ -83,6 +89,106 @@ const BrandSub = styled.div`
 const SectionHeader = styled.div`
   ${inline({ justify: 'space-between', align: 'center', gap: 8 })}
   padding: 12px 16px 6px;
+`;
+
+const StatusFilters = styled.div`
+  ${inline({ gap: 6, align: 'center' })}
+  flex-wrap: wrap;
+  padding: 10px 12px 0;
+`;
+
+type StatusTone =
+  | 'running'
+  | 'pass'
+  | 'fail'
+  | 'stale'
+  | 'outdated'
+  | 'unscored'
+  | 'cancelled'
+  | 'pending';
+
+const StatusFilterChip = styled.button<{
+  active: boolean;
+  running: boolean;
+  pass: boolean;
+  fail: boolean;
+  stale: boolean;
+  outdated: boolean;
+  unscored: boolean;
+  cancelled: boolean;
+  pending: boolean;
+}>`
+  ${inline({ gap: 5, align: 'center' })}
+  ${transition({ property: 'background, border-color, color' })}
+  appearance: none;
+  border: 1px solid ${colors.border.var};
+  border-radius: 999px;
+  background: ${colors.surface.var};
+  color: ${colors.textMuted.var};
+  padding: 4px 8px;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 500;
+  text-transform: uppercase;
+  cursor: pointer;
+
+  &:hover {
+    background: ${colors.surfaceHover.var};
+    color: ${colors.text.var};
+  }
+
+  &.active {
+    background: ${colors.text.var};
+    border-color: ${colors.text.var};
+    color: ${colors.bg.var};
+  }
+
+  &.pass:not(.active) {
+    color: ${colors.success.var};
+    background: ${colors.success.alpha(0.08)};
+    border-color: ${colors.success.alpha(0.18)};
+  }
+  &.fail:not(.active) {
+    color: ${colors.error.var};
+    background: ${colors.error.alpha(0.08)};
+    border-color: ${colors.error.alpha(0.18)};
+  }
+  &.running:not(.active) {
+    color: ${colors.accentDim.var};
+    background: ${colors.accent.alpha(0.1)};
+    border-color: ${colors.accent.alpha(0.22)};
+  }
+  &.cancelled:not(.active) {
+    color: ${colors.warning.var};
+    background: ${colors.warning.alpha(0.08)};
+    border-color: ${colors.warning.alpha(0.18)};
+  }
+  &.stale:not(.active) {
+    background: ${colors.surfaceActive.var};
+  }
+  &.outdated:not(.active) {
+    color: ${colors.warning.var};
+    background: ${colors.warning.alpha(0.1)};
+    border-color: ${colors.warning.alpha(0.22)};
+  }
+  &.unscored:not(.active) {
+    color: ${colors.accentDim.var};
+    background: ${colors.accent.alpha(0.09)};
+    border-color: ${colors.accent.alpha(0.2)};
+  }
+  &.pending:not(.active) {
+    color: ${colors.textMuted.var};
+    background: ${colors.surface.var};
+    border-color: ${colors.border.var};
+  }
+`;
+
+const StatusFilterValue = styled.span`
+  font-family:
+    'Geist Mono', 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
 `;
 
 const SectionLabel = styled.button<{ active: boolean }>`
@@ -149,9 +255,14 @@ const ScrollArea = styled.div`
 
 export function Sidebar() {
   const { evals } = evalsStore.useSelectorRC((s) => ({ evals: s.evals }));
-  const { collapsedFolders, selection } = selectionStore.useSelectorRC((s) => ({
-    collapsedFolders: s.collapsedFolders,
-    selection: s.selection,
+  const { collapsedFolders, selection, statusFilters } =
+    selectionStore.useSelectorRC((s) => ({
+      collapsedFolders: s.collapsedFolders,
+      selection: s.selection,
+      statusFilters: s.statusFilters,
+    }));
+  const { currentRun } = runStore.useSelectorRC((s) => ({
+    currentRun: s.currentRun,
   }));
   const { width, dragging, rootRef, handlePointerDown, handleDoubleClick } =
     useResizableWidth({
@@ -166,9 +277,24 @@ export function Sidebar() {
     setSidebarWidth(width);
   }, [width]);
 
+  const isEvalRunning = (evalId: string): boolean =>
+    currentRun?.manifest.status === 'running' &&
+    targetIncludesEval(currentRun.manifest.target, evalId);
+  const filteredEvals = filterEvalsByStatuses(
+    evals,
+    statusFilters,
+    isEvalRunning,
+  );
+  const statusBreakdown = getStatusBreakdown(evals, isEvalRunning);
+  const statusFilterItems = EVAL_STATUS_FILTER_OPTIONS.map((status) => ({
+    status,
+    count: statusBreakdown[status],
+    active: statusFilters.has(status),
+    tone: getStatusTone(status),
+  })).filter(({ count, active }) => count > 0 || active);
   const collapsiblePaths = useMemo(
-    () => collectCollapsiblePaths(buildEvalTree(evals)),
-    [evals],
+    () => collectCollapsiblePaths(buildEvalTree(filteredEvals)),
+    [filteredEvals],
   );
   const allCollapsed =
     collapsiblePaths.length > 0 &&
@@ -189,6 +315,32 @@ export function Sidebar() {
           <BrandSub>workspace · main</BrandSub>
         </BrandText>
       </Masthead>
+      {statusFilterItems.length > 0 ? (
+        <StatusFilters aria-label="Eval status filters">
+          {statusFilterItems.map(({ status, count, active, tone }) => (
+            <StatusFilterChip
+              key={status}
+              type="button"
+              aria-pressed={active}
+              active={active}
+              pass={tone === 'pass'}
+              fail={tone === 'fail'}
+              running={tone === 'running'}
+              cancelled={tone === 'cancelled'}
+              stale={tone === 'stale'}
+              outdated={tone === 'outdated'}
+              unscored={tone === 'unscored'}
+              pending={tone === 'pending'}
+              onClick={() => {
+                toggleEvalStatusFilter(status);
+              }}
+            >
+              <StatusFilterValue>{count}</StatusFilterValue>
+              {status}
+            </StatusFilterChip>
+          ))}
+        </StatusFilters>
+      ) : null}
       <SectionHeader>
         <SectionLabel
           type="button"
@@ -215,7 +367,11 @@ export function Sidebar() {
               {allCollapsed ? <ChevronsUpDown /> : <ChevronsDownUp />}
             </IconButton>
           </Tooltip>
-          <SectionCounter>{evals.length}</SectionCounter>
+          <SectionCounter>
+            {statusFilters.size > 0
+              ? `${filteredEvals.length}/${evals.length}`
+              : evals.length}
+          </SectionCounter>
         </SectionActions>
       </SectionHeader>
       <ScrollArea>
@@ -229,4 +385,26 @@ export function Sidebar() {
       />
     </Root>
   );
+}
+
+function getStatusTone(status: EvalDisplayStatus): StatusTone {
+  if (status === 'running') return 'running';
+  if (status === 'pass') return 'pass';
+  if (status === 'fail' || status === 'error') return 'fail';
+  if (status === 'stale') return 'stale';
+  if (status === 'outdated') return 'outdated';
+  if (status === 'unscored') return 'unscored';
+  if (status === 'cancelled') return 'cancelled';
+  return 'pending';
+}
+
+function targetIncludesEval(
+  target: { mode: string; evalIds?: string[] },
+  evalId: string,
+): boolean {
+  if (target.mode === 'all') return true;
+  if (target.mode === 'evalIds') {
+    return target.evalIds?.includes(evalId) ?? false;
+  }
+  return false;
 }

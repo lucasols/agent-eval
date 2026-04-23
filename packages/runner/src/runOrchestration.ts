@@ -246,18 +246,22 @@ export async function executeRun({
           const evalCaseRows: CaseRow[] = [];
           const preparedCases: PreparedEvalCase[] = [];
           const scoreKeys = Object.freeze(Object.keys(evalDef.scores ?? {}));
+          const manualScoreKeys = Object.freeze(
+            Object.keys(evalDef.manualScores ?? {}),
+          );
           preparedEvals.push({
             evalMeta,
             accumulatedColumns,
             evalCaseRows,
             preparedCases,
-            scoreKeys,
+            scoreKeys: Object.freeze([...scoreKeys, ...manualScoreKeys]),
             mergeColumns: (columns) => {
               mergeColumnDefs(
                 accumulatedColumns,
                 columns,
                 evalDef.columns,
                 evalDef.scores,
+                evalDef.manualScores,
               );
             },
           });

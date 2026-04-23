@@ -1,4 +1,4 @@
-import { getEvalDisplayStatus, getEvalTitle } from '@agent-evals/shared';
+import { getEvalTitle } from '@agent-evals/shared';
 import { ChevronRight } from 'lucide-react';
 import { useEffect } from 'react';
 import { css, styled } from 'vindur';
@@ -25,7 +25,9 @@ import {
   buildEvalTree,
   collectNodeEvals,
   deriveCombinedStatus,
+  filterEvalsByStatuses,
   formatStatusBreakdown,
+  getEvalSummaryDisplayStatus,
   getStatusBreakdown,
   type TreeFile,
   type TreeFolder,
@@ -219,10 +221,12 @@ export function EvalTree() {
     hasLoaded: s.hasLoaded,
     error: s.error,
   }));
-  const { selection, collapsedFolders } = selectionStore.useSelectorRC((s) => ({
-    selection: s.selection,
-    collapsedFolders: s.collapsedFolders,
-  }));
+  const { selection, collapsedFolders, statusFilters } =
+    selectionStore.useSelectorRC((s) => ({
+      selection: s.selection,
+      collapsedFolders: s.collapsedFolders,
+      statusFilters: s.statusFilters,
+    }));
   const { currentRun } = runStore.useSelectorRC((s) => ({
     currentRun: s.currentRun,
   }));
@@ -282,7 +286,22 @@ export function EvalTree() {
     );
   }
 
-  const tree = buildEvalTree(evals);
+  const visibleEvals = filterEvalsByStatuses(
+    evals,
+    statusFilters,
+    isEvalRunning,
+  );
+
+  if (visibleEvals.length === 0) {
+    return (
+      <Empty>
+        <EmptyTitle>No evals match</EmptyTitle>
+        <EmptyBody>The active status filters hide every eval.</EmptyBody>
+      </Empty>
+    );
+  }
+
+  const tree = buildEvalTree(visibleEvals);
 
   return (
     <Root>
@@ -523,13 +542,7 @@ function LeafRow({
   const ev = leaf.evalSummary;
   const isActive = selection.kind === 'eval' && selection.id === ev.id;
 
-  const displayStatus = getEvalDisplayStatus({
-    freshnessStatus: ev.freshnessStatus,
-    stale: ev.stale,
-    outdated: ev.outdated,
-    lastRunStatus: ev.lastRunStatus,
-    isRunning: isEvalRunning(ev.id),
-  });
+  const displayStatus = getEvalSummaryDisplayStatus(ev, isEvalRunning);
   const title = getEvalTitle(ev);
   const rowTooltip =
     ev.stale || ev.outdated ? getFreshnessTooltip(ev) : undefined;

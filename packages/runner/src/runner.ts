@@ -14,6 +14,7 @@ import type {
   CacheListItem,
   CacheMode,
 } from '@agent-evals/shared';
+import { deriveScopedSummaryFromCases } from '@agent-evals/shared';
 import { watch } from 'chokidar';
 import { glob } from 'glob';
 import {
@@ -34,6 +35,8 @@ import {
 import { readGitWorktreeState } from './gitState.ts';
 import { resolveArtifactPath } from './outputArtifacts.ts';
 import {
+  persistRunState,
+  recomputePersistedCaseStatus,
   recomputeEvalStatusesInRuns,
   runTouchesEval,
 } from './runMaintenance.ts';
@@ -96,6 +99,20 @@ export type EvalRunner = {
   recomputeStatusesForEval(evalId: string): Promise<{ updatedRuns: number }>;
   /** Delete terminal persisted runs that touch one eval from in-memory history and disk. */
   cleanRunsForEval(evalId: string): Promise<{ deletedRuns: number }>;
+  /** Persist a UI-authored manual score for one case and recompute affected summaries. */
+  updateManualScore(params: {
+    runId: string;
+    caseId: string;
+    scoreKey: string;
+    value: number | null;
+  }): Promise<
+    | {
+        updated: true;
+        run: { manifest: RunManifest; summary: RunSummary; cases: CaseRow[] };
+        caseDetail: CaseDetail;
+      }
+    | { updated: false; reason: string }
+  >;
   /**
    * Delete one persisted run from in-memory history and disk.
    *
@@ -192,6 +209,11 @@ export function createRunner({
           const threshold = normalizeScoreDef(def).passThreshold;
           if (threshold !== undefined) scoreThresholds.set(key, threshold);
         }
+        for (const [key, def] of Object.entries(evalDef.manualScores ?? {})) {
+          if (def.passThreshold !== undefined) {
+            scoreThresholds.set(key, def.passThreshold);
+          }
+        }
       });
 
       const updatedRuns = await recomputeEvalStatusesInRuns({
@@ -227,6 +249,68 @@ export function createRunner({
 
       emitDiscoveryEvent();
       return { deletedRuns };
+    },
+    async updateManualScore({ runId, caseId, scoreKey, value }) {
+      const run = runs.get(runId);
+      if (!run) return { updated: false, reason: 'Run not found' };
+      if (run.manifest.status === 'running') {
+        return { updated: false, reason: 'Run is still running' };
+      }
+
+      const caseRow = run.cases.find((row) => row.caseId === caseId);
+      if (!caseRow) return { updated: false, reason: 'Case not found' };
+
+      const evalMeta = evals.get(caseRow.evalId);
+      if (!evalMeta) {
+        return { updated: false, reason: 'Eval not found' };
+      }
+      const columnDef = evalMeta.columnDefs.find((def) => def.key === scoreKey);
+      if (columnDef?.isManualScore !== true) {
+        return { updated: false, reason: 'Manual score not found' };
+      }
+
+      const caseDetail = run.caseDetails.get(caseId);
+      if (!caseDetail) {
+        return { updated: false, reason: 'Case detail not found' };
+      }
+
+      caseRow.columns[scoreKey] = value;
+      caseDetail.columns[scoreKey] = value;
+
+      const scoreThresholds = new Map<string, number>();
+      for (const def of evalMeta.columnDefs) {
+        if (def.isScore !== true || def.passThreshold === undefined) continue;
+        scoreThresholds.set(def.key, def.passThreshold);
+      }
+
+      const nextStatus = recomputePersistedCaseStatus(
+        caseRow,
+        caseDetail,
+        scoreThresholds,
+      );
+      caseRow.status = nextStatus;
+      caseDetail.status = nextStatus;
+
+      const derivedSummary = deriveScopedSummaryFromCases({
+        caseRows: run.cases,
+      });
+      run.summary.totalCases = derivedSummary.totalCases;
+      run.summary.passedCases = derivedSummary.passedCases;
+      run.summary.failedCases = derivedSummary.failedCases;
+      run.summary.errorCases = derivedSummary.errorCases;
+      run.summary.cancelledCases = derivedSummary.cancelledCases;
+      run.summary.totalDurationMs = derivedSummary.totalDurationMs;
+      run.summary.cost = derivedSummary.cost;
+
+      await persistCaseDetail(run.runDir, caseDetail);
+      await persistRunState(run);
+      emitDiscoveryEvent();
+
+      return {
+        updated: true,
+        run: { manifest: run.manifest, summary: run.summary, cases: run.cases },
+        caseDetail,
+      };
     },
     async deleteRun(runId) {
       const run = runs.get(runId);
@@ -293,7 +377,11 @@ export function createRunner({
           for (const meta of discoveredMetas) {
             const discoveredEntry = registry.get(meta.id);
             const title = meta.title;
-            let columnDefs = buildDeclaredColumnDefs(undefined, undefined);
+            let columnDefs = buildDeclaredColumnDefs(
+              undefined,
+              undefined,
+              undefined,
+            );
             let stats: EvalMeta['stats'];
             let charts: EvalMeta['charts'];
 
@@ -301,6 +389,7 @@ export function createRunner({
               columnDefs = buildDeclaredColumnDefs(
                 evalDef.columns,
                 evalDef.scores,
+                evalDef.manualScores,
               );
               stats = evalDef.stats;
               const validated = validateCharts({
@@ -497,11 +586,11 @@ export function createRunner({
   function emitDiscoveryEvent() {
     const lastRunStatuses = getLastRunStatuses({
       runs: runs.values(),
-      knownEvalIds: evals.keys(),
+      knownEvals: evals.values(),
     });
     const latestRunInfos = getLatestRunInfos({
       runs: runs.values(),
-      knownEvalIds: evals.keys(),
+      knownEvals: evals.values(),
     });
     lastRunStatusMap.clear();
     for (const [evalId, status] of lastRunStatuses) {

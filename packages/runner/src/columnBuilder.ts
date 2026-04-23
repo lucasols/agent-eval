@@ -1,4 +1,8 @@
-import type { EvalColumnOverride, EvalScoreDef } from '@agent-evals/sdk';
+import type {
+  EvalColumnOverride,
+  EvalManualScoreDef,
+  EvalScoreDef,
+} from '@agent-evals/sdk';
 import type {
   CellValue,
   ColumnDef,
@@ -31,6 +35,38 @@ export function normalizeScoreDef<TInput>(def: EvalScoreDef<TInput>): {
   };
 }
 
+function getScoreOverride<TInput>(
+  def: EvalScoreDef<TInput> | undefined,
+): EvalColumnOverride | undefined {
+  if (def === undefined || typeof def === 'function') return undefined;
+  return {
+    label: def.label,
+    format: def.format,
+    numberFormat: def.numberFormat,
+    hideInTable: def.hideInTable,
+    sortable: def.sortable,
+    align: def.align,
+    maxStars: def.maxStars,
+  };
+}
+
+function mergeOverrides(
+  base: EvalColumnOverride | undefined,
+  override: EvalColumnOverride | undefined,
+): EvalColumnOverride | undefined {
+  if (base === undefined) return override;
+  if (override === undefined) return base;
+  return {
+    label: override.label ?? base.label,
+    format: override.format ?? base.format,
+    numberFormat: override.numberFormat ?? base.numberFormat,
+    hideInTable: override.hideInTable ?? base.hideInTable,
+    sortable: override.sortable ?? base.sortable,
+    align: override.align ?? base.align,
+    maxStars: override.maxStars ?? base.maxStars,
+  };
+}
+
 /**
  * Populate `target` with `ColumnDef` entries for any keys in `columns`
  * that aren't already present, applying user-supplied `overrides` and
@@ -41,21 +77,29 @@ export function mergeColumnDefs<TInput>(
   columns: Record<string, CellValue>,
   overrides: Record<string, EvalColumnOverride> | undefined,
   scores: Record<string, EvalScoreDef<TInput>> | undefined,
+  manualScores: Record<string, EvalManualScoreDef> | undefined,
 ): void {
   const scoreKeys = new Set(Object.keys(scores ?? {}));
+  const manualScoreKeys = new Set(Object.keys(manualScores ?? {}));
   const overrideMap = overrides ?? {};
 
   for (const [key, value] of Object.entries(columns)) {
     if (target.has(key)) continue;
-    const override = overrideMap[key];
+    const override = mergeOverrides(
+      getScoreOverride(scores?.[key]) ?? manualScores?.[key],
+      overrideMap[key],
+    );
+    const isScore = scoreKeys.has(key) || manualScoreKeys.has(key);
     target.set(
       key,
       createColumnDef({
         key,
         override,
         scoreDef: scores?.[key],
-        inferredKind: inferKind(value),
-        isScore: scoreKeys.has(key),
+        manualScoreDef: manualScores?.[key],
+        inferredKind: isScore ? 'number' : inferKind(value),
+        isScore,
+        isManualScore: manualScoreKeys.has(key),
       }),
     );
   }
@@ -69,20 +113,29 @@ export function mergeColumnDefs<TInput>(
 export function buildDeclaredColumnDefs<TInput>(
   overrides: Record<string, EvalColumnOverride> | undefined,
   scores: Record<string, EvalScoreDef<TInput>> | undefined,
+  manualScores: Record<string, EvalManualScoreDef> | undefined,
 ): ColumnDef[] {
   const declaredDefs = new Map<string, ColumnDef>();
 
   for (const [key, override] of Object.entries(overrides ?? {})) {
+    const isScore =
+      scores?.[key] !== undefined || manualScores?.[key] !== undefined;
+    const mergedOverride = mergeOverrides(
+      getScoreOverride(scores?.[key]) ?? manualScores?.[key],
+      override,
+    );
     declaredDefs.set(
       key,
       createColumnDef({
         key,
-        override,
+        override: mergedOverride,
         scoreDef: scores?.[key],
+        manualScoreDef: manualScores?.[key],
         inferredKind:
-          inferKindFromFormat(override.format) ??
-          (override.numberFormat === undefined ? undefined : 'number'),
-        isScore: scores?.[key] !== undefined,
+          inferKindFromFormat(mergedOverride?.format) ??
+          (mergedOverride?.numberFormat === undefined ? undefined : 'number'),
+        isScore,
+        isManualScore: manualScores?.[key] !== undefined,
       }),
     );
   }
@@ -91,7 +144,29 @@ export function buildDeclaredColumnDefs<TInput>(
     if (declaredDefs.has(key)) continue;
     declaredDefs.set(
       key,
-      createColumnDef({ key, scoreDef, inferredKind: 'number', isScore: true }),
+      createColumnDef({
+        key,
+        override: getScoreOverride(scoreDef),
+        scoreDef,
+        inferredKind: 'number',
+        isScore: true,
+        isManualScore: false,
+      }),
+    );
+  }
+
+  for (const [key, manualScoreDef] of Object.entries(manualScores ?? {})) {
+    if (declaredDefs.has(key)) continue;
+    declaredDefs.set(
+      key,
+      createColumnDef({
+        key,
+        override: manualScoreDef,
+        manualScoreDef,
+        inferredKind: 'number',
+        isScore: true,
+        isManualScore: true,
+      }),
     );
   }
 
@@ -147,7 +222,9 @@ function inferKindFromFormat(
   if (
     format === 'duration' ||
     format === 'percent' ||
-    format === 'number'
+    format === 'number' ||
+    format === 'passFail' ||
+    format === 'stars'
   ) {
     return 'number';
   }
@@ -159,20 +236,40 @@ function createColumnDef<TInput>(params: {
   key: string;
   override?: EvalColumnOverride;
   scoreDef?: EvalScoreDef<TInput>;
+  manualScoreDef?: EvalManualScoreDef;
   inferredKind: ColumnKind | undefined;
   isScore: boolean;
+  isManualScore: boolean;
 }): ColumnDef {
-  const { key, override, scoreDef, inferredKind, isScore } = params;
+  const {
+    key,
+    override,
+    scoreDef,
+    manualScoreDef,
+    inferredKind,
+    isScore,
+    isManualScore,
+  } = params;
   const kind = inferredKind ?? (isScore ? 'number' : 'string');
   const def: ColumnDef = { key, label: override?.label ?? key, kind };
   if (override?.format !== undefined) def.format = override.format;
-  if (override?.numberFormat !== undefined) def.numberFormat = override.numberFormat;
-  if (override?.hideInTable !== undefined) def.hideInTable = override.hideInTable;
+  if (override?.numberFormat !== undefined)
+    def.numberFormat = override.numberFormat;
+  if (override?.maxStars !== undefined) def.maxStars = override.maxStars;
+  if (override?.hideInTable !== undefined)
+    def.hideInTable = override.hideInTable;
   if (override?.sortable !== undefined) def.sortable = override.sortable;
   if (override?.align !== undefined) def.align = override.align;
   if (!isScore) return def;
 
   def.isScore = true;
+  if (isManualScore) {
+    def.isManualScore = true;
+    if (manualScoreDef?.passThreshold !== undefined) {
+      def.passThreshold = manualScoreDef.passThreshold;
+    }
+    return def;
+  }
   if (typeof scoreDef === 'function' || scoreDef === undefined) {
     return def;
   }

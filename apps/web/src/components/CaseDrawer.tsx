@@ -13,7 +13,7 @@ import { useWindowWidth } from '../hooks/useWindowWidth.ts';
 import { evalsStore } from '../stores/evalsStore.ts';
 import { layoutStore } from '../stores/layoutStore.ts';
 import { closeCase, runStore } from '../stores/runStore.ts';
-import { formatScore } from '../utils/formatters.ts';
+import { formatNumericCellValue, formatScore } from '../utils/formatters.ts';
 import { EmptyState } from './EmptyState.tsx';
 import {
   FormattedCellValue,
@@ -491,7 +491,9 @@ export function CaseDrawer() {
                   <ScoreRowHeader>
                     <ScoreRowLabel>{c.label}</ScoreRowLabel>
                     <ScoreRowValue>
-                      {value === null ? '\u2014' : formatScore(value)}
+                      {value === null
+                        ? '\u2014'
+                        : formatNumericCellValue(c, value)}
                     </ScoreRowValue>
                   </ScoreRowHeader>
                   {value !== null ? (
@@ -612,9 +614,9 @@ function renderColumnValue(def: ColumnDef, value: CellValue | undefined) {
     return (
       <ScalarValue>
         {passed ? (
-          <ScorePass>{formatScore(value)}</ScorePass>
+          <ScorePass>{formatNumericCellValue(def, value)}</ScorePass>
         ) : (
-          <ScoreFail>{formatScore(value)}</ScoreFail>
+          <ScoreFail>{formatNumericCellValue(def, value)}</ScoreFail>
         )}
       </ScalarValue>
     );

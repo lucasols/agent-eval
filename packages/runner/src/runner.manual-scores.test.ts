@@ -1,0 +1,116 @@
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, test } from 'vitest';
+import { createRunner } from './runner.ts';
+
+const createdWorkspaces: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    createdWorkspaces.map(async (workspacePath) => {
+      await rm(workspacePath, { recursive: true, force: true });
+    }),
+  );
+  createdWorkspaces.length = 0;
+});
+
+describe('runner manual scores', () => {
+  test('manual scores start unscored and update persisted case results', async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), 'agent-evals-runner-manual-score-'),
+    );
+    createdWorkspaces.push(workspacePath);
+
+    await mkdir(join(workspacePath, 'evals'), { recursive: true });
+    await writeFile(
+      join(workspacePath, 'agent-evals.config.ts'),
+      `export default {
+  include: ['evals/**/*.eval.ts'],
+};
+`,
+    );
+    await writeFile(
+      join(workspacePath, 'evals', 'manual-score.eval.ts'),
+      `import { defineEval } from '@agent-evals/sdk';
+
+defineEval({
+  id: 'manual-score-eval',
+  title: 'Manual Score Eval',
+  cases: [{ id: 'review-me', input: {} }],
+  execute: async () => {},
+  manualScores: {
+    reviewerDecision: {
+      label: 'Reviewer Decision',
+      format: 'passFail',
+      passThreshold: 0.5,
+    },
+  },
+});
+`,
+    );
+
+    const previousCwd = process.cwd();
+    process.chdir(workspacePath);
+
+    try {
+      const runner = createRunner({ watchForChanges: false });
+      await runner.init();
+
+      const startedRun = await runner.startRun({
+        target: { mode: 'all' },
+        trials: 1,
+      });
+
+      await expect
+        .poll(() => runner.getRun(startedRun.manifest.id)?.manifest.status, {
+          timeout: 10_000,
+        })
+        .toBe('completed');
+
+      expect(runner.getEval('manual-score-eval')?.lastRunStatus).toBe(
+        'unscored',
+      );
+      expect(runner.getRun(startedRun.manifest.id)?.cases).toMatchObject([
+        {
+          caseId: 'review-me',
+          evalId: 'manual-score-eval',
+          status: 'pass',
+          columns: { reviewerDecision: null },
+        },
+      ]);
+
+      const failed = await runner.updateManualScore({
+        runId: startedRun.manifest.id,
+        caseId: 'review-me',
+        scoreKey: 'reviewerDecision',
+        value: 0,
+      });
+
+      expect(failed.updated).toBe(true);
+      expect(runner.getEval('manual-score-eval')?.lastRunStatus).toBe('fail');
+      expect(runner.getRun(startedRun.manifest.id)?.cases).toMatchObject([
+        {
+          caseId: 'review-me',
+          status: 'fail',
+          columns: { reviewerDecision: 0 },
+        },
+      ]);
+
+      const passed = await runner.updateManualScore({
+        runId: startedRun.manifest.id,
+        caseId: 'review-me',
+        scoreKey: 'reviewerDecision',
+        value: 1,
+      });
+
+      expect(passed.updated).toBe(true);
+      expect(runner.getEval('manual-score-eval')?.lastRunStatus).toBe('pass');
+      expect(
+        runner.getCaseDetail(startedRun.manifest.id, 'review-me')?.columns,
+      ).toMatchObject({ reviewerDecision: 1 });
+    } finally {
+      process.chdir(previousCwd);
+    }
+  }, 10_000);
+});

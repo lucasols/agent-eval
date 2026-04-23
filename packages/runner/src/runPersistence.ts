@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type {
   CaseDetail,
   CaseRow,
+  ColumnDef,
   EvalSummary,
   RunManifest,
   RunSummary,
@@ -109,7 +110,7 @@ export async function persistCaseDetail(
 
 export function getLastRunStatuses(params: {
   runs: Iterable<{ manifest: RunManifest; cases: CaseRow[] }>;
-  knownEvalIds: Iterable<string>;
+  knownEvals: Iterable<{ id: string; columnDefs: ColumnDef[] }>;
 }): Map<string, EvalSummary['lastRunStatus']> {
   const latestRunInfos = getLatestRunInfos(params);
   return new Map(
@@ -123,9 +124,18 @@ export function getLastRunStatuses(params: {
  */
 export function getLatestRunInfos(params: {
   runs: Iterable<{ manifest: RunManifest; cases: CaseRow[] }>;
-  knownEvalIds: Iterable<string>;
+  knownEvals: Iterable<{ id: string; columnDefs: ColumnDef[] }>;
 }): Map<string, EvalLatestRunInfo> {
-  const { runs, knownEvalIds } = params;
+  const { runs, knownEvals } = params;
+  const knownEvalMetas = [...knownEvals];
+  const manualScoreKeysByEval = new Map(
+    knownEvalMetas.map((evalMeta) => [
+      evalMeta.id,
+      evalMeta.columnDefs
+        .filter((columnDef) => columnDef.isManualScore === true)
+        .map((columnDef) => columnDef.key),
+    ]),
+  );
   const orderedRuns = [...runs].toSorted(
     (a, b) =>
       new Date(getRunFreshnessTimestamp(a.manifest)).getTime() -
@@ -134,9 +144,16 @@ export function getLatestRunInfos(params: {
   const latestRunInfos = new Map<string, EvalLatestRunInfo>();
 
   for (const run of orderedRuns) {
-    for (const evalId of getRunEvalIds(run, knownEvalIds)) {
+    for (const evalId of getRunEvalIds(
+      run,
+      knownEvalMetas.map((evalMeta) => evalMeta.id),
+    )) {
       latestRunInfos.set(evalId, {
-        status: getEvalStatusForRun(run, evalId),
+        status: getEvalStatusForRun(
+          run,
+          evalId,
+          manualScoreKeysByEval.get(evalId) ?? [],
+        ),
         startedAt: getRunFreshnessTimestamp(run.manifest),
         commitSha: run.manifest.commitSha ?? null,
         evalSourceFingerprint:
@@ -265,9 +282,13 @@ function getRunEvalIds(
 function getEvalStatusForRun(
   run: { manifest: RunManifest; cases: CaseRow[] },
   evalId: string,
+  manualScoreKeys: readonly string[],
 ): EvalSummary['lastRunStatus'] {
   const evalCases = run.cases.filter((caseRow) => caseRow.evalId === evalId);
   if (evalCases.length > 0) {
+    if (hasPendingManualScores(evalCases, manualScoreKeys)) {
+      return 'unscored';
+    }
     return toLastRunStatus(deriveStatusFromCaseRows({ caseRows: evalCases }));
   }
 
@@ -275,6 +296,19 @@ function getEvalStatusForRun(
     deriveStatusFromChildStatuses({
       statuses: [],
       lifecycleStatus: run.manifest.status,
+    }),
+  );
+}
+
+function hasPendingManualScores(
+  caseRows: CaseRow[],
+  manualScoreKeys: readonly string[],
+): boolean {
+  if (manualScoreKeys.length === 0) return false;
+  return caseRows.some((caseRow) =>
+    manualScoreKeys.some((key) => {
+      const value = caseRow.columns[key];
+      return typeof value !== 'number' || !Number.isFinite(value);
     }),
   );
 }

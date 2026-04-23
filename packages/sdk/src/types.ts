@@ -63,6 +63,13 @@ export type EvalColumnOverride = {
   sortable?: boolean;
   /** Horizontal alignment used when rendering the column cells. */
   align?: 'left' | 'center' | 'right';
+  /**
+   * Maximum number of stars used when `format: 'stars'`.
+   *
+   * Values are still stored as normalized `0..1` numbers; the UI maps the
+   * selected star count evenly across that range.
+   */
+  maxStars?: number;
 };
 
 /** Column override map keyed by output or score field name. */
@@ -110,7 +117,25 @@ export type EvalScoreFn<TInput> = (
  */
 export type EvalScoreDef<TInput> =
   | EvalScoreFn<TInput>
-  | { compute: EvalScoreFn<TInput>; passThreshold?: number; label?: string };
+  | ({
+      compute: EvalScoreFn<TInput>;
+      passThreshold?: number;
+    } & EvalColumnOverride);
+
+/**
+ * Manual score definition accepted by `defineEval`.
+ *
+ * Manual scores are emitted as score columns with pending values during CLI
+ * execution. The web UI is responsible for setting their normalized `0..1`
+ * values after a run completes.
+ */
+export type EvalManualScoreDef = EvalColumnOverride & {
+  /**
+   * Optional pass/fail gate applied after a value is filled. Pending manual
+   * values keep the eval in an `unscored` state instead of failing the case.
+   */
+  passThreshold?: number;
+};
 
 /** Complete authored eval definition consumed by `defineEval`. */
 export type EvalDefinition<TInput = unknown> = {
@@ -137,6 +162,15 @@ export type EvalDefinition<TInput = unknown> = {
     ctx: EvalDeriveContext<TInput>,
   ) => Record<string, unknown> | Promise<Record<string, unknown>>;
   scores?: Record<string, EvalScoreDef<TInput>>;
+  /**
+   * Score columns whose values are entered in the web UI after a run.
+   *
+   * Keys become persisted score columns, initialized as pending (`null`) for
+   * every case. Once filled, values are normalized numbers in the `0..1`
+   * range and participate in summaries, stats, charts, and pass thresholds
+   * like computed scores.
+   */
+  manualScores?: Record<string, EvalManualScoreDef>;
   /**
    * Optional stats row configuration for the EvalCard in the web UI.
    *

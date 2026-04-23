@@ -233,6 +233,30 @@ export function collectNodeEvals(node: TreeNode): EvalSummary[] {
 
 export type CombinedStatus = EvalDisplayStatus;
 
+export function getEvalSummaryDisplayStatus(
+  ev: EvalSummary,
+  isEvalRunning: (evalId: string) => boolean,
+): EvalDisplayStatus {
+  return getEvalDisplayStatus({
+    freshnessStatus: ev.freshnessStatus,
+    stale: ev.stale,
+    outdated: ev.outdated,
+    lastRunStatus: ev.lastRunStatus,
+    isRunning: isEvalRunning(ev.id),
+  });
+}
+
+export function filterEvalsByStatuses(
+  evals: EvalSummary[],
+  statuses: Set<EvalDisplayStatus>,
+  isEvalRunning: (evalId: string) => boolean,
+): EvalSummary[] {
+  if (statuses.size === 0) return evals;
+  return evals.filter((ev) =>
+    statuses.has(getEvalSummaryDisplayStatus(ev, isEvalRunning)),
+  );
+}
+
 export type StatusBreakdown = {
   running: number;
   stale: number;
@@ -241,6 +265,7 @@ export type StatusBreakdown = {
   fail: number;
   error: number;
   cancelled: number;
+  unscored: number;
   pending: number;
   total: number;
 };
@@ -257,17 +282,12 @@ export function getStatusBreakdown(
     fail: 0,
     error: 0,
     cancelled: 0,
+    unscored: 0,
     pending: 0,
     total: evals.length,
   };
   for (const ev of evals) {
-    const status = getEvalDisplayStatus({
-      freshnessStatus: ev.freshnessStatus,
-      stale: ev.stale,
-      outdated: ev.outdated,
-      lastRunStatus: ev.lastRunStatus,
-      isRunning: isEvalRunning(ev.id),
-    });
+    const status = getEvalSummaryDisplayStatus(ev, isEvalRunning);
     if (status === 'running') {
       counts.running += 1;
     } else if (status === 'stale') {
@@ -282,6 +302,8 @@ export function getStatusBreakdown(
       counts.error += 1;
     } else if (status === 'cancelled') {
       counts.cancelled += 1;
+    } else if (status === 'unscored') {
+      counts.unscored += 1;
     } else {
       counts.pending += 1;
     }
@@ -298,6 +320,7 @@ export function formatStatusBreakdown(breakdown: StatusBreakdown): string {
   if (breakdown.fail > 0) parts.push(`${breakdown.fail} fail`);
   if (breakdown.error > 0) parts.push(`${breakdown.error} error`);
   if (breakdown.cancelled > 0) parts.push(`${breakdown.cancelled} cancelled`);
+  if (breakdown.unscored > 0) parts.push(`${breakdown.unscored} unscored`);
   if (breakdown.pending > 0) parts.push(`${breakdown.pending} pending`);
   if (parts.length === 0) return `${breakdown.total} evals`;
   return parts.join(' · ');
@@ -316,20 +339,16 @@ export function deriveCombinedStatus(
   let hasFail = false;
   let hasStale = false;
   let hasOutdated = false;
+  let hasUnscored = false;
 
   for (const ev of evals) {
-    const status = getEvalDisplayStatus({
-      freshnessStatus: ev.freshnessStatus,
-      stale: ev.stale,
-      outdated: ev.outdated,
-      lastRunStatus: ev.lastRunStatus,
-      isRunning: isEvalRunning(ev.id),
-    });
+    const status = getEvalSummaryDisplayStatus(ev, isEvalRunning);
     if (status === 'running') hasRunning = true;
     else if (status === 'error') hasError = true;
     else if (status === 'fail') hasFail = true;
     else if (status === 'stale') hasStale = true;
     else if (status === 'outdated') hasOutdated = true;
+    else if (status === 'unscored') hasUnscored = true;
     else if (status === 'cancelled') hasCancelled = true;
     else if (status === 'pass') hasPass = true;
     else hasPending = true;
@@ -340,6 +359,7 @@ export function deriveCombinedStatus(
   if (hasFail) return 'fail';
   if (hasStale) return 'stale';
   if (hasOutdated) return 'outdated';
+  if (hasUnscored) return 'unscored';
   if (hasCancelled) return 'cancelled';
   if (hasPending || !hasPass) return 'pending';
   return 'pass';

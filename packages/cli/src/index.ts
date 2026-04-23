@@ -29,6 +29,7 @@ export {
   type EvalScoreContext,
   type EvalScoreFn,
   type EvalScoreDef,
+  type EvalManualScoreDef,
   type EvalDefinition,
   type TraceActiveSpan,
   type TraceSpanInfo,

@@ -17,3 +17,12 @@ export const createRunRequestSchema = z.object({
 });
 /** Request payload accepted by the run creation endpoint. */
 export type CreateRunRequest = z.infer<typeof createRunRequestSchema>;
+
+/** Schema for updating a UI-authored manual score on one persisted case. */
+export const updateManualScoreRequestSchema = z.object({
+  value: z.number().min(0).max(1).nullable(),
+});
+/** Request payload accepted by the manual score update endpoint. */
+export type UpdateManualScoreRequest = z.infer<
+  typeof updateManualScoreRequestSchema
+>;

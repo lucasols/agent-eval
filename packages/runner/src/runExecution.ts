@@ -207,6 +207,9 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
       columns[key] = cell;
     }
   }
+  for (const key of Object.keys(evalDef.manualScores ?? {})) {
+    columns[key] = null;
+  }
 
   const costUsdRaw = scope.outputs['costUsd'];
   const costUsd = typeof costUsdRaw === 'number' ? costUsdRaw : null;

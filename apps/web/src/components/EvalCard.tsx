@@ -642,6 +642,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
               key={visibleRunRows.map((run) => run.manifest.id).join(':')}
               runs={visibleRunRows}
               columnDefs={evalSummary.columnDefs}
+              evalId={evalSummary.id}
               fillHeight={isSingle}
             />
           </Section>
@@ -665,10 +666,12 @@ function runTargetsEvalLocal(
 function RunsSection({
   runs,
   columnDefs,
+  evalId,
   fillHeight,
 }: {
   runs: Parameters<typeof EvalRunsTable>[0]['runs'];
   columnDefs: Parameters<typeof EvalRunsTable>[0]['columnDefs'];
+  evalId: string;
   fillHeight: boolean;
 }) {
   const [expandedRunIds, setExpandedRunIds] = useState<Set<string>>(() => {
@@ -733,6 +736,7 @@ function RunsSection({
         expandedRunIds={expandedRunIds}
         onToggleExpandedRun={toggleExpandedRun}
         fillHeight={fillHeight}
+        runScope={{ kind: 'eval', id: evalId }}
       />
     </>
   );

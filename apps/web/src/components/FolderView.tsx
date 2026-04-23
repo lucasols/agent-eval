@@ -1,9 +1,9 @@
-import type { EvalSummary } from '@agent-evals/shared';
+import type { EvalDisplayStatus, EvalSummary } from '@agent-evals/shared';
 import { Play } from 'lucide-react';
 import { useState } from 'react';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
-import { inline, kicker, stack } from '#src/style/helpers';
+import { inline, kicker, stack, transition } from '#src/style/helpers';
 import {
   cleanRunsForEval,
   clearCacheForEval,
@@ -11,10 +11,14 @@ import {
   startRun,
   runStore,
 } from '../stores/runStore.ts';
-import { selectFolder } from '../stores/selectionStore.ts';
 import {
+  selectionStore,
+  selectFolder,
+  toggleEvalStatusFilter,
+} from '../stores/selectionStore.ts';
+import {
+  filterEvalsByStatuses,
   getStatusBreakdown,
-  type StatusBreakdown,
 } from '../utils/buildEvalTree.ts';
 import { EmptyState } from './EmptyState.tsx';
 import { EvalCard } from './EvalCard.tsx';
@@ -77,19 +81,24 @@ type BreakdownTone =
   | 'fail'
   | 'stale'
   | 'outdated'
+  | 'unscored'
   | 'cancelled'
   | 'pending';
 
-const BreakdownPill = styled.span<{
+const BreakdownPill = styled.button<{
+  active: boolean;
   running: boolean;
   pass: boolean;
   fail: boolean;
   stale: boolean;
   outdated: boolean;
+  unscored: boolean;
   cancelled: boolean;
   pending: boolean;
 }>`
   ${inline({ gap: 5, align: 'center' })}
+  ${transition({ property: 'background, border-color, color' })}
+  appearance: none;
   padding: 3px 9px;
   border-radius: 999px;
   font-size: 9.5px;
@@ -100,38 +109,53 @@ const BreakdownPill = styled.span<{
   color: ${colors.textMuted.var};
   background: ${colors.surface.var};
   border: 1px solid transparent;
+  cursor: pointer;
 
-  &.pass {
+  &:hover {
+    background: ${colors.surfaceHover.var};
+    color: ${colors.text.var};
+  }
+  &.active {
+    color: ${colors.bg.var};
+    background: ${colors.text.var};
+    border-color: ${colors.text.var};
+  }
+  &.pass:not(.active) {
     color: ${colors.success.var};
     background: ${colors.success.alpha(0.08)};
     border-color: ${colors.success.alpha(0.18)};
   }
-  &.fail {
+  &.fail:not(.active) {
     color: ${colors.error.var};
     background: ${colors.error.alpha(0.08)};
     border-color: ${colors.error.alpha(0.18)};
   }
-  &.running {
+  &.running:not(.active) {
     color: ${colors.accentDim.var};
     background: ${colors.accent.alpha(0.1)};
     border-color: ${colors.accent.alpha(0.22)};
   }
-  &.cancelled {
+  &.cancelled:not(.active) {
     color: ${colors.warning.var};
     background: ${colors.warning.alpha(0.08)};
     border-color: ${colors.warning.alpha(0.18)};
   }
-  &.stale {
+  &.stale:not(.active) {
     color: ${colors.textMuted.var};
     background: ${colors.surfaceActive.var};
     border-color: ${colors.border.var};
   }
-  &.outdated {
+  &.outdated:not(.active) {
     color: ${colors.warning.var};
     background: ${colors.warning.alpha(0.1)};
     border-color: ${colors.warning.alpha(0.22)};
   }
-  &.pending {
+  &.unscored:not(.active) {
+    color: ${colors.accentDim.var};
+    background: ${colors.accent.alpha(0.09)};
+    border-color: ${colors.accent.alpha(0.2)};
+  }
+  &.pending:not(.active) {
     color: ${colors.textMuted.var};
     background: ${colors.surface.var};
     border-color: ${colors.border.var};
@@ -145,7 +169,7 @@ const BreakdownValue = styled.span`
 `;
 
 const BREAKDOWN_STATUS_ORDER: Array<{
-  key: Exclude<keyof StatusBreakdown, 'total'>;
+  key: EvalDisplayStatus;
   label: string;
   tone: BreakdownTone;
 }> = [
@@ -155,6 +179,7 @@ const BREAKDOWN_STATUS_ORDER: Array<{
   { key: 'error', label: 'error', tone: 'fail' },
   { key: 'stale', label: 'stale', tone: 'stale' },
   { key: 'outdated', label: 'outdated', tone: 'outdated' },
+  { key: 'unscored', label: 'unscored', tone: 'unscored' },
   { key: 'cancelled', label: 'cancelled', tone: 'cancelled' },
   { key: 'pending', label: 'pending', tone: 'pending' },
 ];
@@ -171,6 +196,9 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
   const { currentRun } = runStore.useSelectorRC((s) => ({
     currentRun: s.currentRun,
   }));
+  const { statusFilters } = selectionStore.useSelectorRC((s) => ({
+    statusFilters: s.statusFilters,
+  }));
   const displaySegments = folderPath
     .split('/')
     .filter((segment) => segment.length > 0);
@@ -181,10 +209,15 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
       label,
       path: displaySegments.slice(0, index + 1).join('/'),
     }));
-  const evalIds = evals.map((ev) => ev.id);
   const isEvalRunning = (evalId: string): boolean =>
     currentRun?.manifest.status === 'running' &&
     targetIncludesEval(currentRun.manifest.target, evalId);
+  const filteredEvals = filterEvalsByStatuses(
+    evals,
+    statusFilters,
+    isEvalRunning,
+  );
+  const evalIds = filteredEvals.map((ev) => ev.id);
   const isRunning =
     currentRun?.manifest.status === 'running' &&
     evalIds.some((evalId) =>
@@ -192,7 +225,7 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
     );
   const breakdown = getStatusBreakdown(evals, isEvalRunning);
   const breakdownItems = BREAKDOWN_STATUS_ORDER.filter(
-    ({ key }) => breakdown[key] > 0,
+    ({ key }) => breakdown[key] > 0 || statusFilters.has(key),
   );
 
   function handleRunAll() {
@@ -300,19 +333,30 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
           <HeaderMeta>
             <Count>
               <TotalPill>
-                <TotalPillValue>{evals.length}</TotalPillValue>
-                {evals.length === 1 ? 'eval' : 'evals'}
+                <TotalPillValue>
+                  {statusFilters.size > 0
+                    ? `${filteredEvals.length}/${evals.length}`
+                    : evals.length}
+                </TotalPillValue>
+                {filteredEvals.length === 1 ? 'eval' : 'evals'}
               </TotalPill>
               {breakdownItems.map(({ key, label, tone }) => (
                 <BreakdownPill
                   key={key}
+                  type="button"
+                  aria-pressed={statusFilters.has(key)}
+                  active={statusFilters.has(key)}
                   pass={tone === 'pass'}
                   fail={tone === 'fail'}
                   running={tone === 'running'}
                   cancelled={tone === 'cancelled'}
                   stale={tone === 'stale'}
                   outdated={tone === 'outdated'}
+                  unscored={tone === 'unscored'}
                   pending={tone === 'pending'}
+                  onClick={() => {
+                    toggleEvalStatusFilter(key);
+                  }}
                 >
                   <BreakdownValue>{breakdown[key]}</BreakdownValue>
                   {label}
@@ -340,9 +384,14 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
           title="No evals here"
           description="This folder doesn't contain any evals."
         />
+      ) : filteredEvals.length === 0 ? (
+        <EmptyState
+          title="No evals match"
+          description="The active status filters hide every eval in this folder."
+        />
       ) : (
         <Stack>
-          {evals.map((ev) => (
+          {filteredEvals.map((ev) => (
             <EvalCard
               key={ev.id}
               evalSummary={ev}

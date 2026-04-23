@@ -21,10 +21,10 @@ import { selectCase, selectRun } from '../stores/runStore.ts';
 import {
   formatDuration,
   formatNumericCellValue,
-  formatScore,
   formatTimestamp,
 } from '../utils/formatters.ts';
 import { summarizeCellValue } from './FormattedCellValue.tsx';
+import { ManualScoreCell, ScoreCell } from './ScoreCell.tsx';
 import { StatusBadge } from './StatusBadge.tsx';
 import { Tooltip } from './Tooltip.tsx';
 
@@ -34,12 +34,15 @@ export type RunRow = {
   cases: CaseRow[];
 };
 
+type RunScope = { kind: 'eval'; id: string } | { kind: 'folder'; path: string };
+
 type EvalRunsTableProps = {
   runs: RunRow[];
   columnDefs: ColumnDef[];
   expandedRunIds: Set<string>;
   onToggleExpandedRun: (runId: string) => void;
   fillHeight: boolean;
+  runScope: RunScope | null;
 };
 
 const Empty = styled.div`
@@ -247,54 +250,6 @@ const ColumnText = styled.span`
   max-width: 320px;
 `;
 
-const ScoreBar = styled.span`
-  display: inline-block;
-  width: 40px;
-  height: 3px;
-  border-radius: 4px;
-  background: ${colors.surface.var};
-  position: relative;
-  overflow: hidden;
-  margin-right: 8px;
-  vertical-align: middle;
-`;
-
-const ScoreBarFill = styled.span<{
-  pass: boolean;
-  partial: boolean;
-  fail: boolean;
-}>`
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  border-radius: 4px;
-  background: ${colors.textDim.var};
-
-  &.pass {
-    background: ${colors.success.var};
-  }
-  &.partial {
-    background: ${colors.warning.var};
-  }
-  &.fail {
-    background: ${colors.error.var};
-  }
-`;
-
-const ScoreText = styled.span`
-  ${monoFont};
-  ${tabularNums};
-  font-size: 12px;
-  color: ${colors.text.var};
-  font-weight: 500;
-`;
-
-const ScoreCellWrap = styled.span`
-  ${inline({ gap: 0, align: 'center' })}
-  display: inline-flex;
-`;
-
 const Dim = styled.span`
   color: ${colors.textDim.var};
 `;
@@ -327,7 +282,9 @@ function formatCellValue(c: ColumnDef, value: CellValue | undefined): string {
   return summarizeCellValue(c, value);
 }
 
-function getCellTooltipContent(value: CellValue | undefined): string | undefined {
+function getCellTooltipContent(
+  value: CellValue | undefined,
+): string | undefined {
   if (value === null || value === undefined) return undefined;
   if (Array.isArray(value)) return undefined;
   if (typeof value === 'object') {
@@ -361,6 +318,7 @@ export function EvalRunsTable({
   expandedRunIds,
   onToggleExpandedRun,
   fillHeight,
+  runScope,
 }: EvalRunsTableProps) {
   if (runs.length === 0) {
     return <Empty>Run this eval to see results</Empty>;
@@ -429,50 +387,12 @@ export function EvalRunsTable({
               scoreColumns={scoreColumns}
               otherCustomColumns={otherCustomColumns}
               totalCols={totalCols}
+              runScope={runScope}
             />
           ))}
         </tbody>
       </Table>
     </TableWrap>
-  );
-}
-
-function ScoreCell({
-  score,
-  passThreshold,
-}: {
-  score: number | null;
-  passThreshold: number | undefined;
-}) {
-  if (score === null) return <Dim>{EM_DASH}</Dim>;
-  const tone: 'pass' | 'partial' | 'fail' =
-    passThreshold !== undefined
-      ? score >= passThreshold
-        ? 'pass'
-        : 'fail'
-      : score >= 0.7
-        ? 'pass'
-        : score >= 0.4
-          ? 'partial'
-          : 'fail';
-  const bar = (
-    <ScoreCellWrap>
-      <ScoreBar>
-        <ScoreBarFill
-          pass={tone === 'pass'}
-          partial={tone === 'partial'}
-          fail={tone === 'fail'}
-          style={{ width: `${score * 100}%` }}
-        />
-      </ScoreBar>
-      <ScoreText>{formatScore(score)}</ScoreText>
-    </ScoreCellWrap>
-  );
-  if (passThreshold === undefined) return bar;
-  return (
-    <Tooltip content={`Pass threshold: ${formatScore(passThreshold)}`}>
-      {bar}
-    </Tooltip>
   );
 }
 
@@ -484,6 +404,7 @@ function RunGroup({
   scoreColumns,
   otherCustomColumns,
   totalCols,
+  runScope,
 }: {
   run: RunRow;
   isLatest: boolean;
@@ -492,6 +413,7 @@ function RunGroup({
   scoreColumns: ColumnDef[];
   otherCustomColumns: ColumnDef[];
   totalCols: number;
+  runScope: RunScope | null;
 }) {
   const { manifest, summary, cases } = run;
   const displayShortId = manifest.shortId.replace(RUN_SHORT_ID_PREFIX, '');
@@ -510,7 +432,7 @@ function RunGroup({
     <>
       <RunHeaderRow
         latest={isLatest}
-        onClick={() => void selectRun(manifest.id)}
+        onClick={() => void selectRun(manifest.id, runScope)}
       >
         <RunHeaderTd
           rightAlign={false}
@@ -555,6 +477,7 @@ function RunGroup({
               <ScoreCell
                 score={avg}
                 passThreshold={c.passThreshold}
+                column={c}
               />
             </RunHeaderTd>
           );
@@ -627,10 +550,20 @@ function RunGroup({
                     mono={false}
                     indent={false}
                   >
-                    <ScoreCell
-                      score={score}
-                      passThreshold={c.passThreshold}
-                    />
+                    {c.isManualScore === true ? (
+                      <ManualScoreCell
+                        runId={manifest.id}
+                        caseId={row.caseId}
+                        column={c}
+                        value={score}
+                      />
+                    ) : (
+                      <ScoreCell
+                        score={score}
+                        passThreshold={c.passThreshold}
+                        column={c}
+                      />
+                    )}
                   </CaseTd>
                 );
               })}
@@ -662,7 +595,9 @@ function RunGroup({
                     {display === EM_DASH ? (
                       <Dim>{display}</Dim>
                     ) : (
-                      <Tooltip content={showTooltip ? tooltipContent : undefined}>
+                      <Tooltip
+                        content={showTooltip ? tooltipContent : undefined}
+                      >
                         <ColumnText>{display}</ColumnText>
                       </Tooltip>
                     )}

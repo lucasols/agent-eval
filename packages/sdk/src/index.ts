@@ -34,5 +34,6 @@ export type {
   EvalScoreContext,
   EvalScoreFn,
   EvalScoreDef,
+  EvalManualScoreDef,
   EvalDefinition,
 } from './types.ts';

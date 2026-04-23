@@ -11,7 +11,8 @@ type Tone =
   | 'pending'
   | 'cancelled'
   | 'stale'
-  | 'outdated';
+  | 'outdated'
+  | 'unscored';
 
 const Badge = styled.span<{
   pass: boolean;
@@ -20,6 +21,7 @@ const Badge = styled.span<{
   cancelled: boolean;
   stale: boolean;
   outdated: boolean;
+  unscored: boolean;
 }>`
   ${inline({ gap: 6, align: 'center' })}
   ${monoFont};
@@ -56,6 +58,10 @@ const Badge = styled.span<{
     color: ${colors.warning.var};
     background: ${colors.warning.alpha(0.14)};
   }
+  &.unscored {
+    color: ${colors.accentDim.var};
+    background: ${colors.accent.alpha(0.1)};
+  }
 `;
 
 const Dot = styled.span<{
@@ -65,6 +71,7 @@ const Dot = styled.span<{
   cancelled: boolean;
   stale: boolean;
   outdated: boolean;
+  unscored: boolean;
 }>`
   width: 5px;
   height: 5px;
@@ -91,6 +98,9 @@ const Dot = styled.span<{
   &.outdated {
     background: ${colors.warning.var};
   }
+  &.unscored {
+    background: ${colors.accent.var};
+  }
 
   @keyframes pulseDot {
     0%,
@@ -110,6 +120,7 @@ function getTone(status: string): Tone {
   if (status === 'cancelled') return 'cancelled';
   if (status === 'stale') return 'stale';
   if (status === 'outdated') return 'outdated';
+  if (status === 'unscored') return 'unscored';
   return 'pending';
 }
 
@@ -123,6 +134,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
       cancelled={tone === 'cancelled'}
       stale={tone === 'stale'}
       outdated={tone === 'outdated'}
+      unscored={tone === 'unscored'}
     >
       <Dot
         pass={tone === 'pass'}
@@ -131,6 +143,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
         cancelled={tone === 'cancelled'}
         stale={tone === 'stale'}
         outdated={tone === 'outdated'}
+        unscored={tone === 'unscored'}
       />
       {status}
     </Badge>
@@ -147,6 +160,7 @@ export function StatusDot({ status }: { status: string }) {
       cancelled={tone === 'cancelled'}
       stale={tone === 'stale'}
       outdated={tone === 'outdated'}
+      unscored={tone === 'unscored'}
     />
   );
 }

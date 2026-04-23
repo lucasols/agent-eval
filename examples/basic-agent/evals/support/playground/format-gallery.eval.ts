@@ -32,6 +32,7 @@ defineEval({
     audioBrief: { label: 'Audio Brief', format: 'audio', hideInTable: true },
     attachment: { label: 'Attachment', format: 'file', hideInTable: true },
     confidence: { label: 'Confidence', format: 'percent' },
+    automatedQuality: { label: 'Auto Quality', format: 'stars', maxStars: 5 },
     handlingCostUsd: {
       label: 'Handling Cost',
       format: 'number',
@@ -43,6 +44,26 @@ defineEval({
       numberFormat: { notation: 'compact', decimalPlaces: 1 },
     },
     reviewTimeMs: { label: 'Review Time', format: 'duration' },
+  },
+  scores: {
+    automatedQuality: {
+      label: 'Auto Quality',
+      format: 'stars',
+      maxStars: 5,
+      compute: () => 0.8,
+    },
+  },
+  manualScores: {
+    reviewerDecision: {
+      label: 'Reviewer Decision',
+      format: 'passFail',
+      passThreshold: 0.5,
+    },
+    reviewerQuality: {
+      label: 'Reviewer Quality',
+      format: 'stars',
+      maxStars: 5,
+    },
   },
   execute: ({ input }) => {
     setOutput(

@@ -40,6 +40,8 @@ export function formatNumericCellValue(c: ColumnDef, value: number): string {
   if (c.format === 'number') return formatNumber(value, c.numberFormat);
   if (c.format === 'duration') return formatDuration(value);
   if (c.format === 'percent') return formatPercent(value);
+  if (c.format === 'passFail') return formatPassFail(value);
+  if (c.format === 'stars') return formatStars(value, c.maxStars);
   if (c.isScore === true) return formatScore(value);
   return String(value);
 }
@@ -57,6 +59,44 @@ export function formatDuration(ms: number | null | undefined): string {
 export function formatScore(value: number | null | undefined): string {
   if (value === null || value === undefined) return '\u2014';
   return value.toFixed(2);
+}
+
+export function formatPassFail(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '\u2014';
+  return value >= 0.5 ? 'pass' : 'fail';
+}
+
+export function getMaxStars(maxStars: number | undefined): number {
+  if (maxStars === undefined) return 5;
+  if (!Number.isFinite(maxStars)) return 5;
+  return Math.max(2, Math.floor(maxStars));
+}
+
+export function valueToStars(
+  value: number | null | undefined,
+  maxStars: number | undefined,
+): number | null {
+  if (value === null || value === undefined) return null;
+  return Math.max(
+    0,
+    Math.min(getMaxStars(maxStars), Math.round(value * getMaxStars(maxStars))),
+  );
+}
+
+export function starsToValue(
+  stars: number,
+  maxStars: number | undefined,
+): number {
+  return Math.max(0, Math.min(1, stars / getMaxStars(maxStars)));
+}
+
+export function formatStars(
+  value: number | null | undefined,
+  maxStars: number | undefined,
+): string {
+  const stars = valueToStars(value, maxStars);
+  if (stars === null) return '\u2014';
+  return `${stars}/${String(getMaxStars(maxStars))}`;
 }
 
 export function formatPercent(value: number | null | undefined): string {

@@ -1,5 +1,8 @@
-import { createRunRequestSchema } from '@ls-stack/agent-eval';
 import { zValidator } from '@hono/zod-validator';
+import {
+  createRunRequestSchema,
+  updateManualScoreRequestSchema,
+} from '@ls-stack/agent-eval';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { getRunnerInstance } from '../runner.ts';
@@ -65,6 +68,27 @@ export const runsRoutes = new Hono()
     }
     return c.json(caseDetail, 200);
   })
+  .patch(
+    '/:runId/cases/:caseId/manual-scores/:scoreKey',
+    zValidator('json', updateManualScoreRequestSchema),
+    async (c) => {
+      const runId = c.req.param('runId');
+      const caseId = c.req.param('caseId');
+      const scoreKey = c.req.param('scoreKey');
+      const body = c.req.valid('json');
+      const runner = getRunnerInstance();
+      const result = await runner.updateManualScore({
+        runId,
+        caseId,
+        scoreKey,
+        value: body.value,
+      });
+      if (!result.updated) {
+        return c.json({ error: result.reason }, 404);
+      }
+      return c.json(result, 200);
+    },
+  )
   .get('/:runId/events', (c) => {
     const runId = c.req.param('runId');
     const runner = getRunnerInstance();

@@ -274,9 +274,12 @@ function formatTarget(target: {
 }
 
 export function RunDrawer() {
-  const { selectedRunDetail } = runStore.useSelectorRC((s) => ({
-    selectedRunDetail: s.selectedRunDetail,
-  }));
+  const { selectedRunDetail, selectedRunScope } = runStore.useSelectorRC(
+    (s) => ({
+      selectedRunDetail: s.selectedRunDetail,
+      selectedRunScope: s.selectedRunScope,
+    }),
+  );
   const { evals } = evalsStore.useSelectorRC((s) => ({ evals: s.evals }));
   const { sidebarWidth } = layoutStore.useSelectorRC((s) => ({
     sidebarWidth: s.sidebarWidth,
@@ -305,11 +308,23 @@ export function RunDrawer() {
   }
 
   const { manifest, summary, cases } = selectedRunDetail;
+  const scopedEvalId =
+    selectedRunScope?.kind === 'eval'
+      ? selectedRunScope.id
+      : selection.kind === 'eval'
+        ? selection.id
+        : null;
+  const scopedFolderPath =
+    selectedRunScope?.kind === 'folder'
+      ? selectedRunScope.path
+      : selection.kind === 'folder'
+        ? selection.path
+        : null;
   const scopedRunCases = scopeRunCases({
     cases,
     evals,
-    selectedEvalId: selection.kind === 'eval' ? selection.id : null,
-    selectedFolderPath: selection.kind === 'folder' ? selection.path : null,
+    selectedEvalId: scopedEvalId,
+    selectedFolderPath: scopedFolderPath,
   });
   const scopedSummary =
     scopedRunCases.label === null

@@ -83,6 +83,8 @@ export const columnFormatSchema = z.enum([
   'duration',
   'percent',
   'number',
+  'passFail',
+  'stars',
 ]);
 /** Formatting preset applied to a column value in the UI. */
 export type ColumnFormat = z.infer<typeof columnFormatSchema>;
@@ -95,7 +97,9 @@ export const columnDefSchema = z.object({
   format: columnFormatSchema.optional(),
   numberFormat: numberDisplayOptionsSchema.optional(),
   isScore: z.boolean().optional(),
+  isManualScore: z.boolean().optional(),
   passThreshold: z.number().optional(),
+  maxStars: z.number().int().min(2).optional(),
   hideInTable: z.boolean().optional(),
   sortable: z.boolean().optional(),
   align: z.enum(['left', 'center', 'right']).optional(),

@@ -71,7 +71,7 @@ export const evalSummarySchema = z.object({
   columnDefs: z.array(columnDefSchema),
   caseCount: z.number().nullable(),
   lastRunStatus: z
-    .enum(['pass', 'fail', 'error', 'running', 'cancelled'])
+    .enum(['pass', 'fail', 'error', 'running', 'cancelled', 'unscored'])
     .nullable(),
   /**
    * Optional per-eval stats row configuration for the EvalCard. Opt-in: when

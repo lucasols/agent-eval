@@ -24,6 +24,11 @@ const createRunResponseSchema = z.object({
   summary: runSummarySchema,
   cases: z.array(caseRowSchema),
 });
+const updateManualScoreResponseSchema = z.object({
+  updated: z.literal(true),
+  run: createRunResponseSchema,
+  caseDetail: caseDetailSchema,
+});
 
 const runSummaryEnvelopeSchema = z.object({ payload: runSummarySchema });
 const caseRowEnvelopeSchema = z.object({ payload: caseRowSchema });
@@ -38,7 +43,8 @@ export type RunDetail = {
 };
 
 type CaseSelection = { runId: string; caseId: string };
-type RunSelection = { runId: string };
+type RunScope = { kind: 'eval'; id: string } | { kind: 'folder'; path: string };
+type RunSelection = { runId: string; scope: RunScope | null };
 
 type RunState = {
   currentRun: RunDetail | null;
@@ -46,6 +52,7 @@ type RunState = {
   selectedCaseId: string | null;
   selectedCaseDetail: CaseDetail | null;
   selectedRunId: string | null;
+  selectedRunScope: RunScope | null;
   selectedRunDetail: RunDetail | null;
   trials: number;
   eventSource: EventSource | null;
@@ -65,7 +72,24 @@ function readRunSelectionFromSearchParams(
 ): RunSelection | null {
   const runId = searchParams.get('run');
   if (!runId) return null;
-  return { runId };
+  const runEval = searchParams.get('runEval');
+  if (runEval) return { runId, scope: { kind: 'eval', id: runEval } };
+  const runFolder = searchParams.get('runFolder');
+  if (runFolder) {
+    return { runId, scope: { kind: 'folder', path: runFolder } };
+  }
+  return { runId, scope: null };
+}
+
+function sameRunScope(left: RunScope | null, right: RunScope | null): boolean {
+  if (left === null || right === null) return left === right;
+  if (left.kind !== right.kind) return false;
+  if (left.kind === 'eval' && right.kind === 'eval')
+    return left.id === right.id;
+  if (left.kind === 'folder' && right.kind === 'folder') {
+    return left.path === right.path;
+  }
+  return false;
 }
 
 function setCaseSelectionState(selection: CaseSelection | null): void {
@@ -82,6 +106,7 @@ export function clearDrawerSelectionState(): void {
     selectedCaseId: null,
     selectedCaseDetail: null,
     selectedRunId: null,
+    selectedRunScope: null,
     selectedRunDetail: null,
   });
 }
@@ -92,6 +117,8 @@ function setCaseSelection(selection: CaseSelection | null): void {
     searchParams.delete('caseRun');
     searchParams.delete('case');
     searchParams.delete('run');
+    searchParams.delete('runEval');
+    searchParams.delete('runFolder');
     searchParams.delete('span');
     if (!selection) {
       searchParams.delete('caseTab');
@@ -105,6 +132,7 @@ function setCaseSelection(selection: CaseSelection | null): void {
 function setRunSelectionState(selection: RunSelection | null): void {
   runStore.setPartialState({
     selectedRunId: selection?.runId ?? null,
+    selectedRunScope: selection?.scope ?? null,
     selectedRunDetail: null,
   });
 }
@@ -113,12 +141,19 @@ function setRunSelection(selection: RunSelection | null): void {
   setRunSelectionState(selection);
   updateSearchParams((searchParams) => {
     searchParams.delete('run');
+    searchParams.delete('runEval');
+    searchParams.delete('runFolder');
     searchParams.delete('caseRun');
     searchParams.delete('case');
     searchParams.delete('caseTab');
     searchParams.delete('span');
     if (!selection) return;
     searchParams.set('run', selection.runId);
+    if (selection.scope?.kind === 'eval') {
+      searchParams.set('runEval', selection.scope.id);
+    } else if (selection.scope?.kind === 'folder') {
+      searchParams.set('runFolder', selection.scope.path);
+    }
   });
 }
 
@@ -171,6 +206,7 @@ export const runStore = new Store<RunState>({
     selectedCaseId: initialCaseSelection?.caseId ?? null,
     selectedCaseDetail: null,
     selectedRunId: initialRunSelection?.runId ?? null,
+    selectedRunScope: initialRunSelection?.scope ?? null,
     selectedRunDetail: null,
     trials: 1,
     eventSource: null,
@@ -369,7 +405,11 @@ export async function syncCaseSelectionFromSearchParams(
 
   if (!sameSelection) {
     setCaseSelectionState(selection);
-    runStore.setPartialState({ selectedRunId: null, selectedRunDetail: null });
+    runStore.setPartialState({
+      selectedRunId: null,
+      selectedRunScope: null,
+      selectedRunDetail: null,
+    });
   }
 
   if (sameSelection && runStore.state.selectedCaseDetail) return;
@@ -380,8 +420,11 @@ export function closeCase(): void {
   setCaseSelection(null);
 }
 
-export async function selectRun(runId: string): Promise<void> {
-  setRunSelection({ runId });
+export async function selectRun(
+  runId: string,
+  scope: RunScope | null = null,
+): Promise<void> {
+  setRunSelection({ runId, scope });
   setCaseSelectionState(null);
   await fetchRunDetail(runId);
 }
@@ -397,6 +440,7 @@ export async function syncRunSelectionFromSearchParams(
   if (caseSelection) {
     const runIsAlreadyClosed =
       runStore.state.selectedRunId === null &&
+      runStore.state.selectedRunScope === null &&
       runStore.state.selectedRunDetail === null;
     if (runIsAlreadyClosed) return;
     setRunSelectionState(null);
@@ -407,6 +451,7 @@ export async function syncRunSelectionFromSearchParams(
   if (!selection) {
     const runIsAlreadyClosed =
       runStore.state.selectedRunId === null &&
+      runStore.state.selectedRunScope === null &&
       runStore.state.selectedRunDetail === null;
     if (runIsAlreadyClosed) return;
     setRunSelectionState(null);
@@ -417,6 +462,8 @@ export async function syncRunSelectionFromSearchParams(
   if (!sameSelection) {
     setRunSelectionState(selection);
     setCaseSelectionState(null);
+  } else if (!sameRunScope(runStore.state.selectedRunScope, selection.scope)) {
+    runStore.setPartialState({ selectedRunScope: selection.scope });
   }
 
   if (sameSelection && runStore.state.selectedRunDetail) return;
@@ -470,6 +517,48 @@ export async function recomputeStatusesForEval(evalId: string): Promise<void> {
   closeCase();
   await refetchHistory();
   await fetchEvals();
+}
+
+export async function updateManualScore(params: {
+  runId: string;
+  caseId: string;
+  scoreKey: string;
+  value: number | null;
+}): Promise<void> {
+  const result = await resultify(() =>
+    fetch(
+      `/api/runs/${encodeURIComponent(params.runId)}/cases/${encodeURIComponent(params.caseId)}/manual-scores/${encodeURIComponent(params.scoreKey)}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: params.value }),
+      },
+    ),
+  );
+  if (result.error) return;
+  if (!result.value.ok) return;
+  const jsonResult = await resultify(() => result.value.json());
+  const parseResult = jsonResult.error
+    ? null
+    : updateManualScoreResponseSchema.safeParse(jsonResult.value);
+  if (
+    parseResult?.success &&
+    runStore.state.currentRun?.manifest.id === params.runId
+  ) {
+    runStore.setPartialState({ currentRun: parseResult.data.run });
+  }
+
+  await refetchHistory();
+  await fetchEvals();
+  if (
+    runStore.state.selectedCaseRunId === params.runId &&
+    runStore.state.selectedCaseId === params.caseId
+  ) {
+    await fetchCaseDetail(params.runId, params.caseId);
+  }
+  if (runStore.state.selectedRunId === params.runId) {
+    await fetchRunDetail(params.runId);
+  }
 }
 
 export async function cleanRunsForEval(evalId: string): Promise<void> {

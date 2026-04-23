@@ -68,6 +68,15 @@ defineEval({
       compute: () => 1,
       passThreshold: 0.9,
       label: 'Correctness',
+      format: 'stars',
+      maxStars: 5,
+    },
+  },
+  manualScores: {
+    review: {
+      label: 'Review',
+      format: 'passFail',
+      passThreshold: 0.5,
     },
   },
 });
@@ -120,8 +129,19 @@ defineEval({
           key: 'correctness',
           label: 'Correctness',
           kind: 'number',
+          format: 'stars',
           isScore: true,
           passThreshold: 0.9,
+          maxStars: 5,
+        },
+        {
+          key: 'review',
+          label: 'Review',
+          kind: 'number',
+          format: 'passFail',
+          isScore: true,
+          isManualScore: true,
+          passThreshold: 0.5,
         },
       ]);
     } finally {
