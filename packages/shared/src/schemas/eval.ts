@@ -115,6 +115,15 @@ const legacyAssertionFailureSchema = z
   .string()
   .transform((message): AssertionFailure => ({ message }));
 
+/** Trace payload captured while computing one score for a case. */
+export const scoreTraceSchema = z.object({
+  trace: z.array(traceSpanSchema),
+  traceDisplay: traceDisplayConfigSchema,
+  cost: evalCostSummarySchema,
+});
+/** Trace payload captured while computing one score for a case. */
+export type ScoreTrace = z.infer<typeof scoreTraceSchema>;
+
 /** Schema for the detailed payload shown when opening a specific case. */
 export const caseDetailSchema = z.object({
   caseId: z.string(),
@@ -123,6 +132,12 @@ export const caseDetailSchema = z.object({
   input: z.unknown(),
   trace: z.array(traceSpanSchema),
   traceDisplay: traceDisplayConfigSchema,
+  /**
+   * Separate trace payloads emitted by score computation. These are kept out
+   * of `trace` so derive-from-execution metrics do not include judge/scorer
+   * work.
+   */
+  scoringTraces: z.record(z.string(), scoreTraceSchema).optional(),
   cost: evalCostSummarySchema,
   columns: z.record(z.string(), cellValueSchema),
   assertionFailures: z.array(

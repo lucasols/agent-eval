@@ -1,5 +1,10 @@
 import { readFileSync } from 'node:fs';
-import { defineEval, setEvalOutput } from '@ls-stack/agent-eval';
+import {
+  defineEval,
+  evalSpan,
+  evalTracer,
+  setEvalOutput,
+} from '@ls-stack/agent-eval';
 
 const previewCardSvg = readFileSync(
   new URL('../../datasets/assets/status-card.svg', import.meta.url),
@@ -50,7 +55,24 @@ defineEval({
       label: 'Auto Quality',
       format: 'stars',
       maxStars: 5,
-      compute: () => 0.8,
+      compute: async ({ outputs }) => {
+        const score = await evalTracer.span(
+          {
+            kind: 'scorer',
+            name: 'auto-quality-review',
+            cache: { key: { response: outputs.response, rubricVersion: 1 } },
+          },
+          () => {
+            evalSpan.setAttributes({
+              rubric: 'refund-package-completeness',
+              decision: 'ready-for-review',
+            });
+            return 0.8;
+          },
+        );
+
+        return typeof score === 'number' ? score : 0;
+      },
     },
   },
   manualScores: {

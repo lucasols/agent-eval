@@ -48,6 +48,7 @@ export {
   evalSummarySchema,
   caseRowSchema,
   caseDetailSchema,
+  scoreTraceSchema,
   type AssertionFailure,
   type EvalFreshnessStatus,
   type EvalStatAggregate,
@@ -56,6 +57,7 @@ export {
   type EvalSummary,
   type CaseRow,
   type CaseDetail,
+  type ScoreTrace,
 } from './schemas/eval.ts';
 export {
   evalChartAggregateSchema,

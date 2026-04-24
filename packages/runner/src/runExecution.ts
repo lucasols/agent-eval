@@ -9,6 +9,7 @@ import type {
   CaseDetail,
   CaseRow,
   CellValue,
+  ScoreTrace,
   TraceDisplayInputConfig,
 } from '@agent-evals/shared';
 import { normalizeScoreDef, toCellValue } from './columnBuilder.ts';
@@ -95,7 +96,6 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
     },
   );
 
-  const elapsedMs = Date.now() - startTime;
   const traceTree = buildTraceTree(scope.spans, scope.checkpoints);
 
   const nonAssertError =
@@ -141,28 +141,72 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
       label: string | undefined;
     }
   >();
+  const scoringTraces: Record<string, ScoreTrace> = {};
+  let scoringCostUsd = 0;
 
   if (!nonAssertError && evalDef.scores) {
     for (const [key, def] of Object.entries(evalDef.scores)) {
       const { compute, passThreshold, label } = normalizeScoreDef(def);
-      try {
-        const rawValue = await callWithUnknownResult(compute, [
-          { input: evalCase.input, outputs: scope.outputs, case: evalCase },
-        ]);
-        if (typeof rawValue !== 'number') {
-          throw new Error(`score "${key}" must return a number`);
-        }
-        const value = rawValue;
-        scope.outputs[key] = value;
-        scoreResults.set(key, { value, passThreshold, label });
-      } catch (e) {
-        const message = `score "${key}" threw: ${e instanceof Error ? e.message : String(e)}`;
+      const scoreRun = await runInEvalScope(
+        evalCase.id,
+        async () =>
+          await callWithUnknownResult(compute, [
+            {
+              input: evalCase.input,
+              outputs: { ...scope.outputs },
+              case: evalCase,
+            },
+          ]),
+        {
+          cacheContext: cacheAdapter
+            ? {
+                adapter: cacheAdapter,
+                mode: cacheMode,
+                evalId: `${evalId}__score__${key}`,
+                codeFingerprint,
+              }
+            : undefined,
+        },
+      );
+
+      const scoreCostUsd = getCostUsd(scoreRun.scope.outputs);
+      const scoreCostUsdValue = scoreCostUsd ?? 0;
+      scoringCostUsd += scoreCostUsdValue;
+      const { trace, traceDisplay } = resolveTracePresentation(
+        scoreRun.scope.spans,
+        globalTraceDisplay,
+        evalDef.traceDisplay,
+      );
+      if (trace.length > 0 || scoreCostUsdValue > 0) {
+        scoringTraces[key] = {
+          trace,
+          traceDisplay,
+          cost: { totalUsd: scoreCostUsd },
+        };
+      }
+
+      const rawValue = scoreRun.result;
+      if (scoreRun.error) {
+        const message = `score "${key}" threw: ${scoreRun.error.message}`;
         scope.assertionFailures.push(
-          toAssertionFailure(message, e instanceof Error ? e : undefined),
+          toAssertionFailure(message, scoreRun.error),
         );
         scope.outputs[key] = 0;
         scoreResults.set(key, { value: 0, passThreshold, label });
+        continue;
       }
+      if (typeof rawValue !== 'number') {
+        scope.assertionFailures.push(
+          toAssertionFailure(`score "${key}" must return a number`),
+        );
+        scope.outputs[key] = 0;
+        scoreResults.set(key, { value: 0, passThreshold, label });
+        continue;
+      }
+
+      const value = rawValue;
+      scope.outputs[key] = value;
+      scoreResults.set(key, { value, passThreshold, label });
     }
   }
 
@@ -211,8 +255,11 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
     columns[key] = null;
   }
 
-  const costUsdRaw = scope.outputs['costUsd'];
-  const costUsd = typeof costUsdRaw === 'number' ? costUsdRaw : null;
+  const executionCostUsd = getCostUsd(scope.outputs);
+  const costUsd =
+    executionCostUsd === null && scoringCostUsd === 0
+      ? null
+      : (executionCostUsd ?? 0) + scoringCostUsd;
 
   const errorInfo = nonAssertError
     ? {
@@ -235,6 +282,11 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
     error: errorInfo,
     trial,
   };
+  if (Object.keys(scoringTraces).length > 0) {
+    caseDetail.scoringTraces = scoringTraces;
+  }
+
+  const elapsedMs = Date.now() - startTime;
 
   const caseRowUpdate: Partial<CaseRow> = {
     status,
@@ -252,6 +304,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isBlob(value: unknown): value is Blob {
   return value instanceof Blob;
+}
+
+function getCostUsd(outputs: Record<string, unknown>): number | null {
+  const raw = outputs['costUsd'];
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
 }
 
 function toAssertionFailure(

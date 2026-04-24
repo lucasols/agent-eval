@@ -31,6 +31,7 @@ type Tab =
   | 'output'
   | 'scores'
   | 'trace'
+  | 'scoring'
   | 'raw'
   | 'failures'
   | 'error';
@@ -285,6 +286,30 @@ const ScoreStatusTag = styled.span<{ pass: boolean; fail: boolean }>`
   }
 `;
 
+const ScoringTraceList = styled.div`
+  ${stack({ gap: 18 })}
+`;
+
+const ScoringTraceSection = styled.section`
+  ${stack({ gap: 10 })}
+`;
+
+const ScoringTraceHeader = styled.div`
+  ${inline({ justify: 'space-between', align: 'center', gap: 10 })}
+`;
+
+const ScoringTraceTitle = styled.div`
+  font-size: 12.5px;
+  font-weight: 600;
+  color: ${colors.text.var};
+`;
+
+const ScoringTraceMeta = styled.div`
+  ${monoFont};
+  font-size: 11px;
+  color: ${colors.textMuted.var};
+`;
+
 const FailureList = styled.ul`
   ${stack({ gap: 10 })}
   list-style: none;
@@ -322,6 +347,7 @@ function parseTab(value: string): Tab | null {
     case 'output':
     case 'scores':
     case 'trace':
+    case 'scoring':
     case 'raw':
     case 'failures':
     case 'error':
@@ -388,9 +414,13 @@ export function CaseDrawer() {
   );
 
   const scoreColumns = columnDefs.filter((c) => c.isScore === true);
+  const scoringTraces = d.scoringTraces ?? {};
+  const scoringTraceEntries = Object.entries(scoringTraces);
   const tabs: Tab[] = ['input', 'output'];
   if (scoreColumns.length > 0) tabs.push('scores');
-  tabs.push('trace', 'raw');
+  tabs.push('trace');
+  if (scoringTraceEntries.length > 0) tabs.push('scoring');
+  tabs.push('raw');
   if (d.assertionFailures.length > 0) tabs.push('failures');
   if (d.error) tabs.push('error');
   const activeTab = resolveActiveTab(searchParams.get('caseTab'), tabs);
@@ -540,6 +570,31 @@ export function CaseDrawer() {
           />
         ) : null}
 
+        {activeTab === 'scoring' ? (
+          <ScoringTraceList>
+            {scoringTraceEntries.map(([scoreKey, scoreTrace]) => {
+              const scoreColumn = scoreColumns.find((c) => c.key === scoreKey);
+              const cost = scoreTrace.cost.totalUsd;
+              return (
+                <ScoringTraceSection key={scoreKey}>
+                  <ScoringTraceHeader>
+                    <ScoringTraceTitle>
+                      {scoreColumn?.label ?? scoreKey}
+                    </ScoringTraceTitle>
+                    {typeof cost === 'number' ? (
+                      <ScoringTraceMeta>${cost.toFixed(4)}</ScoringTraceMeta>
+                    ) : null}
+                  </ScoringTraceHeader>
+                  <TraceTree
+                    spans={scoreTrace.trace}
+                    traceDisplay={scoreTrace.traceDisplay}
+                  />
+                </ScoringTraceSection>
+              );
+            })}
+          </ScoringTraceList>
+        ) : null}
+
         {activeTab === 'raw' ? (
           <RawSections>
             <RawSection
@@ -553,6 +608,10 @@ export function CaseDrawer() {
             <RawSection
               label="Trace"
               data={d.trace}
+            />
+            <RawSection
+              label="Scoring Traces"
+              data={scoringTraces}
             />
           </RawSections>
         ) : null}

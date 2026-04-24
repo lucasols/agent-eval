@@ -290,6 +290,51 @@ scores: {
 }
 ```
 
+Score functions run in their own trace scope, separate from the execution
+trace used by `deriveFromTracing`. That means LLM-as-judge scorers can use
+`evalTracer.span(...)` and cached spans without adding judge activity to agent
+trajectory metrics:
+
+```ts
+scores: {
+  judgeQuality: {
+    label: 'Judge Quality',
+    passThreshold: 0.8,
+    compute: async ({ input, outputs }) => {
+      const score = await evalTracer.span(
+        {
+          kind: 'scorer',
+          name: 'llm-judge',
+          cache: {
+            key: {
+              prompt: input.message,
+              response: outputs.output,
+              rubricVersion: 1,
+            },
+          },
+        },
+        async () => {
+          const verdict = await judgeWithLlm(input.message, outputs.output);
+          evalSpan.setAttributes({
+            model: verdict.model,
+            reasoning: verdict.reasoning,
+          });
+          incrementEvalOutput('costUsd', verdict.costUsd);
+          return verdict.score;
+        },
+      );
+
+      return typeof score === 'number' ? score : 0;
+    },
+  },
+}
+```
+
+The case detail UI shows execution spans on the **Trace** tab and score spans
+on a separate **Scoring** tab. Outputs recorded inside a scorer scope stay
+private to that score, except `costUsd`, which contributes to the case and run
+cost totals.
+
 Manual scores are separate from computed `scores`. They are created as pending
 score columns during a run, then filled directly in the web UI. Values are
 stored as normalized `0..1` numbers. While the latest run for an eval has any
