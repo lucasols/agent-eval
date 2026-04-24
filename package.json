@@ -15,6 +15,7 @@
     "lint": "pnpm -r lint",
     "eslint": "pnpm -r eslint",
     "format": "oxfmt .",
+    "publish:pkg": "pkg-manager publish @ls-stack/agent-eval",
     "hooks:install": "simple-git-hooks",
     "hooks:uninstall": "git config --unset core.hooksPath || true && rm -rf .git/hooks/pre-commit"
   },
@@ -29,6 +30,7 @@
     "jiti": "^2.6.1",
     "oxfmt": "^0.40.0",
     "simple-git-hooks": "^2.13.1",
+    "tsdown": "^0.21.10",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.45.0"
   },

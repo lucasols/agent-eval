@@ -23,7 +23,9 @@ const routes_ = baseApp
 export type AppType = typeof routes_;
 
 const serverDir = dirname(fileURLToPath(import.meta.url));
-const webDist = resolve(serverDir, '../../web/dist');
+const webDist = process.env.AGENT_EVALS_WEB_DIST
+  ? resolve(process.env.AGENT_EVALS_WEB_DIST)
+  : resolve(serverDir, '../../web/dist');
 const webDistExists = existsSync(webDist);
 
 if (webDistExists) {

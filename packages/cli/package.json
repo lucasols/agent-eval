@@ -8,23 +8,72 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "bin": {
+      "agent-evals": "./dist/bin.mjs"
+    },
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.mts",
+        "import": "./dist/index.mjs",
+        "default": "./dist/index.mjs"
+      }
+    },
+    "types": "./dist/index.d.mts"
+  },
+  "tsdown": {
+    "clean": true,
+    "copy": [
+      {
+        "from": "../../apps/web/dist/**/*",
+        "to": "dist/web",
+        "flatten": false
+      }
+    ],
+    "deps": {
+      "alwaysBundle": [
+        "@agent-evals/runner",
+        "@agent-evals/sdk",
+        "@agent-evals/shared"
+      ]
+    },
+    "dts": {
+      "eager": true
+    },
+    "entry": [
+      "src/index.ts",
+      "src/bin.ts"
+    ],
+    "format": "esm",
+    "platform": "node"
+  },
   "scripts": {
+    "build": "pnpm --filter @agent-evals/web build && tsdown",
     "test": "vitest run",
     "tsc": "tsgo --noEmit",
     "lint": "tsgo --noEmit && eslint .",
     "eslint": "eslint ."
   },
   "dependencies": {
+    "@hono/zod-validator": "^0.7.3",
+    "@hono/node-server": "^1.14.3",
+    "@ls-stack/utils": "^3.58.0",
+    "chokidar": "^4.0.3",
+    "glob": "^11.0.2",
+    "hono": "^4.9.9",
+    "launch-editor": "^2.13.2",
+    "t-result": "^0.6.1",
+    "vitest": "^3.2.4",
+    "zod": "^4.1.11"
+  },
+  "devDependencies": {
     "@agent-evals/runner": "workspace:*",
     "@agent-evals/sdk": "workspace:*",
     "@agent-evals/shared": "workspace:*",
-    "@hono/node-server": "^1.14.3",
-    "hono": "^4.9.9"
-  },
-  "devDependencies": {
     "@types/node": "^24.7.2",
-    "typescript": "^5.9.2",
-    "vitest": "^3.2.4",
-    "zod": "^4.1.11"
+    "typescript": "^5.9.2"
   }
 }

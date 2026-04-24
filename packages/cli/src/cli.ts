@@ -127,11 +127,6 @@ const currentDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(currentDir, '../../..');
 const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 
-async function importUnknown(specifier: string): Promise<unknown> {
-  const mod: unknown = await import(specifier);
-  return mod;
-}
-
 function hasRepoWebWorkspace(): boolean {
   return existsSync(resolve(repoRoot, 'apps/web/package.json'));
 }
@@ -197,10 +192,14 @@ async function commandApp(args: CliArgs): Promise<void> {
   await ensureWebUiIsBuilt();
 
   const { serve } = await import('@hono/node-server');
-  const appModule = await importUnknown('../../../apps/server/src/app.ts');
-  const runnerModule = await importUnknown(
-    '../../../apps/server/src/runner.ts',
-  );
+  const bundledWebDist = resolve(currentDir, 'apps/web/dist');
+  if (existsSync(bundledWebDist)) {
+    process.env.AGENT_EVALS_WEB_DIST = bundledWebDist;
+  }
+
+  const appModule: unknown = await import('../../../apps/server/src/app.ts');
+  const runnerModule: unknown =
+    await import('../../../apps/server/src/runner.ts');
 
   if (!isHonoAppModule(appModule)) {
     throw new Error('Server app module is invalid');

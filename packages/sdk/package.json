@@ -5,7 +5,22 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "tsdown": {
+    "clean": true,
+    "deps": {
+      "alwaysBundle": [
+        "@agent-evals/shared"
+      ]
+    },
+    "dts": {
+      "eager": true
+    },
+    "entry": "src/index.ts",
+    "format": "esm",
+    "platform": "node"
+  },
   "scripts": {
+    "build": "tsdown",
     "tsc": "tsgo --noEmit",
     "lint": "tsgo --noEmit && eslint .",
     "eslint": "eslint ."

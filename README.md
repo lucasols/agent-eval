@@ -141,6 +141,16 @@ AGENT_EVALS_DEV_WEB_PORT=5200
 
 `pnpm dev`, `pnpm dev:server`, and `pnpm dev:app` read `AGENT_EVALS_DEV_SERVER_PORT`, and the Vite dev server reads `AGENT_EVALS_DEV_WEB_PORT` while proxying `/api` to the configured backend port.
 
+## Publishing
+
+Only `@ls-stack/agent-eval` is published. The internal `@agent-evals/*`
+workspace packages remain source-first development packages and are bundled into
+the public CLI package with `tsdown`.
+
+Use `pnpm publish:pkg` from the repo root to publish through `pkg-manager`.
+The publish flow lints and builds the CLI package before publishing, and the CLI
+build also bundles the web UI assets used by `agent-evals app`.
+
 ## Configuration
 
 `agent-evals.config.ts` at your project root defines how evals are discovered and executed.
