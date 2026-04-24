@@ -645,9 +645,13 @@ Flags:
   --no-cache                 Shortcut for --cache bypass
   --refresh-cache            Shortcut for --cache refresh
   --clear-cache              Clear the cache before starting the run
+  --help, -h                 Show global or command-specific help
 ```
 
 `run` exits non-zero if any case fails or errors, making it CI-friendly.
+Use `agent-evals <command> --help` to inspect command-specific flags without
+starting work. Unknown help targets exit non-zero instead of falling back to
+global help.
 
 ## Status
 

@@ -9,9 +9,22 @@ import {
   type CacheMode,
 } from '@agent-evals/shared';
 
+type CliCommand = 'app' | 'list' | 'run' | 'cache' | 'help';
+type HelpTopic =
+  | 'global'
+  | 'app'
+  | 'list'
+  | 'run'
+  | 'cache'
+  | 'cache list'
+  | 'cache clear';
+
 type CliArgs = {
-  command: 'app' | 'list' | 'run' | 'cache' | 'help';
+  command: CliCommand;
   subcommand: string | undefined;
+  showHelp: boolean;
+  helpTopic: HelpTopic;
+  unknownHelpTarget: string | undefined;
   evalIds: string[];
   caseIds: string[];
   trials: number;
@@ -26,6 +39,9 @@ function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = {
     command: 'help',
     subcommand: undefined,
+    showHelp: false,
+    helpTopic: 'global',
+    unknownHelpTarget: undefined,
     evalIds: [],
     caseIds: [],
     trials: 1,
@@ -37,14 +53,16 @@ function parseArgs(argv: string[]): CliArgs {
   };
 
   const command = argv[0];
-  if (
-    command === 'app' ||
-    command === 'list' ||
-    command === 'run' ||
-    command === 'cache' ||
-    command === 'help'
-  ) {
+  if (command === '--help' || command === '-h') {
+    args.showHelp = true;
+    return args;
+  }
+
+  if (isCliCommand(command)) {
     args.command = command;
+    args.helpTopic = command === 'help' ? 'global' : command;
+  } else if (command !== undefined && !command.startsWith('-')) {
+    args.unknownHelpTarget = command;
   }
 
   let cursor = 1;
@@ -52,7 +70,10 @@ function parseArgs(argv: string[]): CliArgs {
     const sub = argv[cursor];
     if (sub === 'list' || sub === 'clear') {
       args.subcommand = sub;
+      args.helpTopic = `cache ${sub}`;
       cursor++;
+    } else if (sub !== undefined && !sub.startsWith('-')) {
+      args.unknownHelpTarget = `cache ${sub}`;
     }
   }
 
@@ -60,7 +81,9 @@ function parseArgs(argv: string[]): CliArgs {
     const arg = argv[i];
     const next = argv[i + 1];
 
-    if (arg === '--eval' && next) {
+    if (arg === '--help' || arg === '-h') {
+      args.showHelp = true;
+    } else if (arg === '--eval' && next) {
       args.evalIds.push(...next.split(','));
       i++;
     } else if (arg === '--case' && next) {
@@ -101,6 +124,16 @@ function parseArgs(argv: string[]): CliArgs {
 export async function runCli(argv: string[]): Promise<void> {
   const args = parseArgs(argv);
 
+  if (args.showHelp) {
+    if (args.unknownHelpTarget !== undefined) {
+      console.error(`No help found for "${args.unknownHelpTarget}".`);
+      process.exit(1);
+      return;
+    }
+    printHelp(args.helpTopic);
+    return;
+  }
+
   switch (args.command) {
     case 'app':
       await commandApp(args);
@@ -116,9 +149,19 @@ export async function runCli(argv: string[]): Promise<void> {
       break;
     case 'help':
     default:
-      printHelp();
+      printHelp(args.helpTopic);
       break;
   }
+}
+
+function isCliCommand(command: string | undefined): command is CliCommand {
+  return (
+    command === 'app' ||
+    command === 'list' ||
+    command === 'run' ||
+    command === 'cache' ||
+    command === 'help'
+  );
 }
 
 type HonoAppLike = { fetch: (...args: unknown[]) => Response };
@@ -377,7 +420,7 @@ async function commandCache(args: CliArgs): Promise<void> {
     return;
   }
 
-  printHelp();
+  printHelp(args.helpTopic);
 }
 
 async function waitForRunCompletion(
@@ -402,7 +445,73 @@ async function waitForRunCompletion(
   });
 }
 
-function printHelp(): void {
+function printHelp(topic: HelpTopic = 'global'): void {
+  if (topic === 'app') {
+    console.info(`
+agent-evals app - Start server with UI
+
+Usage:
+  agent-evals app [flags]
+
+Flags:
+  --port <n>                 Server port (default: 4100)
+  --help, -h                 Show this help
+  `);
+    return;
+  }
+
+  if (topic === 'list') {
+    console.info(`
+agent-evals list - List discovered evals
+
+Usage:
+  agent-evals list [flags]
+
+Flags:
+  --help, -h                 Show this help
+  `);
+    return;
+  }
+
+  if (topic === 'run') {
+    console.info(`
+agent-evals run - Run evals
+
+Usage:
+  agent-evals run [flags]
+
+Flags:
+  --eval <id>                Run specific eval(s) (comma-separated)
+  --case <id>                Run specific case(s) (comma-separated)
+  --trials <n>               Number of trials per case
+  --json                     Output run summary as JSON
+  --cache <use|bypass|refresh>  Cache mode for this run (default: use)
+  --no-cache                 Shortcut for --cache bypass
+  --refresh-cache            Shortcut for --cache refresh
+  --clear-cache              Clear the cache before starting the run
+  --help, -h                 Show this help
+  `);
+    return;
+  }
+
+  if (topic === 'cache' || topic === 'cache list' || topic === 'cache clear') {
+    console.info(`
+agent-evals cache - Manage cached operation entries
+
+Usage:
+  agent-evals cache list [flags]
+  agent-evals cache clear --eval <id>
+  agent-evals cache clear --all
+
+Flags:
+  --eval <id>                Clear entries for specific eval(s) (comma-separated)
+  --all                      Confirm clearing every cached entry
+  --json                     Output cache listing as JSON
+  --help, -h                 Show this help
+  `);
+    return;
+  }
+
   console.info(`
 agent-evals - LLM/Agent eval runner
 
@@ -425,5 +534,6 @@ Options:
   --no-cache                 Shortcut for --cache bypass
   --refresh-cache            Shortcut for --cache refresh
   --clear-cache              Clear the cache before starting the run
+  --help, -h                 Show help
   `);
 }

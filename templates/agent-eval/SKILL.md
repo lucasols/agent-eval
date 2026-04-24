@@ -20,6 +20,7 @@ display rules), read the TypeScript declarations shipped with the package:
   all exported from `@ls-stack/agent-eval`.
 - `.d.ts` files land in `node_modules/@ls-stack/agent-eval/dist/`.
 - CLI surface: `agent-evals --help` and `agent-evals <command> --help`.
+  Unknown help targets exit non-zero instead of falling back to global help.
 
 Assume that enumerated tables in this document may lag behind the types —
 treat the types as source of truth when they disagree.

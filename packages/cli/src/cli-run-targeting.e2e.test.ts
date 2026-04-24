@@ -1,5 +1,6 @@
+import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { runSummarySchema } from '@agent-evals/shared';
 import { describe, expect, test } from 'vitest';
 import {
@@ -99,6 +100,53 @@ defineEval({
 }
 
 describe('CLI run targeting', () => {
+  test('prints run help without starting a run', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const result = await runExampleCli(workspacePath, ['run', '--help']);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe('');
+      expect(result.stdout).toContain('agent-evals run - Run evals');
+      expect(result.stdout).toContain('Usage:');
+      expect(result.stdout).toContain('--eval <id>');
+      expect(result.stdout).not.toContain('Run started:');
+      expect(result.stdout).not.toContain('Total:');
+      expect(existsSync(resolve(workspacePath, '.agent-evals/runs'))).toBe(
+        false,
+      );
+    });
+  });
+
+  test('reports missing help for unknown commands', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const result = await runExampleCli(workspacePath, ['missing', '--help']);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toBe('No help found for "missing".');
+      expect(existsSync(resolve(workspacePath, '.agent-evals/runs'))).toBe(
+        false,
+      );
+    });
+  });
+
+  test('reports missing help for unknown cache subcommands', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const result = await runExampleCli(workspacePath, [
+        'cache',
+        'missing',
+        '--help',
+      ]);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toBe('No help found for "cache missing".');
+      expect(existsSync(resolve(workspacePath, '.agent-evals/runs'))).toBe(
+        false,
+      );
+    });
+  });
+
   test('supports eval filters and comma-separated case filters', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const result = await runExampleCli(workspacePath, [
