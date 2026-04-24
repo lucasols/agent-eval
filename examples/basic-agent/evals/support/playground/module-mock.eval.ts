@@ -1,5 +1,5 @@
 import { mock } from 'node:test';
-import { defineEval, evalAssert, setOutput } from '@ls-stack/agent-eval';
+import { defineEval, evalAssert, setEvalOutput } from '@ls-stack/agent-eval';
 
 defineEval<{ customerId: string; request: string }>({
   id: 'module-mock-demo',
@@ -32,8 +32,8 @@ defineEval<{ customerId: string; request: string }>({
       await import('../../../src/workflows/mockModuleWorkflow.ts');
     const result = await runMockModuleWorkflow(input);
 
-    setOutput('response', result.response);
-    setOutput('appliedSegment', result.segment);
+    setEvalOutput('response', result.response);
+    setEvalOutput('appliedSegment', result.segment);
 
     evalAssert(
       result.segment === 'vip',

@@ -1,9 +1,9 @@
 import {
   evalAssert,
-  incrementOutput,
-  setOutput,
-  span,
-  tracer,
+  incrementEvalOutput,
+  setEvalOutput,
+  evalSpan,
+  evalTracer,
 } from '@ls-stack/agent-eval';
 import { waitForWorkflowDelay } from './simulatedDelay.ts';
 import { calculateWorkflowCostUsd } from './workflowCost.ts';
@@ -24,17 +24,17 @@ export type ReceiptFraudReviewResult = {
 export async function runReceiptFraudReviewWorkflow(
   input: ReceiptFraudReviewInput,
 ): Promise<ReceiptFraudReviewResult> {
-  return tracer.span(
+  return evalTracer.span(
     { kind: 'agent', name: 'receipt-fraud-review' },
     async () => {
-      span.setAttribute('input', input);
+      evalSpan.setAttribute('input', input);
 
-      await tracer.span(
+      await evalTracer.span(
         { kind: 'tool', name: 'extract-receipt-metadata' },
         async () => {
           await waitForWorkflowDelay('extractReceiptMetadata');
 
-          span.setAttributes({
+          evalSpan.setAttributes({
             input: { path: input.receiptImage },
             output: {
               orderId: input.orderId,
@@ -44,7 +44,7 @@ export async function runReceiptFraudReviewWorkflow(
         },
       );
 
-      await tracer.span(
+      await evalTracer.span(
         { kind: 'llm', name: 'flag-tampering-signals' },
         async () => {
           await waitForWorkflowDelay('flagTamperingSignals');
@@ -52,7 +52,7 @@ export async function runReceiptFraudReviewWorkflow(
           const usage = { inputTokens: 240, outputTokens: 90 };
           const costUsd = calculateWorkflowCostUsd(usage);
 
-          span.setAttributes({
+          evalSpan.setAttributes({
             input: {
               customerMessage: input.customerMessage,
               claimedAmountUsd: input.claimedAmountUsd,
@@ -66,17 +66,17 @@ export async function runReceiptFraudReviewWorkflow(
             },
           });
 
-          incrementOutput('costUsd', costUsd);
+          incrementEvalOutput('costUsd', costUsd);
         },
       );
 
-      const result = await tracer.span(
+      const result = await evalTracer.span(
         { kind: 'tool', name: 'open-risk-case' },
         async () => {
           await waitForWorkflowDelay('openRiskCase');
 
           const finalText = `Opened a risk review for order ${input.orderId} after detecting receipt tampering signals.`;
-          span.setAttributes({
+          evalSpan.setAttributes({
             input: { orderId: input.orderId },
             output: { finalText, reviewQueue: 'risk-ops', riskLevel: 'high' },
           });
@@ -88,17 +88,19 @@ export async function runReceiptFraudReviewWorkflow(
         },
       );
 
-      tracer.checkpoint('risk-escalation', { reviewQueue: result.reviewQueue });
+      evalTracer.checkpoint('risk-escalation', {
+        reviewQueue: result.reviewQueue,
+      });
 
-      setOutput('response', result.finalText);
-      setOutput('reviewQueue', result.reviewQueue);
-      setOutput('riskLevel', result.riskLevel);
+      setEvalOutput('response', result.finalText);
+      setEvalOutput('reviewQueue', result.reviewQueue);
+      setEvalOutput('riskLevel', result.riskLevel);
       evalAssert(
         result.finalText.includes('risk review'),
         'receipt fraud review should describe the opened risk review',
       );
 
-      span.setAttribute('output', result);
+      evalSpan.setAttribute('output', result);
       return result;
     },
   );

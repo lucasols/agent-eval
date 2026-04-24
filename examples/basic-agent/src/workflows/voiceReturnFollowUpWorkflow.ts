@@ -1,9 +1,9 @@
 import {
   evalAssert,
-  incrementOutput,
-  setOutput,
-  span,
-  tracer,
+  incrementEvalOutput,
+  setEvalOutput,
+  evalSpan,
+  evalTracer,
 } from '@ls-stack/agent-eval';
 import { waitForWorkflowDelay } from './simulatedDelay.ts';
 import { calculateWorkflowCostUsd } from './workflowCost.ts';
@@ -25,14 +25,14 @@ export type VoiceReturnFollowUpResult = {
 export async function runVoiceReturnFollowUpWorkflow(
   input: VoiceReturnFollowUpInput,
 ): Promise<VoiceReturnFollowUpResult> {
-  return tracer.span(
+  return evalTracer.span(
     { kind: 'agent', name: 'voice-return-follow-up' },
     async () => {
-      span.setAttribute('input', input);
+      evalSpan.setAttribute('input', input);
 
       const detectedLocale = input.locale ?? 'en-US';
 
-      await tracer.span(
+      await evalTracer.span(
         { kind: 'llm', name: 'transcribe-voice-note' },
         async () => {
           await waitForWorkflowDelay('transcribeVoiceNote');
@@ -40,7 +40,7 @@ export async function runVoiceReturnFollowUpWorkflow(
           const usage = { inputTokens: 130, outputTokens: 90 };
           const costUsd = calculateWorkflowCostUsd(usage);
 
-          span.setAttributes({
+          evalSpan.setAttributes({
             input: { voiceNote: input.voiceNote },
             model: 'gpt-4o-mini',
             usage,
@@ -52,26 +52,29 @@ export async function runVoiceReturnFollowUpWorkflow(
             },
           });
 
-          incrementOutput('costUsd', costUsd);
+          incrementEvalOutput('costUsd', costUsd);
         },
       );
 
-      await tracer.span({ kind: 'tool', name: 'draft-follow-up' }, async () => {
-        await waitForWorkflowDelay('draftFollowUp');
+      await evalTracer.span(
+        { kind: 'tool', name: 'draft-follow-up' },
+        async () => {
+          await waitForWorkflowDelay('draftFollowUp');
 
-        span.setAttributes({
-          input: {
-            orderId: input.orderId,
-            preferredChannel: input.preferredChannel,
-          },
-          output: {
-            channel: input.preferredChannel,
-            nextStep: 'send-return-label',
-          },
-        });
-      });
+          evalSpan.setAttributes({
+            input: {
+              orderId: input.orderId,
+              preferredChannel: input.preferredChannel,
+            },
+            output: {
+              channel: input.preferredChannel,
+              nextStep: 'send-return-label',
+            },
+          });
+        },
+      );
 
-      const result = await tracer.span(
+      const result = await evalTracer.span(
         { kind: 'llm', name: 'localize-follow-up' },
         async () => {
           await waitForWorkflowDelay('localizeFollowUp');
@@ -80,7 +83,7 @@ export async function runVoiceReturnFollowUpWorkflow(
           const costUsd = calculateWorkflowCostUsd(usage);
           const finalText = `Prepared a ${input.preferredChannel} follow-up with return steps for order ${input.orderId}.`;
 
-          span.setAttributes({
+          evalSpan.setAttributes({
             input: {
               customerMessage: input.customerMessage,
               locale: detectedLocale,
@@ -95,7 +98,7 @@ export async function runVoiceReturnFollowUpWorkflow(
             },
           });
 
-          incrementOutput('costUsd', costUsd);
+          incrementEvalOutput('costUsd', costUsd);
 
           return {
             detectedLocale,
@@ -105,19 +108,19 @@ export async function runVoiceReturnFollowUpWorkflow(
         },
       );
 
-      tracer.checkpoint('follow-up-ready', {
+      evalTracer.checkpoint('follow-up-ready', {
         followUpChannel: result.followUpChannel,
       });
 
-      setOutput('response', result.finalText);
-      setOutput('detectedLocale', result.detectedLocale);
-      setOutput('followUpChannel', result.followUpChannel);
+      setEvalOutput('response', result.finalText);
+      setEvalOutput('detectedLocale', result.detectedLocale);
+      setEvalOutput('followUpChannel', result.followUpChannel);
       evalAssert(
         result.finalText.includes('return steps'),
         'voice follow-up should include return steps',
       );
 
-      span.setAttribute('output', result);
+      evalSpan.setAttribute('output', result);
       return result;
     },
   );

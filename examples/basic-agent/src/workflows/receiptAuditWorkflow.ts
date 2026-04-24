@@ -1,9 +1,9 @@
 import {
   evalAssert,
-  incrementOutput,
-  setOutput,
-  span,
-  tracer,
+  incrementEvalOutput,
+  setEvalOutput,
+  evalSpan,
+  evalTracer,
 } from '@ls-stack/agent-eval';
 import { waitForWorkflowDelay } from './simulatedDelay.ts';
 import { calculateWorkflowCostUsd } from './workflowCost.ts';
@@ -24,19 +24,19 @@ export type ReceiptAuditResult = {
 export async function runReceiptAuditWorkflow(
   input: ReceiptAuditInput,
 ): Promise<ReceiptAuditResult> {
-  return tracer.span({ kind: 'agent', name: 'receipt-audit' }, async () => {
-    span.setAttribute('input', input);
+  return evalTracer.span({ kind: 'agent', name: 'receipt-audit' }, async () => {
+    evalSpan.setAttribute('input', input);
 
-    await tracer.span({ kind: 'tool', name: 'ocr-receipt' }, async () => {
+    await evalTracer.span({ kind: 'tool', name: 'ocr-receipt' }, async () => {
       await waitForWorkflowDelay('ocrReceipt');
 
-      span.setAttributes({
+      evalSpan.setAttributes({
         input: { path: input.receiptImage },
         output: { orderId: input.orderId, totalUsd: input.expectedTotalUsd },
       });
     });
 
-    await tracer.span(
+    await evalTracer.span(
       { kind: 'llm', name: 'compare-claim-against-receipt' },
       async () => {
         await waitForWorkflowDelay('compareClaimAgainstReceipt');
@@ -44,7 +44,7 @@ export async function runReceiptAuditWorkflow(
         const usage = { inputTokens: 190, outputTokens: 60 };
         const costUsd = calculateWorkflowCostUsd(usage);
 
-        span.setAttributes({
+        evalSpan.setAttributes({
           input: {
             customerMessage: input.customerMessage,
             expectedTotalUsd: input.expectedTotalUsd,
@@ -55,17 +55,17 @@ export async function runReceiptAuditWorkflow(
           output: { auditStatus: 'verified', discrepancyCount: 0 },
         });
 
-        incrementOutput('costUsd', costUsd);
+        incrementEvalOutput('costUsd', costUsd);
       },
     );
 
-    const result = await tracer.span(
+    const result = await evalTracer.span(
       { kind: 'tool', name: 'publish-audit-summary' },
       async () => {
         await waitForWorkflowDelay('publishAuditSummary');
 
         const finalText = `Verified receipt for order ${input.orderId} and matched it to the customer report.`;
-        span.setAttributes({
+        evalSpan.setAttributes({
           input: { orderId: input.orderId },
           output: { auditStatus: 'verified', discrepancyCount: 0, finalText },
         });
@@ -77,17 +77,19 @@ export async function runReceiptAuditWorkflow(
       },
     );
 
-    tracer.checkpoint('audit-decision', { auditStatus: result.auditStatus });
+    evalTracer.checkpoint('audit-decision', {
+      auditStatus: result.auditStatus,
+    });
 
-    setOutput('response', result.finalText);
-    setOutput('auditStatus', result.auditStatus);
-    setOutput('discrepancyCount', result.discrepancyCount);
+    setEvalOutput('response', result.finalText);
+    setEvalOutput('auditStatus', result.auditStatus);
+    setEvalOutput('discrepancyCount', result.discrepancyCount);
     evalAssert(
       result.discrepancyCount === 0,
       'receipt audit should not find mismatched line items',
     );
 
-    span.setAttribute('output', result);
+    evalSpan.setAttribute('output', result);
     return result;
   });
 }

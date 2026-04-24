@@ -33,7 +33,7 @@ describe('createRunner concurrency', () => {
     );
     await writeFile(
       join(workspacePath, 'evals', 'concurrency.eval.ts'),
-      `import { defineEval, setOutput } from '@agent-evals/sdk';
+      `import { defineEval, setEvalOutput } from '@agent-evals/sdk';
 
 declare global {
   var __agentEvalsConcurrencyTracker:
@@ -60,7 +60,7 @@ defineEval({
     await new Promise<void>((resolve) => {
       setTimeout(resolve, 120);
     });
-    setOutput('maxConcurrency', tracker.max);
+    setEvalOutput('maxConcurrency', tracker.max);
     tracker.current -= 1;
   },
 });

@@ -15,7 +15,7 @@ import type { EvalTraceTree } from './types.ts';
 /**
  * Mutable handle for the current span.
  *
- * Prefer the ambient `span` export for most code so helpers deeper in the call
+ * Prefer the ambient `evalSpan` export for most code so helpers deeper in the call
  * stack can annotate the active span without receiving an injected argument.
  */
 export type TraceActiveSpan = {
@@ -69,9 +69,9 @@ function createSpanHandle(span: EvalTraceSpan): TraceActiveSpan {
 /**
  * Ambient handle for the active span in the current async context.
  *
- * Calls are no-ops when executed outside of `tracer.span(...)`.
+ * Calls are no-ops when executed outside of `evalTracer.span(...)`.
  */
-export const span: TraceActiveSpan = {
+export const evalSpan: TraceActiveSpan = {
   setName(value) {
     updateCurrentSpan((currentSpan) => {
       currentSpan.name = value;
@@ -95,11 +95,11 @@ type TraceSpanInfoBase = {
   attributes?: Record<string, unknown>;
 };
 
-/** Info accepted by `tracer.span(info, fn)` when creating an uncached span. */
+/** Info accepted by `evalTracer.span(info, fn)` when creating an uncached span. */
 export type TraceSpanInfoUncached = TraceSpanInfoBase & { cache?: undefined };
 
 /**
- * Info accepted by `tracer.span(info, fn)` when opting in to caching.
+ * Info accepted by `evalTracer.span(info, fn)` when opting in to caching.
  *
  * Cached spans return `Promise<unknown>` because the replayed value comes from
  * a JSON round-trip on cache hit. Narrow the value yourself when you need a
@@ -109,7 +109,7 @@ export type TraceSpanInfoCached = TraceSpanInfoBase & {
   cache: SpanCacheOptions;
 };
 
-/** Info accepted by `tracer.span(info, fn)`. */
+/** Info accepted by `evalTracer.span(info, fn)`. */
 export type TraceSpanInfo = TraceSpanInfoUncached | TraceSpanInfoCached;
 
 function traceSpan<T>(
@@ -269,7 +269,7 @@ async function traceSpan(
  * Trace builder used to create hierarchical spans and checkpoints during eval
  * execution.
  */
-export const tracer = {
+export const evalTracer = {
   /** Run a callback inside a new trace span and record its lifecycle. */
   span: traceSpan,
 
@@ -438,7 +438,7 @@ function applyRecordingOp(
       scope.outputs[op.key] = existing + op.delta;
     } else {
       scope.assertionFailures.push({
-        message: `replay incrementOutput("${op.key}"): existing value is ${typeof existing}, expected number`,
+        message: `replay incrementEvalOutput("${op.key}"): existing value is ${typeof existing}, expected number`,
       });
     }
     return;

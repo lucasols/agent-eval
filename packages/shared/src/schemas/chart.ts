@@ -58,7 +58,7 @@ export type EvalChartAxis = z.infer<typeof evalChartAxisSchema>;
 /**
  * One plotted series on an eval history chart. `builtin` metrics come from the
  * per-run `RunSummary`; `column` metrics aggregate a per-case score or
- * `setOutput` column across the run using `aggregate`.
+ * `setEvalOutput` column across the run using `aggregate`.
  */
 export const evalChartMetricSchema = z.discriminatedUnion('source', [
   z.object({
@@ -70,7 +70,7 @@ export const evalChartMetricSchema = z.discriminatedUnion('source', [
   }),
   z.object({
     source: z.literal('column'),
-    /** Matches a declared score key or a `setOutput` key on the eval. */
+    /** Matches a declared score key or a `setEvalOutput` key on the eval. */
     key: z.string().min(1),
     aggregate: evalChartAggregateSchema,
     label: z.string().optional(),

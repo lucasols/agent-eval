@@ -169,7 +169,7 @@ function toAssertionFailure(
  * Supported values include scalars, JSON-safe objects/arrays, explicit file
  * refs, and native `Blob`/`File` instances for media or file columns.
  */
-export function setOutput(key: string, value: unknown): void {
+export function setEvalOutput(key: string, value: unknown): void {
   const scope = getCurrentScope();
   if (!scope) return;
   scope.outputs[key] = value;
@@ -182,7 +182,7 @@ export function setOutput(key: string, value: unknown): void {
  * If the existing value is non-numeric, the operation is recorded as an
  * assertion failure instead of mutating the output.
  */
-export function incrementOutput(key: string, delta: number): void {
+export function incrementEvalOutput(key: string, delta: number): void {
   const scope = getCurrentScope();
   if (!scope) return;
   const existing = scope.outputs[key];
@@ -194,7 +194,7 @@ export function incrementOutput(key: string, delta: number): void {
   if (typeof existing !== 'number') {
     scope.assertionFailures.push(
       toAssertionFailure(
-        `incrementOutput("${key}"): existing value is ${typeof existing}, expected number`,
+        `incrementEvalOutput("${key}"): existing value is ${typeof existing}, expected number`,
       ),
     );
     return;

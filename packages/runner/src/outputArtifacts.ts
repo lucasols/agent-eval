@@ -30,7 +30,7 @@ type PersistInlineArtifactParams = {
 };
 
 /**
- * Persist a `Blob`/`File` emitted via `setOutput(...)` into the current run's
+ * Persist a `Blob`/`File` emitted via `setEvalOutput(...)` into the current run's
  * artifact directory and return the resulting run artifact reference.
  */
 export async function persistInlineArtifact({

@@ -1,4 +1,9 @@
-import { defineEval, setOutput, span, tracer } from '@ls-stack/agent-eval';
+import {
+  defineEval,
+  setEvalOutput,
+  evalSpan,
+  evalTracer,
+} from '@ls-stack/agent-eval';
 
 function samplePercent(): number {
   return Math.round(Math.random() * 100) / 100;
@@ -31,48 +36,51 @@ defineEval<{ prompt: string }>({
     randomValue: { label: 'Random Value', format: 'percent' },
   },
   execute: async ({ input }) => {
-    await tracer.span({ kind: 'agent', name: 'randomized-lab' }, async () => {
-      span.setAttribute('input', input);
+    await evalTracer.span(
+      { kind: 'agent', name: 'randomized-lab' },
+      async () => {
+        evalSpan.setAttribute('input', input);
 
-      const randomValue = samplePercent();
-      const analysisDelayMs = sampleDelayMs(180, 340);
+        const randomValue = samplePercent();
+        const analysisDelayMs = sampleDelayMs(180, 340);
 
-      await tracer.span(
-        { kind: 'llm', name: 'roll-random-signal' },
-        async () => {
-          await waitForDelay(analysisDelayMs);
+        await evalTracer.span(
+          { kind: 'llm', name: 'roll-random-signal' },
+          async () => {
+            await waitForDelay(analysisDelayMs);
 
-          span.setAttributes({
-            input: { prompt: input.prompt },
-            output: { analysisDelayMs, randomValue },
-          });
-        },
-      );
+            evalSpan.setAttributes({
+              input: { prompt: input.prompt },
+              output: { analysisDelayMs, randomValue },
+            });
+          },
+        );
 
-      const publishDelayMs = sampleDelayMs(140, 280);
-      const responseText = `Randomized result for: ${input.prompt}`;
+        const publishDelayMs = sampleDelayMs(140, 280);
+        const responseText = `Randomized result for: ${input.prompt}`;
 
-      await tracer.span(
-        { kind: 'tool', name: 'publish-randomized-result' },
-        async () => {
-          await waitForDelay(publishDelayMs);
+        await evalTracer.span(
+          { kind: 'tool', name: 'publish-randomized-result' },
+          async () => {
+            await waitForDelay(publishDelayMs);
 
-          span.setAttributes({
-            input: { randomValue },
-            output: { publishDelayMs, responseText },
-          });
-        },
-      );
+            evalSpan.setAttributes({
+              input: { randomValue },
+              output: { publishDelayMs, responseText },
+            });
+          },
+        );
 
-      setOutput('response', responseText);
-      setOutput('randomValue', randomValue);
+        setEvalOutput('response', responseText);
+        setEvalOutput('randomValue', randomValue);
 
-      span.setAttribute('output', {
-        publishDelayMs,
-        randomValue,
-        responseText,
-      });
-    });
+        evalSpan.setAttribute('output', {
+          publishDelayMs,
+          randomValue,
+          responseText,
+        });
+      },
+    );
   },
   scores: {
     randomScore: { label: 'Random Score', compute: () => sampleScore() },

@@ -34,7 +34,7 @@ async function createTrialSelectionWorkspace(
   );
   await writeFile(
     join(workspacePath, 'evals', 'trial-selection.eval.ts'),
-    `import { defineEval, setOutput, tracer, span } from '@agent-evals/sdk';
+    `import { defineEval, setEvalOutput, evalTracer, evalSpan } from '@agent-evals/sdk';
 
 const candidates = [
   {
@@ -76,10 +76,10 @@ defineEval({
     candidateId: { label: 'Candidate' },
   },
   execute: async ({ input }) => {
-    await tracer.span({ kind: 'agent', name: 'trial-selection' }, async () => {
-      span.setAttribute('input', input);
+    await evalTracer.span({ kind: 'agent', name: 'trial-selection' }, async () => {
+      evalSpan.setAttribute('input', input);
 
-      const candidate = await tracer.span(
+      const candidate = await evalTracer.span(
         {
           kind: 'llm',
           name: 'draft-response',
@@ -87,15 +87,15 @@ defineEval({
         },
         async () => {
           const next = nextCandidate();
-          setOutput('candidateId', next.candidateId);
-          setOutput('response', next.response);
-          setOutput('scorePreview', next.score);
-          span.setAttribute('output', next);
+          setEvalOutput('candidateId', next.candidateId);
+          setEvalOutput('response', next.response);
+          setEvalOutput('scorePreview', next.score);
+          evalSpan.setAttribute('output', next);
           return next;
         },
       );
 
-      span.setAttribute('output', candidate);
+      evalSpan.setAttribute('output', candidate);
     });
   },
   scores: {
@@ -151,7 +151,9 @@ describe('runner trial selection', () => {
       );
       expect(firstDetail?.columns.candidateId).toBe('unsafe-refund');
       expect(
-        firstDetail?.trace.find((span) => span.name === 'draft-response'),
+        firstDetail?.trace.find(
+          (evalSpan) => evalSpan.name === 'draft-response',
+        ),
       ).toMatchObject({ attributes: { 'cache.status': 'miss' } });
 
       const secondRun = await runner.startRun({
@@ -172,7 +174,9 @@ describe('runner trial selection', () => {
       );
       expect(secondDetail?.columns.candidateId).toBe('unsafe-refund');
       expect(
-        secondDetail?.trace.find((span) => span.name === 'draft-response'),
+        secondDetail?.trace.find(
+          (evalSpan) => evalSpan.name === 'draft-response',
+        ),
       ).toMatchObject({ attributes: { 'cache.status': 'hit' } });
     } finally {
       process.chdir(previousCwd);

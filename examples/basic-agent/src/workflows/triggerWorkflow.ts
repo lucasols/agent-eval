@@ -1,9 +1,9 @@
 import {
   evalAssert,
-  incrementOutput,
-  setOutput,
-  span,
-  tracer,
+  incrementEvalOutput,
+  setEvalOutput,
+  evalSpan,
+  evalTracer,
 } from '@ls-stack/agent-eval';
 import { waitForWorkflowDelay } from './simulatedDelay.ts';
 
@@ -23,69 +23,75 @@ const REFUND_REGEX = /refund/i;
 export async function triggerWorkflow(
   input: WorkflowInput,
 ): Promise<WorkflowResult> {
-  return tracer.span({ kind: 'agent', name: 'refund-workflow' }, async () => {
-    span.setAttribute('input', input);
+  return evalTracer.span(
+    { kind: 'agent', name: 'refund-workflow' },
+    async () => {
+      evalSpan.setAttribute('input', input);
 
-    await tracer.span(
-      {
-        kind: 'llm',
-        name: 'plan-refund',
-        cache: { key: { prompt: input.message, locale: input.locale } },
-      },
-      async () => {
-        await waitForWorkflowDelay('planRefund');
+      await evalTracer.span(
+        {
+          kind: 'llm',
+          name: 'plan-refund',
+          cache: { key: { prompt: input.message, locale: input.locale } },
+        },
+        async () => {
+          await waitForWorkflowDelay('planRefund');
 
-        const usage = { inputTokens: 150, outputTokens: 50 };
-        const costUsd =
-          (usage.inputTokens / 1_000_000) * INPUT_PRICE_PER_MILLION +
-          (usage.outputTokens / 1_000_000) * OUTPUT_PRICE_PER_MILLION;
+          const usage = { inputTokens: 150, outputTokens: 50 };
+          const costUsd =
+            (usage.inputTokens / 1_000_000) * INPUT_PRICE_PER_MILLION +
+            (usage.outputTokens / 1_000_000) * OUTPUT_PRICE_PER_MILLION;
 
-        span.setAttributes({
-          input: { prompt: input.message },
-          model: 'gpt-4o-mini',
-          usage,
-          costUsd,
-          output: { plan: 'approve refund' },
-        });
+          evalSpan.setAttributes({
+            input: { prompt: input.message },
+            model: 'gpt-4o-mini',
+            usage,
+            costUsd,
+            output: { plan: 'approve refund' },
+          });
 
-        incrementOutput('costUsd', costUsd);
-      },
-    );
+          incrementEvalOutput('costUsd', costUsd);
+        },
+      );
 
-    if (input.receiptImage) {
-      await tracer.span({ kind: 'tool', name: 'inspect-receipt' }, async () => {
-        await waitForWorkflowDelay('inspectReceipt');
+      if (input.receiptImage) {
+        await evalTracer.span(
+          { kind: 'tool', name: 'inspect-receipt' },
+          async () => {
+            await waitForWorkflowDelay('inspectReceipt');
 
-        span.setAttributes({
-          input: { path: input.receiptImage },
-          output: { verified: true },
-        });
-      });
-    }
+            evalSpan.setAttributes({
+              input: { path: input.receiptImage },
+              output: { verified: true },
+            });
+          },
+        );
+      }
 
-    const result = await tracer.span(
-      { kind: 'tool', name: 'process-refund' },
-      async () => {
-        await waitForWorkflowDelay('processRefund');
+      const result = await evalTracer.span(
+        { kind: 'tool', name: 'process-refund' },
+        async () => {
+          await waitForWorkflowDelay('processRefund');
 
-        const final = `Approved refund for: ${input.message}`;
-        span.setAttributes({
-          input: { message: input.message },
-          output: { finalText: final, approved: true },
-        });
-        return { finalText: final, approved: true };
-      },
-    );
+          const final = `Approved refund for: ${input.message}`;
+          evalSpan.setAttributes({
+            input: { message: input.message },
+            output: { finalText: final, approved: true },
+          });
+          return { finalText: final, approved: true };
+        },
+      );
 
-    tracer.checkpoint('decision', { approved: result.approved });
+      evalTracer.checkpoint('decision', { approved: result.approved });
 
-    setOutput('response', result.finalText);
-    evalAssert(
-      REFUND_REGEX.test(result.finalText),
-      'workflow output should mention refund',
-    );
+      setEvalOutput('response', result.finalText);
+      evalAssert(
+        REFUND_REGEX.test(result.finalText),
+        'workflow output should mention refund',
+      );
 
-    span.setAttribute('output', result);
-    return result;
-  });
+      evalSpan.setAttribute('output', result);
+      return result;
+    },
+  );
 }

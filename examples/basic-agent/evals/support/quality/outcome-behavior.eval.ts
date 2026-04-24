@@ -2,7 +2,7 @@ import {
   defineEval,
   evalAssert,
   isInEvalScope,
-  setOutput,
+  setEvalOutput,
 } from '@ls-stack/agent-eval';
 import { getResponseText } from '../../../src/evals/exampleEvalUtils.ts';
 
@@ -15,9 +15,7 @@ defineEval<{ prompt: string }>({
       input: { prompt: 'Review the refund summary against the gold answer.' },
     },
   ],
-  columns: {
-    response: { label: 'Response', format: 'markdown' },
-  },
+  columns: { response: { label: 'Response', format: 'markdown' } },
   stats: [
     { kind: 'cases' },
     { kind: 'passRate', accent: true },
@@ -30,7 +28,7 @@ defineEval<{ prompt: string }>({
     { kind: 'duration' },
   ],
   execute: ({ input }) => {
-    setOutput('response', `Borderline result for: ${input.prompt}`);
+    setEvalOutput('response', `Borderline result for: ${input.prompt}`);
   },
   scores: {
     matchesGoldAnswer: {
@@ -63,11 +61,12 @@ defineEval<{ ticketId: string }>({
   cases: [
     { id: 'assertion-failure-visible-output', input: { ticketId: 'T-441' } },
   ],
-  columns: {
-    response: { label: 'Response', format: 'markdown' },
-  },
+  columns: { response: { label: 'Response', format: 'markdown' } },
   execute: ({ input }) => {
-    setOutput('response', `Missing audit note for ticket ${input.ticketId}.`);
+    setEvalOutput(
+      'response',
+      `Missing audit note for ticket ${input.ticketId}.`,
+    );
     evalAssert(
       false,
       'operator note must be attached before closing the ticket',

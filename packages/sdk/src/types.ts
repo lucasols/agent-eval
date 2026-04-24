@@ -194,7 +194,7 @@ export type EvalDefinition<TInput = unknown> = {
    *
    * Each chart declares its `type` (`area | line | bar`) and one or more
    * `metrics`. Built-in metrics (`passRate`, `cost`, `durationMs`) aggregate
-   * the run summary. Column metrics aggregate a score or numeric `setOutput`
+   * the run summary. Column metrics aggregate a score or numeric `setEvalOutput`
    * column across the run using an `aggregate` reducer (`avg`, `sum`, `min`,
    * `max`, `latest`, `passThresholdRate`). `passThresholdRate` requires a
    * score column with `passThreshold`.

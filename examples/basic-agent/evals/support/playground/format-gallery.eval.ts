@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { defineEval, setOutput } from '@ls-stack/agent-eval';
+import { defineEval, setEvalOutput } from '@ls-stack/agent-eval';
 
 const previewCardSvg = readFileSync(
   new URL('../../datasets/assets/status-card.svg', import.meta.url),
@@ -66,32 +66,32 @@ defineEval({
     },
   },
   execute: ({ input }) => {
-    setOutput(
+    setEvalOutput(
       'response',
       `Prepared **refund package** for order \`${input.orderId}\`.\n\nCustomer note: ${input.customerMessage}`,
     );
-    setOutput('toolResult', {
+    setEvalOutput('toolResult', {
       orderId: input.orderId,
       matchedReceipt: true,
       nextStep: 'send-refund-confirmation',
       reviewer: { name: 'Avery', queue: 'refund-ops' },
     });
-    setOutput('requiresManualReview', false);
-    setOutput(
+    setEvalOutput('requiresManualReview', false);
+    setEvalOutput(
       'previewCard',
       new Blob([previewCardSvg], { type: 'image/svg+xml' }),
     );
-    setOutput(
+    setEvalOutput(
       'audioBrief',
       new File([audioBriefWav], 'chime.wav', { type: 'audio/wav' }),
     );
-    setOutput(
+    setEvalOutput(
       'attachment',
       new File([attachmentText], 'refund-template.txt', { type: 'text/plain' }),
     );
-    setOutput('confidence', 0.93);
-    setOutput('handlingCostUsd', 1.25);
-    setOutput('requestCount', 1200);
-    setOutput('reviewTimeMs', 1450);
+    setEvalOutput('confidence', 0.93);
+    setEvalOutput('handlingCostUsd', 1.25);
+    setEvalOutput('requestCount', 1200);
+    setEvalOutput('reviewTimeMs', 1450);
   },
 });

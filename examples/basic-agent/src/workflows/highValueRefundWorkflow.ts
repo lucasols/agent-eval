@@ -1,9 +1,9 @@
 import {
   evalAssert,
-  incrementOutput,
-  setOutput,
-  span,
-  tracer,
+  incrementEvalOutput,
+  setEvalOutput,
+  evalSpan,
+  evalTracer,
 } from '@ls-stack/agent-eval';
 import { waitForWorkflowDelay } from './simulatedDelay.ts';
 import { calculateWorkflowCostUsd } from './workflowCost.ts';
@@ -25,77 +25,83 @@ export type HighValueRefundResult = {
 export async function runHighValueRefundWorkflow(
   input: HighValueRefundInput,
 ): Promise<HighValueRefundResult> {
-  return tracer.span({ kind: 'agent', name: 'high-value-refund' }, async () => {
-    span.setAttribute('input', input);
+  return evalTracer.span(
+    { kind: 'agent', name: 'high-value-refund' },
+    async () => {
+      evalSpan.setAttribute('input', input);
 
-    await tracer.span({ kind: 'llm', name: 'assess-refund-risk' }, async () => {
-      await waitForWorkflowDelay('assessRefundRisk');
+      await evalTracer.span(
+        { kind: 'llm', name: 'assess-refund-risk' },
+        async () => {
+          await waitForWorkflowDelay('assessRefundRisk');
 
-      const usage = { inputTokens: 260, outputTokens: 80 };
-      const costUsd = calculateWorkflowCostUsd(usage);
+          const usage = { inputTokens: 260, outputTokens: 80 };
+          const costUsd = calculateWorkflowCostUsd(usage);
 
-      span.setAttributes({
-        input: {
-          customerMessage: input.customerMessage,
-          loyaltyTier: input.loyaltyTier,
-          requestedRefundUsd: input.requestedRefundUsd,
+          evalSpan.setAttributes({
+            input: {
+              customerMessage: input.customerMessage,
+              loyaltyTier: input.loyaltyTier,
+              requestedRefundUsd: input.requestedRefundUsd,
+            },
+            model: 'gpt-4o-mini',
+            usage,
+            costUsd,
+            output: { riskLevel: 'high', requiresManagerApproval: true },
+          });
+
+          incrementEvalOutput('costUsd', costUsd);
         },
-        model: 'gpt-4o-mini',
-        usage,
-        costUsd,
-        output: { riskLevel: 'high', requiresManagerApproval: true },
+      );
+
+      await evalTracer.span(
+        { kind: 'tool', name: 'inspect-premium-receipt' },
+        async () => {
+          await waitForWorkflowDelay('inspectPremiumReceipt');
+
+          evalSpan.setAttributes({
+            input: { path: input.receiptImage },
+            output: { orderId: input.orderId, purchaseVerified: true },
+          });
+        },
+      );
+
+      const result = await evalTracer.span(
+        { kind: 'tool', name: 'open-finance-escalation' },
+        async () => {
+          await waitForWorkflowDelay('openFinanceEscalation');
+
+          const finalText = `Escalated a $${input.requestedRefundUsd.toFixed(2)} refund for order ${input.orderId} to finance review.`;
+          evalSpan.setAttributes({
+            input: { orderId: input.orderId },
+            output: {
+              escalationQueue: 'finance-review',
+              finalText,
+              riskLevel: 'high',
+            },
+          });
+          return {
+            escalationQueue: 'finance-review' as const,
+            finalText,
+            riskLevel: 'high' as const,
+          };
+        },
+      );
+
+      evalTracer.checkpoint('finance-escalation', {
+        escalationQueue: result.escalationQueue,
       });
 
-      incrementOutput('costUsd', costUsd);
-    });
+      setEvalOutput('response', result.finalText);
+      setEvalOutput('escalationQueue', result.escalationQueue);
+      setEvalOutput('riskLevel', result.riskLevel);
+      evalAssert(
+        result.finalText.includes('finance review'),
+        'high value refunds should mention the finance review handoff',
+      );
 
-    await tracer.span(
-      { kind: 'tool', name: 'inspect-premium-receipt' },
-      async () => {
-        await waitForWorkflowDelay('inspectPremiumReceipt');
-
-        span.setAttributes({
-          input: { path: input.receiptImage },
-          output: { orderId: input.orderId, purchaseVerified: true },
-        });
-      },
-    );
-
-    const result = await tracer.span(
-      { kind: 'tool', name: 'open-finance-escalation' },
-      async () => {
-        await waitForWorkflowDelay('openFinanceEscalation');
-
-        const finalText = `Escalated a $${input.requestedRefundUsd.toFixed(2)} refund for order ${input.orderId} to finance review.`;
-        span.setAttributes({
-          input: { orderId: input.orderId },
-          output: {
-            escalationQueue: 'finance-review',
-            finalText,
-            riskLevel: 'high',
-          },
-        });
-        return {
-          escalationQueue: 'finance-review' as const,
-          finalText,
-          riskLevel: 'high' as const,
-        };
-      },
-    );
-
-    tracer.checkpoint('finance-escalation', {
-      escalationQueue: result.escalationQueue,
-    });
-
-    setOutput('response', result.finalText);
-    setOutput('escalationQueue', result.escalationQueue);
-    setOutput('riskLevel', result.riskLevel);
-    evalAssert(
-      result.finalText.includes('finance review'),
-      'high value refunds should mention the finance review handoff',
-    );
-
-    span.setAttribute('output', result);
-    return result;
-  });
+      evalSpan.setAttribute('output', result);
+      return result;
+    },
+  );
 }

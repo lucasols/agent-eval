@@ -34,7 +34,12 @@ pnpm add -D @ls-stack/agent-eval
 2. **Write an eval** in `evals/my-agent.eval.ts`:
 
    ```ts
-   import { defineEval, setOutput, span, tracer } from '@ls-stack/agent-eval';
+   import {
+     defineEval,
+     setEvalOutput,
+     evalSpan,
+     evalTracer,
+   } from '@ls-stack/agent-eval';
    import { myAgent } from '../src/agent';
 
    defineEval({
@@ -45,11 +50,11 @@ pnpm add -D @ls-stack/agent-eval
        { id: 'farewell', input: { message: 'bye' } },
      ],
      execute: async ({ input }) => {
-       await tracer.span({ kind: 'agent', name: 'my-agent' }, async () => {
-         span.setAttribute('input', input);
+       await evalTracer.span({ kind: 'agent', name: 'my-agent' }, async () => {
+         evalSpan.setAttribute('input', input);
          const output = await myAgent(input);
-         span.setAttribute('output', output);
-         setOutput('output', output);
+         evalSpan.setAttribute('output', output);
+         setEvalOutput('output', output);
        });
      },
      scores: {
@@ -92,7 +97,7 @@ Example:
 
 ```ts
 import { mock } from 'node:test';
-import { defineEval, evalAssert, setOutput } from '@ls-stack/agent-eval';
+import { defineEval, evalAssert, setEvalOutput } from '@ls-stack/agent-eval';
 
 defineEval({
   id: 'module-mock-demo',
@@ -107,7 +112,7 @@ defineEval({
     const { runWorkflow } = await import('../src/workflow.ts');
     const result = await runWorkflow(input);
 
-    setOutput('segment', result.segment);
+    setEvalOutput('segment', result.segment);
     evalAssert(result.segment === 'vip', 'expected the mocked dependency');
   },
 });
@@ -186,17 +191,17 @@ the eval once with a synthetic empty-object input and a generated case id.
 
 ### Execute and tracing
 
-Wrap work in `tracer.span(...)` to get a trajectory tree in the UI. Span mutation is ambient, so helpers deeper in your call stack can write to the current span without threading a callback-local handle through your code:
+Wrap work in `evalTracer.span(...)` to get a trajectory tree in the UI. Span mutation is ambient, so helpers deeper in your call stack can write to the current span without threading a callback-local handle through your code:
 
 ```ts
 execute: async ({ input }) => {
-  await tracer.span({ kind: 'agent', name: 'refund-agent' }, async () => {
-    span.setAttribute('input', input);
+  await evalTracer.span({ kind: 'agent', name: 'refund-agent' }, async () => {
+    evalSpan.setAttribute('input', input);
     const result = await agent(input);
-    span.setAttributes({ model: 'gpt-4.1', output: result });
-    setOutput('output', result);
+    evalSpan.setAttributes({ model: 'gpt-4.1', output: result });
+    setEvalOutput('output', result);
   });
-  tracer.checkpoint('final-state', { approved: true });
+  evalTracer.checkpoint('final-state', { approved: true });
 };
 ```
 
@@ -398,7 +403,7 @@ Each chart declares:
 - `type` — `area`, `line`, or `bar`.
 - `metrics` — one or more plotted series. `builtin` metrics (`passRate`,
   `cost`, `durationMs`) come from the per-run summary. `column` metrics
-  aggregate a score or numeric `setOutput` column across the run using an
+  aggregate a score or numeric `setEvalOutput` column across the run using an
   `aggregate` reducer: `avg | sum | min | max | latest | passThresholdRate`.
   `passThresholdRate` requires a score column with `passThreshold` — it
   reports the fraction of cases whose value met the threshold.
@@ -412,12 +417,12 @@ Each chart declares:
 
 Wrap a costly span (LLM call, remote tool, etc.) with `cache: { key }` to skip
 execution on subsequent runs. The cache records every observable effect inside
-the span — sub-spans, checkpoints, `setOutput` / `incrementOutput` calls,
+the span — sub-spans, checkpoints, `setEvalOutput` / `incrementEvalOutput` calls,
 final attributes — and replays them verbatim on hits, so traces, outputs, and
 cost totals look identical to a fresh run.
 
 ```ts
-await tracer.span(
+await evalTracer.span(
   {
     kind: 'llm',
     name: 'plan-refund',
@@ -425,8 +430,8 @@ await tracer.span(
   },
   async () => {
     const result = await llm.complete(input.message);
-    span.setAttributes({ model: 'gpt-4o-mini', output: result });
-    incrementOutput('costUsd', computeCost(result));
+    evalSpan.setAttributes({ model: 'gpt-4o-mini', output: result });
+    incrementEvalOutput('costUsd', computeCost(result));
     return result;
   },
 );
@@ -471,12 +476,12 @@ Server API (`/api/cache`):
 - Multi-trial runs isolate cache writes per trial attempt and only flush the
   winning trial's writes into the shared cache, so later trials in the same run
   never reuse cache entries produced by earlier sibling trials.
-- Only SDK-mediated side effects replay (`tracer.span`, `tracer.checkpoint`,
-  `setOutput`, `incrementOutput`, span attributes). External side effects
+- Only SDK-mediated side effects replay (`evalTracer.span`, `evalTracer.checkpoint`,
+  `setEvalOutput`, `incrementEvalOutput`, span attributes). External side effects
   (network, DB writes) do _not_ replay on cache hits — use caching only for
   pure functions of their key.
 - Return values are JSON round-tripped before storage; return JSON-safe values
-  or carry richer data through `setOutput`.
+  or carry richer data through `setEvalOutput`.
 
 Disable caching globally from `agent-evals.config.ts`:
 
@@ -489,7 +494,7 @@ export const config: AgentEvalsConfig = {
 
 ## Output formatting
 
-Store output values with `setOutput(...)` as plain data: strings, numbers,
+Store output values with `setEvalOutput(...)` as plain data: strings, numbers,
 booleans, `null`, JSON-safe objects/arrays for `format: 'json'`, explicit file
 refs, or native `Blob`/`File` values for `format: 'image' | 'audio' | 'video' |
 'file'`.
@@ -522,7 +527,7 @@ requestCount: {
 This uses the runtime locale's compact number formatting, for example `1.2K`.
 
 ```ts
-import { defineEval, setOutput } from '@ls-stack/agent-eval';
+import { defineEval, setEvalOutput } from '@ls-stack/agent-eval';
 
 defineEval({
   id: 'receipt-preview',
@@ -532,12 +537,12 @@ defineEval({
     toolResult: { label: 'Tool Result', format: 'json' },
   },
   execute: () => {
-    setOutput('response', 'Refund prepared for **order #123**.');
-    setOutput(
+    setEvalOutput('response', 'Refund prepared for **order #123**.');
+    setEvalOutput(
       'receipt',
       new File([imageBytes], 'receipt-1.png', { type: 'image/png' }),
     );
-    setOutput('toolResult', { matched: true, confidence: 0.93 });
+    setEvalOutput('toolResult', { matched: true, confidence: 0.93 });
   },
 });
 ```

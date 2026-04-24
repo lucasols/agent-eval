@@ -1,7 +1,7 @@
 import type { RepoFileRef } from '@agent-evals/shared';
 
 /**
- * Create a file reference that can be emitted via `setOutput(...)` and rendered
+ * Create a file reference that can be emitted via `setEvalOutput(...)` and rendered
  * by a column configured with `format: 'image' | 'audio' | 'video' | 'file'`.
  *
  * @param path Relative or absolute path to the repository file.

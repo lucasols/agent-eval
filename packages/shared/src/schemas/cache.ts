@@ -12,14 +12,14 @@ export const cacheModeSchema = z.enum(['use', 'bypass', 'refresh']);
 /** Mode controlling how cached spans behave during a run. */
 export type CacheMode = z.infer<typeof cacheModeSchema>;
 
-/** Options accepted by a `tracer.span` call to opt the span into caching. */
+/** Options accepted by an `evalTracer.span` call to opt the span into caching. */
 export const spanCacheOptionsSchema = z.object({
   /** Arbitrary JSON-safe value used to derive the cache key. */
   key: z.unknown(),
   /** Override the default namespace (`${evalId}__${spanName}`). */
   namespace: z.string().optional(),
 });
-/** Options accepted by a `tracer.span` call to opt the span into caching. */
+/** Options accepted by an `evalTracer.span` call to opt the span into caching. */
 export type SpanCacheOptions = z.infer<typeof spanCacheOptionsSchema>;
 
 /** Summary of a single persisted cache entry, used by list/delete endpoints. */

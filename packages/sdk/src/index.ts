@@ -1,8 +1,8 @@
 export { defineEval, getEvalRegistry } from './defineEval.ts';
 export { repoFile } from './repoFile.ts';
 export {
-  setOutput,
-  incrementOutput,
+  setEvalOutput,
+  incrementEvalOutput,
   evalAssert,
   EvalAssertionError,
   runInEvalScope,
@@ -16,8 +16,8 @@ export {
   type RunInEvalScopeOptions,
 } from './runtime.ts';
 export {
-  tracer,
-  span,
+  evalTracer,
+  evalSpan,
   buildTraceTree,
   hashCacheKey,
   type TraceActiveSpan,

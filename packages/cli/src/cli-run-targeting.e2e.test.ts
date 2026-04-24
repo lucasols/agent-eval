@@ -23,7 +23,7 @@ async function writeTrialSelectionEval(
 
   await writeFile(
     join(workspacePath, 'evals', 'trial-selection.eval.ts'),
-    `import { defineEval, setOutput, tracer, span } from '@ls-stack/agent-eval';
+    `import { defineEval, setEvalOutput, evalTracer, evalSpan } from '@ls-stack/agent-eval';
 
 const candidates = [
   {
@@ -65,10 +65,10 @@ defineEval({
     candidateId: { label: 'Candidate' },
   },
   execute: async ({ input }) => {
-    await tracer.span({ kind: 'agent', name: 'trial-selection' }, async () => {
-      span.setAttribute('input', input);
+    await evalTracer.span({ kind: 'agent', name: 'trial-selection' }, async () => {
+      evalSpan.setAttribute('input', input);
 
-      const candidate = await tracer.span(
+      const candidate = await evalTracer.span(
         {
           kind: 'llm',
           name: 'draft-response',
@@ -76,15 +76,15 @@ defineEval({
         },
         async () => {
           const next = nextCandidate();
-          setOutput('candidateId', next.candidateId);
-          setOutput('response', next.response);
-          setOutput('scorePreview', next.score);
-          span.setAttribute('output', next);
+          setEvalOutput('candidateId', next.candidateId);
+          setEvalOutput('response', next.response);
+          setEvalOutput('scorePreview', next.score);
+          evalSpan.setAttribute('output', next);
           return next;
         },
       );
 
-      span.setAttribute('output', candidate);
+      evalSpan.setAttribute('output', candidate);
     });
   },
   scores: {

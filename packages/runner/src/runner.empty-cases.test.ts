@@ -31,13 +31,13 @@ test('runs evals without authored cases once with an empty input object', async 
   );
   await writeFile(
     join(workspacePath, 'evals', 'empty-cases.eval.ts'),
-    `import { defineEval, setOutput } from '@agent-evals/sdk';
+    `import { defineEval, setEvalOutput } from '@agent-evals/sdk';
 
 defineEval({
   id: 'empty-cases-eval',
   title: 'Empty Cases Eval',
   execute: ({ input }) => {
-    setOutput('observedInput', JSON.stringify(input));
+    setEvalOutput('observedInput', JSON.stringify(input));
   },
 });
 `,
