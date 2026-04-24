@@ -103,13 +103,7 @@ export {
   type CreateRunRequest,
   type UpdateManualScoreRequest,
 } from './schemas/api.ts';
-export {
-  evalCostSummarySchema,
-  modelPricingSchema,
-  type EvalCostSummary,
-  type ModelPricing,
-  type PricingRegistry,
-} from './schemas/cost.ts';
+export { evalCostSummarySchema, type EvalCostSummary } from './schemas/cost.ts';
 export {
   trialSelectionModeSchema,
   agentEvalsConfigSchema,

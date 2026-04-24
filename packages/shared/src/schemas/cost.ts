@@ -6,14 +6,3 @@ export const evalCostSummarySchema = z.object({
 });
 /** Aggregate cost totals for a run or case collection. */
 export type EvalCostSummary = z.infer<typeof evalCostSummarySchema>;
-
-/** Schema for model pricing rates expressed per million tokens. */
-export const modelPricingSchema = z.object({
-  inputPerMillionUsd: z.number(),
-  outputPerMillionUsd: z.number(),
-});
-/** Per-model token pricing used to estimate eval cost. */
-export type ModelPricing = z.infer<typeof modelPricingSchema>;
-
-/** Pricing table keyed by model identifier. */
-export type PricingRegistry = Record<string, ModelPricing>;

@@ -1,5 +1,4 @@
 import { z } from 'zod/v4';
-import { modelPricingSchema } from './cost.ts';
 import {
   traceDisplayInputConfigSchema,
   type TraceDisplayInputConfig,
@@ -25,8 +24,6 @@ export type AgentEvalsConfig = {
    * number of trials is even.
    */
   trialSelection?: TrialSelectionMode;
-  /** Per-model pricing registry used to compute token cost estimates. */
-  pricing?: Record<string, z.infer<typeof modelPricingSchema>>;
   /**
    * Maximum number of case executions that may run in parallel across one run,
    * including trial fan-out. Defaults to `2`.
@@ -62,7 +59,6 @@ export const agentEvalsConfigSchema = z.object({
   include: z.array(z.string()),
   defaultTrials: z.number().optional(),
   trialSelection: trialSelectionModeSchema.optional(),
-  pricing: z.record(z.string(), modelPricingSchema).optional(),
   concurrency: z.number().optional(),
   staleAfterDays: z.number().optional(),
   traceDisplay: traceDisplayInputConfigSchema.optional(),

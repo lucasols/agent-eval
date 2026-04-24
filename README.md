@@ -28,9 +28,6 @@ pnpm add -D @ls-stack/agent-eval
      trialSelection: 'lowestScore',
      concurrency: 2,
      staleAfterDays: 14,
-     pricing: {
-       'gpt-4o': { inputPerMillionUsd: 2.5, outputPerMillionUsd: 10 },
-     },
    };
    ```
 
@@ -143,16 +140,15 @@ AGENT_EVALS_DEV_WEB_PORT=5200
 
 `agent-evals.config.ts` at your project root defines how evals are discovered and executed.
 
-| Field            | Type                                                           | Description                                                                   |
-| ---------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `include`        | `string[]`                                                     | Glob patterns for eval files (e.g. `['evals/**/*.eval.ts']`)                  |
-| `workspaceRoot`  | `string?`                                                      | Root directory; defaults to `process.cwd()`                                   |
-| `defaultTrials`  | `number?`                                                      | Trials per case when not overridden (default: `1`)                            |
-| `trialSelection` | `'lowestScore' \| 'median'?`                                   | Winner selection strategy for persisted multi-trial case results              |
-| `concurrency`    | `number?`                                                      | Max parallel case executions per run, including trials (default: `2`)         |
-| `staleAfterDays` | `number?`                                                      | Days before a mismatched-commit latest run is marked outdated (default: `14`) |
-| `pricing`        | `Record<string, { inputPerMillionUsd, outputPerMillionUsd }>?` | Per-model pricing used to compute cost                                        |
-| `traceDisplay`   | `TraceDisplayConfig?`                                          | Global trace attribute display config for the UI                              |
+| Field            | Type                         | Description                                                                   |
+| ---------------- | ---------------------------- | ----------------------------------------------------------------------------- |
+| `include`        | `string[]`                   | Glob patterns for eval files (e.g. `['evals/**/*.eval.ts']`)                  |
+| `workspaceRoot`  | `string?`                    | Root directory; defaults to `process.cwd()`                                   |
+| `defaultTrials`  | `number?`                    | Trials per case when not overridden (default: `1`)                            |
+| `trialSelection` | `'lowestScore' \| 'median'?` | Winner selection strategy for persisted multi-trial case results              |
+| `concurrency`    | `number?`                    | Max parallel case executions per run, including trials (default: `2`)         |
+| `staleAfterDays` | `number?`                    | Days before a mismatched-commit latest run is marked outdated (default: `14`) |
+| `traceDisplay`   | `TraceDisplayConfig?`        | Global trace attribute display config for the UI                              |
 
 When `trials > 1`, the runner executes the case repeatedly but persists a
 single winning result per case. `lowestScore` is the default. `median` uses the
