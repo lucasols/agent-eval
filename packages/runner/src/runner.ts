@@ -300,7 +300,6 @@ export function createRunner({
       run.summary.errorCases = derivedSummary.errorCases;
       run.summary.cancelledCases = derivedSummary.cancelledCases;
       run.summary.totalDurationMs = derivedSummary.totalDurationMs;
-      run.summary.cost = derivedSummary.cost;
 
       await persistCaseDetail(run.runDir, caseDetail);
       await persistRunState(run);
@@ -453,7 +452,6 @@ export function createRunner({
         errorCases: 0,
         cancelledCases: 0,
         totalDurationMs: null,
-        cost: { totalUsd: null },
         errorMessage: null,
       };
 

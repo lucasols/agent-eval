@@ -92,7 +92,7 @@ describe('validateCharts', () => {
         type: 'line',
         metrics: [{ source: 'column', key: 'missing', aggregate: 'avg' }],
       },
-      { type: 'area', metrics: [{ source: 'builtin', metric: 'cost' }] },
+      { type: 'area', metrics: [{ source: 'builtin', metric: 'durationMs' }] },
     ];
     const result = validateCharts({ charts, columnDefs, evalId: 'demo' });
     expect(result.charts).toHaveLength(1);

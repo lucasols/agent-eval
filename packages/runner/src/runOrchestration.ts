@@ -16,10 +16,7 @@ import type {
   SseEnvelope,
   TrialSelectionMode,
 } from '@agent-evals/shared';
-import {
-  deriveScopedSummaryFromCases,
-  deriveStatusFromCaseRows,
-} from '@agent-evals/shared';
+import { deriveStatusFromCaseRows } from '@agent-evals/shared';
 import {
   createBufferedCacheStore,
   type BufferedCacheStore,
@@ -303,7 +300,6 @@ export async function executeRun({
                       evalId: evalMeta.id,
                       status: caseRowUpdate.status ?? 'pending',
                       latencyMs: caseRowUpdate.latencyMs ?? null,
-                      costUsd: caseRowUpdate.costUsd ?? null,
                       columns: caseRowUpdate.columns ?? {},
                       trial,
                     },
@@ -410,11 +406,6 @@ export async function executeRun({
           null,
       });
     }
-
-    const derivedRunSummary = deriveScopedSummaryFromCases({
-      caseRows: allCaseRows,
-    });
-    runState.summary.cost = derivedRunSummary.cost;
 
     const endTime = new Date();
     runState.summary.totalDurationMs =

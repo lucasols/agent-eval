@@ -153,8 +153,7 @@ describe('CLI run targeting', () => {
         Failed: 0
         Errors: 0
         Pass Rate: 2/2
-        Duration: <duration>
-        Cost: $0.0017",
+        Duration: <duration>",
           "persistedCases": [
             {
               "caseId": "simple-text",
@@ -233,8 +232,7 @@ describe('CLI run targeting', () => {
         Failed: 0
         Errors: 0
         Pass Rate: 1/1
-        Duration: <duration>
-        Cost: $0.0015",
+        Duration: <duration>",
           "persistedCases": [
             {
               "caseId": "tampered-total",
@@ -351,8 +349,7 @@ describe('CLI run targeting', () => {
         Failed: 0
         Errors: 0
         Pass Rate: 1/1
-        Duration: <duration>
-        Cost: $0.0014",
+        Duration: <duration>",
           "persistedCases": [
             {
               "caseId": "espresso-machine",
@@ -418,9 +415,6 @@ describe('CLI run targeting', () => {
         {
           "jsonSummary": {
             "cancelledCases": 0,
-            "cost": {
-              "totalUsd": 0.0008749999999999999,
-            },
             "errorCases": 0,
             "errorMessage": null,
             "failedCases": 0,
@@ -487,9 +481,6 @@ describe('CLI run targeting', () => {
         {
           "jsonSummary": {
             "cancelledCases": 0,
-            "cost": {
-              "totalUsd": null,
-            },
             "errorCases": 0,
             "errorMessage": null,
             "failedCases": 0,

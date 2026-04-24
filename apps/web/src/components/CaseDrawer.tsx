@@ -304,12 +304,6 @@ const ScoringTraceTitle = styled.div`
   color: ${colors.text.var};
 `;
 
-const ScoringTraceMeta = styled.div`
-  ${monoFont};
-  font-size: 11px;
-  color: ${colors.textMuted.var};
-`;
-
 const FailureList = styled.ul`
   ${stack({ gap: 10 })}
   list-style: none;
@@ -574,16 +568,12 @@ export function CaseDrawer() {
           <ScoringTraceList>
             {scoringTraceEntries.map(([scoreKey, scoreTrace]) => {
               const scoreColumn = scoreColumns.find((c) => c.key === scoreKey);
-              const cost = scoreTrace.cost.totalUsd;
               return (
                 <ScoringTraceSection key={scoreKey}>
                   <ScoringTraceHeader>
                     <ScoringTraceTitle>
                       {scoreColumn?.label ?? scoreKey}
                     </ScoringTraceTitle>
-                    {typeof cost === 'number' ? (
-                      <ScoringTraceMeta>${cost.toFixed(4)}</ScoringTraceMeta>
-                    ) : null}
                   </ScoringTraceHeader>
                   <TraceTree
                     spans={scoreTrace.trace}

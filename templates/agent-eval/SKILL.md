@@ -1,0 +1,248 @@
+---
+name: agent-eval
+description: Create, run, and maintain TypeScript evals with @ls-stack/agent-eval in a project that already has it installed. Use when adding eval coverage for an LLM or agent workflow, updating *.eval.ts files, checking eval results, configuring agent-evals.config.ts, inspecting saved .agent-evals run artifacts, or wiring product source code with evalTracer spans. For first-time installation, use the sibling `install-prompt.md` template instead.
+---
+
+# Agent Eval
+
+Local-first, UI-first eval runner for LLM and agent systems. Evals are strict
+TypeScript modules named `*.eval.ts`, discovered from `agent-evals.config.ts`,
+and executed through the CLI (`agent-evals run`) or the web UI
+(`agent-evals app`). Runs persist to `.agent-evals/` so results, traces, and
+caches survive across processes.
+
+This skill covers the mental model and conventions. For exhaustive field lists
+(config options, eval shape, column formats, score/chart/stats options, trace
+display rules), read the TypeScript declarations shipped with the package:
+
+- `AgentEvalsConfig`, `EvalDefinition`, `EvalCase`, `EvalColumnOverride`,
+  `EvalScoreDef`, `EvalManualScoreDef`, `EvalTraceTree`, `TraceSpanInfo`, …
+  all exported from `@ls-stack/agent-eval`.
+- `.d.ts` files land in `node_modules/@ls-stack/agent-eval/dist/`.
+- CLI surface: `agent-evals --help` and `agent-evals <command> --help`.
+
+Assume that enumerated tables in this document may lag behind the types —
+treat the types as source of truth when they disagree.
+
+## Where tracing lives
+
+**Tracing belongs in the product source code, not in the eval file.** The eval
+file wires up cases and scoring; the real `evalTracer.span(...)` calls sit
+inside the workflow, agent, or tool functions that both production and evals
+invoke.
+
+`evalTracer`, `evalSpan`, `setEvalOutput`, `incrementEvalOutput`, and
+`evalAssert` are ambient no-ops when called outside an eval case scope, so
+leaving them in production paths is safe — they only record anything when the
+product code runs inside an eval's `execute`. Use `isInEvalScope()` to branch
+on eval-only behavior in shared code (e.g. skip a real network side effect).
+
+### Product code (instrumented once, reused everywhere)
+
+```ts
+// src/workflows/refundWorkflow.ts
+import {
+  evalAssert,
+  evalSpan,
+  evalTracer,
+  incrementEvalOutput,
+  setEvalOutput,
+} from '@ls-stack/agent-eval';
+
+export async function runRefundWorkflow(input: RefundInput) {
+  return evalTracer.span(
+    { kind: 'agent', name: 'refund-workflow' },
+    async () => {
+      evalSpan.setAttribute('input', input);
+
+      const plan = await evalTracer.span(
+        {
+          kind: 'llm',
+          name: 'plan-refund',
+          cache: { key: { prompt: input.message, model: 'gpt-4o-mini' } },
+        },
+        async () => {
+          const { text, usage, costUsd } = await llm.complete(input.message);
+          evalSpan.setAttributes({ model: 'gpt-4o-mini', usage });
+          incrementEvalOutput('costUsd', costUsd);
+          return text;
+        },
+      );
+
+      const result = await applyRefund(plan);
+      setEvalOutput('response', result.finalText);
+      evalAssert(result.approved, 'refund workflow should approve the case');
+      evalSpan.setAttribute('output', result);
+      return result;
+    },
+  );
+}
+```
+
+Span `kind` values are color-coded in the UI — pick the most specific kind
+(`agent | tool | llm | scorer | checkpoint | custom`). The UI automatically
+promotes only the `input` and `output` span attributes. Use `traceDisplay` for
+other span attributes such as `model`, `usage`, or `costUsd`.
+
+### Eval file (thin)
+
+```ts
+// evals/refund-workflow.eval.ts
+import { defineEval } from '@ls-stack/agent-eval';
+import { runRefundWorkflow } from '../src/workflows/refundWorkflow.ts';
+
+defineEval<RefundInput>({
+  id: 'refund-workflow',
+  cases: [
+    { id: 'simple-text', input: { message: 'I want a refund for order #123' } },
+  ],
+  execute: async ({ input }) => {
+    await runRefundWorkflow(input);
+  },
+  deriveFromTracing: ({ trace }) => ({
+    toolCalls: trace.findSpansByKind('tool').length,
+    llmTurns: trace.findSpansByKind('llm').length,
+  }),
+  scores: {
+    mentionsRefund: {
+      passThreshold: 1,
+      compute: ({ outputs }) =>
+        typeof outputs.response === 'string' && /refund/i.test(outputs.response)
+          ? 1
+          : 0,
+    },
+  },
+});
+```
+
+`execute` usually just calls the product code. Push any placeholder
+`evalTracer.span(...)` wrappers out of the eval and into the product module
+they describe so production runs get the same trajectory. Only keep tracing
+inside `execute` when the behavior being measured is eval-specific (e.g. a
+judge-only sub-step with no production analogue).
+
+Case `id` values anchor historical runs, caches, and manual scores — keep them
+stable. See `EvalDefinition` / `EvalCase` in the types for every supported
+field.
+
+## Scoring
+
+Every score returns a normalized `0..1` value. Pass/fail is per-score: a case
+fails if any score with `passThreshold` falls below it, if an assertion fails,
+or if the case errors. Scores without `passThreshold` are informational.
+
+Score functions run in their own trace scope, separate from the execution
+trace, so LLM-as-judge scorers can use `evalTracer.span(...)` and cached spans
+without polluting the agent trajectory. The case detail UI shows execution
+spans on **Trace** and scorer spans on **Scoring**. Outputs set inside a scorer
+stay private to that score.
+
+`manualScores` declares score columns that reviewers fill in the web UI after
+a run. Pending values keep the eval in an `unscored` state instead of failing.
+
+See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
+(format, threshold, column overrides).
+
+## Outputs, columns, trace display
+
+- `setEvalOutput(key, value)` writes reviewable data for the case. Values are
+  plain data (strings, numbers, booleans, JSON-safe objects) plus native
+  `Blob`/`File` or `FileRef` variants for media columns.
+- `columns` overrides the display for output and score keys (label, format,
+  alignment, visibility). The set of supported formats is declared by the
+  `ColumnFormat` union and `EvalColumnOverride` in the types.
+- `traceDisplay` promotes selected span attributes into the trace tree and
+  detail pane; it supports aggregation across subtrees (`scope`, `mode`) and
+  user-defined `transform(...)` for derived views (e.g. currency conversion).
+  See the `TraceDisplayInputConfig` type.
+
+Stats rows and history charts on the eval card are opt-in via `stats` /
+`charts` on the eval definition. Their shapes live in the types; no need to
+memorize the option set.
+
+## Cached spans
+
+Wrap a costly pure operation in `cache: { key }` so later runs replay its
+recorded effects without re-executing:
+
+```ts
+await evalTracer.span(
+  {
+    kind: 'llm',
+    name: 'plan-refund',
+    cache: { key: { prompt: input.message, model: 'gpt-4o-mini' } },
+  },
+  async () => {
+    const result = await llm.complete(input.message);
+    evalSpan.setAttributes({ model: 'gpt-4o-mini', output: result });
+    incrementEvalOutput('costUsd', computeCost(result));
+    return result;
+  },
+);
+```
+
+Mental model:
+
+- Only SDK-mediated effects replay on a hit: sub-spans, checkpoints,
+  `setEvalOutput`, `incrementEvalOutput`, span attributes. External side
+  effects (HTTP, DB writes, file I/O) **do not** replay — cache only pure
+  functions of the key.
+- The cache key folds in a source-file fingerprint, so editing the eval busts
+  the cache automatically.
+- Return values are JSON round-tripped; carry non-JSON data through
+  `setEvalOutput` instead.
+- Cache mode per run is controlled by CLI flags (see `agent-evals run --help`)
+  and by a chevron menu on each eval card in the UI.
+
+## Artifacts
+
+Run output lives under `.agent-evals/runs/<run-id>/` and cache entries under
+`.agent-evals/cache/<namespace>/`. Files in a run directory include run
+metadata, a run summary, per-case results, and per-case trace JSON. Inspect
+these when debugging persisted output, costs, columns, traces, or failures —
+the filenames are stable even when their internal schema evolves, so pick the
+one whose name matches what you are debugging and read it directly.
+
+## Module mocking
+
+For true module replacement inside an eval, register `mock.module(...)` from
+`node:test` before dynamically importing the module graph. The CLI enables
+Node's `--experimental-test-module-mocks` flag automatically. Use dynamic
+`import(...)` inside `execute` — static imports happen too early.
+
+```ts
+import { mock } from 'node:test';
+import { defineEval, setEvalOutput } from '@ls-stack/agent-eval';
+
+defineEval({
+  id: 'module-mock-demo',
+  cases: [{ id: 'mocked-dependency', input: { customerId: 'vip-100' } }],
+  execute: async ({ input }) => {
+    mock.module('../src/customerLookup.ts', {
+      namedExports: { lookupCustomer: async () => ({ segment: 'vip' }) },
+    });
+    const { runWorkflow } = await import('../src/workflow.ts');
+    const result = await runWorkflow(input);
+    setEvalOutput('segment', result.segment);
+  },
+});
+```
+
+## Workflow checklist
+
+When adding or changing evals:
+
+1. Put the tracing + ambient SDK calls in the product code that runs in both
+   production and evals. Keep eval files thin.
+2. Use realistic cases drawn from real product flows; avoid placeholder inputs.
+3. `evalAssert` for hard invariants, `scores` for graded signals,
+   `passThreshold` only on scores that should gate pass/fail.
+4. Surface reviewable values through `setEvalOutput` and shape them with
+   `columns` formats from the `ColumnFormat` type.
+5. Promote high-signal span attributes with `traceDisplay` so the UI
+   highlights them in the trace tree and detail pane.
+6. Cache costly pure spans with `cache: { key }`; never cache spans whose
+   external side effects you depend on.
+7. Sanity-check after changes: `agent-evals list`, then
+   `agent-evals run --eval <id>`. Open the UI only when you need to inspect
+   traces, trends, or fill manual scores.

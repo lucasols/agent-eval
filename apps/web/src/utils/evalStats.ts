@@ -6,11 +6,7 @@ import type {
   EvalSummary,
   ScopedCaseSummary,
 } from '@agent-evals/shared';
-import {
-  formatCost,
-  formatDuration,
-  formatNumericCellValue,
-} from './formatters.ts';
+import { formatDuration, formatNumericCellValue } from './formatters.ts';
 
 const EM_DASH = '\u2014';
 
@@ -51,13 +47,6 @@ export function computeStatDisplay(
     return {
       label: 'Duration',
       value: formatDuration(ctx.latestSummary?.totalDurationMs ?? null),
-      accent: false,
-    };
-  }
-  if (stat.kind === 'cost') {
-    return {
-      label: 'Cost',
-      value: formatCost(ctx.latestSummary?.cost.totalUsd ?? null),
       accent: false,
     };
   }

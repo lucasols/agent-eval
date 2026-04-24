@@ -26,7 +26,6 @@ describe('eval run rows ui', () => {
         evalId: 'alpha',
         status: 'pass',
         latencyMs: 120,
-        costUsd: 0.11,
         columns: {},
         trial: 0,
       },
@@ -35,7 +34,6 @@ describe('eval run rows ui', () => {
         evalId: 'beta',
         status: 'fail',
         latencyMs: 260,
-        costUsd: 0.23,
         columns: {},
         trial: 0,
       },
@@ -50,7 +48,6 @@ describe('eval run rows ui', () => {
       passedCases: 1,
       failedCases: 0,
       totalDurationMs: 120,
-      cost: { totalUsd: 0.11 },
     });
     expect(betaRow?.summary).toMatchObject({
       status: 'fail',
@@ -58,7 +55,6 @@ describe('eval run rows ui', () => {
       passedCases: 0,
       failedCases: 1,
       totalDurationMs: 260,
-      cost: { totalUsd: 0.23 },
     });
   });
 
@@ -69,7 +65,6 @@ describe('eval run rows ui', () => {
         evalId: 'high-value-refund',
         status: 'pass',
         latencyMs: 564,
-        costUsd: 0.0014,
         columns: {},
         trial: 0,
       },
@@ -78,7 +73,6 @@ describe('eval run rows ui', () => {
         evalId: 'receipt-fraud-review',
         status: 'fail',
         latencyMs: 1200,
-        costUsd: 0.004,
         columns: {},
         trial: 0,
       },

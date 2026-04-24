@@ -9,13 +9,13 @@ import {
 } from './cliTestUtils.ts';
 
 describe('CLI eval features', () => {
-  test('runs a module-mocked eval when node:test module mocks are enabled', async () => {
+  test('runs a module-mocked eval without requiring a manual node flag', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
-      const result = await runExampleCli(
-        workspacePath,
-        ['run', '--eval', 'module-mock-demo'],
-        { env: undefined, nodeArgs: ['--experimental-test-module-mocks'] },
-      );
+      const result = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'module-mock-demo',
+      ]);
 
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toBe('');
@@ -45,9 +45,6 @@ describe('CLI eval features', () => {
           ],
           "summary": {
             "cancelledCases": 0,
-            "cost": {
-              "totalUsd": null,
-            },
             "errorCases": 0,
             "errorMessage": null,
             "failedCases": 0,
@@ -231,15 +228,6 @@ describe('CLI eval features', () => {
       expect(getDurationMs(simpleTextAgent)).toBeGreaterThanOrEqual(400);
       expect(getDurationMs(withImagePlan)).toBeGreaterThanOrEqual(180);
 
-      let totalCaseCost = 0;
-      for (const caseRow of artifacts.cases) {
-        const costUsd = caseRow.columns.costUsd;
-        if (typeof costUsd === 'number') {
-          totalCaseCost += costUsd;
-        }
-      }
-      expect(artifacts.summary.cost.totalUsd).toBe(totalCaseCost);
-
       expect(
         normalizeSnapshotValue(workspacePath, {
           summary: artifacts.summary,
@@ -253,9 +241,6 @@ describe('CLI eval features', () => {
         {
           "summary": {
             "cancelledCases": 0,
-            "cost": {
-              "totalUsd": 0.0026249999999999997,
-            },
             "errorCases": 0,
             "errorMessage": null,
             "failedCases": 0,
@@ -722,9 +707,6 @@ describe('CLI eval features', () => {
           ],
           "summary": {
             "cancelledCases": 0,
-            "cost": {
-              "totalUsd": null,
-            },
             "errorCases": 0,
             "errorMessage": null,
             "failedCases": 3,

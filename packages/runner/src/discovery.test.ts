@@ -174,7 +174,7 @@ defineEval({
     { kind: 'cases' },
     { kind: 'passRate', accent: true },
     { kind: 'column', key: 'accuracy', aggregate: 'avg', format: 'percent' },
-    { kind: 'cost' },
+    { kind: 'duration' },
   ],
   scores: {
     accuracy: { compute: () => 1, label: 'Accuracy' },
@@ -200,7 +200,7 @@ defineEval({
           aggregate: 'avg',
           format: 'percent',
         },
-        { kind: 'cost' },
+        { kind: 'duration' },
       ]);
     } finally {
       process.chdir(previousCwd);

@@ -1,4 +1,3 @@
-import type { EvalCostSummary } from './schemas/cost.ts';
 import type { CaseRow } from './schemas/eval.ts';
 import type { RunManifest } from './schemas/run.ts';
 
@@ -30,7 +29,6 @@ export type ScopedCaseSummary = {
   pendingCases: number;
   runningCases: number;
   totalDurationMs: number | null;
-  cost: EvalCostSummary;
 };
 
 type RunLifecycleStatus = RunManifest['status'] | null | undefined;
@@ -120,8 +118,6 @@ export function deriveScopedSummaryFromCases(params: {
 
   let totalDurationMs = 0;
   let hasDuration = false;
-  let totalCostUsd = 0;
-  let hasCost = false;
 
   for (const caseRow of caseRows) {
     if (caseRow.status === 'pass') passedCases += 1;
@@ -134,10 +130,6 @@ export function deriveScopedSummaryFromCases(params: {
     if (caseRow.latencyMs !== null) {
       totalDurationMs += caseRow.latencyMs;
       hasDuration = true;
-    }
-    if (caseRow.costUsd !== null) {
-      totalCostUsd += caseRow.costUsd;
-      hasCost = true;
     }
   }
 
@@ -154,6 +146,5 @@ export function deriveScopedSummaryFromCases(params: {
     pendingCases,
     runningCases,
     totalDurationMs: hasDuration ? totalDurationMs : null,
-    cost: { totalUsd: hasCost && totalCostUsd > 0 ? totalCostUsd : null },
   };
 }

@@ -24,7 +24,6 @@ import { colors } from '#src/style/colors';
 import { kicker, monoFont } from '#src/style/helpers';
 import { metricId, type ChartPoint } from '../utils/chartData.ts';
 import {
-  formatCost,
   formatDuration,
   formatNumericCellValue,
   formatPercent,
@@ -101,7 +100,6 @@ const DEFAULT_COLOR_ROTATION: EvalChartColor[] = [
   'accentDim',
   'warning',
   'success',
-  'cost',
   'error',
 ];
 
@@ -119,9 +117,8 @@ function pickColor(
   return fallback ?? 'accent';
 }
 
-function builtinLabel(metric: 'passRate' | 'cost' | 'durationMs'): string {
+function builtinLabel(metric: 'passRate' | 'durationMs'): string {
   if (metric === 'passRate') return 'pass rate';
-  if (metric === 'cost') return 'cost';
   return 'duration';
 }
 
@@ -155,12 +152,11 @@ function aggregateSuffix(aggregate: EvalChartAggregate): string {
 }
 
 function formatBuiltin(
-  metric: 'passRate' | 'cost' | 'durationMs',
+  metric: 'passRate' | 'durationMs',
   value: number | null,
 ): string {
   if (value === null) return '—';
   if (metric === 'passRate') return formatPercent(value);
-  if (metric === 'cost') return formatCost(value);
   return formatDuration(value);
 }
 

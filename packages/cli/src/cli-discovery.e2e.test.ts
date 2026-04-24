@@ -159,7 +159,6 @@ describe('CLI discovery', () => {
             errorCases: 0,
             cancelledCases: 0,
             totalDurationMs: 2000,
-            cost: { totalUsd: 0.01 },
             errorMessage: null,
           },
           null,

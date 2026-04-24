@@ -9,11 +9,7 @@ export type EvalChartType = z.infer<typeof evalChartTypeSchema>;
  * Run-level metric sourced from the aggregated `RunSummary` for a run, rather
  * than from a per-case column.
  */
-export const evalChartBuiltinMetricSchema = z.enum([
-  'passRate',
-  'cost',
-  'durationMs',
-]);
+export const evalChartBuiltinMetricSchema = z.enum(['passRate', 'durationMs']);
 /**
  * Run-level metric sourced from the aggregated `RunSummary` for a run, rather
  * than from a per-case column.
@@ -44,7 +40,6 @@ export const evalChartColorSchema = z.enum([
   'success',
   'error',
   'warning',
-  'cost',
   'textMuted',
 ]);
 /** Semantic color token resolved to a theme color by the web UI. */

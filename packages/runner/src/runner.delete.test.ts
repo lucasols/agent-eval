@@ -71,7 +71,6 @@ defineEval({ id: 'delete-eval', title: 'Delete Eval' });
           errorCases: 0,
           cancelledCases: 0,
           totalDurationMs: 1000,
-          cost: { totalUsd: null },
           errorMessage: null,
         },
         null,

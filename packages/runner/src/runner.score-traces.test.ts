@@ -114,7 +114,6 @@ defineEval({
     expect(firstCase).toMatchObject({
       caseId: 'judge-me',
       status: 'pass',
-      costUsd: 0.02,
       columns: {
         response: 'Approved refund after receipt review.',
         executionScorerSpans: 0,
@@ -127,7 +126,7 @@ defineEval({
       false,
     );
     expect(firstDetail?.columns).not.toHaveProperty('privateJudgeNote');
-    expect(firstDetail?.cost.totalUsd).toBe(0.02);
+    expect(firstDetail).not.toHaveProperty('cost');
     const firstScoreTrace = requireScoreTrace(firstDetail, 'quality');
     expect(firstScoreTrace.trace).toHaveLength(1);
     expect(firstScoreTrace.trace[0]).toMatchObject({
@@ -156,7 +155,7 @@ defineEval({
       secondRun.manifest.id,
       'judge-me',
     );
-    expect(secondDetail?.cost.totalUsd).toBe(0.02);
+    expect(secondDetail).not.toHaveProperty('cost');
     const secondScoreTrace = requireScoreTrace(secondDetail, 'quality');
     expect(secondScoreTrace.trace[0]).toMatchObject({
       kind: 'scorer',

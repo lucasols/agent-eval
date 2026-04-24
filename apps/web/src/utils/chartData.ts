@@ -89,15 +89,13 @@ function computeColumnValue(params: {
 
 function computeBuiltinValue(params: {
   row: ScopedRunRow;
-  metric: 'passRate' | 'cost' | 'durationMs';
+  metric: 'passRate' | 'durationMs';
 }): number | null {
   const { row, metric } = params;
   switch (metric) {
     case 'passRate':
       if (row.summary.totalCases === 0) return null;
       return row.summary.passedCases / row.summary.totalCases;
-    case 'cost':
-      return row.summary.cost.totalUsd;
     case 'durationMs':
       return row.summary.totalDurationMs;
   }

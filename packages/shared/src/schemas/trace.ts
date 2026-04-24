@@ -104,7 +104,7 @@ export const traceAttributeDisplayInputSchema = z.object({
  * Authored trace display rule accepted in eval definitions and config files.
  *
  * `key` allows the same source `path` to be displayed multiple ways, such as
- * USD and BRL views of a single `costUsd` attribute. `numberFormat` customizes
+ * raw and compact views of a single token count. `numberFormat` customizes
  * `format: 'number'` values. `transform` runs in the
  * runner before the UI receives the resolved trace payload.
  */

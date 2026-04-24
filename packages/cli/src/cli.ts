@@ -312,9 +312,6 @@ async function commandRun(args: CliArgs): Promise<void> {
     if (summary.totalDurationMs !== null) {
       console.info(`Duration: ${(summary.totalDurationMs / 1000).toFixed(1)}s`);
     }
-    if (summary.cost.totalUsd !== null) {
-      console.info(`Cost: $${summary.cost.totalUsd.toFixed(4)}`);
-    }
   }
 
   const hasFailures = summary.failedCases > 0 || summary.errorCases > 0;

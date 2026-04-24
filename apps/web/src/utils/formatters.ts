@@ -1,13 +1,5 @@
 import type { ColumnDef, NumberDisplayOptions } from '@agent-evals/shared';
 
-export function formatCost(value: number | null | undefined): string {
-  if (value === null || value === undefined) return '\u2014';
-  if (value === 0) return '$0';
-  if (value < 0.01) return `$${value.toFixed(4)}`;
-  if (value < 1) return `$${value.toFixed(3)}`;
-  return `$${value.toFixed(2)}`;
-}
-
 export function formatNumber(
   value: number | null | undefined,
   options: NumberDisplayOptions | undefined = undefined,

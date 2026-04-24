@@ -81,16 +81,30 @@ pnpm add -D @ls-stack/agent-eval
 
 A complete working example lives at [`examples/basic-agent`](./examples/basic-agent).
 
+## Agent Skill template
+
+If your coding agent supports [Agent Skills](https://agentskills.io/home), copy
+[`templates/agent-eval/SKILL.md`](./templates/agent-eval/SKILL.md) as
+`agent-eval/SKILL.md` in your project's skills directory so the agent knows how
+to add and maintain evals with `@ls-stack/agent-eval`.
+
+For first-time installation, use
+[`templates/agent-eval/install-prompt.md`](./templates/agent-eval/install-prompt.md)
+instead — it is a one-off prompt template (not a skill) that walks an agent
+through installing the package, creating `agent-evals.config.ts`, and wiring
+convenience scripts.
+
 ## Module mocking
 
 For true module replacement, use `mock.module(...)` from `node:test` and
 register the mock before dynamically importing the module graph you want to
 exercise.
 
-Node requires the `--experimental-test-module-mocks` flag for this API:
+Node requires the `--experimental-test-module-mocks` flag for this API, and the
+Agent Evals CLI enables it automatically:
 
 ```sh
-node --experimental-test-module-mocks ./node_modules/@ls-stack/agent-eval/src/bin.ts run --eval module-mock-demo
+agent-evals run --eval module-mock-demo
 ```
 
 Example:
@@ -215,7 +229,9 @@ execute: async ({ input }) => {
 };
 ```
 
-Use `traceDisplay` to tell the UI which attributes to promote in the trace tree and detail pane:
+By default, the UI automatically promotes only the `input` and `output` span
+attributes. Use `traceDisplay` to promote any other span attributes in the trace
+tree and detail pane:
 
 ```ts
 traceDisplay: {
@@ -224,34 +240,28 @@ traceDisplay: {
     { path: 'output', label: 'Output', format: 'json', placements: ['section'] },
     { path: 'model', label: 'Model', placements: ['detail'] },
     {
-      path: 'costUsd',
-      label: 'Cost',
+      path: 'usage.inputTokens',
+      label: 'Input tokens',
       format: 'number',
-      numberFormat: { prefix: '$', decimalPlaces: 4 },
       placements: ['tree', 'detail'],
       scope: 'subtree',
       mode: 'sum',
     },
     {
-      key: 'costBrl',
-      path: 'costUsd',
-      label: 'Cost (BRL)',
+      key: 'compactInputTokens',
+      path: 'usage.inputTokens',
+      label: 'Compact input tokens',
+      format: 'number',
+      numberFormat: { notation: 'compact' },
       placements: ['detail'],
       scope: 'subtree',
       mode: 'sum',
-      transform: ({ value }) =>
-        typeof value === 'number'
-          ? new Intl.NumberFormat('pt-BR', {
-              style: 'currency',
-              currency: 'BRL',
-            }).format(value * 5.7)
-          : value,
     },
   ],
 }
 ```
 
-Use `key` when you want to display the same source attribute more than once, such as USD and BRL views of the same `costUsd` value. `transform` runs in the runner and the UI receives the transformed result as plain data.
+Use `key` when you want to display the same source attribute more than once, such as raw and compact views of the same token count. `transform` runs in the runner and the UI receives the transformed result as plain data.
 
 `scope` controls whether a value is read from the current span only (`'self'`) or from the whole span subtree (`'subtree'`). `mode` controls how multiple matching values are resolved: `'all'`, `'last'`, or `'sum'`.
 
@@ -342,8 +352,7 @@ scores: {
 
 The case detail UI shows execution spans on the **Trace** tab and score spans
 on a separate **Scoring** tab. Outputs recorded inside a scorer scope stay
-private to that score, except `costUsd`, which contributes to the case and run
-cost totals.
+private to that score.
 
 Manual scores are separate from computed `scores`. They are created as pending
 score columns during a run, then filled directly in the web UI. Values are
@@ -398,7 +407,13 @@ stats: [
     aggregate: 'avg',
     format: 'percent',
   },
-  { kind: 'cost' },
+  {
+    kind: 'column',
+    key: 'costUsd',
+    label: 'Cost',
+    aggregate: 'sum',
+    format: 'number',
+  },
   { kind: 'duration' },
 ];
 ```
@@ -408,7 +423,7 @@ Supported kinds:
 - `cases` — declared case count.
 - `passRate` — latest run's `passed/total`. Set `accent: true` to tint the value.
 - `duration` — latest run's total duration.
-- `cost` — latest run's total cost in USD.
+- `cost` — latest run's summary cost in USD, when a run summary contains one.
 - `column` — aggregate a score or numeric output column across the latest
   run's cases. `key` matches a score key or output column key. `aggregate` is
   `avg | min | max | sum | last`. `label` and `format` default to the matching
@@ -443,12 +458,14 @@ charts: [
       },
     ],
     yDomain: { left: { min: 0, max: 1 }, right: { min: 0, max: 1 } },
-    tooltipExtras: [{ source: 'builtin', metric: 'cost' }],
+    tooltipExtras: [{ source: 'column', key: 'costUsd', aggregate: 'sum' }],
   },
   {
     heading: 'Cost per run',
     type: 'area',
-    metrics: [{ source: 'builtin', metric: 'cost', color: 'cost' }],
+    metrics: [
+      { source: 'column', key: 'costUsd', aggregate: 'sum', color: 'warning' },
+    ],
   },
 ];
 ```
@@ -473,8 +490,8 @@ Each chart declares:
 Wrap a costly span (LLM call, remote tool, etc.) with `cache: { key }` to skip
 execution on subsequent runs. The cache records every observable effect inside
 the span — sub-spans, checkpoints, `setEvalOutput` / `incrementEvalOutput` calls,
-final attributes — and replays them verbatim on hits, so traces, outputs, and
-cost totals look identical to a fresh run.
+final attributes — and replays them verbatim on hits, so traces and outputs look
+identical to a fresh run.
 
 ```ts
 await evalTracer.span(

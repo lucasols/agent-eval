@@ -142,7 +142,6 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
     }
   >();
   const scoringTraces: Record<string, ScoreTrace> = {};
-  let scoringCostUsd = 0;
 
   if (!nonAssertError && evalDef.scores) {
     for (const [key, def] of Object.entries(evalDef.scores)) {
@@ -169,20 +168,13 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
         },
       );
 
-      const scoreCostUsd = getCostUsd(scoreRun.scope.outputs);
-      const scoreCostUsdValue = scoreCostUsd ?? 0;
-      scoringCostUsd += scoreCostUsdValue;
       const { trace, traceDisplay } = resolveTracePresentation(
         scoreRun.scope.spans,
         globalTraceDisplay,
         evalDef.traceDisplay,
       );
-      if (trace.length > 0 || scoreCostUsdValue > 0) {
-        scoringTraces[key] = {
-          trace,
-          traceDisplay,
-          cost: { totalUsd: scoreCostUsd },
-        };
+      if (trace.length > 0) {
+        scoringTraces[key] = { trace, traceDisplay };
       }
 
       const rawValue = scoreRun.result;
@@ -255,12 +247,6 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
     columns[key] = null;
   }
 
-  const executionCostUsd = getCostUsd(scope.outputs);
-  const costUsd =
-    executionCostUsd === null && scoringCostUsd === 0
-      ? null
-      : (executionCostUsd ?? 0) + scoringCostUsd;
-
   const errorInfo = nonAssertError
     ? {
         name: nonAssertError.name,
@@ -276,7 +262,6 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
     input: evalCase.input,
     trace: displayTrace,
     traceDisplay,
-    cost: { totalUsd: costUsd },
     columns,
     assertionFailures: scope.assertionFailures,
     error: errorInfo,
@@ -291,7 +276,6 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
   const caseRowUpdate: Partial<CaseRow> = {
     status,
     latencyMs: elapsedMs,
-    costUsd,
     columns,
   };
 
@@ -304,11 +288,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isBlob(value: unknown): value is Blob {
   return value instanceof Blob;
-}
-
-function getCostUsd(outputs: Record<string, unknown>): number | null {
-  const raw = outputs['costUsd'];
-  return typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
 }
 
 function toAssertionFailure(

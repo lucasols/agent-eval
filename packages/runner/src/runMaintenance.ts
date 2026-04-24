@@ -127,7 +127,6 @@ export async function recomputeEvalStatusesInRuns(params: {
     run.summary.failedCases = derivedSummary.failedCases;
     run.summary.errorCases = derivedSummary.errorCases;
     run.summary.cancelledCases = derivedSummary.cancelledCases;
-    run.summary.cost = derivedSummary.cost;
 
     await persistRunState(run);
     updatedRuns += 1;

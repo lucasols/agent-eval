@@ -48,7 +48,6 @@ defineEval<{ prompt: string }>({
           aggregate: 'passThresholdRate',
           color: 'success',
         },
-        { source: 'builtin', metric: 'cost', color: 'cost', axis: 'right' },
       ],
       yDomain: { left: { min: 0, max: 1 } },
     },

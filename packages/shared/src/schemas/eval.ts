@@ -1,6 +1,5 @@
 import { z } from 'zod/v4';
 import { evalChartsConfigSchema } from './chart.ts';
-import { evalCostSummarySchema } from './cost.ts';
 import {
   cellValueSchema,
   columnDefSchema,
@@ -32,7 +31,6 @@ export const evalStatItemSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('cases') }),
   z.object({ kind: z.literal('passRate'), accent: z.boolean().optional() }),
   z.object({ kind: z.literal('duration') }),
-  z.object({ kind: z.literal('cost') }),
   z.object({
     kind: z.literal('column'),
     key: z.string(),
@@ -93,7 +91,7 @@ export const caseRowSchema = z.object({
   evalId: z.string(),
   status: z.enum(['pending', 'running', 'pass', 'fail', 'error', 'cancelled']),
   latencyMs: z.number().nullable(),
-  costUsd: z.number().nullable(),
+  costUsd: z.number().nullable().optional(),
   columns: z.record(z.string(), cellValueSchema),
   /** Winning trial index for the persisted case result. */
   trial: z.number(),
@@ -119,7 +117,6 @@ const legacyAssertionFailureSchema = z
 export const scoreTraceSchema = z.object({
   trace: z.array(traceSpanSchema),
   traceDisplay: traceDisplayConfigSchema,
-  cost: evalCostSummarySchema,
 });
 /** Trace payload captured while computing one score for a case. */
 export type ScoreTrace = z.infer<typeof scoreTraceSchema>;
@@ -138,7 +135,6 @@ export const caseDetailSchema = z.object({
    * work.
    */
   scoringTraces: z.record(z.string(), scoreTraceSchema).optional(),
-  cost: evalCostSummarySchema,
   columns: z.record(z.string(), cellValueSchema),
   assertionFailures: z.array(
     z.union([assertionFailureSchema, legacyAssertionFailureSchema]),

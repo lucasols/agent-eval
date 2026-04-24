@@ -107,10 +107,5 @@ defineEval<{ prompt: string }>({
       ],
       yDomain: { left: { min: 0, max: 1 }, right: { min: 0, max: 1 } },
     },
-    {
-      heading: 'Cost per run',
-      type: 'area',
-      metrics: [{ source: 'builtin', metric: 'cost', color: 'cost' }],
-    },
   ],
 });

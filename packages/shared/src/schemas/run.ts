@@ -1,7 +1,6 @@
 import { z } from 'zod/v4';
 import { cacheModeSchema } from './cache.ts';
 import { trialSelectionModeSchema } from './config.ts';
-import { evalCostSummarySchema } from './cost.ts';
 
 /** Schema for persisted metadata about a single run invocation. */
 export const runManifestSchema = z.object({
@@ -56,8 +55,7 @@ export const runSummarySchema = z.object({
   errorCases: z.number(),
   cancelledCases: z.number(),
   totalDurationMs: z.number().nullable(),
-  cost: evalCostSummarySchema,
   errorMessage: z.string().nullable().default(null),
 });
-/** Roll-up statistics and cost totals for one run. */
+/** Roll-up statistics for one run. */
 export type RunSummary = z.infer<typeof runSummarySchema>;
