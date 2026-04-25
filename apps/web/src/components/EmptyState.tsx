@@ -30,7 +30,7 @@ const IconSlot = styled.div`
 `;
 
 const Eyebrow = styled.div`
-  ${kicker}
+  ${kicker};
   color: ${colors.textMuted.var};
 `;
 

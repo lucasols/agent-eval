@@ -9,7 +9,7 @@ type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const Root = styled.button<{ md: boolean }>`
-  ${centerContent}
+  ${centerContent};
   ${transition({ property: 'background, color' })}
   width: 28px;
   height: 28px;

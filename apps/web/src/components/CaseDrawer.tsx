@@ -73,7 +73,7 @@ const HeaderActions = styled.div`
 `;
 
 const HeaderKicker = styled.span`
-  ${kicker}
+  ${kicker};
   color: ${colors.textMuted.var};
 `;
 
@@ -186,7 +186,7 @@ const RawSections = styled.div`
 `;
 
 const RawLabel = styled.div`
-  ${kicker}
+  ${kicker};
   color: ${colors.textMuted.var};
   margin-bottom: 8px;
 `;

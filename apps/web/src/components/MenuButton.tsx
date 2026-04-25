@@ -20,7 +20,7 @@ const Root = styled.div`
 `;
 
 const Trigger = styled.button`
-  ${centerContent}
+  ${centerContent};
   ${transition({ property: 'background, color, border-color' })}
   appearance: none;
   padding: 0;

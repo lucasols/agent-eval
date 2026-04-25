@@ -71,7 +71,7 @@ const HeaderActions = styled.div`
 `;
 
 const HeaderKicker = styled.span`
-  ${kicker}
+  ${kicker};
   color: ${colors.textMuted.var};
 `;
 
@@ -110,7 +110,7 @@ const Section = styled.section`
 `;
 
 const SectionLabel = styled.div`
-  ${kicker}
+  ${kicker};
   color: ${colors.textMuted.var};
 `;
 
@@ -129,7 +129,7 @@ const Stat = styled.div`
 `;
 
 const StatLabel = styled.span`
-  ${kicker}
+  ${kicker};
   color: ${colors.textMuted.var};
 `;
 

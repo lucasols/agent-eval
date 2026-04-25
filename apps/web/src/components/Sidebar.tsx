@@ -192,7 +192,7 @@ const StatusFilterValue = styled.span`
 `;
 
 const SectionLabel = styled.button<{ active: boolean }>`
-  ${kicker}
+  ${kicker};
   ${transition({ property: 'color' })}
   appearance: none;
   background: transparent;
