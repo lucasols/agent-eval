@@ -26,7 +26,7 @@
     "t-result": "^0.6.1",
     "t-state": "^9.8.0",
     "t-state-form": "^2.1.0",
-    "vindur": "^0.10.3",
+    "vindur": "^0.10.6",
     "zod": "^4.3.6"
   },
   "devDependencies": {
