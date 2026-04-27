@@ -174,3 +174,143 @@ defineEval({
     process.chdir(previousCwd);
   }
 });
+
+test('captures recoverable errors on the active span and replays them from cache', async () => {
+  const workspacePath = await mkdtemp(
+    join(tmpdir(), 'agent-evals-runner-captured-span-errors-'),
+  );
+  createdWorkspaces.push(workspacePath);
+
+  await mkdir(join(workspacePath, 'evals'), { recursive: true });
+  await writeFile(
+    join(workspacePath, 'agent-evals.config.ts'),
+    `export default {
+  include: ['evals/**/*.eval.ts'],
+};
+`,
+  );
+  await writeFile(
+    join(workspacePath, 'evals', 'captured-span-errors.eval.ts'),
+    `import {
+  captureEvalSpanError,
+  defineEval,
+  evalSpan,
+  evalTracer,
+  setEvalOutput,
+} from '@agent-evals/sdk';
+
+defineEval({
+  id: 'captured-span-errors-eval',
+  title: 'Captured Span Errors Eval',
+  cases: [{ id: 'recoverable-case', input: { request: 'refund' } }],
+  execute: async ({ input }) => {
+    await evalTracer.span(
+      {
+        kind: 'tool',
+        name: 'optional-signal-loader',
+        cache: { key: input },
+      },
+      async () => {
+        captureEvalSpanError(
+          new Error('Primary signal source timed out'),
+          new TypeError('Secondary signal payload was malformed'),
+        );
+        captureEvalSpanError([new Error('Tertiary signal was unavailable')]);
+        evalSpan.setAttribute('fallback', 'rules-engine');
+        setEvalOutput('result', 'used fallback');
+      },
+    );
+  },
+});
+`,
+  );
+
+  const previousCwd = process.cwd();
+  process.chdir(workspacePath);
+
+  try {
+    const runner = createRunner({ watchForChanges: false });
+    await runner.init();
+
+    const firstRun = await runner.startRun({
+      target: { mode: 'evalIds', evalIds: ['captured-span-errors-eval'] },
+      trials: 1,
+      cache: { mode: 'use' },
+    });
+
+    await expect
+      .poll(() => runner.getRun(firstRun.manifest.id)?.manifest.status, {
+        timeout: 10_000,
+      })
+      .toBe('completed');
+
+    const firstDetail = runner.getCaseDetail(
+      firstRun.manifest.id,
+      'recoverable-case',
+    );
+    expect(firstDetail?.status).toBe('pass');
+    const firstSpan = firstDetail?.trace.find(
+      (span) => span.name === 'optional-signal-loader',
+    );
+    expect(firstSpan).toMatchObject({
+      status: 'error',
+      attributes: { fallback: 'rules-engine', 'cache.status': 'miss' },
+      error: { name: 'Error', message: 'Tertiary signal was unavailable' },
+      errors: [
+        { name: 'Error', message: 'Primary signal source timed out' },
+        {
+          name: 'TypeError',
+          message: 'Secondary signal payload was malformed',
+        },
+        { name: 'Error', message: 'Tertiary signal was unavailable' },
+      ],
+    });
+    const firstCapturedAt = firstSpan?.errors?.map((error) => error.capturedAt);
+    expect(firstCapturedAt).toHaveLength(3);
+    expect(
+      firstCapturedAt?.every(
+        (capturedAt) =>
+          typeof capturedAt === 'string' &&
+          !Number.isNaN(Date.parse(capturedAt)),
+      ),
+    ).toBe(true);
+
+    const secondRun = await runner.startRun({
+      target: { mode: 'evalIds', evalIds: ['captured-span-errors-eval'] },
+      trials: 1,
+      cache: { mode: 'use' },
+    });
+
+    await expect
+      .poll(() => runner.getRun(secondRun.manifest.id)?.manifest.status, {
+        timeout: 10_000,
+      })
+      .toBe('completed');
+
+    const secondDetail = runner.getCaseDetail(
+      secondRun.manifest.id,
+      'recoverable-case',
+    );
+    const secondSpan = secondDetail?.trace.find(
+      (span) => span.name === 'optional-signal-loader',
+    );
+    expect(secondSpan).toMatchObject({
+      status: 'error',
+      attributes: { fallback: 'rules-engine', 'cache.status': 'hit' },
+      error: { name: 'Error', message: 'Tertiary signal was unavailable' },
+      errors: [
+        { name: 'Error', message: 'Primary signal source timed out' },
+        {
+          name: 'TypeError',
+          message: 'Secondary signal payload was malformed',
+        },
+        { name: 'Error', message: 'Tertiary signal was unavailable' },
+      ],
+    });
+    expect(secondSpan?.errors?.map((error) => error.capturedAt)).toEqual(
+      firstCapturedAt,
+    );
+  } finally {
+    process.chdir(previousCwd);
+  }
+});

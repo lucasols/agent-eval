@@ -1,5 +1,9 @@
 import { z } from 'zod/v4';
-import { traceSpanKindSchema } from './trace.ts';
+import {
+  traceSpanErrorSchema,
+  traceSpanKindSchema,
+  type EvalTraceSpanError,
+} from './trace.ts';
 
 /**
  * Mode that controls how the cache is consulted for a given run.
@@ -41,7 +45,8 @@ export type SerializedCacheSpan = {
   name: string;
   attributes?: Record<string, unknown>;
   status: 'running' | 'ok' | 'error' | 'cancelled';
-  error?: { name?: string; message: string; stack?: string };
+  error?: EvalTraceSpanError;
+  errors?: EvalTraceSpanError[];
   children: SerializedCacheSpan[];
 };
 
@@ -50,13 +55,8 @@ const serializedCacheSpanBase = z.object({
   name: z.string(),
   attributes: z.record(z.string(), z.unknown()).optional(),
   status: z.enum(['running', 'ok', 'error', 'cancelled']),
-  error: z
-    .object({
-      name: z.string().optional(),
-      message: z.string(),
-      stack: z.string().optional(),
-    })
-    .optional(),
+  error: traceSpanErrorSchema.optional(),
+  errors: z.array(traceSpanErrorSchema).optional(),
 });
 
 /** Zod schema for `SerializedCacheSpan`, defined lazily for recursion. */
@@ -96,6 +96,9 @@ export type CacheRecordingOp = z.infer<typeof cacheRecordingOpSchema>;
 export const cacheRecordingSchema = z.object({
   returnValue: z.unknown(),
   finalAttributes: z.record(z.string(), z.unknown()),
+  finalStatus: z.enum(['running', 'ok', 'error', 'cancelled']).optional(),
+  finalError: traceSpanErrorSchema.optional(),
+  finalErrors: z.array(traceSpanErrorSchema).optional(),
   ops: z.array(cacheRecordingOpSchema),
 });
 /** Captured observable effects + return value of a cached span body. */

@@ -6,7 +6,6 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "noEmit": true,
-    "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "types": ["node"],
     "paths": { "#src/*": ["./src/*"] }

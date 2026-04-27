@@ -16,6 +16,14 @@ export default createBaseConfig({
             importAliases: { '#src': path.resolve(import.meta.dirname, 'src') },
           },
         ],
+        '@ls-stack/no-relative-imports': [
+          ERROR,
+          {
+            aliases: [{ find: '#src/', replacement: '/src/' }],
+            allowNotFoundAliases: false,
+            rootDir: import.meta.dirname,
+          },
+        ],
       },
     },
   ],

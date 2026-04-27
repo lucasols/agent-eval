@@ -1,91 +1,42 @@
-import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import {
   normalizeTextSnapshot,
+  repoRoot,
   runExampleCli,
   runWorkspaceCommand,
-  withIsolatedExampleWorkspace,
 } from './cliTestUtils.ts';
 
 describe('CLI discovery', () => {
-  test('lists evals from the example workspace', async () => {
-    await withIsolatedExampleWorkspace(async (workspacePath) => {
+  test('lists evals from a workspace without depending on the example catalog', async () => {
+    await withIsolatedDiscoveryWorkspace(async (workspacePath) => {
       const result = await runExampleCli(workspacePath, ['list']);
 
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toBe('');
-      expect(result.stdout).toContain('High Value Refund');
-      expect(result.stdout).toContain('high-value-refund');
-      expect(result.stdout).toContain('Receipt Audit');
-      expect(result.stdout).toContain('Receipt Fraud Review');
-      expect(result.stdout).toContain('Score Threshold Demo');
-      expect(result.stdout).toContain('Assertion Failure Demo');
-      expect(result.stdout).toContain('Silent Pass Demo');
-      expect(result.stdout).toContain('Silent Assertion Demo');
-      expect(result.stdout).toContain('Module Mock Demo');
-      expect(result.stdout).toContain('Format Gallery');
-      expect(result.stdout).toContain('Randomized Lab');
-      expect(result.stdout).toContain('Voice Return Follow-up');
-      expect(result.stdout).toContain('Refund Workflow');
-      expect(result.stdout).toContain('refund-workflow');
+      expect(result.stdout).toContain('Alpha Eval');
+      expect(result.stdout).toContain('alpha-eval');
+      expect(result.stdout).toContain('Beta Eval');
+      expect(result.stdout).toContain('beta-eval');
       expect(normalizeTextSnapshot(workspacePath, result.stdout))
         .toMatchInlineSnapshot(`
         "Discovered evals:
 
-          Refund Workflow
-            id: refund-workflow
-            file: evals/refund-workflow.eval.ts
+          Alpha Eval
+            id: alpha-eval
+            file: evals/alpha.eval.ts
 
-          Format Gallery
-            id: format-gallery
-            file: evals/support/playground/format-gallery.eval.ts
-
-          Module Mock Demo
-            id: module-mock-demo
-            file: evals/support/playground/module-mock.eval.ts
-
-          Randomized Lab
-            id: randomized-lab
-            file: evals/support/playground/randomized-lab.eval.ts
-
-          Score Threshold Demo
-            id: score-threshold-demo
-            file: evals/support/quality/outcome-behavior.eval.ts
-
-          Assertion Failure Demo
-            id: assertion-failure-demo
-            file: evals/support/quality/outcome-behavior.eval.ts
-
-          Silent Pass Demo
-            id: silent-pass-demo
-            file: evals/support/quality/outcome-behavior.eval.ts
-
-          Silent Assertion Demo
-            id: silent-assertion-demo
-            file: evals/support/quality/outcome-behavior.eval.ts
-
-          High Value Refund
-            id: high-value-refund
-            file: evals/support/refunds/escalations/high-value-refund.eval.ts
-
-          Receipt Audit
-            id: receipt-audit
-            file: evals/support/refunds/receipt-audit.eval.ts
-
-          Receipt Fraud Review
-            id: receipt-fraud-review
-            file: evals/support/refunds/receipt-audit.eval.ts
-
-          Voice Return Follow-up
-            id: voice-return-follow-up
-            file: evals/support/returns/voice-follow-up.eval.ts"
+          Beta Eval
+            id: beta-eval
+            file: evals/nested/beta.eval.ts"
       `);
     });
   });
 
   test('shows outdated freshness when the latest run is old and from another commit', async () => {
-    await withIsolatedExampleWorkspace(async (workspacePath) => {
+    await withIsolatedDiscoveryWorkspace(async (workspacePath) => {
       expect(
         (await runWorkspaceCommand(workspacePath, 'git', ['init'])).exitCode,
       ).toBe(0);
@@ -138,7 +89,7 @@ describe('CLI discovery', () => {
             startedAt: '2026-04-01T12:00:00.000Z',
             endedAt: '2026-04-01T12:00:02.000Z',
             commitSha: '1111111111111111111111111111111111111111',
-            target: { mode: 'evalIds', evalIds: ['refund-workflow'] },
+            target: { mode: 'evalIds', evalIds: ['alpha-eval'] },
             trials: 1,
             trialSelection: 'lowestScore',
             cacheMode: 'use',
@@ -168,8 +119,8 @@ describe('CLI discovery', () => {
       await writeFile(
         join(runPath, 'cases.jsonl'),
         `${JSON.stringify({
-          caseId: 'simple-text',
-          evalId: 'refund-workflow',
+          caseId: 'alpha-case',
+          evalId: 'alpha-eval',
           status: 'pass',
           latencyMs: 120,
           costUsd: 0.01,
@@ -183,8 +134,64 @@ describe('CLI discovery', () => {
 
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toBe('');
-      expect(result.stdout).toContain('Refund Workflow');
+      expect(result.stdout).toContain('Alpha Eval');
       expect(result.stdout).toContain('status: outdated');
     });
   });
 });
+
+async function withIsolatedDiscoveryWorkspace<T>(
+  fn: (workspacePath: string) => Promise<T>,
+): Promise<T> {
+  const workspacePath = await mkdtemp(
+    join(tmpdir(), 'agent-evals-cli-discovery-'),
+  );
+
+  try {
+    await createDiscoveryFixture(workspacePath);
+    return await fn(workspacePath);
+  } finally {
+    await rm(workspacePath, { force: true, recursive: true });
+  }
+}
+
+async function createDiscoveryFixture(workspacePath: string): Promise<void> {
+  await mkdir(join(workspacePath, 'evals', 'nested'), { recursive: true });
+  await mkdir(join(workspacePath, 'node_modules', '@ls-stack'), {
+    recursive: true,
+  });
+  await symlink(
+    resolve(repoRoot, 'packages/cli'),
+    join(workspacePath, 'node_modules', '@ls-stack', 'agent-eval'),
+  );
+  await writeFile(
+    join(workspacePath, 'agent-evals.config.ts'),
+    `export default {
+  include: ['evals/**/*.eval.ts'],
+};
+`,
+  );
+  await writeFile(join(workspacePath, '.gitignore'), 'node_modules\n');
+  await writeFile(
+    join(workspacePath, 'evals', 'alpha.eval.ts'),
+    `import { defineEval } from '@ls-stack/agent-eval';
+
+defineEval({
+  id: 'alpha-eval',
+  title: 'Alpha Eval',
+  cases: [{ id: 'alpha-case', input: {} }],
+});
+`,
+  );
+  await writeFile(
+    join(workspacePath, 'evals', 'nested', 'beta.eval.ts'),
+    `import { defineEval } from '@ls-stack/agent-eval';
+
+defineEval({
+  id: 'beta-eval',
+  title: 'Beta Eval',
+  cases: [{ id: 'beta-case', input: {} }],
+});
+`,
+  );
+}

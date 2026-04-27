@@ -11,6 +11,7 @@ export {
   getCurrentScope,
   isInEvalScope,
   setScopeCacheContext,
+  captureEvalSpanError,
   evalTracer,
   evalSpan,
   buildTraceTree,

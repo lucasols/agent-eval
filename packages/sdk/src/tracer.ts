@@ -5,6 +5,7 @@ import type {
   CacheRecording,
   CacheRecordingOp,
   EvalTraceSpan,
+  EvalTraceSpanError,
   SerializedCacheSpan,
   SpanCacheOptions,
 } from '@agent-evals/shared';
@@ -124,6 +125,56 @@ function mergeSpanAttributes(
   attributes: Record<string, unknown>,
 ): void {
   span.attributes = { ...span.attributes, ...attributes };
+}
+
+function normalizeTraceError(
+  error: unknown,
+  capturedAt: string | undefined = undefined,
+): EvalTraceSpanError {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      capturedAt,
+    };
+  }
+  return { message: String(error), capturedAt };
+}
+
+function normalizeTraceErrors(
+  errorOrErrors: unknown,
+  additionalErrors: readonly unknown[],
+  capturedAt: string,
+): EvalTraceSpanError[] {
+  const rawErrors =
+    additionalErrors.length > 0
+      ? [errorOrErrors, ...additionalErrors]
+      : Array.isArray(errorOrErrors)
+        ? errorOrErrors
+        : [errorOrErrors];
+  return rawErrors.map((error) => normalizeTraceError(error, capturedAt));
+}
+
+function appendSpanErrors(
+  span: EvalTraceSpan,
+  errors: readonly EvalTraceSpanError[],
+): void {
+  if (errors.length === 0) return;
+  const latestError = errors.at(-1);
+  if (latestError === undefined) return;
+  span.errors = [...(span.errors ?? []), ...errors];
+  span.error = latestError;
+  span.status = 'error';
+}
+
+function hasSpanError(span: EvalTraceSpan): boolean {
+  return span.error !== undefined || (span.errors?.length ?? 0) > 0;
+}
+
+function finishSpanWithoutThrownError(span: EvalTraceSpan): void {
+  span.status = hasSpanError(span) ? 'error' : 'ok';
+  span.endedAt = new Date().toISOString();
 }
 
 function createSpanHandle(span: EvalTraceSpan): TraceActiveSpan {
@@ -302,6 +353,26 @@ export const evalSpan: TraceActiveSpan = {
   },
 };
 
+/**
+ * Attach one or more recoverable errors to the active eval span.
+ *
+ * The active span is marked as `error` even if its callback later completes
+ * without throwing. Calls outside `evalTracer.span(...)` are ignored.
+ */
+export function captureEvalSpanError(
+  errorOrErrors: unknown,
+  ...additionalErrors: readonly unknown[]
+): void {
+  const errors = normalizeTraceErrors(
+    errorOrErrors,
+    additionalErrors,
+    new Date().toISOString(),
+  );
+  updateCurrentSpan((currentSpan) => {
+    appendSpanErrors(currentSpan, errors);
+  });
+}
+
 type TraceSpanInfoBase = {
   kind: string;
   name: string;
@@ -403,7 +474,9 @@ async function traceSpan(
             'cache.age': age,
           });
           replayRecording(scope, spanRecord, hit.recording);
-          spanRecord.status = 'ok';
+          spanRecord.status =
+            hit.recording.finalStatus ??
+            (hasSpanError(spanRecord) ? 'error' : 'ok');
           spanRecord.endedAt = new Date().toISOString();
           return hit.recording.returnValue;
         }
@@ -429,12 +502,16 @@ async function traceSpan(
       }
 
       appendSubSpanOps(scope, frame);
+      finishSpanWithoutThrownError(spanRecord);
 
       if (ctx.mode !== 'bypass') {
         const returnValue = toJsonSafe(bodyResult);
         const recording: CacheRecording = {
           returnValue,
           finalAttributes: stripCacheAttributes(spanRecord.attributes),
+          finalStatus: spanRecord.status,
+          finalError: spanRecord.error,
+          finalErrors: spanRecord.errors,
           ops: frame.ops,
         };
         const entry: CacheEntry = {
@@ -450,27 +527,16 @@ async function traceSpan(
         await ctx.adapter.write(entry);
       }
 
-      spanRecord.status = 'ok';
-      spanRecord.endedAt = new Date().toISOString();
       return bodyResult;
     }
 
     const result = await fn(activeSpan);
-    spanRecord.status = 'ok';
-    spanRecord.endedAt = new Date().toISOString();
+    finishSpanWithoutThrownError(spanRecord);
     return result;
   } catch (error) {
     spanRecord.status = 'error';
     spanRecord.endedAt = new Date().toISOString();
-    if (error instanceof Error) {
-      spanRecord.error = {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-      };
-    } else {
-      spanRecord.error = { message: String(error) };
-    }
+    spanRecord.error = normalizeTraceError(error);
     throw error;
   } finally {
     scope.spanStack.pop();
@@ -761,6 +827,7 @@ function serializeSubSpanTree(
       attributes: undefined,
       status: 'ok',
       error: undefined,
+      errors: undefined,
       children: [],
     };
   }
@@ -773,6 +840,7 @@ function serializeSubSpanTree(
     attributes: original.attributes,
     status: original.status,
     error: original.error,
+    errors: original.errors,
     children,
   };
 }
@@ -804,6 +872,12 @@ function replayRecording(
     }
     if (Object.keys(recording.finalAttributes).length > 0) {
       mergeSpanAttributes(parentSpan, recording.finalAttributes);
+    }
+    if (recording.finalError !== undefined) {
+      parentSpan.error = recording.finalError;
+    }
+    if (recording.finalErrors !== undefined) {
+      parentSpan.errors = recording.finalErrors;
     }
   } finally {
     scope.replayingDepth--;
@@ -857,6 +931,7 @@ function replaySerializedSpan(
     status: serialized.status,
     attributes: serialized.attributes,
     error: serialized.error,
+    errors: serialized.errors,
   };
   scope.spans.push(replayed);
   for (const child of serialized.children) {

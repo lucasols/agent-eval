@@ -1,12 +1,6 @@
 import type { EvalTraceSpan, TraceDisplayConfig } from '@agent-evals/shared';
 import { ChevronRight, PanelRightClose, PanelRightOpen, X } from 'lucide-react';
-import {
-  type CSSProperties,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { styled } from 'vindur';
 import {
   updateSearchParams,
@@ -14,98 +8,36 @@ import {
 } from '#src/hooks/useSearchParams';
 import { colors } from '#src/style/colors';
 import { inline, monoFont, transition } from '#src/style/helpers';
+import { formatCheckpointPreview } from '#src/utils/checkpointPreview';
 import {
   formatTraceAttributeValue,
   getTraceAttributeItems,
 } from '#src/utils/traceAttributes';
+import {
+  getTraceKindColors,
+  getTraceKindStyle,
+  type TraceKindStyle,
+} from '#src/utils/traceKindColors';
 import { SpanDetail } from './SpanDetail.tsx';
 
 const NARROW_BREAKPOINT = 720;
 
-type TraceKindColors = {
-  badgeBg: string;
-  badgeText: string;
-  barBg: string;
-  runningStrong: string;
-  runningSoft: string;
-};
-
-type TraceKindStyle = CSSProperties & {
-  '---trace-kind-badge-bg': string;
-  '---trace-kind-badge-text': string;
-  '---trace-kind-bar-bg': string;
-  '---trace-kind-running-strong': string;
-  '---trace-kind-running-soft': string;
-};
-
 type TraceKindBarStyle = TraceKindStyle & { left: string; width: string };
 
-const traceKindColorAssignments = new Map<string, TraceKindColors>();
-
-function mixColor(first: string, second: string, firstPercent: number): string {
-  return `color-mix(in oklab, ${first} ${String(firstPercent)}%, ${second})`;
-}
-
-function colorAlpha(value: string, percent: number): string {
-  return mixColor(value, 'transparent', percent);
-}
-
-function traceKindColor(value: string): TraceKindColors {
-  return {
-    badgeBg: colorAlpha(value, 14),
-    badgeText: value,
-    barBg: colorAlpha(value, 58),
-    runningStrong: colorAlpha(value, 48),
-    runningSoft: colorAlpha(value, 18),
-  };
-}
-
-const TRACE_KIND_COLOR_PALETTE: TraceKindColors[] = [
-  traceKindColor(colors.accentDim.var),
-  traceKindColor(colors.warning.var),
-  traceKindColor(colors.success.var),
-  traceKindColor(colors.error.var),
-  traceKindColor(colors.cost.var),
-  traceKindColor(mixColor(colors.accent.var, colors.warning.var, 55)),
-  traceKindColor(mixColor(colors.accent.var, colors.success.var, 55)),
-  traceKindColor(mixColor(colors.warning.var, colors.success.var, 50)),
-  traceKindColor(mixColor(colors.error.var, colors.accent.var, 58)),
-  traceKindColor(mixColor(colors.cost.var, colors.accent.var, 55)),
-  traceKindColor(mixColor(colors.error.var, colors.warning.var, 50)),
-  traceKindColor(mixColor(colors.success.var, colors.cost.var, 55)),
-];
-
-function getTraceKindPaletteColor(index: number): TraceKindColors {
-  return (
-    TRACE_KIND_COLOR_PALETTE[index % TRACE_KIND_COLOR_PALETTE.length] ??
-    traceKindColor(colors.accentDim.var)
-  );
-}
-
-function getTraceKindColors(kind: string): TraceKindColors {
-  const assigned = traceKindColorAssignments.get(kind);
-  if (assigned !== undefined) return assigned;
-
-  const next = getTraceKindPaletteColor(traceKindColorAssignments.size);
-  traceKindColorAssignments.set(kind, next);
-  return next;
-}
-
-function getTraceKindStyle(kindColors: TraceKindColors): TraceKindStyle {
-  return {
-    '---trace-kind-badge-bg': kindColors.badgeBg,
-    '---trace-kind-badge-text': kindColors.badgeText,
-    '---trace-kind-bar-bg': kindColors.barBg,
-    '---trace-kind-running-strong': kindColors.runningStrong,
-    '---trace-kind-running-soft': kindColors.runningSoft,
-  };
-}
+type CheckpointMarkerStyle = TraceKindStyle & { left: string };
 
 function getTraceKindBarStyle(
   kindStyle: TraceKindStyle,
   bar: SpanBar,
 ): TraceKindBarStyle {
   return { ...kindStyle, left: `${bar.leftPct}%`, width: `${bar.widthPct}%` };
+}
+
+function getCheckpointMarkerStyle(
+  kindStyle: TraceKindStyle,
+  bar: SpanBar,
+): CheckpointMarkerStyle {
+  return { ...kindStyle, left: `${bar.leftPct}%` };
 }
 
 const Root = styled.div`
@@ -348,31 +280,39 @@ const TimelineCell = styled.div`
 `;
 
 const WaterfallBar = styled.div<{ isRunning: boolean; isError: boolean }>`
-  ---trace-kind-bar-bg: ${colors.borderStrong.var};
-  ---trace-kind-running-strong: ${colors.accent.alpha(0.4)};
-  ---trace-kind-running-soft: ${colors.accent.alpha(0.15)};
-
   position: absolute;
   top: 7px;
   height: 12px;
   min-width: 2px;
   border-radius: 3px;
-  background: var(---trace-kind-bar-bg, ${colors.borderStrong.var});
+  background: var(--trace-kind-bar-bg, ${colors.borderStrong.var});
   border: 1px solid transparent;
 
   &.isRunning {
     background: repeating-linear-gradient(
       45deg,
-      var(---trace-kind-running-strong, ${colors.accent.alpha(0.4)}) 0,
-      var(---trace-kind-running-strong, ${colors.accent.alpha(0.4)}) 6px,
-      var(---trace-kind-running-soft, ${colors.accent.alpha(0.15)}) 6px,
-      var(---trace-kind-running-soft, ${colors.accent.alpha(0.15)}) 12px
+      var(--trace-kind-running-strong, ${colors.accent.alpha(0.4)}) 0,
+      var(--trace-kind-running-strong, ${colors.accent.alpha(0.4)}) 6px,
+      var(--trace-kind-running-soft, ${colors.accent.alpha(0.15)}) 6px,
+      var(--trace-kind-running-soft, ${colors.accent.alpha(0.15)}) 12px
     );
   }
 
   &.isError {
     border-color: ${colors.error.var};
   }
+`;
+
+const CheckpointMarker = styled.div`
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--trace-kind-bar-bg, ${colors.borderStrong.var});
+  box-shadow: 0 0 0 2px ${colors.bg.var};
+  transform: translate(-50%, -50%) rotate(45deg);
+  pointer-events: none;
 `;
 
 const BarDurationLabel = styled.span`
@@ -416,9 +356,6 @@ const Spacer = styled.span`
 `;
 
 const KindBadge = styled.span`
-  ---trace-kind-badge-bg: ${colors.surface.var};
-  ---trace-kind-badge-text: ${colors.textMuted.var};
-
   ${monoFont};
   padding: 2px 6px;
   border-radius: 4px;
@@ -426,8 +363,8 @@ const KindBadge = styled.span`
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(---trace-kind-badge-text, ${colors.textMuted.var});
-  background: var(---trace-kind-badge-bg, ${colors.surface.var});
+  color: var(--trace-kind-badge-text, ${colors.textMuted.var});
+  background: var(--trace-kind-badge-bg, ${colors.surface.var});
   flex-shrink: 0;
 `;
 
@@ -489,6 +426,23 @@ const TreeAttributeLabel = styled.span`
   letter-spacing: 0.04em;
   flex-shrink: 0;
   color: ${colors.textDim.var};
+`;
+
+const CheckpointPreview = styled.span`
+  ${monoFont};
+  font-size: 10px;
+  color: ${colors.textMuted.var};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 auto;
+  min-width: 0;
+
+  &::before {
+    content: '→';
+    color: ${colors.textDim.var};
+    margin-right: 4px;
+  }
 `;
 
 const Empty = styled.div`
@@ -662,6 +616,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
               {visibleRows.map(({ span, depth, hasChildren }) => {
                 const bar = computeSpanBar(span, metrics);
                 const isCollapsed = collapsed.has(span.id);
+                const isCheckpoint = span.kind === 'checkpoint';
                 const kindStyle = getTraceKindStyle(
                   getTraceKindColors(span.kind),
                 );
@@ -674,6 +629,9 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
                 const durationLeft = bar.leftPct + bar.widthPct;
                 const labelInside = durationLeft > 88;
                 const labelRightPct = Math.max(0, 100 - durationLeft);
+                const checkpointPreview = isCheckpoint
+                  ? formatCheckpointPreview(span.attributes?.value)
+                  : null;
                 return (
                   <Row
                     key={span.id}
@@ -699,6 +657,11 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
                       )}
                       <KindBadge style={kindStyle}>{span.kind}</KindBadge>
                       <SpanName>{span.name}</SpanName>
+                      {checkpointPreview !== null ? (
+                        <CheckpointPreview title={checkpointPreview}>
+                          {checkpointPreview}
+                        </CheckpointPreview>
+                      ) : null}
                       {renderCacheBadge(span)}
                       {span.status === 'error' ? (
                         <ErrorLabel>err</ErrorLabel>
@@ -711,21 +674,29 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
                     </LabelCell>
                     {!timelineCollapsed ? (
                       <TimelineCell>
-                        <WaterfallBar
-                          isRunning={bar.isRunning}
-                          isError={span.status === 'error'}
-                          style={getTraceKindBarStyle(kindStyle, bar)}
-                        />
-                        <BarDurationLabel
-                          style={
-                            labelInside
-                              ? { right: `calc(${labelRightPct}% + 4px)` }
-                              : { left: `calc(${durationLeft}% + 6px)` }
-                          }
-                        >
-                          {formatSpanDuration(bar.durationMs)}
-                          {bar.isRunning ? '…' : ''}
-                        </BarDurationLabel>
+                        {isCheckpoint ? (
+                          <CheckpointMarker
+                            style={getCheckpointMarkerStyle(kindStyle, bar)}
+                          />
+                        ) : (
+                          <>
+                            <WaterfallBar
+                              isRunning={bar.isRunning}
+                              isError={span.status === 'error'}
+                              style={getTraceKindBarStyle(kindStyle, bar)}
+                            />
+                            <BarDurationLabel
+                              style={
+                                labelInside
+                                  ? { right: `calc(${labelRightPct}% + 4px)` }
+                                  : { left: `calc(${durationLeft}% + 6px)` }
+                              }
+                            >
+                              {formatSpanDuration(bar.durationMs)}
+                              {bar.isRunning ? '…' : ''}
+                            </BarDurationLabel>
+                          </>
+                        )}
                       </TimelineCell>
                     ) : null}
                   </Row>

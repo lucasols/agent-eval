@@ -16,6 +16,7 @@ export {
   type RunInEvalScopeOptions,
 } from './runtime.ts';
 export {
+  captureEvalSpanError,
   evalTracer,
   evalSpan,
   buildTraceTree,
@@ -32,6 +33,7 @@ export {
 } from './tracer.ts';
 export type {
   EvalTraceSpan,
+  EvalTraceSpanError,
   FileRef,
   RepoFileRef,
   RunArtifactRef,

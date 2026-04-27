@@ -115,6 +115,16 @@ export type TraceDisplayInputConfig = z.infer<
   typeof traceDisplayInputConfigSchema
 >;
 
+/** Schema for an error attached to a trace span. */
+export const traceSpanErrorSchema = z.object({
+  name: z.string().optional(),
+  message: z.string(),
+  stack: z.string().optional(),
+  capturedAt: z.string().optional(),
+});
+/** Error payload stored on a trace span. */
+export type EvalTraceSpanError = z.infer<typeof traceSpanErrorSchema>;
+
 /** Schema for a persisted trace span captured during case execution. */
 export const traceSpanSchema = z.object({
   id: z.string(),
@@ -126,13 +136,8 @@ export const traceSpanSchema = z.object({
   endedAt: z.string().nullable(),
   status: z.enum(['running', 'ok', 'error', 'cancelled']),
   attributes: z.record(z.string(), z.unknown()).optional(),
-  error: z
-    .object({
-      name: z.string().optional(),
-      message: z.string(),
-      stack: z.string().optional(),
-    })
-    .optional(),
+  error: traceSpanErrorSchema.optional(),
+  errors: z.array(traceSpanErrorSchema).optional(),
 });
 /** Persisted trace span shape stored for each eval case run. */
 export type EvalTraceSpan = z.infer<typeof traceSpanSchema>;

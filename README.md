@@ -229,6 +229,38 @@ execute: async ({ input }) => {
 };
 ```
 
+Use `captureEvalSpanError(error)` for recoverable errors that should be visible
+on the active span without aborting the case. Pass multiple errors either as
+additional arguments or as an array; the span is marked `error`, and the detail
+panel shows a dedicated captured-errors block with timing relative to the span:
+
+```ts
+await evalTracer.span(
+  { kind: 'tool', name: 'load-optional-signals' },
+  async () => {
+    try {
+      await loadOptionalSignals();
+    } catch (error) {
+      captureEvalSpanError(error);
+      evalSpan.setAttribute('fallback', 'rule-based-signals');
+    }
+  },
+);
+```
+
+If a span callback throws, Agent Evals automatically marks that span as `error`,
+attaches the thrown error to it, and rethrows so the case errors:
+
+```ts
+await evalTracer.span({ kind: 'tool', name: 'submit-refund' }, async () => {
+  const result = await submitRefund(input);
+  if (!result.accepted) {
+    throw new Error(`Refund API rejected ${input.orderId}`);
+  }
+  return result;
+});
+```
+
 Span `kind` values are open-ended strings. The UI assigns colors
 automatically to every kind used during the app session, so external tracing
 adapters can preserve native categories like `mastra.workflow.step` instead of

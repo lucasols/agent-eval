@@ -180,7 +180,7 @@ const Body = styled.div<{ scroll: boolean }>`
 
 const StatsGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(max(25%, 140px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 1px;
   background: ${colors.border.var};
   border-bottom: 1px solid ${colors.border.var};

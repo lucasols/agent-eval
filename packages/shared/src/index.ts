@@ -21,6 +21,7 @@ export {
 } from './schemas/display.ts';
 export {
   traceSpanSchema,
+  traceSpanErrorSchema,
   traceSpanKindSchema,
   traceAttributeDisplaySchema,
   traceAttributeDisplayInputSchema,
@@ -29,6 +30,7 @@ export {
   traceDisplayConfigSchema,
   traceDisplayInputConfigSchema,
   type EvalTraceSpan,
+  type EvalTraceSpanError,
   type TraceAttributeDisplay,
   type TraceAttributeDisplayInput,
   type TraceAttributeDisplayFormat,

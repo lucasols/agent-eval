@@ -43,6 +43,7 @@ on eval-only behavior in shared code (e.g. skip a real network side effect).
 ```ts
 // src/workflows/refundWorkflow.ts
 import {
+  captureEvalSpanError,
   evalAssert,
   evalSpan,
   evalTracer,
@@ -63,7 +64,17 @@ export async function runRefundWorkflow(input: RefundInput) {
           cache: { key: { prompt: input.message, model: 'gpt-4o-mini' } },
         },
         async () => {
-          const { text, usage, costUsd } = await llm.complete(input.message);
+          let text: string;
+          let usage: { inputTokens: number; outputTokens: number };
+          let costUsd: number;
+          try {
+            ({ text, usage, costUsd } = await llm.complete(input.message));
+          } catch (error) {
+            captureEvalSpanError(error);
+            ({ text, usage, costUsd } = await llm.completeWithFallback(
+              input.message,
+            ));
+          }
           evalSpan.setAttributes({ model: 'gpt-4o-mini', usage });
           incrementEvalOutput('costUsd', costUsd);
           return text;
@@ -87,6 +98,17 @@ and preserve external tracer kinds such as `mastra.workflow.step` when they are
 more specific. The UI automatically promotes only the `input` and `output` span
 attributes. Use `traceDisplay` for other span attributes such as `model`,
 `usage`, or `costUsd`.
+
+Use `captureEvalSpanError(error)` for recoverable errors on the active
+`evalTracer.span(...)`, such as optional model/tool failures that fall back and
+continue. You can pass one error, multiple error arguments, or an array. The
+span is still marked `error`, and the UI renders captured errors in a dedicated
+span detail block with timing relative to the span.
+
+If a span callback throws, the SDK automatically marks that span as `error`,
+stores the thrown error on it, and rethrows so the case errors. Use that for
+terminal failures; use `captureEvalSpanError(...)` for recoverable failures that
+continue through fallback logic.
 
 For libraries or observability exporters that already emit span lifecycle
 events, use `evalTracer.startSpan(...)`, `evalTracer.updateSpan(...)`,
