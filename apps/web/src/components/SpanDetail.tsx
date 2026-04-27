@@ -1,4 +1,8 @@
-import type { EvalTraceSpan, TraceDisplayConfig } from '@agent-evals/shared';
+import type {
+  EvalTraceSpan,
+  EvalTraceSpanError,
+  TraceDisplayConfig,
+} from '@agent-evals/shared';
 import { styled } from 'vindur';
 import { JsonViewer } from '#src/components/JsonViewer';
 import { colors } from '#src/style/colors';
@@ -13,6 +17,8 @@ const DetailRoot = styled.div`
   ${stack({ gap: 14 })}
   font-size: 12px;
 `;
+
+const errorCoreFields = new Set(['name', 'message', 'stack', 'capturedAt']);
 
 const DetailTitle = styled.div`
   ${monoFont};
@@ -250,6 +256,7 @@ export function SpanDetail({ span, spans, traceDisplay }: SpanDetailProps) {
                 </ErrorMeta>
               ) : null}
               {error.stack ? <ErrorStack>{error.stack}</ErrorStack> : null}
+              <ErrorAttributes error={error} />
             </ErrorItem>
           ))}
         </ErrorContainer>
@@ -264,6 +271,7 @@ export function SpanDetail({ span, spans, traceDisplay }: SpanDetailProps) {
           {terminalError.stack ? (
             <ErrorStack>{terminalError.stack}</ErrorStack>
           ) : null}
+          <ErrorAttributes error={terminalError} />
         </ErrorContainer>
       ) : null}
     </DetailRoot>
@@ -320,6 +328,22 @@ function DetailItem({ label, value }: { label: string; value: string }) {
       <DetailItemLabel>{label}</DetailItemLabel>
       <DetailItemValue>{value}</DetailItemValue>
     </DetailItemRoot>
+  );
+}
+
+function ErrorAttributes({ error }: { error: EvalTraceSpanError }) {
+  const attributes = Object.fromEntries(
+    Object.entries(error).filter(([key]) => !errorCoreFields.has(key)),
+  );
+
+  if (Object.keys(attributes).length === 0) return null;
+
+  return (
+    <JsonSection
+      label="Attributes"
+      data={attributes}
+      asJson
+    />
   );
 }
 

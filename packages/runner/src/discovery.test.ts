@@ -16,6 +16,62 @@ afterEach(async () => {
 });
 
 describe('discovery metadata', () => {
+  test('discovers new eval files added under an included glob while watching', async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), 'agent-evals-runner-watch-add-'),
+    );
+    createdWorkspaces.push(workspacePath);
+
+    await mkdir(join(workspacePath, 'evals'), { recursive: true });
+    await writeFile(
+      join(workspacePath, 'agent-evals.config.ts'),
+      `export default {
+  include: ['evals/**/*.eval.ts'],
+};
+`,
+    );
+
+    const previousCwd = process.cwd();
+    process.chdir(workspacePath);
+    const runner = createRunner({ watchForChanges: true });
+
+    try {
+      await runner.init();
+      expect(runner.getEvals()).toEqual([]);
+
+      const discoveryUpdated = new Promise<void>((resolve) => {
+        const unsubscribe = runner.subscribeDiscovery((event) => {
+          if (event.type !== 'discovery.updated') return;
+          if (runner.getEval('created-eval') === undefined) return;
+          unsubscribe();
+          resolve();
+        });
+      });
+
+      await mkdir(join(workspacePath, 'evals', 'nested'), { recursive: true });
+      await writeFile(
+        join(workspacePath, 'evals', 'nested', 'created.eval.ts'),
+        `import { defineEval } from '@agent-evals/sdk';
+
+defineEval({
+  id: 'created-eval',
+  title: 'Created Eval',
+});
+`,
+      );
+
+      await discoveryUpdated;
+
+      expect(runner.getEval('created-eval')?.filePath).toBe(
+        'evals/nested/created.eval.ts',
+      );
+      expect(runner.getEval('created-eval')?.title).toBe('Created Eval');
+    } finally {
+      await runner.close();
+      process.chdir(previousCwd);
+    }
+  }, 10_000);
+
   test('discovers declared output and score columns before any run executes', async () => {
     const workspacePath = await mkdtemp(
       join(tmpdir(), 'agent-evals-runner-discovered-columns-'),

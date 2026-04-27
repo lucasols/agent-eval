@@ -23,9 +23,24 @@ defineEval<{ orderId: string }>({
         await evalTracer.span(
           { kind: 'tool', name: 'load-optional-risk-signals' },
           () => {
+            const fraudVelocityError = new Error(
+              'Fraud velocity signal unavailable',
+            );
+            Object.assign(fraudVelocityError, {
+              category: 'optional-signal',
+              details: { fallback: 'loyaltyTier', signal: 'fraudVelocity' },
+              domain: 'risk',
+            });
+
             captureEvalSpanError([
-              new Error('Fraud velocity signal unavailable'),
-              new Error('Manual review SLA lookup timed out'),
+              fraudVelocityError,
+              {
+                category: 'sla',
+                details: { service: 'manualReviewSla', timeoutMs: 1500 },
+                domain: 'operations',
+                message: 'Manual review SLA lookup timed out',
+                name: 'Error',
+              },
             ]);
 
             const fallbackSignals = ['loyaltyTier', 'requestedRefundUsd'];

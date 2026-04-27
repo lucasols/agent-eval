@@ -211,9 +211,22 @@ defineEval({
         cache: { key: input },
       },
       async () => {
+        const primaryError = new Error('Primary signal source timed out');
+        Object.assign(primaryError, {
+          category: 'timeout',
+          details: { source: 'primary' },
+          domain: 'signals',
+        });
+
         captureEvalSpanError(
-          new Error('Primary signal source timed out'),
-          new TypeError('Secondary signal payload was malformed'),
+          primaryError,
+          {
+            category: 'payload',
+            details: { source: 'secondary' },
+            domain: 'signals',
+            message: 'Secondary signal payload was malformed',
+            name: 'TypeError',
+          },
         );
         captureEvalSpanError([new Error('Tertiary signal was unavailable')]);
         evalSpan.setAttribute('fallback', 'rules-engine');
@@ -257,8 +270,17 @@ defineEval({
       attributes: { fallback: 'rules-engine', 'cache.status': 'miss' },
       error: { name: 'Error', message: 'Tertiary signal was unavailable' },
       errors: [
-        { name: 'Error', message: 'Primary signal source timed out' },
         {
+          category: 'timeout',
+          details: { source: 'primary' },
+          domain: 'signals',
+          name: 'Error',
+          message: 'Primary signal source timed out',
+        },
+        {
+          category: 'payload',
+          details: { source: 'secondary' },
+          domain: 'signals',
           name: 'TypeError',
           message: 'Secondary signal payload was malformed',
         },
@@ -299,8 +321,17 @@ defineEval({
       attributes: { fallback: 'rules-engine', 'cache.status': 'hit' },
       error: { name: 'Error', message: 'Tertiary signal was unavailable' },
       errors: [
-        { name: 'Error', message: 'Primary signal source timed out' },
         {
+          category: 'timeout',
+          details: { source: 'primary' },
+          domain: 'signals',
+          name: 'Error',
+          message: 'Primary signal source timed out',
+        },
+        {
+          category: 'payload',
+          details: { source: 'secondary' },
+          domain: 'signals',
           name: 'TypeError',
           message: 'Secondary signal payload was malformed',
         },

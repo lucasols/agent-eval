@@ -36,12 +36,27 @@ describe('CLI span error examples', () => {
 
       expect(capturedSpan.status).toBe('error');
       expect(capturedSpan.error).toMatchObject({
+        category: 'sla',
+        details: { service: 'manualReviewSla', timeoutMs: 1500 },
+        domain: 'operations',
         name: 'Error',
         message: 'Manual review SLA lookup timed out',
       });
       expect(capturedSpan.errors).toMatchObject([
-        { name: 'Error', message: 'Fraud velocity signal unavailable' },
-        { name: 'Error', message: 'Manual review SLA lookup timed out' },
+        {
+          category: 'optional-signal',
+          details: { fallback: 'loyaltyTier', signal: 'fraudVelocity' },
+          domain: 'risk',
+          name: 'Error',
+          message: 'Fraud velocity signal unavailable',
+        },
+        {
+          category: 'sla',
+          details: { service: 'manualReviewSla', timeoutMs: 1500 },
+          domain: 'operations',
+          name: 'Error',
+          message: 'Manual review SLA lookup timed out',
+        },
       ]);
       for (const error of capturedSpan.errors ?? []) {
         expect(typeof error.capturedAt).toBe('string');
@@ -79,9 +94,15 @@ describe('CLI span error examples', () => {
                   capturedAt: capturedSpan.error.capturedAt
                     ? '<capturedAt>'
                     : undefined,
+                  category: capturedSpan.error.category,
+                  details: capturedSpan.error.details,
+                  domain: capturedSpan.error.domain,
                 }
               : undefined,
             errors: capturedSpan.errors?.map((error) => ({
+              category: error.category,
+              details: error.details,
+              domain: error.domain,
               name: error.name,
               message: error.message,
               stack: error.stack ? '<stack>' : undefined,
@@ -107,22 +128,40 @@ describe('CLI span error examples', () => {
           "capturedSpan": {
             "error": {
               "capturedAt": "<capturedAt>",
+              "category": "sla",
+              "details": {
+                "service": "manualReviewSla",
+                "timeoutMs": 1500,
+              },
+              "domain": "operations",
               "message": "Manual review SLA lookup timed out",
               "name": "Error",
-              "stack": "<stack>",
+              "stack": undefined,
             },
             "errors": [
               {
                 "capturedAt": "<capturedAt>",
+                "category": "optional-signal",
+                "details": {
+                  "fallback": "loyaltyTier",
+                  "signal": "fraudVelocity",
+                },
+                "domain": "risk",
                 "message": "Fraud velocity signal unavailable",
                 "name": "Error",
                 "stack": "<stack>",
               },
               {
                 "capturedAt": "<capturedAt>",
+                "category": "sla",
+                "details": {
+                  "service": "manualReviewSla",
+                  "timeoutMs": 1500,
+                },
+                "domain": "operations",
                 "message": "Manual review SLA lookup timed out",
                 "name": "Error",
-                "stack": "<stack>",
+                "stack": undefined,
               },
             ],
             "fallbackSignals": [

@@ -99,10 +99,41 @@ export type TraceExternalSpanHandle = TraceActiveSpan & {
 };
 
 let spanIdCounter = 0;
+const errorCoreFields = new Set(['name', 'message', 'stack', 'capturedAt']);
 
 function generateSpanId(): string {
   spanIdCounter++;
   return `span_${String(Date.now())}_${String(spanIdCounter)}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function formatUnknownErrorMessage(error: unknown): string {
+  if (typeof error === 'string') return error;
+  if (typeof error === 'number' || typeof error === 'boolean') {
+    return String(error);
+  }
+  if (typeof error === 'bigint') return String(error);
+  if (typeof error === 'symbol') return error.description ?? 'Symbol';
+  if (typeof error === 'function') {
+    return error.name ? `[function ${error.name}]` : '[function]';
+  }
+  if (error === undefined) return 'undefined';
+  if (error === null) return 'null';
+
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return 'Unknown error';
+  }
+}
+
+function getErrorExtraFields(error: object): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(error).filter(([key]) => !errorCoreFields.has(key)),
+  );
 }
 
 function updateCurrentSpan(update: (currentSpan: EvalTraceSpan) => void): void {
@@ -132,13 +163,34 @@ function normalizeTraceError(
   capturedAt: string | undefined = undefined,
 ): EvalTraceSpanError {
   if (error instanceof Error) {
+    const extraFields = getErrorExtraFields(error);
     return {
+      ...extraFields,
       name: error.name,
       message: error.message,
       stack: error.stack,
       capturedAt,
     };
   }
+
+  if (isRecord(error)) {
+    const extraFields = getErrorExtraFields(error);
+    const name = typeof error.name === 'string' ? error.name : undefined;
+    const stack = typeof error.stack === 'string' ? error.stack : undefined;
+    const message =
+      error.message === undefined
+        ? formatUnknownErrorMessage(error)
+        : formatUnknownErrorMessage(error.message);
+
+    return {
+      ...extraFields,
+      ...(name === undefined ? {} : { name }),
+      message,
+      ...(stack === undefined ? {} : { stack }),
+      capturedAt,
+    };
+  }
+
   return { message: String(error), capturedAt };
 }
 

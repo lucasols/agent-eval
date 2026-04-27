@@ -116,12 +116,14 @@ export type TraceDisplayInputConfig = z.infer<
 >;
 
 /** Schema for an error attached to a trace span. */
-export const traceSpanErrorSchema = z.object({
-  name: z.string().optional(),
-  message: z.string(),
-  stack: z.string().optional(),
-  capturedAt: z.string().optional(),
-});
+export const traceSpanErrorSchema = z
+  .object({
+    name: z.string().optional(),
+    message: z.string(),
+    stack: z.string().optional(),
+    capturedAt: z.string().optional(),
+  })
+  .catchall(z.unknown());
 /** Error payload stored on a trace span. */
 export type EvalTraceSpanError = z.infer<typeof traceSpanErrorSchema>;
 

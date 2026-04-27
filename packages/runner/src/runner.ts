@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
-import { resolve, join, relative } from 'node:path';
+import { dirname, resolve, join, relative } from 'node:path';
 import { getEvalRegistry } from '@agent-evals/sdk';
 import type {
   EvalSummary,
@@ -15,7 +15,7 @@ import type {
   CacheMode,
 } from '@agent-evals/shared';
 import { deriveScopedSummaryFromCases } from '@agent-evals/shared';
-import { watch } from 'chokidar';
+import { watch, type FSWatcher } from 'chokidar';
 import { glob } from 'glob';
 import {
   createFsCacheStore,
@@ -84,6 +84,8 @@ export type EvalRunner = {
   subscribe(runId: string, listener: (event: SseEnvelope) => void): () => void;
   /** Subscribe to discovery updates triggered by file changes or manual refresh. */
   subscribeDiscovery(listener: (event: SseEnvelope) => void): () => void;
+  /** Stop background filesystem watchers owned by this runner instance. */
+  close(): Promise<void>;
   /** Resolve the workspace root backing this runner instance. */
   getWorkspaceRoot(): string;
   /** Resolve a persisted artifact path when artifact storage is supported. */
@@ -124,6 +126,66 @@ export type EvalRunner = {
 
 type CreateRunnerOptions = { watchForChanges?: boolean };
 
+const globMagicCharacters = new Set([
+  '*',
+  '?',
+  '[',
+  ']',
+  '{',
+  '}',
+  '(',
+  ')',
+  '!',
+  '+',
+  '@',
+]);
+
+function hasGlobMagic(value: string): boolean {
+  for (const char of value) {
+    if (globMagicCharacters.has(char)) return true;
+  }
+  return false;
+}
+
+function getWatchRootForIncludePattern(params: {
+  pattern: string;
+  workspaceRoot: string;
+}): string {
+  const normalizedPattern = params.pattern.replaceAll('\\', '/');
+  const segments = normalizedPattern.split('/').filter((part) => part !== '');
+  const firstGlobSegmentIndex = segments.findIndex(hasGlobMagic);
+
+  if (firstGlobSegmentIndex === -1) {
+    return dirname(resolve(params.workspaceRoot, params.pattern));
+  }
+
+  if (firstGlobSegmentIndex === 0) return params.workspaceRoot;
+
+  return resolve(
+    params.workspaceRoot,
+    segments.slice(0, firstGlobSegmentIndex).join('/'),
+  );
+}
+
+function getWatchRootsForIncludePatterns(params: {
+  patterns: string[];
+  workspaceRoot: string;
+}): string[] {
+  const roots = new Set<string>();
+
+  for (const pattern of params.patterns) {
+    roots.add(
+      getWatchRootForIncludePattern({
+        pattern,
+        workspaceRoot: params.workspaceRoot,
+      }),
+    );
+  }
+
+  if (roots.size === 0) return [params.workspaceRoot];
+  return [...roots];
+}
+
 /** Create an in-memory eval runner bound to the current workspace config. */
 export function createRunner({
   watchForChanges = true,
@@ -138,6 +200,8 @@ export function createRunner({
   const latestRunInfoMap = new Map<string, EvalLatestRunInfo>();
   const discoveryListeners = new Set<(event: SseEnvelope) => void>();
   let nextShortIdNum = 0;
+  let discoveryWatcher: FSWatcher | undefined;
+  let discoveryRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 
   function toWorkspaceRelativePath(filePath: string): string {
     return relative(workspaceRoot, filePath).replaceAll('\\', '/');
@@ -183,7 +247,7 @@ export function createRunner({
       await loadPersistedRuns();
       await runner.refreshDiscovery();
       if (watchForChanges) {
-        setupWatcher();
+        await setupWatcher();
       }
     },
     async listCache() {
@@ -556,6 +620,18 @@ export function createRunner({
       };
     },
 
+    async close() {
+      if (discoveryRefreshTimer !== undefined) {
+        clearTimeout(discoveryRefreshTimer);
+        discoveryRefreshTimer = undefined;
+      }
+
+      const watcher = discoveryWatcher;
+      if (watcher === undefined) return;
+      discoveryWatcher = undefined;
+      await watcher.close();
+    },
+
     getWorkspaceRoot() {
       return workspaceRoot;
     },
@@ -565,20 +641,36 @@ export function createRunner({
     },
   };
 
-  function setupWatcher() {
-    const patterns = config.include.map((p) => resolve(workspaceRoot, p));
-    const watcher = watch(patterns, { ignoreInitial: true, persistent: true });
-
-    watcher.on('change', () => {
-      void runner.refreshDiscovery();
+  async function setupWatcher() {
+    const watchRoots = getWatchRootsForIncludePatterns({
+      patterns: config.include,
+      workspaceRoot,
     });
-
-    watcher.on('add', () => {
-      void runner.refreshDiscovery();
+    const watcher = watch(watchRoots, {
+      ignoreInitial: true,
+      persistent: true,
     });
+    discoveryWatcher = watcher;
 
-    watcher.on('unlink', () => {
-      void runner.refreshDiscovery();
+    const scheduleRefresh = () => {
+      if (discoveryRefreshTimer !== undefined) {
+        clearTimeout(discoveryRefreshTimer);
+      }
+
+      discoveryRefreshTimer = setTimeout(() => {
+        discoveryRefreshTimer = undefined;
+        void runner.refreshDiscovery();
+      }, 50);
+    };
+
+    watcher.on('change', scheduleRefresh);
+    watcher.on('add', scheduleRefresh);
+    watcher.on('unlink', scheduleRefresh);
+    watcher.on('addDir', scheduleRefresh);
+    watcher.on('unlinkDir', scheduleRefresh);
+
+    await new Promise<void>((ready) => {
+      watcher.once('ready', ready);
     });
   }
 

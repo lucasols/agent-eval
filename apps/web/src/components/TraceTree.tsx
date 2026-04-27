@@ -137,9 +137,11 @@ const TimelineInner = styled.div<{ timelineCollapsed: boolean }>`
   display: flex;
   flex-direction: column;
   min-width: 560px;
+  padding-right: 14px;
 
   &.timelineCollapsed {
     min-width: 0;
+    padding-right: 0;
   }
 `;
 
@@ -324,6 +326,12 @@ const BarDurationLabel = styled.span`
   color: ${colors.textMuted.var};
   white-space: nowrap;
   pointer-events: none;
+
+  &.inside {
+    color: ${colors.text.var};
+    font-weight: 500;
+    text-shadow: 0 0 2px ${colors.bg.alpha(0.65)};
+  }
 `;
 
 const ToggleButton = styled.button<{ open: boolean }>`
@@ -686,6 +694,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
                               style={getTraceKindBarStyle(kindStyle, bar)}
                             />
                             <BarDurationLabel
+                              className={labelInside ? 'inside' : undefined}
                               style={
                                 labelInside
                                   ? { right: `calc(${labelRightPct}% + 4px)` }
