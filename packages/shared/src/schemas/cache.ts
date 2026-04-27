@@ -91,6 +91,16 @@ export const cacheRecordingOpSchema = z.discriminatedUnion('kind', [
     value: z.unknown(),
   }),
   z.object({
+    kind: z.literal('appendOutput'),
+    key: z.string(),
+    value: z.unknown(),
+  }),
+  z.object({
+    kind: z.literal('mergeOutput'),
+    key: z.string(),
+    patch: z.record(z.string(), z.unknown()),
+  }),
+  z.object({
     kind: z.literal('incrementOutput'),
     key: z.string(),
     delta: z.number(),

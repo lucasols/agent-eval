@@ -35,7 +35,9 @@ pnpm add -D @ls-stack/agent-eval
 
    ```ts
    import {
+     appendToEvalOutput,
      defineEval,
+     mergeEvalOutput,
      setEvalOutput,
      evalSpan,
      evalTracer,
@@ -57,6 +59,8 @@ pnpm add -D @ls-stack/agent-eval
          const output = await myAgent(input);
          evalSpan.setAttribute('output', output);
          setEvalOutput('output', output);
+         appendToEvalOutput('events', 'completed');
+         mergeEvalOutput('metadata', { model: 'my-agent-v1' });
        });
      },
      scores: {
@@ -226,6 +230,8 @@ execute: async ({ input }) => {
   await evalTracer.span({ kind: 'agent', name: 'refund-agent' }, async () => {
     evalSpan.setAttribute('input', input);
     const result = await agent(input);
+    evalSpan.appendToAttribute('events', 'agent-finished');
+    evalSpan.mergeAttribute('summary', { status: result.status });
     evalSpan.setAttributes({ model: 'gpt-4.1', output: result });
     setEvalOutput('output', result);
   });
@@ -566,9 +572,9 @@ Each chart declares:
 
 Wrap a costly span (LLM call, remote tool, etc.) with `cache: { key }` to skip
 execution on subsequent runs. The cache records every observable effect inside
-the span — sub-spans, checkpoints, `setEvalOutput` / `incrementEvalOutput` calls,
-final attributes — and replays them verbatim on hits, so traces and outputs look
-identical to a fresh run.
+the span — sub-spans, checkpoints, output helper calls, final attributes — and
+replays them verbatim on hits, so traces and outputs look identical to a fresh
+run.
 
 ```ts
 await evalTracer.span(
@@ -581,6 +587,7 @@ await evalTracer.span(
     const result = await llm.complete(input.message);
     evalSpan.setAttributes({ model: 'gpt-4o-mini', output: result });
     incrementEvalOutput('costUsd', computeCost(result));
+    appendToEvalOutput('llmCalls', { model: 'gpt-4o-mini' });
     return result;
   },
 );
@@ -611,8 +618,8 @@ If `evalTracer.cache(...)` runs inside an active span, that span receives a
 `cache.refs` array entry like `{ type: 'value', name, namespace, key, status }`
 with `storedAt` and `age` on hits. The cache call itself does not create a trace
 span. SDK-mediated effects inside the callback still replay on hits, including
-nested spans, checkpoints, `setEvalOutput`, `incrementEvalOutput`, and active
-span attributes changed by the callback.
+nested spans, checkpoints, output helper calls, and active span attributes
+changed by the callback.
 
 ### Cache controls
 
@@ -664,9 +671,9 @@ Server API (`/api/cache`):
   winning trial's writes into the shared cache, so later trials in the same run
   never reuse cache entries produced by earlier sibling trials.
 - Only SDK-mediated side effects replay (`evalTracer.span`,
-  `evalTracer.checkpoint`, `setEvalOutput`, `incrementEvalOutput`, span
-  attributes). External side effects (network, DB writes) do _not_ replay on
-  cache hits — use caching only for pure functions of their key.
+  `evalTracer.checkpoint`, output helper calls, span attributes). External side
+  effects (network, DB writes) do _not_ replay on cache hits — use caching only
+  for pure functions of their key.
 - Return values are JSON round-tripped before storage; return JSON-safe values
   or carry richer data through `setEvalOutput`.
 
@@ -693,7 +700,9 @@ export const config: AgentEvalsConfig = {
 Store output values with `setEvalOutput(...)` as plain data: strings, numbers,
 booleans, `null`, JSON-safe objects/arrays for `format: 'json'`, explicit file
 refs, or native `Blob`/`File` values for `format: 'image' | 'audio' | 'video' |
-'file'`.
+'file'`. Use `incrementEvalOutput(...)` for numeric totals,
+`appendToEvalOutput(...)` for arrays that preserve existing scalar values, and
+`mergeEvalOutput(...)` for shallow object updates.
 
 Add `outputsSchema` when you want runtime validation and typed scorer inputs.
 The runner validates configured output fields after `execute` and

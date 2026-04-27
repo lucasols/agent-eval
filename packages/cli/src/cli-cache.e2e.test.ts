@@ -73,6 +73,14 @@ function findLlmSpan(spans: EvalTraceSpan[], name: string): EvalTraceSpan {
   return match;
 }
 
+function findSpan(spans: EvalTraceSpan[], name: string): EvalTraceSpan {
+  const match = spans.find((span) => span.name === name);
+  if (match === undefined) {
+    throw new Error(`Expected span ${name} in trace`);
+  }
+  return match;
+}
+
 function getCacheStatus(span: EvalTraceSpan): unknown {
   return span.attributes?.['cache.status'];
 }
@@ -313,6 +321,39 @@ describe('CLI operation caching', () => {
         'damaged-mug',
       ]);
       expect(primed.exitCode).toBe(0);
+
+      const artifacts = await readSingleRunArtifacts(workspacePath);
+      const damagedMug = requireDefined(
+        artifacts.cases.find((caseRow) => caseRow.caseId === 'damaged-mug'),
+        'damaged mug case row',
+      );
+      expect(damagedMug.columns).toMatchObject({
+        auditEvents: [
+          { step: 'context-built', orderId: '#A-18' },
+          { step: 'claim-compared', discrepancyCount: 0 },
+        ],
+        auditMetadata: {
+          auditStatus: 'verified',
+          claimType: 'damage',
+          discrepancyCount: 0,
+          orderId: '#A-18',
+        },
+      });
+      const trace = requireDefined(
+        artifacts.traces['damaged-mug.json'],
+        'damaged mug trace',
+      );
+      expect(findSpan(trace, 'receipt-audit').attributes).toMatchObject({
+        auditSummary: {
+          claimType: 'damage',
+          expectedTotalUsd: 24.5,
+          orderId: '#A-18',
+        },
+        auditEvents: ['context-built'],
+      });
+      expect(
+        findSpan(trace, 'compare-claim-against-receipt').attributes,
+      ).toMatchObject({ reviewedReceipts: 1 });
 
       const listJson = await runExampleCli(workspacePath, [
         'cache',

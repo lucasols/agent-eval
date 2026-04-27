@@ -1,6 +1,8 @@
 import {
+  appendToEvalOutput,
   evalAssert,
   incrementEvalOutput,
+  mergeEvalOutput,
   setEvalOutput,
   evalSpan,
   evalTracer,
@@ -26,10 +28,15 @@ export async function runReceiptAuditWorkflow(
 ): Promise<ReceiptAuditResult> {
   return evalTracer.span({ kind: 'agent', name: 'receipt-audit' }, async () => {
     evalSpan.setAttribute('input', input);
+    evalSpan.mergeAttribute('auditSummary', {
+      orderId: input.orderId,
+      expectedTotalUsd: input.expectedTotalUsd,
+    });
 
     await evalTracer.span({ kind: 'tool', name: 'ocr-receipt' }, async () => {
       await waitForWorkflowDelay('ocrReceipt');
 
+      evalSpan.appendToAttribute('auditEvents', 'receipt-ocr-complete');
       evalSpan.setAttributes({
         input: { path: input.receiptImage },
         output: { orderId: input.orderId, totalUsd: input.expectedTotalUsd },
@@ -52,6 +59,18 @@ export async function runReceiptAuditWorkflow(
           orderId: input.orderId,
         };
         evalSpan.setAttribute('receiptContext', context);
+        evalSpan.appendToAttribute('auditEvents', 'context-built');
+        evalSpan.mergeAttribute('auditSummary', {
+          claimType: context.claimType,
+        });
+        appendToEvalOutput('auditEvents', {
+          step: 'context-built',
+          orderId: input.orderId,
+        });
+        mergeEvalOutput('auditMetadata', {
+          claimType: context.claimType,
+          orderId: input.orderId,
+        });
         evalTracer.checkpoint('receipt-audit-context', context);
         return context;
       },
@@ -76,7 +95,12 @@ export async function runReceiptAuditWorkflow(
           output: { auditStatus: 'verified', discrepancyCount: 0 },
         });
 
+        evalSpan.incrementAttribute('reviewedReceipts', 1);
         incrementEvalOutput('costUsd', costUsd);
+        appendToEvalOutput('auditEvents', {
+          step: 'claim-compared',
+          discrepancyCount: 0,
+        });
       },
     );
 
@@ -90,6 +114,7 @@ export async function runReceiptAuditWorkflow(
           input: { orderId: input.orderId },
           output: { auditStatus: 'verified', discrepancyCount: 0, finalText },
         });
+        evalSpan.mergeAttribute('auditSummary', { auditStatus: 'verified' });
         return {
           auditStatus: 'verified' as const,
           discrepancyCount: 0,
@@ -105,6 +130,10 @@ export async function runReceiptAuditWorkflow(
     setEvalOutput('response', result.finalText);
     setEvalOutput('auditStatus', result.auditStatus);
     setEvalOutput('discrepancyCount', result.discrepancyCount);
+    mergeEvalOutput('auditMetadata', {
+      auditStatus: result.auditStatus,
+      discrepancyCount: result.discrepancyCount,
+    });
     evalAssert(
       result.discrepancyCount === 0,
       'receipt audit should not find mismatched line items',

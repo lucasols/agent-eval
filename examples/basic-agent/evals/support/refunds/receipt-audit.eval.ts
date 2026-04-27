@@ -39,6 +39,8 @@ defineEval<ReceiptAuditInput>({
   columns: {
     response: { label: 'Summary', format: 'markdown' },
     auditStatus: { label: 'Audit Status' },
+    auditEvents: { label: 'Audit Events', format: 'json' },
+    auditMetadata: { label: 'Audit Metadata', format: 'json' },
     discrepancyCount: { label: 'Discrepancies' },
     costUsd: {
       label: 'Cost',

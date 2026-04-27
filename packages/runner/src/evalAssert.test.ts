@@ -1,10 +1,17 @@
 import {
+  appendToEvalOutput,
   EvalAssertionError,
   evalAssert,
+  evalSpan,
+  evalTracer,
   getCurrentScope,
   getEvalCaseInput,
+  incrementEvalOutput,
   isInEvalScope,
+  mergeEvalOutput,
   runInEvalScope,
+  setEvalOutput,
+  type TraceActiveSpan,
 } from '@agent-evals/sdk';
 import { expect, test } from 'vitest';
 
@@ -60,4 +67,106 @@ test('getEvalCaseInput reads the active case input', async () => {
     },
     { input },
   );
+});
+
+test('eval output mutation helpers append, merge, and report bad types', async () => {
+  const { scope } = await runInEvalScope('output-mutations', () => {
+    appendToEvalOutput('events', 'created');
+    appendToEvalOutput('events', 'approved');
+    setEvalOutput('scalarEvents', 'first');
+    appendToEvalOutput('scalarEvents', 'second');
+
+    mergeEvalOutput('metadata', { attempt: 1, nested: { first: true } });
+    mergeEvalOutput('metadata', { status: 'ok', nested: { second: true } });
+
+    incrementEvalOutput('badCounter', 1);
+    setEvalOutput('badCounter', 'not-number');
+    incrementEvalOutput('badCounter', 1);
+    setEvalOutput('badMerge', ['not-object']);
+    mergeEvalOutput('badMerge', { ignored: true });
+  });
+
+  expect(scope.outputs.events).toEqual(['created', 'approved']);
+  expect(scope.outputs.scalarEvents).toEqual(['first', 'second']);
+  expect(scope.outputs.metadata).toEqual({
+    attempt: 1,
+    status: 'ok',
+    nested: { second: true },
+  });
+  expect(scope.outputs.badCounter).toBe('not-number');
+  expect(scope.outputs.badMerge).toEqual(['not-object']);
+  expect(scope.assertionFailures.map((failure) => failure.message)).toEqual([
+    'incrementEvalOutput("badCounter"): existing value is string, expected number',
+    'mergeEvalOutput("badMerge"): existing value is array, expected object',
+  ]);
+});
+
+test('span mutation helpers work on active, callback, and external handles', async () => {
+  const { scope } = await runInEvalScope('span-mutations', async () => {
+    await evalTracer.span(
+      { kind: 'agent', name: 'active-span' },
+      (span: TraceActiveSpan) => {
+        evalSpan.incrementAttribute('costUsd', 0.25);
+        evalSpan.incrementAttribute('costUsd', 0.5);
+        evalSpan.appendToAttribute('events', 'started');
+        evalSpan.appendToAttribute('events', 'finished');
+        evalSpan.setAttribute('scalarEvents', 'first');
+        evalSpan.appendToAttribute('scalarEvents', 'second');
+        evalSpan.mergeAttribute('metadata', {
+          attempt: 1,
+          nested: { first: true },
+        });
+        evalSpan.mergeAttribute('metadata', {
+          status: 'ok',
+          nested: { second: true },
+        });
+
+        span.incrementAttribute('callbackCount', 1);
+        span.appendToAttribute('callbackEvents', 'callback');
+        span.mergeAttribute('callbackMeta', { source: 'callback' });
+
+        evalSpan.setAttribute('badCounter', 'not-number');
+        evalSpan.incrementAttribute('badCounter', 1);
+        evalSpan.setAttribute('badMerge', ['not-object']);
+        evalSpan.mergeAttribute('badMerge', { ignored: true });
+      },
+    );
+
+    const externalSpan = evalTracer.startSpan({
+      id: 'external-span',
+      parentId: null,
+      kind: 'tool',
+      name: 'external-span',
+    });
+    externalSpan.incrementAttribute('attempts', 1);
+    externalSpan.appendToAttribute('events', 'external');
+    externalSpan.mergeAttribute('metadata', { source: 'external' });
+    externalSpan.end();
+  });
+
+  const activeSpan = scope.spans.find((span) => span.name === 'active-span');
+  expect(activeSpan?.attributes).toMatchObject({
+    callbackCount: 1,
+    callbackEvents: ['callback'],
+    callbackMeta: { source: 'callback' },
+    costUsd: 0.75,
+    events: ['started', 'finished'],
+    scalarEvents: ['first', 'second'],
+    metadata: { attempt: 1, status: 'ok', nested: { second: true } },
+    badCounter: 'not-number',
+    badMerge: ['not-object'],
+  });
+
+  const externalSpan = scope.spans.find(
+    (span) => span.name === 'external-span',
+  );
+  expect(externalSpan?.attributes).toMatchObject({
+    attempts: 1,
+    events: ['external'],
+    metadata: { source: 'external' },
+  });
+  expect(scope.assertionFailures.map((failure) => failure.message)).toEqual([
+    'evalSpan.incrementAttribute("badCounter"): existing value is string, expected number',
+    'evalSpan.mergeAttribute("badMerge"): existing value is array, expected object',
+  ]);
 });

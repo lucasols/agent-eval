@@ -1,12 +1,15 @@
 import type {
   CacheEntry,
   CacheRecording,
-  CacheRecordingOp,
   EvalTraceSpan,
-  SerializedCacheSpan,
   SpanCacheOptions,
 } from '@agent-evals/shared';
 import { hashCacheKey, toJsonSafe } from './cacheKey.ts';
+import {
+  appendSubSpanOps,
+  replayRecording,
+  stripCacheAttributes,
+} from './cacheRecording.ts';
 import type { CacheRecordingFrame, EvalCaseScope } from './runtime.ts';
 import { getCurrentScope } from './runtime.ts';
 import {
@@ -19,19 +22,15 @@ import {
   splitCaptureEvalSpanErrorArgs,
 } from './traceDiagnostics.ts';
 import type { EvalTraceTree } from './types.ts';
+import { createTraceCache } from './valueCache.ts';
 
 export type {
   CaptureEvalSpanErrorLevel,
   CaptureEvalSpanErrorOptions,
 } from './traceDiagnostics.ts';
+export type { TraceCacheInfo, TraceCacheRef } from './valueCache.ts';
 export { hashCacheKey, hashCacheKeySync } from './cacheKey.ts';
-
-/**
- * Mutable handle for the current span.
- *
- * Prefer the ambient `evalSpan` export for most code so helpers deeper in the call
- * stack can annotate the active span without receiving an injected argument.
- */
+/** Mutable handle for the current span. Prefer ambient `evalSpan` in helpers. */
 export type TraceActiveSpan = {
   /** Rename the active span after it has been created. */
   setName(value: string): void;
@@ -39,6 +38,12 @@ export type TraceActiveSpan = {
   setAttribute(key: string, value: unknown): void;
   /** Merge multiple attributes into the active span. */
   setAttributes(value: Record<string, unknown>): void;
+  /** Add a numeric delta to one attribute. */
+  incrementAttribute(key: string, delta: number): void;
+  /** Append one item to an attribute array, preserving an existing scalar. */
+  appendToAttribute(key: string, value: unknown): void;
+  /** Shallow-merge object fields into one attribute. */
+  mergeAttribute(key: string, patch: Record<string, unknown>): void;
 };
 
 /** Timestamp accepted by the external span lifecycle API. */
@@ -133,11 +138,27 @@ function updateCurrentSpan(update: (currentSpan: EvalTraceSpan) => void): void {
 }
 
 function noopActiveSpan(): TraceActiveSpan {
-  return { setName() {}, setAttribute() {}, setAttributes() {} };
+  return {
+    setName() {},
+    setAttribute() {},
+    setAttributes() {},
+    incrementAttribute() {},
+    appendToAttribute() {},
+    mergeAttribute() {},
+  };
 }
 
 function noopExternalSpan(id: string): TraceExternalSpanHandle {
-  return { id, setName() {}, setAttribute() {}, setAttributes() {}, end() {} };
+  return {
+    id,
+    setName() {},
+    setAttribute() {},
+    setAttributes() {},
+    incrementAttribute() {},
+    appendToAttribute() {},
+    mergeAttribute() {},
+    end() {},
+  };
 }
 
 function mergeSpanAttributes(
@@ -145,6 +166,76 @@ function mergeSpanAttributes(
   attributes: Record<string, unknown>,
 ): void {
   span.attributes = { ...span.attributes, ...attributes };
+}
+
+function isRecordLike(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function valueKind(value: unknown): string {
+  return Array.isArray(value) ? 'array' : typeof value;
+}
+
+function recordSpanAttributeAssertion(message: string): void {
+  const scope = getCurrentScope();
+  if (!scope) return;
+  scope.assertionFailures.push({ message });
+}
+
+function incrementSpanAttribute(
+  span: EvalTraceSpan,
+  key: string,
+  delta: number,
+): void {
+  const existing = span.attributes?.[key];
+  if (existing === undefined) {
+    mergeSpanAttributes(span, { [key]: delta });
+    return;
+  }
+  if (typeof existing !== 'number') {
+    recordSpanAttributeAssertion(
+      `evalSpan.incrementAttribute("${key}"): existing value is ${valueKind(existing)}, expected number`,
+    );
+    return;
+  }
+  mergeSpanAttributes(span, { [key]: existing + delta });
+}
+
+function appendToSpanAttribute(
+  span: EvalTraceSpan,
+  key: string,
+  value: unknown,
+): void {
+  const existing = span.attributes?.[key];
+  if (existing === undefined) {
+    mergeSpanAttributes(span, { [key]: [value] });
+    return;
+  }
+  if (Array.isArray(existing)) {
+    const items: unknown[] = existing.map((item: unknown) => item);
+    mergeSpanAttributes(span, { [key]: [...items, value] });
+    return;
+  }
+  mergeSpanAttributes(span, { [key]: [existing, value] });
+}
+
+function mergeSpanAttribute(
+  span: EvalTraceSpan,
+  key: string,
+  patch: Record<string, unknown>,
+): void {
+  const existing = span.attributes?.[key];
+  if (existing === undefined) {
+    mergeSpanAttributes(span, { [key]: { ...patch } });
+    return;
+  }
+  if (!isRecordLike(existing)) {
+    recordSpanAttributeAssertion(
+      `evalSpan.mergeAttribute("${key}"): existing value is ${valueKind(existing)}, expected object`,
+    );
+    return;
+  }
+  mergeSpanAttributes(span, { [key]: { ...existing, ...patch } });
 }
 
 function finishSpanWithoutThrownError(span: EvalTraceSpan): void {
@@ -163,7 +254,27 @@ function createSpanHandle(span: EvalTraceSpan): TraceActiveSpan {
     setAttributes(value) {
       mergeSpanAttributes(span, value);
     },
+    incrementAttribute(key, delta) {
+      incrementSpanAttribute(span, key, delta);
+    },
+    appendToAttribute(key, value) {
+      appendToSpanAttribute(span, key, value);
+    },
+    mergeAttribute(key, patch) {
+      mergeSpanAttribute(span, key, patch);
+    },
   };
+}
+
+function updateExternalSpanRecord(
+  id: string,
+  update: (span: EvalTraceSpan) => void,
+): void {
+  const scope = getCurrentScope();
+  if (!scope) return;
+  const span = findSpan(scope, id);
+  if (!span) return;
+  update(span);
 }
 
 function createExternalSpanHandle(id: string): TraceExternalSpanHandle {
@@ -177,6 +288,21 @@ function createExternalSpanHandle(id: string): TraceExternalSpanHandle {
     },
     setAttributes(value) {
       updateExternalSpan({ id, attributes: value });
+    },
+    incrementAttribute(key, delta) {
+      updateExternalSpanRecord(id, (span) => {
+        incrementSpanAttribute(span, key, delta);
+      });
+    },
+    appendToAttribute(key, value) {
+      updateExternalSpanRecord(id, (span) => {
+        appendToSpanAttribute(span, key, value);
+      });
+    },
+    mergeAttribute(key, patch) {
+      updateExternalSpanRecord(id, (span) => {
+        mergeSpanAttribute(span, key, patch);
+      });
     },
     end(info = {}) {
       endExternalSpan({ ...info, id });
@@ -332,6 +458,21 @@ export const evalSpan: TraceActiveSpan = {
       mergeSpanAttributes(currentSpan, value);
     });
   },
+  incrementAttribute(key, delta) {
+    updateCurrentSpan((currentSpan) => {
+      incrementSpanAttribute(currentSpan, key, delta);
+    });
+  },
+  appendToAttribute(key, value) {
+    updateCurrentSpan((currentSpan) => {
+      appendToSpanAttribute(currentSpan, key, value);
+    });
+  },
+  mergeAttribute(key, patch) {
+    updateCurrentSpan((currentSpan) => {
+      mergeSpanAttribute(currentSpan, key, patch);
+    });
+  },
 };
 
 /**
@@ -395,27 +536,6 @@ export type TraceSpanInfoCached = TraceSpanInfoBase & {
 
 /** Info accepted by `evalTracer.span(info, fn)`. */
 export type TraceSpanInfo = TraceSpanInfoUncached | TraceSpanInfoCached;
-
-/** Info accepted by `evalTracer.cache(info, fn)` for spanless value caching. */
-export type TraceCacheInfo = {
-  /** Display name used for cache listings and the default namespace. */
-  name: string;
-  /** Arbitrary JSON-safe value used to derive the cache key. */
-  key: unknown;
-  /** Override the default namespace (`${evalId}__${name}`). */
-  namespace?: string;
-};
-
-/** Cache reference appended to the active span by `evalTracer.cache(...)`. */
-export type TraceCacheRef = {
-  type: 'value';
-  name: string;
-  namespace: string;
-  key: string;
-  status: 'hit' | 'miss' | 'refresh' | 'bypass';
-  storedAt?: string;
-  age?: number;
-};
 
 function traceSpan<T>(
   info: TraceSpanInfoUncached,
@@ -494,7 +614,7 @@ async function traceSpan(
             'cache.storedAt': storedAt,
             'cache.age': age,
           });
-          replayRecording(scope, spanRecord, hit.recording);
+          replayRecording(scope, spanRecord, hit.recording, { generateSpanId });
           spanRecord.status =
             hit.recording.finalStatus ??
             (hasSpanError(spanRecord) ? 'error' : 'ok');
@@ -569,114 +689,7 @@ async function traceSpan(
   }
 }
 
-function traceCache<T>(
-  info: TraceCacheInfo,
-  fn: () => Promise<T> | T,
-): Promise<T>;
-async function traceCache(
-  info: TraceCacheInfo,
-  fn: () => unknown,
-): Promise<unknown> {
-  const scope = getCurrentScope();
-  if (!scope) return await fn();
-
-  const cacheCtx = scope.cacheContext;
-  if (cacheCtx === undefined || scope.replayingDepth > 0) {
-    return await fn();
-  }
-
-  const namespace = info.namespace ?? `${cacheCtx.evalId}__${info.name}`;
-  const keyHash = await hashCacheKey({
-    namespace,
-    codeFingerprint: cacheCtx.codeFingerprint,
-    key: info.key,
-  });
-  const activeSpan = scope.activeSpanStack.at(-1);
-
-  if (cacheCtx.mode === 'use') {
-    const hit = await cacheCtx.adapter.lookup(namespace, keyHash);
-    if (hit) {
-      const storedAt = hit.storedAt;
-      const age = Date.now() - new Date(storedAt).getTime();
-      appendCacheRef(activeSpan, {
-        type: 'value',
-        name: info.name,
-        namespace,
-        key: keyHash,
-        status: 'hit',
-        storedAt,
-        age,
-      });
-      replayRecording(scope, activeSpan, hit.recording);
-      return hit.recording.returnValue;
-    }
-    appendCacheRef(activeSpan, {
-      type: 'value',
-      name: info.name,
-      namespace,
-      key: keyHash,
-      status: 'miss',
-    });
-  } else if (cacheCtx.mode === 'refresh') {
-    appendCacheRef(activeSpan, {
-      type: 'value',
-      name: info.name,
-      namespace,
-      key: keyHash,
-      status: 'refresh',
-    });
-  } else {
-    appendCacheRef(activeSpan, {
-      type: 'value',
-      name: info.name,
-      namespace,
-      key: keyHash,
-      status: 'bypass',
-    });
-  }
-
-  const beforeAttributes = snapshotNonCacheAttributes(activeSpan);
-  const frame: CacheRecordingFrame = {
-    baseSpanIndex: scope.spans.length,
-    replayParentSpanId: activeSpan?.id ?? null,
-    ops: [],
-  };
-  scope.recordingStack.push(frame);
-
-  let bodyResult: unknown;
-  try {
-    bodyResult = await fn();
-  } finally {
-    scope.recordingStack.pop();
-  }
-
-  appendSubSpanOps(scope, frame);
-
-  if (cacheCtx.mode !== 'bypass') {
-    const finalAttributes = diffNonCacheAttributes(
-      beforeAttributes,
-      snapshotNonCacheAttributes(activeSpan),
-    );
-    const returnValue = toJsonSafe(bodyResult);
-    const recording: CacheRecording = {
-      returnValue,
-      finalAttributes,
-      ops: frame.ops,
-    };
-    await cacheCtx.adapter.write({
-      version: 1,
-      key: keyHash,
-      namespace,
-      operationType: 'value',
-      operationName: info.name,
-      storedAt: new Date().toISOString(),
-      codeFingerprint: cacheCtx.codeFingerprint,
-      recording,
-    });
-  }
-
-  return bodyResult;
-}
+const traceCache = createTraceCache(generateSpanId);
 
 /**
  * Trace builder used to create hierarchical spans and checkpoints during eval
@@ -782,201 +795,4 @@ export function buildTraceTree(
     },
     checkpoints,
   };
-}
-
-function stripCacheAttributes(
-  attributes: Record<string, unknown> | undefined,
-): Record<string, unknown> {
-  if (!attributes) return {};
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(attributes)) {
-    if (!key.startsWith('cache.')) {
-      result[key] = value;
-    }
-  }
-  return result;
-}
-
-function snapshotNonCacheAttributes(
-  span: EvalTraceSpan | undefined,
-): Record<string, unknown> {
-  const snapshot = toJsonSafe(stripCacheAttributes(span?.attributes));
-  return isRecordLike(snapshot) ? snapshot : {};
-}
-
-function isRecordLike(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function diffNonCacheAttributes(
-  before: Record<string, unknown>,
-  after: Record<string, unknown>,
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(after)) {
-    if (!cacheAttributeValuesEqual(before[key], value)) {
-      result[key] = value;
-    }
-  }
-  return result;
-}
-
-function cacheAttributeValuesEqual(left: unknown, right: unknown): boolean {
-  if (Object.is(left, right)) return true;
-  try {
-    return JSON.stringify(left) === JSON.stringify(right);
-  } catch {
-    return false;
-  }
-}
-
-function appendCacheRef(
-  span: EvalTraceSpan | undefined,
-  ref: TraceCacheRef,
-): void {
-  if (span === undefined) return;
-  const existing = span.attributes?.['cache.refs'];
-  const existingRefs = Array.isArray(existing)
-    ? existing.map((item: unknown) => item)
-    : [];
-  mergeSpanAttributes(span, { 'cache.refs': [...existingRefs, ref] });
-}
-
-function serializeSubSpanTree(
-  scope: EvalCaseScope,
-  spanId: string,
-): SerializedCacheSpan {
-  const original = scope.spans.find((s) => s.id === spanId);
-  if (!original) {
-    return {
-      kind: 'custom',
-      name: 'unknown',
-      attributes: undefined,
-      status: 'ok',
-      error: undefined,
-      errors: undefined,
-      warning: undefined,
-      warnings: undefined,
-      children: [],
-    };
-  }
-  const children = scope.spans
-    .filter((s) => s.parentId === spanId)
-    .map((child) => serializeSubSpanTree(scope, child.id));
-  return {
-    kind: original.kind,
-    name: original.name,
-    attributes: original.attributes,
-    status: original.status,
-    error: original.error,
-    errors: original.errors,
-    warning: original.warning,
-    warnings: original.warnings,
-    children,
-  };
-}
-
-function appendSubSpanOps(
-  scope: EvalCaseScope,
-  frame: CacheRecordingFrame,
-): void {
-  for (let i = frame.baseSpanIndex; i < scope.spans.length; i++) {
-    const candidate = scope.spans[i];
-    if (candidate?.parentId === frame.replayParentSpanId) {
-      frame.ops.push({
-        kind: 'subSpan',
-        span: serializeSubSpanTree(scope, candidate.id),
-      });
-    }
-  }
-}
-
-function replayRecording(
-  scope: EvalCaseScope,
-  parentSpan: EvalTraceSpan | undefined,
-  recording: CacheRecording,
-): void {
-  scope.replayingDepth++;
-  try {
-    for (const op of recording.ops) {
-      applyRecordingOp(scope, parentSpan, op);
-    }
-    if (
-      parentSpan !== undefined &&
-      Object.keys(recording.finalAttributes).length > 0
-    ) {
-      mergeSpanAttributes(parentSpan, recording.finalAttributes);
-    }
-    if (parentSpan !== undefined && recording.finalError !== undefined) {
-      parentSpan.error = recording.finalError;
-    }
-    if (parentSpan !== undefined && recording.finalErrors !== undefined) {
-      parentSpan.errors = recording.finalErrors;
-    }
-    if (parentSpan !== undefined && recording.finalWarning !== undefined) {
-      parentSpan.warning = recording.finalWarning;
-    }
-    if (parentSpan !== undefined && recording.finalWarnings !== undefined) {
-      parentSpan.warnings = recording.finalWarnings;
-    }
-  } finally {
-    scope.replayingDepth--;
-  }
-}
-
-function applyRecordingOp(
-  scope: EvalCaseScope,
-  parentSpan: EvalTraceSpan | undefined,
-  op: CacheRecordingOp,
-): void {
-  if (op.kind === 'setOutput') {
-    scope.outputs[op.key] = op.value;
-    return;
-  }
-  if (op.kind === 'incrementOutput') {
-    const existing = scope.outputs[op.key];
-    if (existing === undefined) {
-      scope.outputs[op.key] = op.delta;
-    } else if (typeof existing === 'number') {
-      scope.outputs[op.key] = existing + op.delta;
-    } else {
-      scope.assertionFailures.push({
-        message: `replay incrementEvalOutput("${op.key}"): existing value is ${typeof existing}, expected number`,
-      });
-    }
-    return;
-  }
-  if (op.kind === 'checkpoint') {
-    scope.checkpoints.set(op.name, op.data);
-    return;
-  }
-  replaySerializedSpan(scope, parentSpan?.id ?? null, op.span);
-}
-
-function replaySerializedSpan(
-  scope: EvalCaseScope,
-  parentId: string | null,
-  serialized: SerializedCacheSpan,
-): void {
-  const id = generateSpanId();
-  const now = new Date().toISOString();
-  const replayed: EvalTraceSpan = {
-    id,
-    parentId,
-    caseId: scope.caseId,
-    kind: serialized.kind,
-    name: serialized.name,
-    startedAt: now,
-    endedAt: now,
-    status: serialized.status,
-    attributes: serialized.attributes,
-    error: serialized.error,
-    errors: serialized.errors,
-    warning: serialized.warning,
-    warnings: serialized.warnings,
-  };
-  scope.spans.push(replayed);
-  for (const child of serialized.children) {
-    replaySerializedSpan(scope, id, child);
-  }
 }

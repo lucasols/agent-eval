@@ -96,6 +96,14 @@ function isObjectLike(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function copyArray(value: unknown[]): unknown[] {
+  return value.map((item: unknown) => item);
+}
+
 /**
  * Return the authored input for the current eval case.
  *
@@ -210,6 +218,56 @@ export function setEvalOutput(key: string, value: unknown): void {
   if (!scope) return;
   scope.outputs[key] = value;
   recordOpIfActive(scope, { kind: 'setOutput', key, value });
+}
+
+/**
+ * Append an item to an output array in the current case scope.
+ *
+ * Missing values become `[value]`, existing arrays receive the item, and
+ * existing scalar/object values are preserved as `[existing, value]`.
+ */
+export function appendToEvalOutput(key: string, value: unknown): void {
+  const scope = getCurrentScope();
+  if (!scope) return;
+  const existing = scope.outputs[key];
+  if (existing === undefined) {
+    scope.outputs[key] = [value];
+  } else if (Array.isArray(existing)) {
+    scope.outputs[key] = [...copyArray(existing), value];
+  } else {
+    scope.outputs[key] = [existing, value];
+  }
+  recordOpIfActive(scope, { kind: 'appendOutput', key, value });
+}
+
+/**
+ * Shallow-merge object fields into an output value in the current case scope.
+ *
+ * Missing values become a copy of `patch`. Non-object existing values are
+ * recorded as assertion failures instead of being replaced.
+ */
+export function mergeEvalOutput(
+  key: string,
+  patch: Record<string, unknown>,
+): void {
+  const scope = getCurrentScope();
+  if (!scope) return;
+  const existing = scope.outputs[key];
+  if (existing === undefined) {
+    scope.outputs[key] = { ...patch };
+    recordOpIfActive(scope, { kind: 'mergeOutput', key, patch });
+    return;
+  }
+  if (!isObjectRecord(existing)) {
+    scope.assertionFailures.push(
+      toAssertionFailure(
+        `mergeEvalOutput("${key}"): existing value is ${Array.isArray(existing) ? 'array' : typeof existing}, expected object`,
+      ),
+    );
+    return;
+  }
+  scope.outputs[key] = { ...existing, ...patch };
+  recordOpIfActive(scope, { kind: 'mergeOutput', key, patch });
 }
 
 /**

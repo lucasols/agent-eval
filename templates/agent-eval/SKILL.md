@@ -35,12 +35,12 @@ file wires up cases and scoring; the real `evalTracer.span(...)` calls sit
 inside the workflow, agent, or tool functions that both production and evals
 invoke.
 
-`evalTracer`, `evalSpan`, `setEvalOutput`, `incrementEvalOutput`, and
-`evalAssert` are ambient no-ops when called outside an eval case scope, so
-leaving them in production paths is safe — they only record anything when the
-product code runs inside an eval's `execute`. Use `isInEvalScope()` to branch
-on eval-only behavior in shared code (e.g. skip a real network side effect).
-Use `getEvalCaseInput()` to read the current case input, or
+`evalTracer`, `evalSpan`, output helpers, and `evalAssert` are ambient no-ops
+when called outside an eval case scope, so leaving them in production paths is
+safe — they only record anything when the product code runs inside an eval's
+`execute`. Use `isInEvalScope()` to branch on eval-only behavior in shared code
+(e.g. skip a real network side effect). Use `getEvalCaseInput()` to read the
+current case input, or
 `getEvalCaseInput('customer.tier')` for nested dot-path access; outside an eval
 run it returns `undefined`.
 
@@ -49,12 +49,14 @@ run it returns `undefined`.
 ```ts
 // src/workflows/refundWorkflow.ts
 import {
+  appendToEvalOutput,
   captureEvalSpanError,
   evalAssert,
   evalSpan,
   evalTracer,
   getEvalCaseInput,
   incrementEvalOutput,
+  mergeEvalOutput,
   setEvalOutput,
 } from '@ls-stack/agent-eval';
 
@@ -87,13 +89,17 @@ export async function runRefundWorkflow(input: RefundInput) {
           if (typeof expectedLocale === 'string') {
             evalSpan.setAttribute('expectedLocale', expectedLocale);
           }
+          evalSpan.incrementAttribute('llmCalls', 1);
+          evalSpan.appendToAttribute('models', 'gpt-4o-mini');
           incrementEvalOutput('costUsd', costUsd);
+          appendToEvalOutput('modelCalls', { model: 'gpt-4o-mini', costUsd });
           return text;
         },
       );
 
       const result = await applyRefund(plan);
       setEvalOutput('response', result.finalText);
+      mergeEvalOutput('metadata', { approved: result.approved });
       evalAssert(result.approved, 'refund workflow should approve the case');
       evalSpan.setAttribute('output', result);
       return result;
@@ -200,6 +206,11 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
 - `setEvalOutput(key, value)` writes reviewable data for the case. Values are
   plain data (strings, numbers, booleans, JSON-safe objects) plus native
   `Blob`/`File` or `FileRef` variants for media columns.
+- Use `incrementEvalOutput(key, delta)` for numeric totals,
+  `appendToEvalOutput(key, value)` for arrays that preserve existing scalar
+  values, and `mergeEvalOutput(key, patch)` for shallow object updates.
+  `evalSpan` has matching `incrementAttribute`, `appendToAttribute`, and
+  `mergeAttribute` helpers for span attributes.
 - `outputsSchema` validates final outputs after `execute` and
   `deriveFromTracing`, before computed scores. For Zod object schemas, only
   declared keys are passed to the schema; parsed fields merge back into the raw
@@ -234,6 +245,7 @@ await evalTracer.span(
     const result = await llm.complete(input.message);
     evalSpan.setAttributes({ model: 'gpt-4o-mini', output: result });
     incrementEvalOutput('costUsd', computeCost(result));
+    appendToEvalOutput('llmCalls', { model: 'gpt-4o-mini' });
     return result;
   },
 );
@@ -248,6 +260,7 @@ const context = await evalTracer.cache(
   async () => {
     const result = await loadReceiptContext(input);
     evalSpan.setAttribute('receiptContext', result);
+    evalSpan.mergeAttribute('receiptSummary', { orderId: input.orderId });
     return result;
   },
 );
@@ -256,7 +269,7 @@ const context = await evalTracer.cache(
 Mental model:
 
 - Only SDK-mediated effects replay on a hit: sub-spans, checkpoints,
-  `setEvalOutput`, `incrementEvalOutput`, span attributes. External side
+  output helper calls, span attributes. External side
   effects (HTTP, DB writes, file I/O) **do not** replay — cache only pure
   functions of the key.
 - `evalTracer.cache(...)` does not create a span. When it runs inside an active

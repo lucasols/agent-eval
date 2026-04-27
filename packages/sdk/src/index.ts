@@ -3,7 +3,9 @@ export { z } from 'zod/v4';
 export { repoFile } from './repoFile.ts';
 export {
   setEvalOutput,
+  appendToEvalOutput,
   incrementEvalOutput,
+  mergeEvalOutput,
   evalAssert,
   getEvalCaseInput,
   EvalAssertionError,

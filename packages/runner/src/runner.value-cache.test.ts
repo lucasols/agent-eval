@@ -33,10 +33,12 @@ async function createValueCacheWorkspace(): Promise<string> {
   await writeFile(
     join(workspacePath, 'evals', 'value-cache.eval.ts'),
     `import {
+  appendToEvalOutput,
   defineEval,
   evalSpan,
   evalTracer,
   incrementEvalOutput,
+  mergeEvalOutput,
   setEvalOutput,
 } from '@agent-evals/sdk';
 
@@ -62,9 +64,24 @@ defineEval({
         async () => {
           activeCalls++;
           evalSpan.setAttribute('planSource', 'fresh');
+          evalSpan.incrementAttribute('cachedCostUsd', 0.1);
+          evalSpan.incrementAttribute('cachedCostUsd', 0.15);
+          evalSpan.appendToAttribute('planSteps', 'draft');
+          evalSpan.appendToAttribute('planSteps', 'review');
+          evalSpan.mergeAttribute('planMetadata', { source: 'fresh' });
+          evalSpan.mergeAttribute('planMetadata', { activeCalls });
           incrementEvalOutput('costUsd', 0.25);
+          appendToEvalOutput('auditTrail', 'draft');
+          appendToEvalOutput('auditTrail', { step: 'review', activeCalls });
+          setEvalOutput('scalarTrail', 'first');
+          appendToEvalOutput('scalarTrail', 'second');
+          mergeEvalOutput('cacheMetadata', { source: 'fresh' });
+          mergeEvalOutput('cacheMetadata', { activeCalls, status: 'ok' });
           await evalTracer.span({ kind: 'tool', name: 'cached-child' }, async () => {
             evalSpan.setAttribute('childSource', 'fresh');
+            evalSpan.incrementAttribute('childAttempts', 1);
+            evalSpan.appendToAttribute('childEvents', 'lookup');
+            evalSpan.mergeAttribute('childMetadata', { source: 'fresh' });
           });
           evalTracer.checkpoint('value-plan-checkpoint', { activeCalls });
           return {
@@ -147,6 +164,11 @@ test('caches values without creating a cache span and replays SDK effects', asyn
     const firstTrace = firstDetail?.trace ?? [];
     const firstParent = findSpan(firstTrace, 'parent');
     expect(firstParent.attributes?.planSource).toBe('fresh');
+    expect(firstParent.attributes).toMatchObject({
+      cachedCostUsd: 0.25,
+      planSteps: ['draft', 'review'],
+      planMetadata: { source: 'fresh', activeCalls: 1 },
+    });
     expect(valueCacheRef(firstParent, 'value-plan')).toMatchObject({
       type: 'value',
       name: 'value-plan',
@@ -154,11 +176,25 @@ test('caches values without creating a cache span and replays SDK effects', asyn
     });
     expect(firstTrace.some((span) => span.name === 'root-value')).toBe(false);
     expect(firstTrace.some((span) => span.name === 'value-plan')).toBe(false);
-    expect(findSpan(firstTrace, 'cached-child').parentId).toBe(firstParent.id);
+    const firstChild = findSpan(firstTrace, 'cached-child');
+    expect(firstChild.parentId).toBe(firstParent.id);
+    expect(firstChild.attributes).toMatchObject({
+      childSource: 'fresh',
+      childAttempts: 1,
+      childEvents: ['lookup'],
+      childMetadata: { source: 'fresh' },
+    });
     expect(firstDetail?.columns).toMatchObject({
       response: 'cached refund please',
       rootCalls: 1,
       costUsd: 0.25,
+      auditTrail: JSON.stringify(['draft', { step: 'review', activeCalls: 1 }]),
+      scalarTrail: JSON.stringify(['first', 'second']),
+      cacheMetadata: JSON.stringify({
+        source: 'fresh',
+        activeCalls: 1,
+        status: 'ok',
+      }),
     });
 
     const firstCacheList = await runner.listCache();
@@ -192,19 +228,36 @@ test('caches values without creating a cache span and replays SDK effects', asyn
     const secondTrace = secondDetail?.trace ?? [];
     const secondParent = findSpan(secondTrace, 'parent');
     expect(secondParent.attributes?.planSource).toBe('fresh');
+    expect(secondParent.attributes).toMatchObject({
+      cachedCostUsd: 0.25,
+      planSteps: ['draft', 'review'],
+      planMetadata: { source: 'fresh', activeCalls: 1 },
+    });
     const secondCacheRef = valueCacheRef(secondParent, 'value-plan');
     expect(secondCacheRef?.status).toBe('hit');
     expect(typeof secondCacheRef?.storedAt).toBe('string');
     expect(typeof secondCacheRef?.age).toBe('number');
     expect(secondTrace.some((span) => span.name === 'root-value')).toBe(false);
     expect(secondTrace.some((span) => span.name === 'value-plan')).toBe(false);
-    expect(findSpan(secondTrace, 'cached-child').parentId).toBe(
-      secondParent.id,
-    );
+    const secondChild = findSpan(secondTrace, 'cached-child');
+    expect(secondChild.parentId).toBe(secondParent.id);
+    expect(secondChild.attributes).toMatchObject({
+      childSource: 'fresh',
+      childAttempts: 1,
+      childEvents: ['lookup'],
+      childMetadata: { source: 'fresh' },
+    });
     expect(secondDetail?.columns).toMatchObject({
       response: 'cached refund please',
       rootCalls: 1,
       costUsd: 0.25,
+      auditTrail: JSON.stringify(['draft', { step: 'review', activeCalls: 1 }]),
+      scalarTrail: JSON.stringify(['first', 'second']),
+      cacheMetadata: JSON.stringify({
+        source: 'fresh',
+        activeCalls: 1,
+        status: 'ok',
+      }),
     });
   } finally {
     process.chdir(previousCwd);
