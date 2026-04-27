@@ -590,6 +590,30 @@ Cached spans get `cache.status` in their attributes (`hit`, `miss`, `refresh`,
 or `bypass`) plus `cache.key`, `cache.storedAt`, and `cache.age` (on hit).
 These show as coloured badges in the trace tree.
 
+Use `evalTracer.cache(...)` when you want the same cache behavior without
+creating a wrapper span:
+
+```ts
+const receiptContext = await evalTracer.cache(
+  {
+    name: 'receipt-audit-context',
+    key: { orderId: input.orderId, totalUsd: input.expectedTotalUsd },
+  },
+  async () => {
+    const context = await loadReceiptContext(input);
+    evalSpan.setAttribute('receiptContext', context);
+    return context;
+  },
+);
+```
+
+If `evalTracer.cache(...)` runs inside an active span, that span receives a
+`cache.refs` array entry like `{ type: 'value', name, namespace, key, status }`
+with `storedAt` and `age` on hits. The cache call itself does not create a trace
+span. SDK-mediated effects inside the callback still replay on hits, including
+nested spans, checkpoints, `setEvalOutput`, `incrementEvalOutput`, and active
+span attributes changed by the callback.
+
 ### Cache controls
 
 CLI:
@@ -615,8 +639,9 @@ Server API (`/api/cache`):
 
 ### How it works
 
-- Default namespace is `${evalId}__${spanName}`; override per-call with
-  `cache.namespace` to share entries across spans/evals.
+- Default namespace is `${evalId}__${spanName}` for cached spans and
+  `${evalId}__${name}` for spanless value caches; override per-call with
+  `cache.namespace` / `namespace` to share entries across operations.
 - Shared namespaces still include the eval file `codeFingerprint` in the final
   cache key. In practice, that means shared namespaces are reusable across
   evals in the same source file; evals in different files intentionally miss
@@ -638,10 +663,10 @@ Server API (`/api/cache`):
 - Multi-trial runs isolate cache writes per trial attempt and only flush the
   winning trial's writes into the shared cache, so later trials in the same run
   never reuse cache entries produced by earlier sibling trials.
-- Only SDK-mediated side effects replay (`evalTracer.span`, `evalTracer.checkpoint`,
-  `setEvalOutput`, `incrementEvalOutput`, span attributes). External side effects
-  (network, DB writes) do _not_ replay on cache hits — use caching only for
-  pure functions of their key.
+- Only SDK-mediated side effects replay (`evalTracer.span`,
+  `evalTracer.checkpoint`, `setEvalOutput`, `incrementEvalOutput`, span
+  attributes). External side effects (network, DB writes) do _not_ replay on
+  cache hits — use caching only for pure functions of their key.
 - Return values are JSON round-tripped before storage; return JSON-safe values
   or carry richer data through `setEvalOutput`.
 

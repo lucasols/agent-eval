@@ -218,10 +218,10 @@ Stats rows and history charts on the eval card are opt-in via `stats` /
 `charts` on the eval definition. Their shapes live in the types; no need to
 memorize the option set.
 
-## Cached spans
+## Cached operations
 
-Wrap a costly pure operation in `cache: { key }` so later runs replay its
-recorded effects without re-executing:
+Wrap a costly pure span in `cache: { key }` so later runs replay its recorded
+effects without re-executing:
 
 ```ts
 await evalTracer.span(
@@ -239,18 +239,35 @@ await evalTracer.span(
 );
 ```
 
+Use `evalTracer.cache(...)` for pure values that should not create their own
+trace span:
+
+```ts
+const context = await evalTracer.cache(
+  { name: 'receipt-audit-context', key: { orderId: input.orderId } },
+  async () => {
+    const result = await loadReceiptContext(input);
+    evalSpan.setAttribute('receiptContext', result);
+    return result;
+  },
+);
+```
+
 Mental model:
 
 - Only SDK-mediated effects replay on a hit: sub-spans, checkpoints,
   `setEvalOutput`, `incrementEvalOutput`, span attributes. External side
   effects (HTTP, DB writes, file I/O) **do not** replay — cache only pure
   functions of the key.
+- `evalTracer.cache(...)` does not create a span. When it runs inside an active
+  span, that span gets a `cache.refs` entry with the value cache name, key,
+  namespace, and hit/miss status.
 - The cache key folds in a source-file fingerprint, so editing the eval busts
   the cache automatically.
-- `cache.namespace` can share entries across spans/evals, but the source-file
-  fingerprint still participates in the final key. Shared namespaces are
-  reusable across evals in the same file; evals in different files miss even
-  with the same namespace and key.
+- `cache.namespace` on spans or `namespace` on value caches can share entries
+  across operations/evals, but the source-file fingerprint still participates
+  in the final key. Shared namespaces are reusable across evals in the same
+  file; evals in different files miss even with the same namespace and key.
 - Cache keys should be deterministic primitives, arrays, and plain objects.
   `Buffer`, `ArrayBuffer`, and typed arrays hash by bytes. Native `Blob`/`File`
   keys are read asynchronously and hash by bytes plus stable metadata (`type`,
@@ -310,8 +327,9 @@ When adding or changing evals:
    `columns` formats from the `ColumnFormat` type.
 5. Promote high-signal span attributes with `traceDisplay` so the UI
    highlights them in the trace tree and detail pane.
-6. Cache costly pure spans with `cache: { key }`; never cache spans whose
-   external side effects you depend on.
+6. Cache costly pure spans with `cache: { key }` and pure spanless values with
+   `evalTracer.cache(...)`; never cache operations whose external side effects
+   you depend on.
 7. Sanity-check after changes: `agent-evals list`, then
    `agent-evals run --eval <id>`. Open the UI only when you need to inspect
    traces, trends, or fill manual scores.

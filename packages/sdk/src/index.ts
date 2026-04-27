@@ -27,6 +27,8 @@ export {
   type CaptureEvalSpanErrorLevel,
   type CaptureEvalSpanErrorOptions,
   type TraceActiveSpan,
+  type TraceCacheInfo,
+  type TraceCacheRef,
   type TraceExternalSpanEndInfo,
   type TraceExternalSpanHandle,
   type TraceExternalSpanRecordInfo,

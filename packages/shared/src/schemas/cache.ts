@@ -28,12 +28,19 @@ export const spanCacheOptionsSchema = z.object({
 /** Options accepted by an `evalTracer.span` call to opt the span into caching. */
 export type SpanCacheOptions = z.infer<typeof spanCacheOptionsSchema>;
 
+/** Category of operation stored in the eval cache. */
+export const cacheOperationTypeSchema = z.enum(['span', 'value']);
+/** Category of operation stored in the eval cache. */
+export type CacheOperationType = z.infer<typeof cacheOperationTypeSchema>;
+
 /** Summary of a single persisted cache entry, used by list/delete endpoints. */
 export const cacheListItemSchema = z.object({
   key: z.string(),
   namespace: z.string(),
-  spanName: z.string(),
-  spanKind: traceSpanKindSchema,
+  operationType: cacheOperationTypeSchema,
+  operationName: z.string(),
+  spanName: z.string().optional(),
+  spanKind: traceSpanKindSchema.optional(),
   storedAt: z.string(),
   codeFingerprint: z.string(),
   sizeBytes: z.number(),
@@ -117,8 +124,10 @@ export const cacheEntrySchema = z.object({
   version: z.literal(1),
   key: z.string(),
   namespace: z.string(),
-  spanName: z.string(),
-  spanKind: traceSpanKindSchema,
+  operationType: cacheOperationTypeSchema.optional(),
+  operationName: z.string().optional(),
+  spanName: z.string().optional(),
+  spanKind: traceSpanKindSchema.optional(),
   storedAt: z.string(),
   codeFingerprint: z.string(),
   recording: cacheRecordingSchema,

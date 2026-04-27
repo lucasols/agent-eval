@@ -477,7 +477,7 @@ export function setTrials(trials: number): void {
 /**
  * Delete cache entries scoped to a single eval id.
  *
- * Namespace convention is `${evalId}__${spanName}`, so we fetch the list and
+ * Namespace convention is `${evalId}__${operationName}`, so we fetch the list and
  * delete every namespace matching the prefix.
  */
 export async function clearCacheForEval(evalId: string): Promise<void> {

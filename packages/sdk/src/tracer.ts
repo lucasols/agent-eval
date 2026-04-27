@@ -1,5 +1,3 @@
-import { Buffer } from 'node:buffer';
-import { createHash } from 'node:crypto';
 import type {
   CacheEntry,
   CacheRecording,
@@ -8,7 +6,7 @@ import type {
   SerializedCacheSpan,
   SpanCacheOptions,
 } from '@agent-evals/shared';
-import { getCompositeKey } from '@ls-stack/utils/getCompositeKey';
+import { hashCacheKey, toJsonSafe } from './cacheKey.ts';
 import type { CacheRecordingFrame, EvalCaseScope } from './runtime.ts';
 import { getCurrentScope } from './runtime.ts';
 import {
@@ -26,6 +24,7 @@ export type {
   CaptureEvalSpanErrorLevel,
   CaptureEvalSpanErrorOptions,
 } from './traceDiagnostics.ts';
+export { hashCacheKey, hashCacheKeySync } from './cacheKey.ts';
 
 /**
  * Mutable handle for the current span.
@@ -397,6 +396,27 @@ export type TraceSpanInfoCached = TraceSpanInfoBase & {
 /** Info accepted by `evalTracer.span(info, fn)`. */
 export type TraceSpanInfo = TraceSpanInfoUncached | TraceSpanInfoCached;
 
+/** Info accepted by `evalTracer.cache(info, fn)` for spanless value caching. */
+export type TraceCacheInfo = {
+  /** Display name used for cache listings and the default namespace. */
+  name: string;
+  /** Arbitrary JSON-safe value used to derive the cache key. */
+  key: unknown;
+  /** Override the default namespace (`${evalId}__${name}`). */
+  namespace?: string;
+};
+
+/** Cache reference appended to the active span by `evalTracer.cache(...)`. */
+export type TraceCacheRef = {
+  type: 'value';
+  name: string;
+  namespace: string;
+  key: string;
+  status: 'hit' | 'miss' | 'refresh' | 'bypass';
+  storedAt?: string;
+  age?: number;
+};
+
 function traceSpan<T>(
   info: TraceSpanInfoUncached,
   fn: () => Promise<T> | T,
@@ -490,7 +510,7 @@ async function traceSpan(
 
       const frame: CacheRecordingFrame = {
         baseSpanIndex: scope.spans.length,
-        cachedSpanId: id,
+        replayParentSpanId: id,
         ops: [],
       };
       scope.recordingStack.push(frame);
@@ -521,6 +541,8 @@ async function traceSpan(
           version: 1,
           key: keyHash,
           namespace,
+          operationType: 'span',
+          operationName: info.name,
           spanName: info.name,
           spanKind: info.kind,
           storedAt: new Date().toISOString(),
@@ -547,6 +569,115 @@ async function traceSpan(
   }
 }
 
+function traceCache<T>(
+  info: TraceCacheInfo,
+  fn: () => Promise<T> | T,
+): Promise<T>;
+async function traceCache(
+  info: TraceCacheInfo,
+  fn: () => unknown,
+): Promise<unknown> {
+  const scope = getCurrentScope();
+  if (!scope) return await fn();
+
+  const cacheCtx = scope.cacheContext;
+  if (cacheCtx === undefined || scope.replayingDepth > 0) {
+    return await fn();
+  }
+
+  const namespace = info.namespace ?? `${cacheCtx.evalId}__${info.name}`;
+  const keyHash = await hashCacheKey({
+    namespace,
+    codeFingerprint: cacheCtx.codeFingerprint,
+    key: info.key,
+  });
+  const activeSpan = scope.activeSpanStack.at(-1);
+
+  if (cacheCtx.mode === 'use') {
+    const hit = await cacheCtx.adapter.lookup(namespace, keyHash);
+    if (hit) {
+      const storedAt = hit.storedAt;
+      const age = Date.now() - new Date(storedAt).getTime();
+      appendCacheRef(activeSpan, {
+        type: 'value',
+        name: info.name,
+        namespace,
+        key: keyHash,
+        status: 'hit',
+        storedAt,
+        age,
+      });
+      replayRecording(scope, activeSpan, hit.recording);
+      return hit.recording.returnValue;
+    }
+    appendCacheRef(activeSpan, {
+      type: 'value',
+      name: info.name,
+      namespace,
+      key: keyHash,
+      status: 'miss',
+    });
+  } else if (cacheCtx.mode === 'refresh') {
+    appendCacheRef(activeSpan, {
+      type: 'value',
+      name: info.name,
+      namespace,
+      key: keyHash,
+      status: 'refresh',
+    });
+  } else {
+    appendCacheRef(activeSpan, {
+      type: 'value',
+      name: info.name,
+      namespace,
+      key: keyHash,
+      status: 'bypass',
+    });
+  }
+
+  const beforeAttributes = snapshotNonCacheAttributes(activeSpan);
+  const frame: CacheRecordingFrame = {
+    baseSpanIndex: scope.spans.length,
+    replayParentSpanId: activeSpan?.id ?? null,
+    ops: [],
+  };
+  scope.recordingStack.push(frame);
+
+  let bodyResult: unknown;
+  try {
+    bodyResult = await fn();
+  } finally {
+    scope.recordingStack.pop();
+  }
+
+  appendSubSpanOps(scope, frame);
+
+  if (cacheCtx.mode !== 'bypass') {
+    const finalAttributes = diffNonCacheAttributes(
+      beforeAttributes,
+      snapshotNonCacheAttributes(activeSpan),
+    );
+    const returnValue = toJsonSafe(bodyResult);
+    const recording: CacheRecording = {
+      returnValue,
+      finalAttributes,
+      ops: frame.ops,
+    };
+    await cacheCtx.adapter.write({
+      version: 1,
+      key: keyHash,
+      namespace,
+      operationType: 'value',
+      operationName: info.name,
+      storedAt: new Date().toISOString(),
+      codeFingerprint: cacheCtx.codeFingerprint,
+      recording,
+    });
+  }
+
+  return bodyResult;
+}
+
 /**
  * Trace builder used to create hierarchical spans and checkpoints during eval
  * execution.
@@ -554,6 +685,14 @@ async function traceSpan(
 export const evalTracer = {
   /** Run a callback inside a new trace span and record its lifecycle. */
   span: traceSpan,
+
+  /**
+   * Cache a pure value without creating a trace span.
+   *
+   * When called inside an active span, the span receives a `cache.refs` entry
+   * describing the value cache status for this run.
+   */
+  cache: traceCache,
 
   /**
    * Start a span whose lifecycle is controlled by an external tracer/exporter.
@@ -645,166 +784,6 @@ export function buildTraceTree(
   };
 }
 
-type CacheKeyHashInput = {
-  namespace: string;
-  codeFingerprint: string;
-  key: unknown;
-};
-
-class SerializedCacheKeyValue {
-  readonly value: string;
-
-  constructor(value: string) {
-    this.value = value;
-  }
-}
-
-/**
- * Hash the components of a cache key into a deterministic hex digest.
- *
- * Native `Blob` and `File` values are read asynchronously and hashed by
- * content. Use `hashCacheKeySync` only when the key contains no async values.
- */
-export async function hashCacheKey(input: CacheKeyHashInput): Promise<string> {
-  const materialized = await materializeAsyncCacheKeyValue(input);
-  return hashCacheKeySyncMaterialized(materialized);
-}
-
-/**
- * Synchronously hash cache key components. This supports JSON-like data and
- * in-memory binary values such as `Buffer`, `ArrayBuffer`, and typed arrays,
- * but cannot content-hash native `Blob` or `File` values.
- */
-export function hashCacheKeySync(input: CacheKeyHashInput): string {
-  return hashCacheKeySyncMaterialized(input);
-}
-
-function hashCacheKeySyncMaterialized(input: unknown): string {
-  return createHash('sha256')
-    .update(getCompositeKey(input, { stringify: stringifyCacheKeyValue }))
-    .digest('hex');
-}
-
-function stringifyCacheKeyValue(value: unknown): string | undefined {
-  if (value instanceof SerializedCacheKeyValue) {
-    return value.value;
-  }
-  if (Buffer.isBuffer(value)) {
-    return `$buffer:${hashBytes(value)}`;
-  }
-  if (isArrayBuffer(value)) {
-    return `$arrayBuffer:${hashBytes(new Uint8Array(value))}`;
-  }
-  if (isSharedArrayBuffer(value)) {
-    return `$sharedArrayBuffer:${hashBytes(new Uint8Array(value))}`;
-  }
-  if (isArrayBufferView(value)) {
-    const bytes = new Uint8Array(
-      value.buffer,
-      value.byteOffset,
-      value.byteLength,
-    );
-    return `$${value.constructor.name}:${hashBytes(bytes)}`;
-  }
-  if (isFile(value)) {
-    return `$file:${getCompositeKey({
-      lastModified: value.lastModified,
-      name: value.name,
-      size: value.size,
-      type: value.type,
-    })}`;
-  }
-  if (isBlob(value)) {
-    return `$blob:${getCompositeKey({ size: value.size, type: value.type })}`;
-  }
-  return undefined;
-}
-
-async function materializeAsyncCacheKeyValue(
-  value: unknown,
-  refs = new WeakSet<object>(),
-): Promise<unknown> {
-  const serialized = await stringifyAsyncCacheKeyValue(value);
-  if (serialized !== undefined) {
-    return new SerializedCacheKeyValue(serialized);
-  }
-  if (stringifyCacheKeyValue(value) !== undefined) return value;
-  if (!value || typeof value !== 'object') return value;
-  if (Array.isArray(value)) {
-    const items: unknown[] = [];
-    for (const item of value) {
-      items.push(await materializeAsyncCacheKeyValue(item, refs));
-    }
-    return items;
-  }
-
-  if (refs.has(value)) throw new Error('Circular reference detected');
-  refs.add(value);
-  const entries: [string, unknown][] = [];
-  for (const [key, entryValue] of Object.entries(value)) {
-    entries.push([key, await materializeAsyncCacheKeyValue(entryValue, refs)]);
-  }
-  refs.delete(value);
-  return Object.fromEntries(entries);
-}
-
-async function stringifyAsyncCacheKeyValue(
-  value: unknown,
-): Promise<string | undefined> {
-  if (isFile(value)) {
-    return `$file:${getCompositeKey({
-      bytes: await hashBlobBytes(value),
-      lastModified: value.lastModified,
-      name: value.name,
-      size: value.size,
-      type: value.type,
-    })}`;
-  }
-  if (isBlob(value)) {
-    return `$blob:${getCompositeKey({
-      bytes: await hashBlobBytes(value),
-      size: value.size,
-      type: value.type,
-    })}`;
-  }
-  return undefined;
-}
-
-async function hashBlobBytes(value: Blob): Promise<string> {
-  return hashBytes(new Uint8Array(await value.arrayBuffer()));
-}
-
-function hashBytes(value: NodeJS.ArrayBufferView): string {
-  return createHash('sha256').update(value).digest('hex');
-}
-
-function isArrayBuffer(value: unknown): value is ArrayBuffer {
-  return value instanceof ArrayBuffer;
-}
-
-function isSharedArrayBuffer(value: unknown): value is SharedArrayBuffer {
-  return value instanceof SharedArrayBuffer;
-}
-
-function isArrayBufferView(value: unknown): value is ArrayBufferView {
-  return ArrayBuffer.isView(value);
-}
-
-function isBlob(value: unknown): value is Blob {
-  return value instanceof Blob;
-}
-
-function isFile(value: unknown): value is File {
-  return value instanceof File;
-}
-
-function toJsonSafe(value: unknown): unknown {
-  if (value === undefined) return undefined;
-  const text = JSON.stringify(value);
-  const parsed: unknown = JSON.parse(text);
-  return parsed;
-}
-
 function stripCacheAttributes(
   attributes: Record<string, unknown> | undefined,
 ): Record<string, unknown> {
@@ -816,6 +795,51 @@ function stripCacheAttributes(
     }
   }
   return result;
+}
+
+function snapshotNonCacheAttributes(
+  span: EvalTraceSpan | undefined,
+): Record<string, unknown> {
+  const snapshot = toJsonSafe(stripCacheAttributes(span?.attributes));
+  return isRecordLike(snapshot) ? snapshot : {};
+}
+
+function isRecordLike(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function diffNonCacheAttributes(
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(after)) {
+    if (!cacheAttributeValuesEqual(before[key], value)) {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+function cacheAttributeValuesEqual(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  try {
+    return JSON.stringify(left) === JSON.stringify(right);
+  } catch {
+    return false;
+  }
+}
+
+function appendCacheRef(
+  span: EvalTraceSpan | undefined,
+  ref: TraceCacheRef,
+): void {
+  if (span === undefined) return;
+  const existing = span.attributes?.['cache.refs'];
+  const existingRefs = Array.isArray(existing)
+    ? existing.map((item: unknown) => item)
+    : [];
+  mergeSpanAttributes(span, { 'cache.refs': [...existingRefs, ref] });
 }
 
 function serializeSubSpanTree(
@@ -858,7 +882,7 @@ function appendSubSpanOps(
 ): void {
   for (let i = frame.baseSpanIndex; i < scope.spans.length; i++) {
     const candidate = scope.spans[i];
-    if (candidate?.parentId === frame.cachedSpanId) {
+    if (candidate?.parentId === frame.replayParentSpanId) {
       frame.ops.push({
         kind: 'subSpan',
         span: serializeSubSpanTree(scope, candidate.id),
@@ -869,7 +893,7 @@ function appendSubSpanOps(
 
 function replayRecording(
   scope: EvalCaseScope,
-  parentSpan: EvalTraceSpan,
+  parentSpan: EvalTraceSpan | undefined,
   recording: CacheRecording,
 ): void {
   scope.replayingDepth++;
@@ -877,19 +901,22 @@ function replayRecording(
     for (const op of recording.ops) {
       applyRecordingOp(scope, parentSpan, op);
     }
-    if (Object.keys(recording.finalAttributes).length > 0) {
+    if (
+      parentSpan !== undefined &&
+      Object.keys(recording.finalAttributes).length > 0
+    ) {
       mergeSpanAttributes(parentSpan, recording.finalAttributes);
     }
-    if (recording.finalError !== undefined) {
+    if (parentSpan !== undefined && recording.finalError !== undefined) {
       parentSpan.error = recording.finalError;
     }
-    if (recording.finalErrors !== undefined) {
+    if (parentSpan !== undefined && recording.finalErrors !== undefined) {
       parentSpan.errors = recording.finalErrors;
     }
-    if (recording.finalWarning !== undefined) {
+    if (parentSpan !== undefined && recording.finalWarning !== undefined) {
       parentSpan.warning = recording.finalWarning;
     }
-    if (recording.finalWarnings !== undefined) {
+    if (parentSpan !== undefined && recording.finalWarnings !== undefined) {
       parentSpan.warnings = recording.finalWarnings;
     }
   } finally {
@@ -899,7 +926,7 @@ function replayRecording(
 
 function applyRecordingOp(
   scope: EvalCaseScope,
-  parentSpan: EvalTraceSpan,
+  parentSpan: EvalTraceSpan | undefined,
   op: CacheRecordingOp,
 ): void {
   if (op.kind === 'setOutput') {
@@ -923,7 +950,7 @@ function applyRecordingOp(
     scope.checkpoints.set(op.name, op.data);
     return;
   }
-  replaySerializedSpan(scope, parentSpan.id, op.span);
+  replaySerializedSpan(scope, parentSpan?.id ?? null, op.span);
 }
 
 function replaySerializedSpan(

@@ -104,9 +104,14 @@ export function createFsCacheStore(options: {
         if (cacheFile === null) continue;
 
         for (const entry of Object.values(cacheFile.entries)) {
+          const operationType = entry.operationType ?? 'span';
+          const operationName =
+            entry.operationName ?? entry.spanName ?? entry.namespace;
           items.push({
             key: entry.key,
             namespace: entry.namespace,
+            operationType,
+            operationName,
             spanName: entry.spanName,
             spanKind: entry.spanKind,
             storedAt: entry.storedAt,

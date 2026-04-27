@@ -40,6 +40,8 @@ export {
   type EvalManualScoreDef,
   type EvalDefinition,
   type TraceActiveSpan,
+  type TraceCacheInfo,
+  type TraceCacheRef,
   type TraceSpanInfo,
 } from '@agent-evals/sdk';
 export * from '@agent-evals/shared';

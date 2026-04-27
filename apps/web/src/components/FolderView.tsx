@@ -283,7 +283,7 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
     {
       id: 'clear-cache',
       label: 'Clear cache for these evals',
-      description: 'Remove cached span entries tied to every eval in view.',
+      description: 'Remove cached entries tied to every eval in view.',
       tone: 'danger',
       onSelect: () => {
         if (

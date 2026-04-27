@@ -36,6 +36,27 @@ export async function runReceiptAuditWorkflow(
       });
     });
 
+    const receiptContext = await evalTracer.cache(
+      {
+        name: 'receipt-audit-context',
+        key: {
+          customerMessage: input.customerMessage,
+          expectedTotalUsd: input.expectedTotalUsd,
+          orderId: input.orderId,
+        },
+      },
+      () => {
+        const context = {
+          claimType: 'damage',
+          expectedTotalUsd: input.expectedTotalUsd,
+          orderId: input.orderId,
+        };
+        evalSpan.setAttribute('receiptContext', context);
+        evalTracer.checkpoint('receipt-audit-context', context);
+        return context;
+      },
+    );
+
     await evalTracer.span(
       { kind: 'llm', name: 'compare-claim-against-receipt' },
       async () => {
@@ -47,7 +68,7 @@ export async function runReceiptAuditWorkflow(
         evalSpan.setAttributes({
           input: {
             customerMessage: input.customerMessage,
-            expectedTotalUsd: input.expectedTotalUsd,
+            expectedTotalUsd: receiptContext.expectedTotalUsd,
           },
           model: 'gpt-4o-mini',
           usage,

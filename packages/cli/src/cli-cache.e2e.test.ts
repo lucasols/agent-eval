@@ -269,6 +269,8 @@ describe('CLI operation caching', () => {
       expect(listed).toHaveLength(1);
       const first = requireDefined(listed[0], 'first listed entry');
       expect(first.namespace).toBe('refund-workflow__plan-refund');
+      expect(first.operationType).toBe('span');
+      expect(first.operationName).toBe('plan-refund');
       expect(first.spanName).toBe('plan-refund');
       expect(first.spanKind).toBe('llm');
 
@@ -298,6 +300,43 @@ describe('CLI operation caching', () => {
         'plan-refund',
       );
       expect(getCacheStatus(planSpan)).toBe('miss');
+    });
+  });
+
+  test('cache list shows spanless value cache entries', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const primed = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'receipt-audit',
+        '--case',
+        'damaged-mug',
+      ]);
+      expect(primed.exitCode).toBe(0);
+
+      const listJson = await runExampleCli(workspacePath, [
+        'cache',
+        'list',
+        '--json',
+      ]);
+      expect(listJson.exitCode).toBe(0);
+      const listedRaw: unknown = JSON.parse(listJson.stdout);
+      const listed = cacheListSchema.parse(listedRaw);
+      expect(listed).toHaveLength(1);
+      const first = requireDefined(listed[0], 'first listed value entry');
+      expect(first).toMatchObject({
+        namespace: 'receipt-audit__receipt-audit-context',
+        operationType: 'value',
+        operationName: 'receipt-audit-context',
+      });
+      expect(first.spanName).toBeUndefined();
+      expect(first.spanKind).toBeUndefined();
+
+      const listText = await runExampleCli(workspacePath, ['cache', 'list']);
+      expect(listText.exitCode).toBe(0);
+      expect(listText.stdout).toContain(
+        'operation: receipt-audit-context (value)',
+      );
     });
   });
 

@@ -444,7 +444,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     {
       id: 'clear-cache',
       label: 'Clear cache for this eval',
-      description: 'Remove every cached span entry tied to this eval id.',
+      description: 'Remove every cached entry tied to this eval id.',
       tone: 'danger',
       onSelect: () => {
         if (!window.confirm('Clear cached entries for this eval?')) return;

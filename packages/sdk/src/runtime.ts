@@ -8,7 +8,7 @@ import type {
 } from '@agent-evals/shared';
 
 /**
- * Adapter used by the SDK to read and write cache entries for cached spans.
+ * Adapter used by the SDK to read and write cache entries.
  *
  * Implementations are typically injected by the runner before the eval case
  * starts executing.
@@ -29,12 +29,12 @@ export type CacheScopeContext = {
   codeFingerprint: string;
 };
 
-/** Active recording frame captured while a cached span body executes. */
+/** Active recording frame captured while a cached operation body executes. */
 export type CacheRecordingFrame = {
   /** Length of `scope.spans` immediately before the cached body started. */
   baseSpanIndex: number;
-  /** Id of the cached span that owns this recording. */
-  cachedSpanId: string;
+  /** Parent id used when recording and replaying direct child spans. */
+  replayParentSpanId: string | null;
   /** Ordered observable effects recorded during the cached body. */
   ops: CacheRecordingOp[];
 };
@@ -57,7 +57,7 @@ export type EvalCaseScope = {
    */
   recordingStack: CacheRecordingFrame[];
   /**
-   * Incremented while replaying a cached span, so nested SDK calls do not
+   * Incremented while replaying a cached operation, so nested SDK calls do not
    * accidentally double-record ops into outer recorders.
    */
   replayingDepth: number;

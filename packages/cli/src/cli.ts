@@ -410,7 +410,11 @@ async function commandCache(args: CliArgs): Promise<void> {
     for (const entry of entries) {
       console.info(`  ${entry.namespace}`);
       console.info(`    key: ${entry.key}`);
-      console.info(`    span: ${entry.spanName} (${entry.spanKind})`);
+      const operationLabel =
+        entry.operationType === 'span'
+          ? `${entry.operationName} (span ${entry.spanKind ?? 'unknown'})`
+          : `${entry.operationName} (value)`;
+      console.info(`    operation: ${operationLabel}`);
       console.info(`    stored: ${entry.storedAt}`);
       console.info(`    size: ${String(entry.sizeBytes)} bytes`);
       console.info('');
