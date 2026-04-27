@@ -40,6 +40,9 @@ invoke.
 leaving them in production paths is safe — they only record anything when the
 product code runs inside an eval's `execute`. Use `isInEvalScope()` to branch
 on eval-only behavior in shared code (e.g. skip a real network side effect).
+Use `getEvalCaseInput()` to read the current case input, or
+`getEvalCaseInput('customer.tier')` for nested dot-path access; outside an eval
+run it returns `undefined`.
 
 ### Product code (instrumented once, reused everywhere)
 
@@ -50,6 +53,7 @@ import {
   evalAssert,
   evalSpan,
   evalTracer,
+  getEvalCaseInput,
   incrementEvalOutput,
   setEvalOutput,
 } from '@ls-stack/agent-eval';
@@ -79,6 +83,10 @@ export async function runRefundWorkflow(input: RefundInput) {
             ));
           }
           evalSpan.setAttributes({ model: 'gpt-4o-mini', usage });
+          const expectedLocale = getEvalCaseInput('locale');
+          if (typeof expectedLocale === 'string') {
+            evalSpan.setAttribute('expectedLocale', expectedLocale);
+          }
           incrementEvalOutput('costUsd', costUsd);
           return text;
         },

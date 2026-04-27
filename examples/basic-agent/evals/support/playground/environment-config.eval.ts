@@ -2,6 +2,7 @@ import {
   defineEval,
   evalSpan,
   evalTracer,
+  getEvalCaseInput,
   setEvalOutput,
 } from '@ls-stack/agent-eval';
 
@@ -14,7 +15,7 @@ function resolveSupportQueue(): string {
     : defaultSupportQueue;
 }
 
-defineEval<{ customerTier: string; message: string; orderId: string }>({
+defineEval<{ customerTier: string; message: string; order: { id: string } }>({
   id: 'environment-config-demo',
   title: 'Environment Config Demo',
   cases: [
@@ -23,7 +24,7 @@ defineEval<{ customerTier: string; message: string; orderId: string }>({
       input: {
         customerTier: 'gold',
         message: 'Customer needs a refund status update for a delayed order.',
-        orderId: 'R-2048',
+        order: { id: 'R-2048' },
       },
     },
   ],
@@ -38,7 +39,10 @@ defineEval<{ customerTier: string; message: string; orderId: string }>({
         evalSpan.setAttribute('input', input);
 
         const queue = resolveSupportQueue();
-        const response = `Routed ${input.orderId} for ${input.customerTier} support via ${queue}.`;
+        const scopedOrderId = getEvalCaseInput('order.id');
+        const orderId =
+          typeof scopedOrderId === 'string' ? scopedOrderId : input.order.id;
+        const response = `Routed ${orderId} for ${input.customerTier} support via ${queue}.`;
 
         setEvalOutput('response', response);
         setEvalOutput('queue', queue);

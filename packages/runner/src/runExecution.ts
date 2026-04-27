@@ -100,6 +100,7 @@ export async function runCase<
       ]);
     },
     {
+      input: evalCase.input,
       cacheContext: cacheAdapter
         ? { adapter: cacheAdapter, mode: cacheMode, evalId, codeFingerprint }
         : undefined,
@@ -184,6 +185,7 @@ export async function runCase<
             },
           ]),
         {
+          input: evalCase.input,
           cacheContext: cacheAdapter
             ? {
                 adapter: cacheAdapter,

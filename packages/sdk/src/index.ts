@@ -5,6 +5,7 @@ export {
   setEvalOutput,
   incrementEvalOutput,
   evalAssert,
+  getEvalCaseInput,
   EvalAssertionError,
   runInEvalScope,
   getCurrentScope,

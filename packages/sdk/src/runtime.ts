@@ -42,6 +42,8 @@ export type CacheRecordingFrame = {
 /** Mutable per-case runtime state stored in async local storage. */
 export type EvalCaseScope = {
   caseId: string;
+  /** Authored input for the current case, when provided by the runner. */
+  input?: unknown;
   outputs: Record<string, unknown>;
   /** Structured assertion failures recorded for the current case. */
   assertionFailures: AssertionFailure[];
@@ -90,6 +92,37 @@ export function isInEvalScope(): boolean {
   return getCurrentScope() !== undefined;
 }
 
+function isObjectLike(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
+ * Return the authored input for the current eval case.
+ *
+ * Pass a dot-separated path to read nested values, for example
+ * `getEvalCaseInput('customer.tier')`. Calls outside an eval case scope return
+ * `undefined` so shared workflow code can safely use this helper.
+ */
+export function getEvalCaseInput(): unknown;
+export function getEvalCaseInput(path: string): unknown;
+export function getEvalCaseInput(
+  path: string | undefined = undefined,
+): unknown {
+  const scope = getCurrentScope();
+  if (!scope) return undefined;
+  if (path === undefined) return scope.input;
+  if (path.length === 0) return undefined;
+
+  let current = scope.input;
+  for (const segment of path.split('.')) {
+    if (segment.length === 0 || !isObjectLike(current)) {
+      return undefined;
+    }
+    current = current[segment];
+  }
+  return current;
+}
+
 /**
  * Attach cache context (adapter, mode, eval id, fingerprint) to a scope.
  *
@@ -105,6 +138,8 @@ export function setScopeCacheContext(
 
 /** Optional inputs accepted when starting a new eval case scope. */
 export type RunInEvalScopeOptions = {
+  /** Authored input for the active eval case. */
+  input?: unknown;
   /** Cache adapter + mode attached to the scope before `fn` runs. */
   cacheContext?: CacheScopeContext;
 };
@@ -124,6 +159,7 @@ export async function runInEvalScope<T>(
 }> {
   const scope: EvalCaseScope = {
     caseId,
+    input: options.input,
     outputs: {},
     assertionFailures: [],
     spans: [],
