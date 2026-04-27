@@ -30,6 +30,23 @@ export async function runHighValueRefundWorkflow(
     async () => {
       evalSpan.setAttribute('input', input);
 
+      const policySpan = evalTracer.startSpan({
+        kind: 'retrieval',
+        name: 'premium-refund-policy-snapshot',
+        attributes: {
+          input: {
+            loyaltyTier: input.loyaltyTier,
+            requestedRefundUsd: input.requestedRefundUsd,
+          },
+        },
+      });
+      policySpan.setAttribute('source', 'finance-policy-ledger');
+      policySpan.end({
+        attributes: {
+          output: { managerApprovalRequiredUsd: 500, queue: 'finance-review' },
+        },
+      });
+
       await evalTracer.span(
         { kind: 'llm', name: 'assess-refund-risk' },
         async () => {

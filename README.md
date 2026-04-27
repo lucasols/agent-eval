@@ -229,6 +229,34 @@ execute: async ({ input }) => {
 };
 ```
 
+For observability systems that already emit span lifecycle events, use the
+external span API. This lets an adapter translate start/update/end events into
+the same eval trace tree without wrapping work in a callback:
+
+```ts
+const span = evalTracer.startSpan({
+  id: exportedSpan.id,
+  parentId: exportedSpan.parentSpanId ?? null,
+  kind: 'llm',
+  name: exportedSpan.name,
+  startedAt: exportedSpan.startTime,
+  attributes: exportedSpan.attributes,
+});
+
+evalTracer.updateSpan({
+  id: span.id,
+  attributes: { usage: exportedSpan.attributes?.usage },
+});
+
+span.end({
+  endedAt: exportedSpan.endTime,
+  attributes: { output: exportedSpan.output },
+});
+```
+
+Use `evalTracer.recordSpan(...)` when the upstream system only exposes completed
+spans.
+
 By default, the UI automatically promotes only the `input` and `output` span
 attributes. Use `traceDisplay` to promote any other span attributes in the trace
 tree and detail pane:
@@ -539,12 +567,21 @@ Server API (`/api/cache`):
 ### How it works
 
 - Default namespace is `${evalId}__${spanName}`; override per-call with
-  `cache.namespace` for sharing across evals.
+  `cache.namespace` to share entries across spans/evals.
+- Shared namespaces still include the eval file `codeFingerprint` in the final
+  cache key. In practice, that means shared namespaces are reusable across
+  evals in the same source file; evals in different files intentionally miss
+  even when they use the same namespace and key.
 - Entries live in inspectable per-owner files at
   `<workspaceRoot>/.agent-evals/cache/<owner>.json`; for default namespaces,
   the owner is the eval id.
 - Each owner file keeps at most `cache.maxEntriesPerEval ?? 100` entries,
   pruning the oldest entries on write so committed caches do not grow forever.
+- Cache keys should be deterministic primitives, arrays, and plain objects.
+  `Buffer`, `ArrayBuffer`, and typed-array values are serialized by a sha256 of
+  their bytes. Native `Blob`/`File` keys are read asynchronously and serialized
+  from a sha256 of their bytes plus stable metadata (`type`, `size`, plus
+  `name`/`lastModified` for `File`).
 - The cache key folds in a `codeFingerprint` — the sha256 of the eval file's
   source — so editing the eval produces a miss instead of a stale hit.
 - Modes: `bypass` never reads or writes; `refresh` skips the read and always

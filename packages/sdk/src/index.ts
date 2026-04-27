@@ -20,8 +20,15 @@ export {
   evalSpan,
   buildTraceTree,
   hashCacheKey,
+  hashCacheKeySync,
   type TraceActiveSpan,
+  type TraceExternalSpanEndInfo,
+  type TraceExternalSpanHandle,
+  type TraceExternalSpanRecordInfo,
+  type TraceExternalSpanStartInfo,
+  type TraceExternalSpanUpdateInfo,
   type TraceSpanInfo,
+  type TraceSpanTimestamp,
 } from './tracer.ts';
 export type { FileRef, RepoFileRef, RunArtifactRef } from '@agent-evals/shared';
 export type {

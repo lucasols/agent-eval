@@ -85,6 +85,13 @@ Span `kind` values are color-coded in the UI — pick the most specific kind
 promotes only the `input` and `output` span attributes. Use `traceDisplay` for
 other span attributes such as `model`, `usage`, or `costUsd`.
 
+For libraries or observability exporters that already emit span lifecycle
+events, use `evalTracer.startSpan(...)`, `evalTracer.updateSpan(...)`,
+`evalTracer.endSpan(...)`, or `evalTracer.recordSpan(...)` to translate those
+events into the eval trace tree without wrapping the upstream work in a
+callback. Pass the upstream span id and parent id when available so the UI keeps
+the original hierarchy.
+
 ### Eval file (thin)
 
 ```ts
@@ -190,6 +197,14 @@ Mental model:
   functions of the key.
 - The cache key folds in a source-file fingerprint, so editing the eval busts
   the cache automatically.
+- `cache.namespace` can share entries across spans/evals, but the source-file
+  fingerprint still participates in the final key. Shared namespaces are
+  reusable across evals in the same file; evals in different files miss even
+  with the same namespace and key.
+- Cache keys should be deterministic primitives, arrays, and plain objects.
+  `Buffer`, `ArrayBuffer`, and typed arrays hash by bytes. Native `Blob`/`File`
+  keys are read asynchronously and hash by bytes plus stable metadata (`type`,
+  `size`, plus `name`/`lastModified` for `File`).
 - Cache entries are stored in inspectable per-eval files under
   `.agent-evals/cache/<eval-id>.json`, capped at 100 entries per eval by
   default so shared caches do not grow forever.

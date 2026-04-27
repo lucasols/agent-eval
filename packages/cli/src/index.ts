@@ -15,6 +15,7 @@ export {
   evalSpan,
   buildTraceTree,
   hashCacheKey,
+  hashCacheKeySync,
   type EvalCaseScope,
   type CacheAdapter,
   type CacheScopeContext,
