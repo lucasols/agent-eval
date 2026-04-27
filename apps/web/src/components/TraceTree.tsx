@@ -328,9 +328,16 @@ const BarDurationLabel = styled.span`
   pointer-events: none;
 
   &.inside {
-    color: ${colors.text.var};
+    color: ${colors.white.var};
     font-weight: 500;
-    text-shadow: 0 0 2px ${colors.bg.alpha(0.65)};
+    letter-spacing: 0.02em;
+    background: ${colors.black.alpha(0.2)};
+    padding: 0 5px;
+    line-height: 12px;
+    top: 7px;
+    height: 12px;
+    margin-right: -4px;
+    border-radius: 3px;
   }
 `;
 
