@@ -39,6 +39,7 @@ pnpm add -D @ls-stack/agent-eval
      setEvalOutput,
      evalSpan,
      evalTracer,
+     z,
    } from '@ls-stack/agent-eval';
    import { myAgent } from '../src/agent';
 
@@ -49,6 +50,7 @@ pnpm add -D @ls-stack/agent-eval
        { id: 'greeting', input: { message: 'hello' } },
        { id: 'farewell', input: { message: 'bye' } },
      ],
+     outputsSchema: z.object({ output: z.string() }),
      execute: async ({ input }) => {
        await evalTracer.span({ kind: 'agent', name: 'my-agent' }, async () => {
          evalSpan.setAttribute('input', input);
@@ -59,7 +61,7 @@ pnpm add -D @ls-stack/agent-eval
      },
      scores: {
        hasOutput: ({ outputs }) => {
-         return outputs.output !== undefined ? 1 : 0;
+         return outputs.output.length > 0 ? 1 : 0;
        },
      },
    });
@@ -193,6 +195,7 @@ lower median when the number of trials is even.
 | `title`             |          | Display title (defaults to a humanized version of `id`)                         |
 | `cases`             | yes      | `EvalCase[]` or `() => Promise<EvalCase[]>` (async loader for dynamic datasets) |
 | `execute`           | yes      | `async ({ input, signal }) => { ... }`                                          |
+| `outputsSchema`     |          | Zod schema that validates and types collected outputs before scoring            |
 | `traceDisplay`      |          | Per-eval trace attribute display overrides for the UI                           |
 | `deriveFromTracing` |          | Derive output columns from the finished trace tree                              |
 | `scores`            |          | Record of scoring functions returning `0..1`                                    |
@@ -658,6 +661,16 @@ Store output values with `setEvalOutput(...)` as plain data: strings, numbers,
 booleans, `null`, JSON-safe objects/arrays for `format: 'json'`, explicit file
 refs, or native `Blob`/`File` values for `format: 'image' | 'audio' | 'video' |
 'file'`.
+
+Add `outputsSchema` when you want runtime validation and typed scorer inputs.
+The runner validates configured output fields after `execute` and
+`deriveFromTracing`, before computed scores. For Zod object schemas, only
+declared keys are passed to the schema; parsed schema fields are merged back
+into the raw output map, so Zod defaults/transforms apply to configured fields
+while unconfigured outputs are kept and displayed as before. Validation failures
+mark the case as failed and skip computed scores.
+When you pass an explicit input generic, pass the output type as the second
+generic: `defineEval<Input, z.infer<typeof outputsSchema>>({ ... })`.
 
 Use the eval `columns` option to control labels, authored column order,
 alignment, visibility, and rendering format. Supported `columns.format` values

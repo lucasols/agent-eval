@@ -1,4 +1,5 @@
 export { defineEval, getEvalRegistry } from './defineEval.ts';
+export { z } from 'zod/v4';
 export { repoFile } from './repoFile.ts';
 export {
   setEvalOutput,
@@ -44,6 +45,8 @@ export type {
   EvalColumns,
   EvalTraceTree,
   EvalExecuteContext,
+  EvalOutputs,
+  EvalOutputsSchema,
   EvalDeriveContext,
   EvalScoreContext,
   EvalScoreFn,

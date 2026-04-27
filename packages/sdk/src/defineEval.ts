@@ -1,4 +1,4 @@
-import type { EvalDefinition } from './types.ts';
+import type { EvalDefinition, EvalOutputs } from './types.ts';
 
 /**
  * Registered eval metadata tracked by the SDK during module loading.
@@ -8,7 +8,11 @@ import type { EvalDefinition } from './types.ts';
 export type EvalRegistryEntry = {
   id: string;
   title?: string;
-  use: <R>(fn: <TInput>(def: EvalDefinition<TInput>) => R) => R;
+  use: <R>(
+    fn: <TInput, TOutputs extends EvalOutputs>(
+      def: EvalDefinition<TInput, TOutputs>,
+    ) => R,
+  ) => R;
 };
 
 const evalRegistry = new Map<string, EvalRegistryEntry>();
@@ -22,7 +26,10 @@ export function getEvalRegistry(): Map<string, EvalRegistryEntry> {
  * Register an eval definition with the SDK so the runner can discover it
  * after importing the eval module.
  */
-export function defineEval<TInput>(definition: EvalDefinition<TInput>): void {
+export function defineEval<
+  TInput = unknown,
+  TOutputs extends EvalOutputs = EvalOutputs,
+>(definition: EvalDefinition<TInput, TOutputs>): void {
   evalRegistry.set(definition.id, {
     id: definition.id,
     title: definition.title,

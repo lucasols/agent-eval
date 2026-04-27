@@ -3,8 +3,13 @@ import {
   EvalAssertionError,
   runInEvalScope,
 } from '@agent-evals/sdk';
-import type { CacheAdapter, EvalDefinition } from '@agent-evals/sdk';
 import type {
+  CacheAdapter,
+  EvalDefinition,
+  EvalOutputs,
+} from '@agent-evals/sdk';
+import type {
+  AssertionFailure,
   CacheMode,
   CaseDetail,
   CaseRow,
@@ -12,6 +17,7 @@ import type {
   ScoreTrace,
   TraceDisplayInputConfig,
 } from '@agent-evals/shared';
+import { z } from 'zod/v4';
 import { normalizeScoreDef, toCellValue } from './columnBuilder.ts';
 import { persistInlineArtifact } from './outputArtifacts.ts';
 import { resolveTracePresentation } from './traceDisplay.ts';
@@ -53,8 +59,12 @@ async function callWithUnknownResult(
   return await Reflect.apply(fn, undefined, args);
 }
 
-export async function runCase<TInput, TRunInput = TInput>(params: {
-  evalDef: EvalDefinition<TInput>;
+export async function runCase<
+  TInput,
+  TOutputs extends EvalOutputs = EvalOutputs,
+  TRunInput = TInput,
+>(params: {
+  evalDef: EvalDefinition<TInput, TOutputs>;
   evalId: string;
   evalCase: { id: string; input: TRunInput; tags?: string[] };
   globalTraceDisplay: TraceDisplayInputConfig | undefined;
@@ -133,6 +143,19 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
     }
   }
 
+  if (!nonAssertError && evalDef.outputsSchema) {
+    const parsedOutputs = evalDef.outputsSchema.safeParse(
+      getOutputsSchemaInput(evalDef.outputsSchema, scope.outputs),
+    );
+    if (parsedOutputs.success) {
+      scope.outputs = { ...scope.outputs, ...parsedOutputs.data };
+    } else {
+      scope.assertionFailures.push(
+        toAssertionFailure(formatOutputsSchemaError(parsedOutputs.error)),
+      );
+    }
+  }
+
   const scoreResults = new Map<
     string,
     {
@@ -143,7 +166,11 @@ export async function runCase<TInput, TRunInput = TInput>(params: {
   >();
   const scoringTraces: Record<string, ScoreTrace> = {};
 
-  if (!nonAssertError && evalDef.scores) {
+  if (
+    !nonAssertError &&
+    scope.assertionFailures.length === 0 &&
+    evalDef.scores
+  ) {
     for (const [key, def] of Object.entries(evalDef.scores)) {
       const { compute, passThreshold, label } = normalizeScoreDef(def);
       const scoreRun = await runInEvalScope(
@@ -290,9 +317,35 @@ function isBlob(value: unknown): value is Blob {
   return value instanceof Blob;
 }
 
+function getOutputsSchemaInput<TOutputs extends EvalOutputs>(
+  schema: z.ZodType<TOutputs>,
+  outputs: EvalOutputs,
+): unknown {
+  if (!(schema instanceof z.ZodObject)) return outputs;
+
+  const configuredOutputs: EvalOutputs = {};
+  for (const key of Object.keys(schema.shape)) {
+    if (key in outputs) {
+      configuredOutputs[key] = outputs[key];
+    }
+  }
+  return configuredOutputs;
+}
+
+function formatOutputsSchemaError(error: z.ZodError): string {
+  const issueLines = error.issues.map((issue) => {
+    const path = issue.path.length > 0 ? issue.path.join('.') : '<root>';
+    return `${path}: ${issue.message}`;
+  });
+  if (issueLines.length === 0) {
+    return 'outputsSchema validation failed';
+  }
+  return `outputsSchema validation failed:\n${issueLines.join('\n')}`;
+}
+
 function toAssertionFailure(
   message: string,
   error: Error | undefined = undefined,
-) {
+): AssertionFailure {
   return error?.stack ? { message, stack: error.stack } : { message };
 }

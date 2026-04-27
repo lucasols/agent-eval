@@ -1,10 +1,11 @@
 import { defineEval } from '@ls-stack/agent-eval';
 import {
   refundWorkflowSharedConfig,
+  type RefundWorkflowOutputs,
   type WorkflowInput,
 } from '../src/evals/refundWorkflowSharedConfig.ts';
 
-defineEval<WorkflowInput>({
+defineEval<WorkflowInput, RefundWorkflowOutputs>({
   id: 'refund-workflow',
   title: 'Refund Workflow',
   cases: [

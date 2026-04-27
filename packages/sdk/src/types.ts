@@ -16,6 +16,7 @@ import type {
   EvalTraceSpan,
   TraceDisplayInputConfig,
 } from '@agent-evals/shared';
+import type { z } from 'zod/v4';
 
 export type {
   EvalChartAggregate,
@@ -34,6 +35,18 @@ export type {
 
 /** Single authored eval case with its stable identifier and input payload. */
 export type EvalCase<TInput> = { id: string; input: TInput; tags?: string[] };
+
+/** Runtime output values collected from `setEvalOutput` and `deriveFromTracing`. */
+export type EvalOutputs = Record<string, unknown>;
+
+/**
+ * Schema used to validate and type an eval's collected runtime outputs.
+ *
+ * Zod schemas are supported directly. The runner validates after `execute` and
+ * `deriveFromTracing` finish, before computed scores run.
+ */
+export type EvalOutputsSchema<TOutputs extends EvalOutputs> =
+  z.ZodType<TOutputs>;
 
 /** UI overrides for a derived or scored column emitted by an eval. */
 export type EvalColumnOverride = {
@@ -96,15 +109,14 @@ export type EvalDeriveContext<TInput> = {
 };
 
 /** Context passed to score functions after outputs have been collected. */
-export type EvalScoreContext<TInput> = {
-  input: TInput;
-  outputs: Record<string, unknown>;
-  case: EvalCase<TInput>;
-};
+export type EvalScoreContext<
+  TInput,
+  TOutputs extends EvalOutputs = EvalOutputs,
+> = { input: TInput; outputs: TOutputs; case: EvalCase<TInput> };
 
 /** Score callback that computes a numeric result for one case. */
-export type EvalScoreFn<TInput> = (
-  ctx: EvalScoreContext<TInput>,
+export type EvalScoreFn<TInput, TOutputs extends EvalOutputs = EvalOutputs> = (
+  ctx: EvalScoreContext<TInput, TOutputs>,
 ) => number | Promise<number>;
 
 /**
@@ -115,10 +127,10 @@ export type EvalScoreFn<TInput> = (
  * score without a `passThreshold` is informational only and never causes
  * a case to fail on its own.
  */
-export type EvalScoreDef<TInput> =
-  | EvalScoreFn<TInput>
+export type EvalScoreDef<TInput, TOutputs extends EvalOutputs = EvalOutputs> =
+  | EvalScoreFn<TInput, TOutputs>
   | ({
-      compute: EvalScoreFn<TInput>;
+      compute: EvalScoreFn<TInput, TOutputs>;
       passThreshold?: number;
     } & EvalColumnOverride);
 
@@ -138,7 +150,10 @@ export type EvalManualScoreDef = EvalColumnOverride & {
 };
 
 /** Complete authored eval definition consumed by `defineEval`. */
-export type EvalDefinition<TInput = unknown> = {
+export type EvalDefinition<
+  TInput = unknown,
+  TOutputs extends EvalOutputs = EvalOutputs,
+> = {
   id: string;
   title?: string;
   /**
@@ -148,6 +163,17 @@ export type EvalDefinition<TInput = unknown> = {
    * eval once using a synthetic case with empty object input.
    */
   cases?: EvalCase<TInput>[] | (() => Promise<EvalCase<TInput>[]>);
+  /**
+   * Optional schema for runtime outputs collected through `setEvalOutput` and
+   * `deriveFromTracing`.
+   *
+   * The runner validates configured output fields before scoring. For Zod
+   * object schemas, only declared keys are passed to the schema; parsed fields
+   * are merged back into the raw output map, so schema defaults and transforms
+   * apply to configured fields while unconfigured outputs are kept unchanged.
+   * Validation failures mark the case as failed and skip computed scores.
+   */
+  outputsSchema?: EvalOutputsSchema<TOutputs>;
   columns?: EvalColumns;
   /**
    * Per-eval trace attribute display rules for the UI.
@@ -160,8 +186,8 @@ export type EvalDefinition<TInput = unknown> = {
   execute: (ctx: EvalExecuteContext<TInput>) => Promise<void> | void;
   deriveFromTracing?: (
     ctx: EvalDeriveContext<TInput>,
-  ) => Record<string, unknown> | Promise<Record<string, unknown>>;
-  scores?: Record<string, EvalScoreDef<TInput>>;
+  ) => Partial<TOutputs> | Promise<Partial<TOutputs>>;
+  scores?: Record<string, EvalScoreDef<TInput, TOutputs>>;
   /**
    * Score columns whose values are entered in the web UI after a run.
    *

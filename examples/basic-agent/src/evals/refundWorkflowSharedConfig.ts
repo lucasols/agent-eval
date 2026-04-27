@@ -1,4 +1,4 @@
-import type { EvalDefinition } from '@ls-stack/agent-eval';
+import { z, type EvalDefinition } from '@ls-stack/agent-eval';
 import {
   triggerWorkflow,
   type WorkflowInput,
@@ -8,6 +8,15 @@ export type { WorkflowInput } from '../workflows/triggerWorkflow.ts';
 
 const REFUND_REGEX = /refund/i;
 const USD_TO_BRL = 5.7;
+
+const refundWorkflowOutputsSchema = z.object({
+  response: z.string(),
+  costUsd: z.number(),
+  toolCalls: z.number(),
+  llmTurns: z.number(),
+});
+
+export type RefundWorkflowOutputs = z.infer<typeof refundWorkflowOutputsSchema>;
 
 function sampleReviewConfidence(seed: string): number {
   let hash = 0;
@@ -20,9 +29,15 @@ function sampleReviewConfidence(seed: string): number {
 }
 
 export const refundWorkflowSharedConfig: Pick<
-  EvalDefinition<WorkflowInput>,
-  'columns' | 'traceDisplay' | 'execute' | 'deriveFromTracing' | 'scores'
+  EvalDefinition<WorkflowInput, RefundWorkflowOutputs>,
+  | 'outputsSchema'
+  | 'columns'
+  | 'traceDisplay'
+  | 'execute'
+  | 'deriveFromTracing'
+  | 'scores'
 > = {
+  outputsSchema: refundWorkflowOutputsSchema,
   columns: {
     response: { label: 'Response', format: 'markdown' },
     costUsd: {
@@ -87,10 +102,7 @@ export const refundWorkflowSharedConfig: Pick<
       label: 'Mentions Refund',
       passThreshold: 1,
       compute: ({ outputs }) => {
-        const response = outputs.response;
-        return typeof response === 'string' && REFUND_REGEX.test(response)
-          ? 1
-          : 0;
+        return REFUND_REGEX.test(outputs.response) ? 1 : 0;
       },
     },
     reviewConfidence: {

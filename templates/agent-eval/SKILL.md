@@ -1,6 +1,6 @@
 ---
 name: agent-eval
-description: Create, run, and maintain TypeScript evals with @ls-stack/agent-eval in a project that already has it installed. Use when adding eval coverage for an LLM or agent workflow, updating *.eval.ts files, checking eval results, configuring agent-evals.config.ts, inspecting saved .agent-evals run artifacts, or wiring product source code with evalTracer spans. For first-time installation, use the sibling `install-prompt.md` template instead.
+description: Create, run, and maintain TypeScript evals with @ls-stack/agent-eval. Use when adding eval coverage for an LLM or agent workflow, updating *.eval.ts files, checking eval results, configuring agent-evals.config.ts, inspecting saved .agent-evals run artifacts, or wiring product source code with evalTracer spans. For first-time installation, use the sibling `install-prompt.md` template instead.
 ---
 
 # Agent Eval
@@ -15,9 +15,10 @@ This skill covers the mental model and conventions. For exhaustive field lists
 (config options, eval shape, column formats, score/chart/stats options, trace
 display rules), read the TypeScript declarations shipped with the package:
 
-- `AgentEvalsConfig`, `EvalDefinition`, `EvalCase`, `EvalColumnOverride`,
-  `EvalScoreDef`, `EvalManualScoreDef`, `EvalTraceTree`, `TraceSpanInfo`, …
-  all exported from `@ls-stack/agent-eval`.
+- `AgentEvalsConfig`, `EvalDefinition`, `EvalCase`, `EvalOutputs`,
+  `EvalColumnOverride`, `EvalScoreDef`, `EvalManualScoreDef`,
+  `EvalTraceTree`, `TraceSpanInfo`, and `z` are exported from
+  `@ls-stack/agent-eval`.
 - `.d.ts` files land in `node_modules/@ls-stack/agent-eval/dist/`.
 - CLI surface: `agent-evals --help` and `agent-evals <command> --help`.
   Unknown help targets exit non-zero instead of falling back to global help.
@@ -123,14 +124,23 @@ the original hierarchy.
 
 ```ts
 // evals/refund-workflow.eval.ts
-import { defineEval } from '@ls-stack/agent-eval';
+import { defineEval, z } from '@ls-stack/agent-eval';
 import { runRefundWorkflow } from '../src/workflows/refundWorkflow.ts';
 
-defineEval<RefundInput>({
+const outputsSchema = z.object({
+  response: z.string(),
+  costUsd: z.number().optional(),
+  toolCalls: z.number(),
+  llmTurns: z.number(),
+});
+type RefundOutputs = z.infer<typeof outputsSchema>;
+
+defineEval<RefundInput, RefundOutputs>({
   id: 'refund-workflow',
   cases: [
     { id: 'simple-text', input: { message: 'I want a refund for order #123' } },
   ],
+  outputsSchema,
   execute: async ({ input }) => {
     await runRefundWorkflow(input);
   },
@@ -141,10 +151,7 @@ defineEval<RefundInput>({
   scores: {
     mentionsRefund: {
       passThreshold: 1,
-      compute: ({ outputs }) =>
-        typeof outputs.response === 'string' && /refund/i.test(outputs.response)
-          ? 1
-          : 0,
+      compute: ({ outputs }) => (/refund/i.test(outputs.response) ? 1 : 0),
     },
   },
 });
@@ -183,6 +190,12 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
 - `setEvalOutput(key, value)` writes reviewable data for the case. Values are
   plain data (strings, numbers, booleans, JSON-safe objects) plus native
   `Blob`/`File` or `FileRef` variants for media columns.
+- `outputsSchema` validates final outputs after `execute` and
+  `deriveFromTracing`, before computed scores. For Zod object schemas, only
+  declared keys are passed to the schema; parsed fields merge back into the raw
+  output map, so defaults/transforms apply to configured fields and
+  unconfigured outputs stay visible as before. Validation failures fail the case
+  and skip computed scores.
 - `columns` overrides the display for output and score keys (label, format,
   alignment, visibility). The set of supported formats is declared by the
   `ColumnFormat` union and `EvalColumnOverride` in the types.

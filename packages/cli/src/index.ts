@@ -1,6 +1,7 @@
 export { createRunner, type EvalRunner } from '@agent-evals/runner';
 export {
   defineEval,
+  z,
   getEvalRegistry,
   repoFile,
   setEvalOutput,
@@ -27,6 +28,8 @@ export {
   type EvalColumns,
   type EvalTraceTree,
   type EvalExecuteContext,
+  type EvalOutputs,
+  type EvalOutputsSchema,
   type EvalDeriveContext,
   type EvalScoreContext,
   type EvalScoreFn,

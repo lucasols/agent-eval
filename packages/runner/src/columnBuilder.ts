@@ -1,6 +1,7 @@
 import type {
   EvalColumnOverride,
   EvalManualScoreDef,
+  EvalOutputs,
   EvalScoreDef,
 } from '@agent-evals/sdk';
 import type {
@@ -16,10 +17,15 @@ import { fileRefSchema, jsonCellSchema } from '@agent-evals/shared';
  * object literal with `compute`/`passThreshold`/`label`) to a common
  * shape used internally.
  */
-export function normalizeScoreDef<TInput>(def: EvalScoreDef<TInput>): {
+export function normalizeScoreDef<
+  TInput,
+  TOutputs extends EvalOutputs = EvalOutputs,
+>(
+  def: EvalScoreDef<TInput, TOutputs>,
+): {
   compute: (ctx: {
     input: TInput;
-    outputs: Record<string, unknown>;
+    outputs: TOutputs;
     case: { id: string; input: TInput; tags?: string[] };
   }) => number | Promise<number>;
   passThreshold: number | undefined;
@@ -35,8 +41,8 @@ export function normalizeScoreDef<TInput>(def: EvalScoreDef<TInput>): {
   };
 }
 
-function getScoreOverride<TInput>(
-  def: EvalScoreDef<TInput> | undefined,
+function getScoreOverride<TInput, TOutputs extends EvalOutputs = EvalOutputs>(
+  def: EvalScoreDef<TInput, TOutputs> | undefined,
 ): EvalColumnOverride | undefined {
   if (def === undefined || typeof def === 'function') return undefined;
   return {
@@ -72,11 +78,14 @@ function mergeOverrides(
  * that aren't already present, applying user-supplied `overrides` and
  * flagging score columns declared via `scores`.
  */
-export function mergeColumnDefs<TInput>(
+export function mergeColumnDefs<
+  TInput,
+  TOutputs extends EvalOutputs = EvalOutputs,
+>(
   target: Map<string, ColumnDef>,
   columns: Record<string, CellValue>,
   overrides: Record<string, EvalColumnOverride> | undefined,
-  scores: Record<string, EvalScoreDef<TInput>> | undefined,
+  scores: Record<string, EvalScoreDef<TInput, TOutputs>> | undefined,
   manualScores: Record<string, EvalManualScoreDef> | undefined,
 ): void {
   const scoreKeys = new Set(Object.keys(scores ?? {}));
@@ -110,9 +119,12 @@ export function mergeColumnDefs<TInput>(
  * output values exist. This lets discovery metadata describe authored rich
  * output columns even for runs created by another process.
  */
-export function buildDeclaredColumnDefs<TInput>(
+export function buildDeclaredColumnDefs<
+  TInput,
+  TOutputs extends EvalOutputs = EvalOutputs,
+>(
   overrides: Record<string, EvalColumnOverride> | undefined,
-  scores: Record<string, EvalScoreDef<TInput>> | undefined,
+  scores: Record<string, EvalScoreDef<TInput, TOutputs>> | undefined,
   manualScores: Record<string, EvalManualScoreDef> | undefined,
 ): ColumnDef[] {
   const declaredDefs = new Map<string, ColumnDef>();
@@ -232,10 +244,13 @@ function inferKindFromFormat(
   return 'string';
 }
 
-function createColumnDef<TInput>(params: {
+function createColumnDef<
+  TInput,
+  TOutputs extends EvalOutputs = EvalOutputs,
+>(params: {
   key: string;
   override?: EvalColumnOverride;
-  scoreDef?: EvalScoreDef<TInput>;
+  scoreDef?: EvalScoreDef<TInput, TOutputs>;
   manualScoreDef?: EvalManualScoreDef;
   inferredKind: ColumnKind | undefined;
   isScore: boolean;
