@@ -8,6 +8,7 @@ import {
   getEvalTitle,
   type CacheMode,
 } from '@agent-evals/shared';
+import { resultify } from 't-result';
 
 type CliCommand = 'app' | 'list' | 'run' | 'cache' | 'help';
 type HelpTopic =
@@ -33,9 +34,11 @@ type CliArgs = {
   cacheMode: CacheMode;
   clearCache: boolean;
   all: boolean;
+  loadEnv: boolean;
 };
 
 function parseArgs(argv: string[]): CliArgs {
+  const normalizedArgv = argv.filter((arg) => arg !== '--no-env');
   const args: CliArgs = {
     command: 'help',
     subcommand: undefined,
@@ -50,9 +53,10 @@ function parseArgs(argv: string[]): CliArgs {
     cacheMode: 'use',
     clearCache: false,
     all: false,
+    loadEnv: normalizedArgv.length === argv.length,
   };
 
-  const command = argv[0];
+  const command = normalizedArgv[0];
   if (command === '--help' || command === '-h') {
     args.showHelp = true;
     return args;
@@ -67,7 +71,7 @@ function parseArgs(argv: string[]): CliArgs {
 
   let cursor = 1;
   if (args.command === 'cache') {
-    const sub = argv[cursor];
+    const sub = normalizedArgv[cursor];
     if (sub === 'list' || sub === 'clear') {
       args.subcommand = sub;
       args.helpTopic = `cache ${sub}`;
@@ -77,9 +81,9 @@ function parseArgs(argv: string[]): CliArgs {
     }
   }
 
-  for (let i = cursor; i < argv.length; i++) {
-    const arg = argv[i];
-    const next = argv[i + 1];
+  for (let i = cursor; i < normalizedArgv.length; i++) {
+    const arg = normalizedArgv[i];
+    const next = normalizedArgv[i + 1];
 
     if (arg === '--help' || arg === '-h') {
       args.showHelp = true;
@@ -124,6 +128,11 @@ function parseArgs(argv: string[]): CliArgs {
 export async function runCli(argv: string[]): Promise<void> {
   const args = parseArgs(argv);
 
+  if (args.loadEnv && !loadWorkspaceEnv()) {
+    process.exit(1);
+    return;
+  }
+
   if (args.showHelp) {
     if (args.unknownHelpTarget !== undefined) {
       console.error(`No help found for "${args.unknownHelpTarget}".`);
@@ -162,6 +171,25 @@ function isCliCommand(command: string | undefined): command is CliCommand {
     command === 'cache' ||
     command === 'help'
   );
+}
+
+function loadWorkspaceEnv(): boolean {
+  const envPath = resolve(process.cwd(), '.env');
+  if (!existsSync(envPath)) {
+    return true;
+  }
+
+  const loadResult = resultify(() => {
+    process.loadEnvFile(envPath);
+  });
+  if (loadResult.error) {
+    console.error(
+      `Failed to load .env at ${envPath}: ${loadResult.error.message}`,
+    );
+    return false;
+  }
+
+  return true;
 }
 
 type HonoAppLike = { fetch: (...args: unknown[]) => Response };
@@ -455,6 +483,7 @@ Usage:
 
 Flags:
   --port <n>                 Server port (default: 4100)
+  --no-env                   Disable automatic .env loading
   --help, -h                 Show this help
   `);
     return;
@@ -468,6 +497,7 @@ Usage:
   agent-evals list [flags]
 
 Flags:
+  --no-env                   Disable automatic .env loading
   --help, -h                 Show this help
   `);
     return;
@@ -489,6 +519,7 @@ Flags:
   --no-cache                 Shortcut for --cache bypass
   --refresh-cache            Shortcut for --cache refresh
   --clear-cache              Clear the cache before starting the run
+  --no-env                   Disable automatic .env loading
   --help, -h                 Show this help
   `);
     return;
@@ -507,6 +538,7 @@ Flags:
   --eval <id>                Clear entries for specific eval(s) (comma-separated)
   --all                      Confirm clearing every cached entry
   --json                     Output cache listing as JSON
+  --no-env                   Disable automatic .env loading
   --help, -h                 Show this help
   `);
     return;
@@ -534,6 +566,7 @@ Options:
   --no-cache                 Shortcut for --cache bypass
   --refresh-cache            Shortcut for --cache refresh
   --clear-cache              Clear the cache before starting the run
+  --no-env                   Disable automatic .env loading
   --help, -h                 Show help
   `);
 }

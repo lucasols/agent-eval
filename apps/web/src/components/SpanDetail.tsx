@@ -4,6 +4,10 @@ import type {
   TraceDisplayConfig,
 } from '@agent-evals/shared';
 import { styled } from 'vindur';
+import {
+  ErrorDetails,
+  type ErrorDetailItem,
+} from '#src/components/ErrorDetails';
 import { JsonViewer } from '#src/components/JsonViewer';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
@@ -52,56 +56,6 @@ const DetailItemValue = styled.div`
   text-align: right;
   max-width: 60%;
   word-break: break-all;
-`;
-
-const ErrorContainer = styled.div`
-  ${stack({ gap: 8 })}
-  min-width: 0;
-  color: ${colors.error.var};
-  background: ${colors.error.alpha(0.06)};
-  border: 1px solid ${colors.error.alpha(0.22)};
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
-  overflow-wrap: anywhere;
-`;
-
-const ErrorTitle = styled.div`
-  font-weight: 600;
-  min-width: 0;
-  overflow-wrap: anywhere;
-`;
-
-const ErrorMeta = styled.div`
-  ${monoFont};
-  font-size: 10px;
-  color: ${colors.error.alpha(0.72)};
-  min-width: 0;
-  overflow-wrap: anywhere;
-`;
-
-const ErrorSectionLabel = styled.div`
-  ${kicker};
-  color: ${colors.error.var};
-`;
-
-const ErrorItem = styled.div`
-  ${stack({ gap: 4 })}
-  min-width: 0;
-
-  & + & {
-    border-top: 1px solid ${colors.error.alpha(0.18)};
-    padding-top: 8px;
-  }
-`;
-
-const ErrorStack = styled.pre`
-  ${monoFont};
-  font-size: 10px;
-  max-width: 100%;
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-  opacity: 0.8;
 `;
 
 const JsonSectionRoot = styled.div`
@@ -172,6 +126,26 @@ export function SpanDetail({ span, spans, traceDisplay }: SpanDetailProps) {
       span.error.stack !== lastCapturedError.stack ||
       span.error.capturedAt !== lastCapturedError.capturedAt);
   const terminalError = showTerminalError ? span.error : undefined;
+  const capturedErrorItems = capturedErrors.map((error, index) =>
+    toErrorDetailItem({
+      error,
+      id: `captured-${String(index)}-${error.message}`,
+      meta:
+        error.capturedAt !== undefined
+          ? formatCapturedErrorTime(span, error.capturedAt)
+          : undefined,
+    }),
+  );
+  const terminalErrorItems =
+    terminalError !== undefined
+      ? [
+          toErrorDetailItem({
+            error: terminalError,
+            id: `terminal-${terminalError.message}`,
+            meta: undefined,
+          }),
+        ]
+      : [];
 
   return (
     <DetailRoot>
@@ -241,38 +215,17 @@ export function SpanDetail({ span, spans, traceDisplay }: SpanDetailProps) {
       ) : null}
 
       {capturedErrors.length > 0 ? (
-        <ErrorContainer>
-          <ErrorSectionLabel>
-            Captured {capturedErrors.length === 1 ? 'error' : 'errors'}
-          </ErrorSectionLabel>
-          {capturedErrors.map((error, index) => (
-            <ErrorItem key={`${String(index)}-${error.message}`}>
-              <ErrorTitle>
-                {error.name ?? 'Error'}: {error.message}
-              </ErrorTitle>
-              {error.capturedAt ? (
-                <ErrorMeta>
-                  {formatCapturedErrorTime(span, error.capturedAt)}
-                </ErrorMeta>
-              ) : null}
-              {error.stack ? <ErrorStack>{error.stack}</ErrorStack> : null}
-              <ErrorAttributes error={error} />
-            </ErrorItem>
-          ))}
-        </ErrorContainer>
+        <ErrorDetails
+          label={`Captured ${capturedErrors.length === 1 ? 'error' : 'errors'}`}
+          errors={capturedErrorItems}
+        />
       ) : null}
 
       {terminalError ? (
-        <ErrorContainer>
-          <ErrorSectionLabel>Terminal error</ErrorSectionLabel>
-          <ErrorTitle>
-            {terminalError.name ?? 'Error'}: {terminalError.message}
-          </ErrorTitle>
-          {terminalError.stack ? (
-            <ErrorStack>{terminalError.stack}</ErrorStack>
-          ) : null}
-          <ErrorAttributes error={terminalError} />
-        </ErrorContainer>
+        <ErrorDetails
+          label="Terminal error"
+          errors={terminalErrorItems}
+        />
       ) : null}
     </DetailRoot>
   );
@@ -331,20 +284,28 @@ function DetailItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ErrorAttributes({ error }: { error: EvalTraceSpanError }) {
+function toErrorDetailItem({
+  error,
+  id,
+  meta,
+}: {
+  error: EvalTraceSpanError;
+  id: string;
+  meta: string | undefined;
+}): ErrorDetailItem {
   const attributes = Object.fromEntries(
     Object.entries(error).filter(([key]) => !errorCoreFields.has(key)),
   );
+  const hasAttributes = Object.keys(attributes).length > 0;
 
-  if (Object.keys(attributes).length === 0) return null;
-
-  return (
-    <JsonSection
-      label="Attributes"
-      data={attributes}
-      asJson
-    />
-  );
+  return {
+    id,
+    name: error.name,
+    message: error.message,
+    meta,
+    stack: error.stack,
+    attributes: hasAttributes ? attributes : undefined,
+  };
 }
 
 function JsonSection({

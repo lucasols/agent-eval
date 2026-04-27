@@ -21,6 +21,8 @@ display rules), read the TypeScript declarations shipped with the package:
 - `.d.ts` files land in `node_modules/@ls-stack/agent-eval/dist/`.
 - CLI surface: `agent-evals --help` and `agent-evals <command> --help`.
   Unknown help targets exit non-zero instead of falling back to global help.
+- The CLI automatically loads `.env` from the current workspace. Shell-provided
+  environment variables win; pass `--no-env` to disable `.env` loading once.
 
 Assume that enumerated tables in this document may lag behind the types —
 treat the types as source of truth when they disagree.

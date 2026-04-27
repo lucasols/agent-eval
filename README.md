@@ -733,8 +733,13 @@ Flags:
   --no-cache                 Shortcut for --cache bypass
   --refresh-cache            Shortcut for --cache refresh
   --clear-cache              Clear the cache before starting the run
+  --no-env                   Disable automatic .env loading
   --help, -h                 Show global or command-specific help
 ```
+
+The CLI automatically loads `.env` from the current workspace before running a
+command. Variables already set in the shell take precedence over `.env` values;
+use `--no-env` to disable this loading for a single invocation.
 
 `run` exits non-zero if any case fails or errors, making it CI-friendly.
 Use `agent-evals <command> --help` to inspect command-specific flags without

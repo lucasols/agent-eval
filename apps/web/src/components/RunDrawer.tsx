@@ -5,6 +5,10 @@ import {
 } from '@agent-evals/shared';
 import { X } from 'lucide-react';
 import { styled } from 'vindur';
+import {
+  ErrorDetails,
+  type ErrorDetailItem,
+} from '#src/components/ErrorDetails';
 import { IconButton } from '#src/components/IconButton';
 import { MenuButton } from '#src/components/MenuButton';
 import { ResizeHandle } from '#src/components/ResizeHandle';
@@ -240,20 +244,6 @@ const EmptyCases = styled.div`
   border-radius: var(--radius-md);
 `;
 
-const ErrorBlock = styled.pre`
-  ${monoFont};
-  font-size: 11.5px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: ${colors.error.var};
-  background: ${colors.error.alpha(0.06)};
-  border: 1px solid ${colors.error.alpha(0.3)};
-  border-radius: var(--radius-md);
-  padding: 12px 14px;
-  margin: 0;
-`;
-
 function formatCaseDuration(caseRow: CaseRow): string {
   if (caseRow.latencyMs === null || caseRow.latencyMs <= 0) return '—';
   return formatDuration(caseRow.latencyMs);
@@ -271,6 +261,68 @@ function formatTarget(target: {
   }
   const ids = target.caseIds ?? [];
   return ids.length > 0 ? ids.join(', ') : 'caseIds';
+}
+
+function parseRunErrorLine(
+  line: string,
+): { evalId: string; message: string } | null {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith('[')) return null;
+  const closeIndex = trimmed.indexOf('] ');
+  if (closeIndex <= 1) return null;
+  const evalId = trimmed.slice(1, closeIndex);
+  const message = trimmed.slice(closeIndex + 2).trim();
+  if (message.length === 0) return null;
+  return { evalId, message };
+}
+
+function formatStandaloneRunError(errorMessage: string): ErrorDetailItem {
+  const lines = errorMessage.split('\n');
+  const messageLineIndex = lines.findIndex((line) => line.trim().length > 0);
+  const message =
+    messageLineIndex >= 0 ? lines[messageLineIndex]?.trim() : errorMessage;
+  const stackText = lines
+    .filter((_, index) => index !== messageLineIndex)
+    .join('\n')
+    .trim();
+
+  return {
+    id: 'run-error',
+    name: 'Error',
+    message: message ?? errorMessage,
+    meta: undefined,
+    stack: stackText.length > 0 ? stackText : undefined,
+    attributes: undefined,
+  };
+}
+
+function formatRunErrorItems(errorMessage: string): ErrorDetailItem[] {
+  const lines = errorMessage
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  if (lines.length === 0) {
+    return [formatStandaloneRunError(errorMessage)];
+  }
+
+  const parsedLines: { evalId: string; message: string }[] = [];
+
+  for (const line of lines) {
+    const parsedLine = parseRunErrorLine(line);
+    if (parsedLine === null) {
+      return [formatStandaloneRunError(errorMessage)];
+    }
+    parsedLines.push(parsedLine);
+  }
+
+  return parsedLines.map((line, index) => ({
+    id: `${String(index)}-${line.evalId}`,
+    name: 'Error',
+    message: line.message,
+    meta: `Eval ${line.evalId}`,
+    stack: undefined,
+    attributes: undefined,
+  }));
 }
 
 export function RunDrawer() {
@@ -343,6 +395,10 @@ export function RunDrawer() {
     summary.status === 'error' &&
     summary.errorMessage !== null &&
     summary.errorMessage.length > 0;
+  const runErrorItems =
+    showError && summary.errorMessage !== null
+      ? formatRunErrorItems(summary.errorMessage)
+      : [];
 
   const scopedCases = scopedRunCases.cases;
   const showEvalIdInCase = new Set(scopedCases.map((c) => c.evalId)).size > 1;
@@ -481,8 +537,10 @@ export function RunDrawer() {
 
         {showError && summary.errorMessage !== null ? (
           <Section>
-            <SectionLabel>Error</SectionLabel>
-            <ErrorBlock>{summary.errorMessage}</ErrorBlock>
+            <ErrorDetails
+              label={runErrorItems.length === 1 ? 'Run error' : 'Run errors'}
+              errors={runErrorItems}
+            />
           </Section>
         ) : null}
 
