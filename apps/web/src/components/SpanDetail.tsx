@@ -50,21 +50,27 @@ const DetailItemValue = styled.div`
 
 const ErrorContainer = styled.div`
   ${stack({ gap: 8 })}
+  min-width: 0;
   color: ${colors.error.var};
   background: ${colors.error.alpha(0.06)};
   border: 1px solid ${colors.error.alpha(0.22)};
   border-radius: var(--radius-sm);
   padding: 10px 12px;
+  overflow-wrap: anywhere;
 `;
 
 const ErrorTitle = styled.div`
   font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
 `;
 
 const ErrorMeta = styled.div`
   ${monoFont};
   font-size: 10px;
   color: ${colors.error.alpha(0.72)};
+  min-width: 0;
+  overflow-wrap: anywhere;
 `;
 
 const ErrorSectionLabel = styled.div`
@@ -74,6 +80,7 @@ const ErrorSectionLabel = styled.div`
 
 const ErrorItem = styled.div`
   ${stack({ gap: 4 })}
+  min-width: 0;
 
   & + & {
     border-top: 1px solid ${colors.error.alpha(0.18)};
@@ -84,7 +91,10 @@ const ErrorItem = styled.div`
 const ErrorStack = styled.pre`
   ${monoFont};
   font-size: 10px;
+  max-width: 100%;
   white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   opacity: 0.8;
 `;
 
