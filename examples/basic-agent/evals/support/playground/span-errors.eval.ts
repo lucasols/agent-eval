@@ -63,6 +63,43 @@ defineEval<{ orderId: string }>({
 });
 
 defineEval<{ orderId: string }>({
+  id: 'warning-span-demo',
+  title: 'Warning Span Demo',
+  cases: [{ id: 'continue-with-stale-signal', input: { orderId: '#662' } }],
+  columns: {
+    response: { label: 'Response', format: 'markdown' },
+    signalFreshness: { label: 'Signal Freshness' },
+  },
+  execute: async ({ input }) => {
+    await evalTracer.span(
+      { kind: 'agent', name: 'refund-warning-resilience' },
+      async () => {
+        evalSpan.setAttribute('input', input);
+
+        await evalTracer.span({ kind: 'tool', name: 'load-sla-signal' }, () => {
+          captureEvalSpanError(
+            {
+              category: 'staleness',
+              details: { maxAgeMinutes: 10, observedAgeMinutes: 18 },
+              domain: 'operations',
+              message: 'Manual review SLA signal is stale',
+              name: 'SignalFreshnessWarning',
+            },
+            'warning',
+          );
+          evalSpan.setAttribute('signalFreshness', 'stale');
+          setEvalOutput('signalFreshness', 'stale');
+        });
+
+        const response = `Continued review for order ${input.orderId} with a stale SLA signal.`;
+        setEvalOutput('response', response);
+        evalSpan.setAttribute('output', { response });
+      },
+    );
+  },
+});
+
+defineEval<{ orderId: string }>({
   id: 'errored-span-demo',
   title: 'Errored Span Demo',
   cases: [{ id: 'recover-after-webhook-error', input: { orderId: '#884' } }],

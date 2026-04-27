@@ -127,6 +127,11 @@ export const traceSpanErrorSchema = z
 /** Error payload stored on a trace span. */
 export type EvalTraceSpanError = z.infer<typeof traceSpanErrorSchema>;
 
+/** Schema for a warning attached to a trace span. */
+export const traceSpanWarningSchema = traceSpanErrorSchema;
+/** Warning payload stored on a trace span. */
+export type EvalTraceSpanWarning = z.infer<typeof traceSpanWarningSchema>;
+
 /** Schema for a persisted trace span captured during case execution. */
 export const traceSpanSchema = z.object({
   id: z.string(),
@@ -140,6 +145,8 @@ export const traceSpanSchema = z.object({
   attributes: z.record(z.string(), z.unknown()).optional(),
   error: traceSpanErrorSchema.optional(),
   errors: z.array(traceSpanErrorSchema).optional(),
+  warning: traceSpanWarningSchema.optional(),
+  warnings: z.array(traceSpanWarningSchema).optional(),
 });
 /** Persisted trace span shape stored for each eval case run. */
 export type EvalTraceSpan = z.infer<typeof traceSpanSchema>;

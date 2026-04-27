@@ -22,6 +22,7 @@ export {
 export {
   traceSpanSchema,
   traceSpanErrorSchema,
+  traceSpanWarningSchema,
   traceSpanKindSchema,
   traceAttributeDisplaySchema,
   traceAttributeDisplayInputSchema,
@@ -31,6 +32,7 @@ export {
   traceDisplayInputConfigSchema,
   type EvalTraceSpan,
   type EvalTraceSpanError,
+  type EvalTraceSpanWarning,
   type TraceAttributeDisplay,
   type TraceAttributeDisplayInput,
   type TraceAttributeDisplayFormat,

@@ -3,15 +3,27 @@ import { JsonViewer } from '#src/components/JsonViewer';
 import { colors } from '#src/style/colors';
 import { kicker, monoFont, stack } from '#src/style/helpers';
 
-const ErrorContainer = styled.div`
+type ErrorDetailTone = 'error' | 'warning';
+
+const ErrorContainer = styled.div<{ warning: boolean }>`
+  ---detail-tone: ${colors.error.var};
+  ---detail-tone-soft: ${colors.error.alpha(0.06)};
+  ---detail-tone-border: ${colors.error.alpha(0.22)};
+
   ${stack({ gap: 8 })}
   min-width: 0;
-  color: ${colors.error.var};
-  background: ${colors.error.alpha(0.06)};
-  border: 1px solid ${colors.error.alpha(0.22)};
+  color: var(---detail-tone);
+  background: var(---detail-tone-soft);
+  border: 1px solid var(---detail-tone-border);
   border-radius: var(--radius-sm);
   padding: 10px 12px;
   overflow-wrap: anywhere;
+
+  &.warning {
+    ---detail-tone: ${colors.warning.var};
+    ---detail-tone-soft: ${colors.warning.alpha(0.08)};
+    ---detail-tone-border: ${colors.warning.alpha(0.24)};
+  }
 `;
 
 const ErrorTitle = styled.div`
@@ -20,26 +32,34 @@ const ErrorTitle = styled.div`
   overflow-wrap: anywhere;
 `;
 
-const ErrorMeta = styled.div`
+const ErrorMeta = styled.div<{ warning: boolean }>`
   ${monoFont};
   font-size: 10px;
   color: ${colors.error.alpha(0.72)};
   min-width: 0;
   overflow-wrap: anywhere;
+
+  &.warning {
+    color: ${colors.warning.alpha(0.76)};
+  }
 `;
 
 const ErrorSectionLabel = styled.div`
   ${kicker};
-  color: ${colors.error.var};
+  color: var(---detail-tone);
 `;
 
-const ErrorItemRoot = styled.div`
+const ErrorItemRoot = styled.div<{ warning: boolean }>`
   ${stack({ gap: 4 })}
   min-width: 0;
 
   & + & {
     border-top: 1px solid ${colors.error.alpha(0.18)};
     padding-top: 8px;
+  }
+
+  &.warning + &.warning {
+    border-top-color: ${colors.warning.alpha(0.2)};
   }
 `;
 
@@ -75,20 +95,27 @@ export type ErrorDetailItem = {
 export function ErrorDetails({
   label,
   errors,
+  tone = 'error',
 }: {
   label: string;
   errors: ErrorDetailItem[];
+  tone?: ErrorDetailTone;
 }) {
+  const isWarning = tone === 'warning';
+
   return (
-    <ErrorContainer>
+    <ErrorContainer warning={isWarning}>
       <ErrorSectionLabel>{label}</ErrorSectionLabel>
       {errors.map((error) => (
-        <ErrorItemRoot key={error.id}>
+        <ErrorItemRoot
+          key={error.id}
+          warning={isWarning}
+        >
           <ErrorTitle>
             {error.name ?? 'Error'}: {error.message}
           </ErrorTitle>
           {error.meta !== undefined ? (
-            <ErrorMeta>{error.meta}</ErrorMeta>
+            <ErrorMeta warning={isWarning}>{error.meta}</ErrorMeta>
           ) : null}
           {error.stack !== undefined ? (
             <ErrorStack>{error.stack}</ErrorStack>

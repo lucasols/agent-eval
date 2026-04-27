@@ -252,6 +252,13 @@ await evalTracer.span(
 );
 ```
 
+Pass `'warning'` (or `{ level: 'warning' }`) as the final argument when the
+diagnostic should be visible but should not mark the span as errored:
+
+```ts
+captureEvalSpanError(new Error('Optional signal is stale'), 'warning');
+```
+
 If a span callback throws, Agent Evals automatically marks that span as `error`,
 attaches the thrown error to it, and rethrows so the case errors:
 

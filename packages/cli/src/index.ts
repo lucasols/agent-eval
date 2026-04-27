@@ -19,6 +19,8 @@ export {
   buildTraceTree,
   hashCacheKey,
   hashCacheKeySync,
+  type CaptureEvalSpanErrorLevel,
+  type CaptureEvalSpanErrorOptions,
   type EvalCaseScope,
   type CacheAdapter,
   type CacheScopeContext,

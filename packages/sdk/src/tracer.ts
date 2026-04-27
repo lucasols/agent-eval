@@ -5,14 +5,27 @@ import type {
   CacheRecording,
   CacheRecordingOp,
   EvalTraceSpan,
-  EvalTraceSpanError,
   SerializedCacheSpan,
   SpanCacheOptions,
 } from '@agent-evals/shared';
 import { getCompositeKey } from '@ls-stack/utils/getCompositeKey';
 import type { CacheRecordingFrame, EvalCaseScope } from './runtime.ts';
 import { getCurrentScope } from './runtime.ts';
+import {
+  appendSpanErrors,
+  appendSpanWarnings,
+  hasSpanError,
+  normalizeTraceError,
+  normalizeTraceErrors,
+  normalizeTraceWarnings,
+  splitCaptureEvalSpanErrorArgs,
+} from './traceDiagnostics.ts';
 import type { EvalTraceTree } from './types.ts';
+
+export type {
+  CaptureEvalSpanErrorLevel,
+  CaptureEvalSpanErrorOptions,
+} from './traceDiagnostics.ts';
 
 /**
  * Mutable handle for the current span.
@@ -60,6 +73,10 @@ export type TraceExternalSpanUpdateInfo = {
   status?: EvalTraceSpan['status'];
   /** Optional error payload to attach to the span. */
   error?: EvalTraceSpan['error'];
+  /** Optional latest warning payload to attach to the span. */
+  warning?: EvalTraceSpan['warning'];
+  /** Optional warning payloads to attach to the span. */
+  warnings?: EvalTraceSpan['warnings'];
 };
 
 /** Info accepted by `evalTracer.endSpan(info)` for externally managed spans. */
@@ -88,6 +105,10 @@ export type TraceExternalSpanRecordInfo = {
   attributes?: Record<string, unknown>;
   /** Optional error payload to attach to the span. */
   error?: EvalTraceSpan['error'];
+  /** Optional latest warning payload to attach to the span. */
+  warning?: EvalTraceSpan['warning'];
+  /** Optional warning payloads to attach to the span. */
+  warnings?: EvalTraceSpan['warnings'];
 };
 
 /** Mutable handle returned by `evalTracer.startSpan(...)`. */
@@ -99,41 +120,10 @@ export type TraceExternalSpanHandle = TraceActiveSpan & {
 };
 
 let spanIdCounter = 0;
-const errorCoreFields = new Set(['name', 'message', 'stack', 'capturedAt']);
 
 function generateSpanId(): string {
   spanIdCounter++;
   return `span_${String(Date.now())}_${String(spanIdCounter)}`;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function formatUnknownErrorMessage(error: unknown): string {
-  if (typeof error === 'string') return error;
-  if (typeof error === 'number' || typeof error === 'boolean') {
-    return String(error);
-  }
-  if (typeof error === 'bigint') return String(error);
-  if (typeof error === 'symbol') return error.description ?? 'Symbol';
-  if (typeof error === 'function') {
-    return error.name ? `[function ${error.name}]` : '[function]';
-  }
-  if (error === undefined) return 'undefined';
-  if (error === null) return 'null';
-
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return 'Unknown error';
-  }
-}
-
-function getErrorExtraFields(error: object): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(error).filter(([key]) => !errorCoreFields.has(key)),
-  );
 }
 
 function updateCurrentSpan(update: (currentSpan: EvalTraceSpan) => void): void {
@@ -156,72 +146,6 @@ function mergeSpanAttributes(
   attributes: Record<string, unknown>,
 ): void {
   span.attributes = { ...span.attributes, ...attributes };
-}
-
-function normalizeTraceError(
-  error: unknown,
-  capturedAt: string | undefined = undefined,
-): EvalTraceSpanError {
-  if (error instanceof Error) {
-    const extraFields = getErrorExtraFields(error);
-    return {
-      ...extraFields,
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
-      capturedAt,
-    };
-  }
-
-  if (isRecord(error)) {
-    const extraFields = getErrorExtraFields(error);
-    const name = typeof error.name === 'string' ? error.name : undefined;
-    const stack = typeof error.stack === 'string' ? error.stack : undefined;
-    const message =
-      error.message === undefined
-        ? formatUnknownErrorMessage(error)
-        : formatUnknownErrorMessage(error.message);
-
-    return {
-      ...extraFields,
-      ...(name === undefined ? {} : { name }),
-      message,
-      ...(stack === undefined ? {} : { stack }),
-      capturedAt,
-    };
-  }
-
-  return { message: String(error), capturedAt };
-}
-
-function normalizeTraceErrors(
-  errorOrErrors: unknown,
-  additionalErrors: readonly unknown[],
-  capturedAt: string,
-): EvalTraceSpanError[] {
-  const rawErrors =
-    additionalErrors.length > 0
-      ? [errorOrErrors, ...additionalErrors]
-      : Array.isArray(errorOrErrors)
-        ? errorOrErrors
-        : [errorOrErrors];
-  return rawErrors.map((error) => normalizeTraceError(error, capturedAt));
-}
-
-function appendSpanErrors(
-  span: EvalTraceSpan,
-  errors: readonly EvalTraceSpanError[],
-): void {
-  if (errors.length === 0) return;
-  const latestError = errors.at(-1);
-  if (latestError === undefined) return;
-  span.errors = [...(span.errors ?? []), ...errors];
-  span.error = latestError;
-  span.status = 'error';
-}
-
-function hasSpanError(span: EvalTraceSpan): boolean {
-  return span.error !== undefined || (span.errors?.length ?? 0) > 0;
 }
 
 function finishSpanWithoutThrownError(span: EvalTraceSpan): void {
@@ -323,6 +247,8 @@ function updateExternalSpan(info: TraceExternalSpanUpdateInfo): void {
   if (info.name !== undefined) span.name = info.name;
   if (info.status !== undefined) span.status = info.status;
   if (info.error !== undefined) span.error = info.error;
+  if (info.warning !== undefined) span.warning = info.warning;
+  if (info.warnings !== undefined) span.warnings = info.warnings;
   if (info.attributes !== undefined) {
     mergeSpanAttributes(span, info.attributes);
   }
@@ -363,6 +289,8 @@ function recordExternalSpan(info: TraceExternalSpanRecordInfo): string {
     existing.status = status;
     existing.attributes = info.attributes;
     existing.error = info.error;
+    existing.warning = info.warning;
+    existing.warnings = info.warnings;
     return id;
   }
 
@@ -377,6 +305,8 @@ function recordExternalSpan(info: TraceExternalSpanRecordInfo): string {
     status,
     attributes: info.attributes,
     error: info.error,
+    warning: info.warning,
+    warnings: info.warnings,
   });
 
   return id;
@@ -408,17 +338,36 @@ export const evalSpan: TraceActiveSpan = {
 /**
  * Attach one or more recoverable errors to the active eval span.
  *
- * The active span is marked as `error` even if its callback later completes
- * without throwing. Calls outside `evalTracer.span(...)` are ignored.
+ * By default the active span is marked as `error` even if its callback later
+ * completes without throwing. Pass `'warning'` or `{ level: 'warning' }` as the
+ * final argument to record the diagnostic without changing span status. Calls
+ * outside `evalTracer.span(...)` are ignored.
  */
 export function captureEvalSpanError(
   errorOrErrors: unknown,
-  ...additionalErrors: readonly unknown[]
+  ...additionalErrorsOrOptions: readonly unknown[]
 ): void {
+  const { additionalErrors, options } = splitCaptureEvalSpanErrorArgs(
+    additionalErrorsOrOptions,
+  );
+  const capturedAt = new Date().toISOString();
+  const level = options.level ?? 'error';
+  if (level === 'warning') {
+    const warnings = normalizeTraceWarnings(
+      errorOrErrors,
+      additionalErrors,
+      capturedAt,
+    );
+    updateCurrentSpan((currentSpan) => {
+      appendSpanWarnings(currentSpan, warnings);
+    });
+    return;
+  }
+
   const errors = normalizeTraceErrors(
     errorOrErrors,
     additionalErrors,
-    new Date().toISOString(),
+    capturedAt,
   );
   updateCurrentSpan((currentSpan) => {
     appendSpanErrors(currentSpan, errors);
@@ -564,6 +513,8 @@ async function traceSpan(
           finalStatus: spanRecord.status,
           finalError: spanRecord.error,
           finalErrors: spanRecord.errors,
+          finalWarning: spanRecord.warning,
+          finalWarnings: spanRecord.warnings,
           ops: frame.ops,
         };
         const entry: CacheEntry = {
@@ -880,6 +831,8 @@ function serializeSubSpanTree(
       status: 'ok',
       error: undefined,
       errors: undefined,
+      warning: undefined,
+      warnings: undefined,
       children: [],
     };
   }
@@ -893,6 +846,8 @@ function serializeSubSpanTree(
     status: original.status,
     error: original.error,
     errors: original.errors,
+    warning: original.warning,
+    warnings: original.warnings,
     children,
   };
 }
@@ -930,6 +885,12 @@ function replayRecording(
     }
     if (recording.finalErrors !== undefined) {
       parentSpan.errors = recording.finalErrors;
+    }
+    if (recording.finalWarning !== undefined) {
+      parentSpan.warning = recording.finalWarning;
+    }
+    if (recording.finalWarnings !== undefined) {
+      parentSpan.warnings = recording.finalWarnings;
     }
   } finally {
     scope.replayingDepth--;
@@ -984,6 +945,8 @@ function replaySerializedSpan(
     attributes: serialized.attributes,
     error: serialized.error,
     errors: serialized.errors,
+    warning: serialized.warning,
+    warnings: serialized.warnings,
   };
   scope.spans.push(replayed);
   for (const child of serialized.children) {

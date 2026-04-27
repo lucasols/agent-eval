@@ -24,6 +24,8 @@ export {
   buildTraceTree,
   hashCacheKey,
   hashCacheKeySync,
+  type CaptureEvalSpanErrorLevel,
+  type CaptureEvalSpanErrorOptions,
   type TraceActiveSpan,
   type TraceExternalSpanEndInfo,
   type TraceExternalSpanHandle,
@@ -36,6 +38,7 @@ export {
 export type {
   EvalTraceSpan,
   EvalTraceSpanError,
+  EvalTraceSpanWarning,
   FileRef,
   RepoFileRef,
   RunArtifactRef,

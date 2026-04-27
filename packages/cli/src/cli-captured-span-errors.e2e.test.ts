@@ -7,13 +7,13 @@ import {
   withIsolatedExampleWorkspace,
 } from './cliTestUtils.ts';
 
-describe('CLI span error examples', () => {
-  test('persists captured and thrown span errors from example evals', async () => {
+describe('CLI span diagnostic examples', () => {
+  test('persists captured span warnings, captured errors, and thrown span errors from example evals', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const result = await runExampleCli(workspacePath, [
         'run',
         '--eval',
-        'captured-span-errors-demo,errored-span-demo',
+        'captured-span-errors-demo,warning-span-demo,errored-span-demo',
       ]);
 
       expect(result.exitCode).toBe(0);
@@ -28,6 +28,11 @@ describe('CLI span error examples', () => {
         capturedTrace,
         'load-optional-risk-signals',
       );
+      const warningTrace = requireTrace(
+        artifacts.traces,
+        'continue-with-stale-signal.json',
+      );
+      const warningSpan = requireSpan(warningTrace, 'load-sla-signal');
       const erroredTrace = requireTrace(
         artifacts.traces,
         'recover-after-webhook-error.json',
@@ -68,6 +73,29 @@ describe('CLI span error examples', () => {
       expect(capturedSpan.attributes).toMatchObject({
         fallbackSignals: ['loyaltyTier', 'requestedRefundUsd'],
       });
+      expect(warningSpan.status).toBe('ok');
+      expect(warningSpan.error).toBeUndefined();
+      expect(warningSpan.errors).toBeUndefined();
+      expect(warningSpan.warning).toMatchObject({
+        category: 'staleness',
+        details: { maxAgeMinutes: 10, observedAgeMinutes: 18 },
+        domain: 'operations',
+        name: 'SignalFreshnessWarning',
+        message: 'Manual review SLA signal is stale',
+      });
+      expect(warningSpan.warnings).toMatchObject([
+        {
+          category: 'staleness',
+          details: { maxAgeMinutes: 10, observedAgeMinutes: 18 },
+          domain: 'operations',
+          name: 'SignalFreshnessWarning',
+          message: 'Manual review SLA signal is stale',
+        },
+      ]);
+      for (const warning of warningSpan.warnings ?? []) {
+        expect(typeof warning.capturedAt).toBe('string');
+        expect(Number.isNaN(Date.parse(warning.capturedAt ?? ''))).toBe(false);
+      }
       expect(erroredSpan.status).toBe('error');
       expect(erroredSpan.error).toMatchObject({
         name: 'Error',
@@ -109,6 +137,33 @@ describe('CLI span error examples', () => {
               capturedAt: error.capturedAt ? '<capturedAt>' : undefined,
             })),
             fallbackSignals: capturedSpan.attributes?.fallbackSignals,
+          },
+          warningSpan: {
+            name: warningSpan.name,
+            status: warningSpan.status,
+            warning: warningSpan.warning
+              ? {
+                  category: warningSpan.warning.category,
+                  details: warningSpan.warning.details,
+                  domain: warningSpan.warning.domain,
+                  name: warningSpan.warning.name,
+                  message: warningSpan.warning.message,
+                  stack: warningSpan.warning.stack ? '<stack>' : undefined,
+                  capturedAt: warningSpan.warning.capturedAt
+                    ? '<capturedAt>'
+                    : undefined,
+                }
+              : undefined,
+            warnings: warningSpan.warnings?.map((warning) => ({
+              category: warning.category,
+              details: warning.details,
+              domain: warning.domain,
+              name: warning.name,
+              message: warning.message,
+              stack: warning.stack ? '<stack>' : undefined,
+              capturedAt: warning.capturedAt ? '<capturedAt>' : undefined,
+            })),
+            errors: warningSpan.errors,
           },
           erroredSpan: {
             name: erroredSpan.name,
@@ -184,6 +239,14 @@ describe('CLI span error examples', () => {
               "status": "pass",
             },
             {
+              "caseId": "continue-with-stale-signal",
+              "columns": {
+                "response": "Continued review for order #662 with a stale SLA signal.",
+                "signalFreshness": "stale",
+              },
+              "status": "pass",
+            },
+            {
               "caseId": "recover-after-webhook-error",
               "columns": {
                 "response": "Queued a retry for order #884 after webhook rejection.",
@@ -208,11 +271,42 @@ describe('CLI span error examples', () => {
             "errorCases": 0,
             "errorMessage": null,
             "failedCases": 0,
-            "passedCases": 2,
+            "passedCases": 3,
             "runId": "<run-id>",
             "status": "completed",
-            "totalCases": 2,
+            "totalCases": 3,
             "totalDurationMs": "<totalDurationMs>",
+          },
+          "warningSpan": {
+            "errors": undefined,
+            "name": "load-sla-signal",
+            "status": "ok",
+            "warning": {
+              "capturedAt": "<capturedAt>",
+              "category": "staleness",
+              "details": {
+                "maxAgeMinutes": 10,
+                "observedAgeMinutes": 18,
+              },
+              "domain": "operations",
+              "message": "Manual review SLA signal is stale",
+              "name": "SignalFreshnessWarning",
+              "stack": undefined,
+            },
+            "warnings": [
+              {
+                "capturedAt": "<capturedAt>",
+                "category": "staleness",
+                "details": {
+                  "maxAgeMinutes": 10,
+                  "observedAgeMinutes": 18,
+                },
+                "domain": "operations",
+                "message": "Manual review SLA signal is stale",
+                "name": "SignalFreshnessWarning",
+                "stack": undefined,
+              },
+            ],
           },
         }
       `);

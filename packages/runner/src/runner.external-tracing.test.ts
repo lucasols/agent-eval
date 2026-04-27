@@ -207,6 +207,27 @@ defineEval({
     await evalTracer.span(
       {
         kind: 'tool',
+        name: 'optional-warning-loader',
+        cache: { key: { ...input, source: 'warning' } },
+      },
+      async () => {
+        captureEvalSpanError(
+          {
+            category: 'quality',
+            details: { source: 'heuristic' },
+            domain: 'signals',
+            message: 'Heuristic signal was stale',
+            name: 'StaleSignalWarning',
+          },
+          'warning',
+        );
+        evalSpan.setAttribute('usedStaleSignal', true);
+      },
+    );
+
+    await evalTracer.span(
+      {
+        kind: 'tool',
         name: 'optional-signal-loader',
         cache: { key: input },
       },
@@ -265,6 +286,31 @@ defineEval({
     const firstSpan = firstDetail?.trace.find(
       (span) => span.name === 'optional-signal-loader',
     );
+    const firstWarningSpan = firstDetail?.trace.find(
+      (span) => span.name === 'optional-warning-loader',
+    );
+    expect(firstWarningSpan).toMatchObject({
+      status: 'ok',
+      attributes: { usedStaleSignal: true, 'cache.status': 'miss' },
+      warning: {
+        category: 'quality',
+        details: { source: 'heuristic' },
+        domain: 'signals',
+        name: 'StaleSignalWarning',
+        message: 'Heuristic signal was stale',
+      },
+      warnings: [
+        {
+          category: 'quality',
+          details: { source: 'heuristic' },
+          domain: 'signals',
+          name: 'StaleSignalWarning',
+          message: 'Heuristic signal was stale',
+        },
+      ],
+    });
+    expect(firstWarningSpan?.error).toBeUndefined();
+    expect(firstWarningSpan?.errors).toBeUndefined();
     expect(firstSpan).toMatchObject({
       status: 'error',
       attributes: { fallback: 'rules-engine', 'cache.status': 'miss' },
@@ -288,6 +334,17 @@ defineEval({
       ],
     });
     const firstCapturedAt = firstSpan?.errors?.map((error) => error.capturedAt);
+    const firstWarningCapturedAt = firstWarningSpan?.warnings?.map(
+      (warning) => warning.capturedAt,
+    );
+    expect(firstWarningCapturedAt).toHaveLength(1);
+    expect(
+      firstWarningCapturedAt?.every(
+        (capturedAt) =>
+          typeof capturedAt === 'string' &&
+          !Number.isNaN(Date.parse(capturedAt)),
+      ),
+    ).toBe(true);
     expect(firstCapturedAt).toHaveLength(3);
     expect(
       firstCapturedAt?.every(
@@ -316,6 +373,29 @@ defineEval({
     const secondSpan = secondDetail?.trace.find(
       (span) => span.name === 'optional-signal-loader',
     );
+    const secondWarningSpan = secondDetail?.trace.find(
+      (span) => span.name === 'optional-warning-loader',
+    );
+    expect(secondWarningSpan).toMatchObject({
+      status: 'ok',
+      attributes: { usedStaleSignal: true, 'cache.status': 'hit' },
+      warning: {
+        category: 'quality',
+        details: { source: 'heuristic' },
+        domain: 'signals',
+        name: 'StaleSignalWarning',
+        message: 'Heuristic signal was stale',
+      },
+      warnings: [
+        {
+          category: 'quality',
+          details: { source: 'heuristic' },
+          domain: 'signals',
+          name: 'StaleSignalWarning',
+          message: 'Heuristic signal was stale',
+        },
+      ],
+    });
     expect(secondSpan).toMatchObject({
       status: 'error',
       attributes: { fallback: 'rules-engine', 'cache.status': 'hit' },
@@ -341,6 +421,9 @@ defineEval({
     expect(secondSpan?.errors?.map((error) => error.capturedAt)).toEqual(
       firstCapturedAt,
     );
+    expect(
+      secondWarningSpan?.warnings?.map((warning) => warning.capturedAt),
+    ).toEqual(firstWarningCapturedAt);
   } finally {
     process.chdir(previousCwd);
   }

@@ -114,7 +114,9 @@ Use `captureEvalSpanError(error)` for recoverable errors on the active
 `evalTracer.span(...)`, such as optional model/tool failures that fall back and
 continue. You can pass one error, multiple error arguments, or an array. The
 span is still marked `error`, and the UI renders captured errors in a dedicated
-span detail block with timing relative to the span.
+span detail block with timing relative to the span. Pass `'warning'` or
+`{ level: 'warning' }` as the final argument for diagnostics that should be
+visible in span detail without changing an otherwise successful span's status.
 
 If a span callback throws, the SDK automatically marks that span as `error`,
 stores the thrown error on it, and rethrows so the case errors. Use that for

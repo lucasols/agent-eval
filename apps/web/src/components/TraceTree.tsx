@@ -435,6 +435,13 @@ const ErrorLabel = styled.span`
   flex-shrink: 0;
 `;
 
+const WarningLabel = styled.span`
+  ${monoFont};
+  color: ${colors.warning.var};
+  font-size: 10px;
+  flex-shrink: 0;
+`;
+
 const TreeAttributeLabel = styled.span`
   ${monoFont};
   font-size: 9.5px;
@@ -680,6 +687,11 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
                       {renderCacheBadge(span)}
                       {span.status === 'error' ? (
                         <ErrorLabel>err</ErrorLabel>
+                      ) : null}
+                      {span.status !== 'error' &&
+                      (span.warning !== undefined ||
+                        (span.warnings?.length ?? 0) > 0) ? (
+                        <WarningLabel>warn</WarningLabel>
                       ) : null}
                       {treeAttributeItems.map((item) => (
                         <TreeAttributeLabel key={item.config.path}>

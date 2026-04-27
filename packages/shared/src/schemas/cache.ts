@@ -2,7 +2,9 @@ import { z } from 'zod/v4';
 import {
   traceSpanErrorSchema,
   traceSpanKindSchema,
+  traceSpanWarningSchema,
   type EvalTraceSpanError,
+  type EvalTraceSpanWarning,
 } from './trace.ts';
 
 /**
@@ -47,6 +49,8 @@ export type SerializedCacheSpan = {
   status: 'running' | 'ok' | 'error' | 'cancelled';
   error?: EvalTraceSpanError;
   errors?: EvalTraceSpanError[];
+  warning?: EvalTraceSpanWarning;
+  warnings?: EvalTraceSpanWarning[];
   children: SerializedCacheSpan[];
 };
 
@@ -57,6 +61,8 @@ const serializedCacheSpanBase = z.object({
   status: z.enum(['running', 'ok', 'error', 'cancelled']),
   error: traceSpanErrorSchema.optional(),
   errors: z.array(traceSpanErrorSchema).optional(),
+  warning: traceSpanWarningSchema.optional(),
+  warnings: z.array(traceSpanWarningSchema).optional(),
 });
 
 /** Zod schema for `SerializedCacheSpan`, defined lazily for recursion. */
@@ -99,6 +105,8 @@ export const cacheRecordingSchema = z.object({
   finalStatus: z.enum(['running', 'ok', 'error', 'cancelled']).optional(),
   finalError: traceSpanErrorSchema.optional(),
   finalErrors: z.array(traceSpanErrorSchema).optional(),
+  finalWarning: traceSpanWarningSchema.optional(),
+  finalWarnings: z.array(traceSpanWarningSchema).optional(),
   ops: z.array(cacheRecordingOpSchema),
 });
 /** Captured observable effects + return value of a cached span body. */

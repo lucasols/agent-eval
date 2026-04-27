@@ -117,7 +117,18 @@ export function SpanDetail({ span, spans, traceDisplay }: SpanDetailProps) {
   const hasRemainingAttributes =
     remainingAttributes !== null && Object.keys(remainingAttributes).length > 0;
   const capturedErrors = span.errors ?? [];
+  const capturedWarnings = span.warnings ?? [];
   const lastCapturedError = capturedErrors.at(-1);
+  const capturedWarningItems = capturedWarnings.map((warning, index) =>
+    toDiagnosticDetailItem({
+      diagnostic: warning,
+      id: `captured-warning-${String(index)}-${warning.message}`,
+      meta:
+        warning.capturedAt !== undefined
+          ? formatCapturedErrorTime(span, warning.capturedAt)
+          : undefined,
+    }),
+  );
   const showTerminalError =
     span.error !== undefined &&
     (lastCapturedError === undefined ||
@@ -127,8 +138,8 @@ export function SpanDetail({ span, spans, traceDisplay }: SpanDetailProps) {
       span.error.capturedAt !== lastCapturedError.capturedAt);
   const terminalError = showTerminalError ? span.error : undefined;
   const capturedErrorItems = capturedErrors.map((error, index) =>
-    toErrorDetailItem({
-      error,
+    toDiagnosticDetailItem({
+      diagnostic: error,
       id: `captured-${String(index)}-${error.message}`,
       meta:
         error.capturedAt !== undefined
@@ -139,8 +150,8 @@ export function SpanDetail({ span, spans, traceDisplay }: SpanDetailProps) {
   const terminalErrorItems =
     terminalError !== undefined
       ? [
-          toErrorDetailItem({
-            error: terminalError,
+          toDiagnosticDetailItem({
+            diagnostic: terminalError,
             id: `terminal-${terminalError.message}`,
             meta: undefined,
           }),
@@ -221,6 +232,16 @@ export function SpanDetail({ span, spans, traceDisplay }: SpanDetailProps) {
         />
       ) : null}
 
+      {capturedWarnings.length > 0 ? (
+        <ErrorDetails
+          label={`Captured ${
+            capturedWarnings.length === 1 ? 'warning' : 'warnings'
+          }`}
+          errors={capturedWarningItems}
+          tone="warning"
+        />
+      ) : null}
+
       {terminalError ? (
         <ErrorDetails
           label="Terminal error"
@@ -284,26 +305,26 @@ function DetailItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function toErrorDetailItem({
-  error,
+function toDiagnosticDetailItem({
+  diagnostic,
   id,
   meta,
 }: {
-  error: EvalTraceSpanError;
+  diagnostic: EvalTraceSpanError;
   id: string;
   meta: string | undefined;
 }): ErrorDetailItem {
   const attributes = Object.fromEntries(
-    Object.entries(error).filter(([key]) => !errorCoreFields.has(key)),
+    Object.entries(diagnostic).filter(([key]) => !errorCoreFields.has(key)),
   );
   const hasAttributes = Object.keys(attributes).length > 0;
 
   return {
     id,
-    name: error.name,
-    message: error.message,
+    name: diagnostic.name,
+    message: diagnostic.message,
     meta,
-    stack: error.stack,
+    stack: diagnostic.stack,
     attributes: hasAttributes ? attributes : undefined,
   };
 }
