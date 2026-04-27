@@ -2,6 +2,7 @@ import type { CellValue, ColumnDef, FileRef } from '@agent-evals/shared';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { styled } from 'vindur';
+import { JsonViewer } from '#src/components/JsonViewer';
 import { colors } from '#src/style/colors';
 import { monoFont } from '#src/style/helpers';
 import {
@@ -10,8 +11,7 @@ import {
   formatPassFail,
   formatPercent,
   formatStars,
-} from '../utils/formatters.ts';
-import { JsonViewer } from './JsonViewer.tsx';
+} from '#src/utils/formatters';
 
 const TextValue = styled.p`
   white-space: pre-wrap;

@@ -1,9 +1,9 @@
 import type { EvalTraceSpan, TraceDisplayConfig } from '@agent-evals/shared';
 import { styled } from 'vindur';
-import { JsonViewer } from '#src/components/JsonViewer.tsx';
+import { JsonViewer } from '#src/components/JsonViewer';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
-import { formatDuration } from '#src/utils/formatters.ts';
+import { formatDuration } from '#src/utils/formatters';
 import {
   formatTraceAttributeValue,
   getTraceAttributeItems,

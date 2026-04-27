@@ -15,9 +15,9 @@ import { z } from 'zod/v4';
 import {
   getCurrentSearchParams,
   updateSearchParams,
-} from '../hooks/useSearchParams.ts';
-import { fetchEvals } from './evalsStore.ts';
-import { refetchHistory } from './historyStore.ts';
+} from '#src/hooks/useSearchParams';
+import { fetchEvals } from '#src/stores/evalsStore';
+import { refetchHistory } from '#src/stores/historyStore';
 
 const createRunResponseSchema = z.object({
   manifest: runManifestSchema,

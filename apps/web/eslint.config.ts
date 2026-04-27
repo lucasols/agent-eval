@@ -24,6 +24,15 @@ export default createBaseConfig({
             rootDir: import.meta.dirname,
           },
         ],
+        'no-restricted-syntax': [
+          ERROR,
+          {
+            selector:
+              'ImportDeclaration[source.value=/\\.(ts|tsx)$/], ExportNamedDeclaration[source.value=/\\.(ts|tsx)$/], ExportAllDeclaration[source.value=/\\.(ts|tsx)$/]',
+            message:
+              'Do not include .ts or .tsx extensions in web import specifiers.',
+          },
+        ],
       },
     },
   ],

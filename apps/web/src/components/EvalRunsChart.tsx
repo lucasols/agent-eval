@@ -22,14 +22,14 @@ import {
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import { kicker, monoFont } from '#src/style/helpers';
-import { metricId, type ChartPoint } from '../utils/chartData.ts';
+import { metricId, type ChartPoint } from '#src/utils/chartData';
 import {
   formatDuration,
   formatNumericCellValue,
   formatPercent,
   formatScore,
   formatTimestamp,
-} from '../utils/formatters.ts';
+} from '#src/utils/formatters';
 
 type EvalRunsChartProps = {
   config: EvalChartConfig;

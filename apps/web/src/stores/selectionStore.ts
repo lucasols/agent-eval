@@ -3,8 +3,8 @@ import { Store } from 't-state';
 import {
   getCurrentSearchParams,
   updateSearchParams,
-} from '../hooks/useSearchParams.ts';
-import { clearDrawerSelectionState } from './runStore.ts';
+} from '#src/hooks/useSearchParams';
+import { clearDrawerSelectionState } from '#src/stores/runStore';
 
 export type Selection =
   | { kind: 'none' }

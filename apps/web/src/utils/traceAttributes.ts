@@ -4,7 +4,7 @@ import type {
   TraceAttributeDisplayPlacement,
   TraceDisplayConfig,
 } from '@agent-evals/shared';
-import { formatDuration, formatNumber } from './formatters.ts';
+import { formatDuration, formatNumber } from '#src/utils/formatters';
 
 type TraceAttributeItem = { config: TraceAttributeDisplay; value: unknown };
 

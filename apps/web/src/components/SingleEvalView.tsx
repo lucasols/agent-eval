@@ -1,6 +1,6 @@
 import type { EvalSummary } from '@agent-evals/shared';
 import { styled } from 'vindur';
-import { EvalCard } from './EvalCard.tsx';
+import { EvalCard } from '#src/components/EvalCard';
 
 const Root = styled.div`
   height: 100%;

@@ -5,6 +5,22 @@ import {
 } from '@agent-evals/shared';
 import { X } from 'lucide-react';
 import { styled } from 'vindur';
+import { IconButton } from '#src/components/IconButton';
+import { MenuButton } from '#src/components/MenuButton';
+import { ResizeHandle } from '#src/components/ResizeHandle';
+import type { SplitButtonMenuEntry } from '#src/components/SplitButton';
+import { StatusBadge } from '#src/components/StatusBadge';
+import { useResizableWidth } from '#src/hooks/useResizableWidth';
+import { useWindowWidth } from '#src/hooks/useWindowWidth';
+import { evalsStore } from '#src/stores/evalsStore';
+import { layoutStore } from '#src/stores/layoutStore';
+import {
+  closeRun,
+  deleteRun,
+  runStore,
+  selectCase,
+} from '#src/stores/runStore';
+import { selectionStore } from '#src/stores/selectionStore';
 import { colors } from '#src/style/colors';
 import {
   ellipsis,
@@ -15,24 +31,8 @@ import {
   tabularNums,
   transition,
 } from '#src/style/helpers';
-import { useResizableWidth } from '../hooks/useResizableWidth.ts';
-import { useWindowWidth } from '../hooks/useWindowWidth.ts';
-import { evalsStore } from '../stores/evalsStore.ts';
-import { layoutStore } from '../stores/layoutStore.ts';
-import {
-  closeRun,
-  deleteRun,
-  runStore,
-  selectCase,
-} from '../stores/runStore.ts';
-import { selectionStore } from '../stores/selectionStore.ts';
-import { scopeRunCases } from '../utils/evalRuns.ts';
-import { formatDuration, formatTimestamp } from '../utils/formatters.ts';
-import { IconButton } from './IconButton.tsx';
-import { MenuButton } from './MenuButton.tsx';
-import { ResizeHandle } from './ResizeHandle.tsx';
-import type { SplitButtonMenuEntry } from './SplitButton.tsx';
-import { StatusBadge } from './StatusBadge.tsx';
+import { scopeRunCases } from '#src/utils/evalRuns';
+import { formatDuration, formatTimestamp } from '#src/utils/formatters';
 
 const DrawerLoading = styled.div`
   border-left: 1px solid ${colors.border.var};

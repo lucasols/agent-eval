@@ -1,12 +1,12 @@
 import { MoreHorizontal } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { styled } from 'vindur';
-import { colors } from '#src/style/colors';
-import { centerContent, stack, transition } from '#src/style/helpers';
 import {
   type SplitButtonMenuEntry,
   type SplitButtonMenuItem,
-} from './SplitButton.tsx';
+} from '#src/components/SplitButton';
+import { colors } from '#src/style/colors';
+import { centerContent, stack, transition } from '#src/style/helpers';
 
 type MenuButtonProps = {
   menu: SplitButtonMenuEntry[];

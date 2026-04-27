@@ -2,17 +2,17 @@ import type { ColumnDef } from '@agent-evals/shared';
 import { useActionFn } from '@ls-stack/react-utils/useActionFn';
 import { Check, Star, X } from 'lucide-react';
 import { styled } from 'vindur';
+import { Tooltip } from '#src/components/Tooltip';
+import { updateManualScore } from '#src/stores/runStore';
 import { colors } from '#src/style/colors';
 import { inline, monoFont, tabularNums } from '#src/style/helpers';
-import { updateManualScore } from '../stores/runStore.ts';
 import {
   formatPassFail,
   formatScore,
   getMaxStars,
   starsToValue,
   valueToStars,
-} from '../utils/formatters.ts';
-import { Tooltip } from './Tooltip.tsx';
+} from '#src/utils/formatters';
 
 const EM_DASH = '—';
 

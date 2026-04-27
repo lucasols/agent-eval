@@ -5,7 +5,7 @@ import type {
   EvalChartMetric,
   EvalChartTooltipExtra,
 } from '@agent-evals/shared';
-import type { ScopedRunRow } from './evalRuns.ts';
+import type { ScopedRunRow } from '#src/utils/evalRuns';
 
 const RUN_SHORT_ID_PREFIX = /^r/;
 

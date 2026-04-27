@@ -2,29 +2,32 @@ import type { EvalDisplayStatus, EvalSummary } from '@agent-evals/shared';
 import { Play } from 'lucide-react';
 import { useState } from 'react';
 import { styled } from 'vindur';
-import { colors } from '#src/style/colors';
-import { inline, kicker, stack, transition } from '#src/style/helpers';
+import { EmptyState } from '#src/components/EmptyState';
+import { EvalCard } from '#src/components/EvalCard';
+import { MenuButton } from '#src/components/MenuButton';
+import { PathBreadcrumb } from '#src/components/PathBreadcrumb';
+import {
+  SplitButton,
+  type SplitButtonMenuEntry,
+} from '#src/components/SplitButton';
 import {
   cleanRunsForEval,
   clearCacheForEval,
   recomputeStatusesForEval,
   startRun,
   runStore,
-} from '../stores/runStore.ts';
+} from '#src/stores/runStore';
 import {
   selectionStore,
   selectFolder,
   toggleEvalStatusFilter,
-} from '../stores/selectionStore.ts';
+} from '#src/stores/selectionStore';
+import { colors } from '#src/style/colors';
+import { inline, kicker, stack, transition } from '#src/style/helpers';
 import {
   filterEvalsByStatuses,
   getStatusBreakdown,
-} from '../utils/buildEvalTree.ts';
-import { EmptyState } from './EmptyState.tsx';
-import { EvalCard } from './EvalCard.tsx';
-import { MenuButton } from './MenuButton.tsx';
-import { PathBreadcrumb } from './PathBreadcrumb.tsx';
-import { SplitButton, type SplitButtonMenuEntry } from './SplitButton.tsx';
+} from '#src/utils/buildEvalTree';
 
 type FolderViewProps = { folderPath: string; evals: EvalSummary[] };
 

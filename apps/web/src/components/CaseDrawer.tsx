@@ -2,29 +2,29 @@ import type { CellValue, ColumnDef } from '@agent-evals/shared';
 import { Maximize2, Minimize2, X } from 'lucide-react';
 import { useRef } from 'react';
 import { styled } from 'vindur';
-import { colors } from '#src/style/colors';
-import { inline, kicker, monoFont, stack } from '#src/style/helpers';
-import { useResizableWidth } from '../hooks/useResizableWidth.ts';
-import {
-  updateSearchParams,
-  useSearchParams,
-} from '../hooks/useSearchParams.ts';
-import { useWindowWidth } from '../hooks/useWindowWidth.ts';
-import { evalsStore } from '../stores/evalsStore.ts';
-import { layoutStore } from '../stores/layoutStore.ts';
-import { closeCase, runStore } from '../stores/runStore.ts';
-import { formatNumericCellValue, formatScore } from '../utils/formatters.ts';
-import { EmptyState } from './EmptyState.tsx';
+import { EmptyState } from '#src/components/EmptyState';
 import {
   FormattedCellValue,
   hasRichColumnFormat,
   summarizeCellValue,
-} from './FormattedCellValue.tsx';
-import { IconButton } from './IconButton.tsx';
-import { JsonViewer } from './JsonViewer.tsx';
-import { ResizeHandle } from './ResizeHandle.tsx';
-import { StatusBadge } from './StatusBadge.tsx';
-import { TraceTree } from './TraceTree.tsx';
+} from '#src/components/FormattedCellValue';
+import { IconButton } from '#src/components/IconButton';
+import { JsonViewer } from '#src/components/JsonViewer';
+import { ResizeHandle } from '#src/components/ResizeHandle';
+import { StatusBadge } from '#src/components/StatusBadge';
+import { TraceTree } from '#src/components/TraceTree';
+import { useResizableWidth } from '#src/hooks/useResizableWidth';
+import {
+  updateSearchParams,
+  useSearchParams,
+} from '#src/hooks/useSearchParams';
+import { useWindowWidth } from '#src/hooks/useWindowWidth';
+import { evalsStore } from '#src/stores/evalsStore';
+import { layoutStore } from '#src/stores/layoutStore';
+import { closeCase, runStore } from '#src/stores/runStore';
+import { colors } from '#src/style/colors';
+import { inline, kicker, monoFont, stack } from '#src/style/helpers';
+import { formatNumericCellValue, formatScore } from '#src/utils/formatters';
 
 type Tab =
   | 'input'

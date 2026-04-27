@@ -2,16 +2,10 @@ import { getEvalTitle } from '@agent-evals/shared';
 import { ChevronRight } from 'lucide-react';
 import { useEffect } from 'react';
 import { css, styled } from 'vindur';
-import { colors } from '#src/style/colors';
-import {
-  ellipsis,
-  inline,
-  monoFont,
-  stack,
-  transition,
-} from '#src/style/helpers';
-import { evalsStore } from '../stores/evalsStore.ts';
-import { runStore } from '../stores/runStore.ts';
+import { StatusDot } from '#src/components/StatusBadge';
+import { Tooltip } from '#src/components/Tooltip';
+import { evalsStore } from '#src/stores/evalsStore';
+import { runStore } from '#src/stores/runStore';
 import {
   expandFolder,
   isFolderExpanded,
@@ -20,7 +14,15 @@ import {
   selectFolder,
   toggleFolder,
   type Selection,
-} from '../stores/selectionStore.ts';
+} from '#src/stores/selectionStore';
+import { colors } from '#src/style/colors';
+import {
+  ellipsis,
+  inline,
+  monoFont,
+  stack,
+  transition,
+} from '#src/style/helpers';
 import {
   buildEvalTree,
   collectNodeEvals,
@@ -33,10 +35,8 @@ import {
   type TreeFolder,
   type TreeLeaf,
   type TreeNode,
-} from '../utils/buildEvalTree.ts';
-import { getFreshnessTooltip } from '../utils/freshness.ts';
-import { StatusDot } from './StatusBadge.tsx';
-import { Tooltip } from './Tooltip.tsx';
+} from '#src/utils/buildEvalTree';
+import { getFreshnessTooltip } from '#src/utils/freshness';
 
 const Root = styled.div`
   padding: 2px 0 10px;

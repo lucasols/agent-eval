@@ -8,6 +8,11 @@ import type {
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { type MouseEvent } from 'react';
 import { styled } from 'vindur';
+import { summarizeCellValue } from '#src/components/FormattedCellValue';
+import { ManualScoreCell, ScoreCell } from '#src/components/ScoreCell';
+import { StatusBadge } from '#src/components/StatusBadge';
+import { Tooltip } from '#src/components/Tooltip';
+import { runStore, selectCase, selectRun } from '#src/stores/runStore';
 import { colors } from '#src/style/colors';
 import {
   ellipsis,
@@ -17,16 +22,11 @@ import {
   tabularNums,
   transition,
 } from '#src/style/helpers';
-import { runStore, selectCase, selectRun } from '../stores/runStore.ts';
 import {
   formatDuration,
   formatNumericCellValue,
   formatTimestamp,
-} from '../utils/formatters.ts';
-import { summarizeCellValue } from './FormattedCellValue.tsx';
-import { ManualScoreCell, ScoreCell } from './ScoreCell.tsx';
-import { StatusBadge } from './StatusBadge.tsx';
-import { Tooltip } from './Tooltip.tsx';
+} from '#src/utils/formatters';
 
 export type RunRow = {
   manifest: RunManifest;

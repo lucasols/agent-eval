@@ -1,5 +1,5 @@
 import type { EvalSummary } from '@agent-evals/shared';
-import { formatTimestamp } from './formatters.ts';
+import { formatTimestamp } from '#src/utils/formatters';
 
 function shortCommitSha(commitSha: string | null): string {
   if (commitSha === null) return 'unknown';

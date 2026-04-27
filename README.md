@@ -123,7 +123,7 @@ defineEval({
       },
     });
 
-    const { runWorkflow } = await import('../src/workflow.ts');
+    const { runWorkflow } = await );
     const result = await runWorkflow(input);
 
     setEvalOutput('segment', result.segment);

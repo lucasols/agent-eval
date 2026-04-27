@@ -1,9 +1,9 @@
 import { SquareArrowOutUpRight } from 'lucide-react';
 import { styled } from 'vindur';
+import { IconButton } from '#src/components/IconButton';
+import { Tooltip } from '#src/components/Tooltip';
 import { colors } from '#src/style/colors';
 import { inline, monoFont, transition } from '#src/style/helpers';
-import { IconButton } from './IconButton.tsx';
-import { Tooltip } from './Tooltip.tsx';
 
 export type PathBreadcrumbSegment = { label: string; path: string };
 

@@ -1,5 +1,5 @@
 import { Agentation } from 'agentation';
-import { AppShell } from './components/AppShell.tsx';
+import { AppShell } from '#src/components/AppShell';
 
 export function App() {
   return (

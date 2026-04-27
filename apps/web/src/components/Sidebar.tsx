@@ -2,18 +2,19 @@ import type { EvalDisplayStatus } from '@agent-evals/shared';
 import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { styled } from 'vindur';
-import { colors } from '#src/style/colors';
-import { inline, kicker, stack, transition } from '#src/style/helpers';
-import { useResizableWidth } from '../hooks/useResizableWidth.ts';
-import { evalsStore } from '../stores/evalsStore.ts';
+import { EvalTree } from '#src/components/EvalTree';
+import { ResizeHandle } from '#src/components/ResizeHandle';
+import { Tooltip } from '#src/components/Tooltip';
+import { useResizableWidth } from '#src/hooks/useResizableWidth';
+import { evalsStore } from '#src/stores/evalsStore';
 import {
   setSidebarWidth,
   SIDEBAR_DEFAULT_WIDTH,
   SIDEBAR_MAX_WIDTH,
   SIDEBAR_MIN_WIDTH,
   SIDEBAR_WIDTH_STORAGE_KEY,
-} from '../stores/layoutStore.ts';
-import { runStore } from '../stores/runStore.ts';
+} from '#src/stores/layoutStore';
+import { runStore } from '#src/stores/runStore';
 import {
   collapseAllFolders,
   EVAL_STATUS_FILTER_OPTIONS,
@@ -21,16 +22,15 @@ import {
   selectionStore,
   selectFolder,
   toggleEvalStatusFilter,
-} from '../stores/selectionStore.ts';
+} from '#src/stores/selectionStore';
+import { colors } from '#src/style/colors';
+import { inline, kicker, stack, transition } from '#src/style/helpers';
 import {
   buildEvalTree,
   collectCollapsiblePaths,
   filterEvalsByStatuses,
   getStatusBreakdown,
-} from '../utils/buildEvalTree.ts';
-import { EvalTree } from './EvalTree.tsx';
-import { ResizeHandle } from './ResizeHandle.tsx';
-import { Tooltip } from './Tooltip.tsx';
+} from '#src/utils/buildEvalTree';
 
 const Root = styled.aside`
   ${stack()}

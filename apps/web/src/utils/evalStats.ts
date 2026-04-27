@@ -6,7 +6,7 @@ import type {
   EvalSummary,
   ScopedCaseSummary,
 } from '@agent-evals/shared';
-import { formatDuration, formatNumericCellValue } from './formatters.ts';
+import { formatDuration, formatNumericCellValue } from '#src/utils/formatters';
 
 const EM_DASH = '\u2014';
 

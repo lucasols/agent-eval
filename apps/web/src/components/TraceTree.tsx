@@ -2,6 +2,7 @@ import type { EvalTraceSpan, TraceDisplayConfig } from '@agent-evals/shared';
 import { ChevronRight, PanelRightClose, PanelRightOpen, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { styled } from 'vindur';
+import { SpanDetail } from '#src/components/SpanDetail';
 import {
   updateSearchParams,
   useSearchParams,
@@ -18,7 +19,6 @@ import {
   getTraceKindStyle,
   type TraceKindStyle,
 } from '#src/utils/traceKindColors';
-import { SpanDetail } from './SpanDetail.tsx';
 
 const NARROW_BREAKPOINT = 720;
 

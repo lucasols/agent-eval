@@ -1,26 +1,26 @@
 import { useEffect } from 'react';
 import { styled } from 'vindur';
-import { colors } from '#src/style/colors';
-import { inline, stack } from '#src/style/helpers';
-import { useSearchParams } from '../hooks/useSearchParams.ts';
-import { evalsStore, fetchEvals } from '../stores/evalsStore.ts';
-import { refetchHistory } from '../stores/historyStore.ts';
+import { CaseDrawer } from '#src/components/CaseDrawer';
+import { EmptyState } from '#src/components/EmptyState';
+import { FolderView } from '#src/components/FolderView';
+import { RunDrawer } from '#src/components/RunDrawer';
+import { Sidebar } from '#src/components/Sidebar';
+import { SingleEvalView } from '#src/components/SingleEvalView';
+import { useSearchParams } from '#src/hooks/useSearchParams';
+import { evalsStore, fetchEvals } from '#src/stores/evalsStore';
+import { refetchHistory } from '#src/stores/historyStore';
 import {
   runStore,
   syncCaseSelectionFromSearchParams,
   syncRunSelectionFromSearchParams,
-} from '../stores/runStore.ts';
+} from '#src/stores/runStore';
 import {
   selectionStore,
   syncSelectionFromSearchParams,
-} from '../stores/selectionStore.ts';
-import { collectEvalsInFolder } from '../utils/buildEvalTree.ts';
-import { CaseDrawer } from './CaseDrawer.tsx';
-import { EmptyState } from './EmptyState.tsx';
-import { FolderView } from './FolderView.tsx';
-import { RunDrawer } from './RunDrawer.tsx';
-import { Sidebar } from './Sidebar.tsx';
-import { SingleEvalView } from './SingleEvalView.tsx';
+} from '#src/stores/selectionStore';
+import { colors } from '#src/style/colors';
+import { inline, stack } from '#src/style/helpers';
+import { collectEvalsInFolder } from '#src/utils/buildEvalTree';
 
 const Root = styled.div`
   ${inline({ align: 'stretch' })}

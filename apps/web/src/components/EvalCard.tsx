@@ -12,6 +12,27 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { styled } from 'vindur';
+import { EvalRunsChart } from '#src/components/EvalRunsChart';
+import { EvalRunsTable } from '#src/components/EvalRunsTable';
+import { IconButton } from '#src/components/IconButton';
+import { MenuButton } from '#src/components/MenuButton';
+import { PathBreadcrumb } from '#src/components/PathBreadcrumb';
+import {
+  SplitButton,
+  type SplitButtonMenuEntry,
+} from '#src/components/SplitButton';
+import { StatusBadge } from '#src/components/StatusBadge';
+import { Tooltip } from '#src/components/Tooltip';
+import { evalsStore, openEvalInEditor } from '#src/stores/evalsStore';
+import { getRunsForEval, historyStore } from '#src/stores/historyStore';
+import {
+  cleanRunsForEval,
+  clearCacheForEval,
+  recomputeStatusesForEval,
+  runStore,
+  startRun,
+} from '#src/stores/runStore';
+import { selectEval, selectFolder } from '#src/stores/selectionStore';
 import { colors } from '#src/style/colors';
 import {
   ellipsis,
@@ -22,29 +43,11 @@ import {
   tabularNums,
   transition,
 } from '#src/style/helpers';
-import { evalsStore, openEvalInEditor } from '../stores/evalsStore.ts';
-import { getRunsForEval, historyStore } from '../stores/historyStore.ts';
-import {
-  cleanRunsForEval,
-  clearCacheForEval,
-  recomputeStatusesForEval,
-  runStore,
-  startRun,
-} from '../stores/runStore.ts';
-import { selectEval, selectFolder } from '../stores/selectionStore.ts';
-import { getDisplayFolderSegments } from '../utils/buildEvalTree.ts';
-import { buildChartPoints } from '../utils/chartData.ts';
-import { buildEvalScopedRunRows } from '../utils/evalRuns.ts';
-import { computeStatDisplay } from '../utils/evalStats.ts';
-import { getFreshnessTooltip } from '../utils/freshness.ts';
-import { EvalRunsChart } from './EvalRunsChart.tsx';
-import { EvalRunsTable } from './EvalRunsTable.tsx';
-import { IconButton } from './IconButton.tsx';
-import { MenuButton } from './MenuButton.tsx';
-import { PathBreadcrumb } from './PathBreadcrumb.tsx';
-import { SplitButton, type SplitButtonMenuEntry } from './SplitButton.tsx';
-import { StatusBadge } from './StatusBadge.tsx';
-import { Tooltip } from './Tooltip.tsx';
+import { getDisplayFolderSegments } from '#src/utils/buildEvalTree';
+import { buildChartPoints } from '#src/utils/chartData';
+import { buildEvalScopedRunRows } from '#src/utils/evalRuns';
+import { computeStatDisplay } from '#src/utils/evalStats';
+import { getFreshnessTooltip } from '#src/utils/freshness';
 
 type EvalCardProps = { evalSummary: EvalSummary; mode: 'single' | 'stacked' };
 

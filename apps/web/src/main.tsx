@@ -1,8 +1,8 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import 'react18-json-view/src/style.css';
-import { App } from './App.tsx';
-import './style/globalStyle.ts';
+import { App } from '#src/App';
+import '#src/style/globalStyle';
 
 const rootEl = document.getElementById('root');
 
