@@ -1,6 +1,6 @@
 import path from 'path';
 import { vindurPlugin } from '@vindur-css/eslint-plugin';
-import { createBaseConfig, ERROR } from '../../eslint.config.base.ts';
+import { createBaseConfig, ERROR } from '../../eslint.config.base';
 
 export default createBaseConfig({
   tsconfigRootDir: import.meta.dirname,

@@ -8,7 +8,8 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "types": ["node"],
-    "paths": { "#src/*": ["./src/*"] }
+    "allowImportingTsExtensions": false,
+    "paths": { "#src/*": ["./src/*"], "#server/*": ["../server/src/*"] }
   },
   "include": ["src"]
 }
