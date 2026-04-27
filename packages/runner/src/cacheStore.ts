@@ -8,14 +8,17 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import type { CacheAdapter } from '@agent-evals/sdk';
 import {
-  cacheEntrySchema,
+  cacheFileSchema,
   type CacheEntry,
+  type CacheFile,
   type CacheListItem,
 } from '@agent-evals/shared';
 import { resultify } from 't-result';
+
+const defaultMaxEntriesPerEval = 100;
 
 /** Filter accepted by `FsCacheStore.clear` to narrow the set of entries removed. */
 export type CacheClearFilter = { namespace?: string; key?: string };
@@ -40,17 +43,20 @@ export type BufferedCacheStore = CacheAdapter & {
 /**
  * Create a filesystem-backed cache adapter rooted at `<workspaceRoot>/<dir>`.
  *
- * Writes use `<name>.tmp` + atomic `rename` to avoid partial reads under
- * concurrent access.
+ * Cache entries are grouped into one inspectable JSON file per eval/cache
+ * owner. Writes use a short-lived lock directory plus `<name>.tmp` + atomic
+ * `rename` to avoid partial reads and lost updates under concurrent access.
  */
 export function createFsCacheStore(options: {
   workspaceRoot: string;
   dir?: string;
+  maxEntriesPerEval?: number;
 }): FsCacheStore {
   const cacheDir = resolve(
     options.workspaceRoot,
     options.dir ?? '.agent-evals/cache',
   );
+  const maxEntriesPerEval = normalizeMaxEntries(options.maxEntriesPerEval);
 
   return {
     dir() {
@@ -58,53 +64,58 @@ export function createFsCacheStore(options: {
     },
 
     async lookup(namespace, keyHash) {
-      const filePath = entryPath(cacheDir, namespace, keyHash);
-      if (!existsSync(filePath)) return null;
-      const raw = await readFile(filePath, 'utf-8');
-      const json: unknown = safeJsonParse(raw);
-      if (json === null) return null;
-      const parsed = cacheEntrySchema.safeParse(json);
-      if (!parsed.success) return null;
-      return parsed.data;
+      const owner = ownerFromNamespace(namespace);
+      const cacheFile = await readCacheFile(cacheDir, owner);
+      return cacheFile?.entries[keyHash] ?? null;
     },
 
     async write(entry) {
-      const filePath = entryPath(cacheDir, entry.namespace, entry.key);
-      await mkdir(dirname(filePath), { recursive: true });
-      const tmpPath = `${filePath}.${process.pid.toString()}.tmp`;
-      await writeFile(tmpPath, JSON.stringify(entry));
-      await rename(tmpPath, filePath);
+      const owner = ownerFromNamespace(entry.namespace);
+      const filePath = ownerPath(cacheDir, owner);
+      await mkdir(cacheDir, { recursive: true });
+      await withCacheFileLock(filePath, async () => {
+        const existing = await readCacheFile(cacheDir, owner);
+        const entries = existing?.entries ?? {};
+        const prunedEntries = pruneEntries(
+          { ...entries, [entry.key]: entry },
+          maxEntriesPerEval,
+          entry.key,
+        );
+        await writeCacheFile(cacheDir, {
+          version: 1,
+          owner,
+          entries: prunedEntries,
+        });
+      });
     },
 
     async list() {
       if (!existsSync(cacheDir)) return [];
-      const namespaces = await readdir(cacheDir);
+      const files = await readdir(cacheDir);
       const items: CacheListItem[] = [];
-      for (const namespace of namespaces) {
-        const nsPath = join(cacheDir, namespace);
-        const nsStat = await stat(nsPath);
-        if (!nsStat.isDirectory()) continue;
-        const files = await readdir(nsPath);
-        for (const fileName of files) {
-          if (!fileName.endsWith('.json')) continue;
-          const filePath = join(nsPath, fileName);
-          const raw = await readFile(filePath, 'utf-8');
-          const json: unknown = safeJsonParse(raw);
-          if (json === null) continue;
-          const parsed = cacheEntrySchema.safeParse(json);
-          if (!parsed.success) continue;
-          const fileStat = await stat(filePath);
+
+      for (const fileName of files) {
+        if (!fileName.endsWith('.json')) continue;
+        const filePath = join(cacheDir, fileName);
+        const fileStatResult = await resultify(() => stat(filePath));
+        if (fileStatResult.error || !fileStatResult.value.isFile()) continue;
+
+        const cacheFile = await readCacheFilePath(filePath);
+        if (cacheFile === null) continue;
+
+        for (const entry of Object.values(cacheFile.entries)) {
           items.push({
-            key: parsed.data.key,
-            namespace: parsed.data.namespace,
-            spanName: parsed.data.spanName,
-            spanKind: parsed.data.spanKind,
-            storedAt: parsed.data.storedAt,
-            codeFingerprint: parsed.data.codeFingerprint,
-            sizeBytes: fileStat.size,
+            key: entry.key,
+            namespace: entry.namespace,
+            spanName: entry.spanName,
+            spanKind: entry.spanKind,
+            storedAt: entry.storedAt,
+            codeFingerprint: entry.codeFingerprint,
+            sizeBytes: Buffer.byteLength(JSON.stringify(entry), 'utf8'),
           });
         }
       }
+
       items.sort((a, b) => (a.storedAt < b.storedAt ? 1 : -1));
       return items;
     },
@@ -118,23 +129,50 @@ export function createFsCacheStore(options: {
         await rm(cacheDir, { recursive: true, force: true });
         return;
       }
-      if (filter.namespace !== undefined && filter.key === undefined) {
-        const nsPath = join(cacheDir, filter.namespace);
-        await rm(nsPath, { recursive: true, force: true });
+
+      if (filter.namespace !== undefined) {
+        const owner = ownerFromNamespace(filter.namespace);
+        const filePath = ownerPath(cacheDir, owner);
+        await withCacheFileLock(filePath, async () => {
+          const cacheFile = await readCacheFile(cacheDir, owner);
+          if (cacheFile === null) return;
+
+          const entries = Object.fromEntries(
+            Object.entries(cacheFile.entries).filter(([key, entry]) => {
+              if (filter.key !== undefined) {
+                return key !== filter.key;
+              }
+              return entry.namespace !== filter.namespace;
+            }),
+          );
+          await writeOrRemoveCacheFile(cacheDir, {
+            version: 1,
+            owner,
+            entries,
+          });
+        });
         return;
       }
-      if (filter.namespace !== undefined && filter.key !== undefined) {
-        const filePath = entryPath(cacheDir, filter.namespace, filter.key);
-        await rm(filePath, { force: true });
-        return;
-      }
-      // key-only filter: find it across namespaces
-      const namespaces = await readdir(cacheDir);
-      for (const namespace of namespaces) {
-        const filePath = entryPath(cacheDir, namespace, filter.key ?? '');
-        if (existsSync(filePath)) {
-          await rm(filePath, { force: true });
-        }
+
+      const files = await readdir(cacheDir);
+      for (const fileName of files) {
+        if (!fileName.endsWith('.json')) continue;
+        const filePath = join(cacheDir, fileName);
+        await withCacheFileLock(filePath, async () => {
+          const cacheFile = await readCacheFilePath(filePath);
+          if (cacheFile === null) return;
+
+          const entries = Object.fromEntries(
+            Object.entries(cacheFile.entries).filter(
+              ([key]) => key !== filter.key,
+            ),
+          );
+          await writeOrRemoveCacheFile(cacheDir, {
+            version: 1,
+            owner: cacheFile.owner,
+            entries,
+          });
+        });
       }
     },
   };
@@ -176,12 +214,20 @@ export function createBufferedCacheStore(
   };
 }
 
-function entryPath(
-  cacheDir: string,
-  namespace: string,
-  keyHash: string,
-): string {
-  return join(cacheDir, sanitizeSegment(namespace), `${keyHash}.json`);
+function normalizeMaxEntries(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value) || value <= 0) {
+    return defaultMaxEntriesPerEval;
+  }
+  return Math.floor(value);
+}
+
+function ownerFromNamespace(namespace: string): string {
+  const [owner] = namespace.split('__');
+  return owner === undefined || owner.length === 0 ? namespace : owner;
+}
+
+function ownerPath(cacheDir: string, owner: string): string {
+  return join(cacheDir, `${sanitizeSegment(owner)}.json`);
 }
 
 function toPendingKey(namespace: string, keyHash: string): string {
@@ -190,6 +236,102 @@ function toPendingKey(namespace: string, keyHash: string): string {
 
 function sanitizeSegment(segment: string): string {
   return segment.replace(/[^a-zA-Z0-9_.-]/g, '_');
+}
+
+async function readCacheFile(
+  cacheDir: string,
+  owner: string,
+): Promise<CacheFile | null> {
+  return readCacheFilePath(ownerPath(cacheDir, owner));
+}
+
+async function readCacheFilePath(filePath: string): Promise<CacheFile | null> {
+  if (!existsSync(filePath)) return null;
+  const rawResult = await resultify(() => readFile(filePath, 'utf-8'));
+  if (rawResult.error) return null;
+  const json = safeJsonParse(rawResult.value);
+  if (json === null) return null;
+  const parsed = cacheFileSchema.safeParse(json);
+  if (!parsed.success) return null;
+  return parsed.data;
+}
+
+async function writeOrRemoveCacheFile(
+  cacheDir: string,
+  cacheFile: CacheFile,
+): Promise<void> {
+  if (Object.keys(cacheFile.entries).length === 0) {
+    await rm(ownerPath(cacheDir, cacheFile.owner), { force: true });
+    return;
+  }
+  await writeCacheFile(cacheDir, cacheFile);
+}
+
+async function writeCacheFile(
+  cacheDir: string,
+  cacheFile: CacheFile,
+): Promise<void> {
+  await mkdir(cacheDir, { recursive: true });
+  const filePath = ownerPath(cacheDir, cacheFile.owner);
+  const tmpPath = `${filePath}.${process.pid.toString()}.tmp`;
+  await writeFile(tmpPath, JSON.stringify(cacheFile, null, 2));
+  await rename(tmpPath, filePath);
+}
+
+function pruneEntries(
+  entries: Record<string, CacheEntry>,
+  maxEntries: number,
+  protectedKey: string,
+): Record<string, CacheEntry> {
+  const sorted = Object.values(entries).toSorted((a, b) =>
+    a.storedAt < b.storedAt ? 1 : -1,
+  );
+  const kept = new Map<string, CacheEntry>();
+  const protectedEntry = entries[protectedKey];
+  if (protectedEntry !== undefined) {
+    kept.set(protectedEntry.key, protectedEntry);
+  }
+
+  for (const entry of sorted) {
+    if (kept.size >= maxEntries) break;
+    kept.set(entry.key, entry);
+  }
+
+  return Object.fromEntries(
+    [...kept.values()]
+      .toSorted((a, b) => (a.key < b.key ? -1 : 1))
+      .map((entry) => [entry.key, entry]),
+  );
+}
+
+async function withCacheFileLock(
+  filePath: string,
+  fn: () => Promise<void>,
+): Promise<void> {
+  const lockPath = `${filePath}.lock`;
+  await acquireLock(lockPath);
+  const result = await resultify(fn);
+  await rm(lockPath, { recursive: true, force: true });
+  if (result.error) throw result.error;
+}
+
+async function acquireLock(lockPath: string): Promise<void> {
+  const startedAt = Date.now();
+  let lastError: unknown;
+
+  while (Date.now() - startedAt < 5000) {
+    const result = await resultify(() => mkdir(lockPath, { recursive: false }));
+    if (!result.error) return;
+    lastError = result.error;
+    await sleep(20);
+  }
+
+  if (lastError instanceof Error) throw lastError;
+  throw new Error(`Timed out acquiring cache lock at ${lockPath}`);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
 function safeJsonParse(text: string): unknown {

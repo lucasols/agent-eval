@@ -190,6 +190,9 @@ Mental model:
   functions of the key.
 - The cache key folds in a source-file fingerprint, so editing the eval busts
   the cache automatically.
+- Cache entries are stored in inspectable per-eval files under
+  `.agent-evals/cache/<eval-id>.json`, capped at 100 entries per eval by
+  default so shared caches do not grow forever.
 - Return values are JSON round-tripped; carry non-JSON data through
   `setEvalOutput` instead.
 - Cache mode per run is controlled by CLI flags (see `agent-evals run --help`)
@@ -198,7 +201,7 @@ Mental model:
 ## Artifacts
 
 Run output lives under `.agent-evals/runs/<run-id>/` and cache entries under
-`.agent-evals/cache/<namespace>/`. Files in a run directory include run
+`.agent-evals/cache/<eval-id>.json`. Files in a run directory include run
 metadata, a run summary, per-case results, and per-case trace JSON. Inspect
 these when debugging persisted output, costs, columns, traces, or failures —
 the filenames are stable even when their internal schema evolves, so pick the

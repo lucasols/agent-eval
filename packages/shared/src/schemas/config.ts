@@ -50,6 +50,11 @@ export type AgentEvalsConfig = {
     enabled?: boolean;
     /** Override the directory used to persist cache entries. */
     dir?: string;
+    /**
+     * Maximum entries retained in each per-eval cache file. Defaults to `100`;
+     * non-positive or non-finite values fall back to the default.
+     */
+    maxEntriesPerEval?: number;
   };
 };
 
@@ -63,6 +68,16 @@ export const agentEvalsConfigSchema = z.object({
   staleAfterDays: z.number().optional(),
   traceDisplay: traceDisplayInputConfigSchema.optional(),
   cache: z
-    .object({ enabled: z.boolean().optional(), dir: z.string().optional() })
+    .object({
+      enabled: z.boolean().optional(),
+      dir: z.string().optional(),
+      maxEntriesPerEval: z.preprocess(
+        (value) =>
+          typeof value === 'number' && Number.isFinite(value)
+            ? value
+            : undefined,
+        z.number().optional(),
+      ),
+    })
     .optional(),
 });

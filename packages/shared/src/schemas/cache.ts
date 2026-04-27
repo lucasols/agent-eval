@@ -114,3 +114,12 @@ export const cacheEntrySchema = z.object({
 });
 /** Persisted cache file contents. */
 export type CacheEntry = z.infer<typeof cacheEntrySchema>;
+
+/** Persisted per-owner cache file containing multiple cache entries. */
+export const cacheFileSchema = z.object({
+  version: z.literal(1),
+  owner: z.string(),
+  entries: z.record(z.string(), cacheEntrySchema),
+});
+/** Persisted per-owner cache file contents. */
+export type CacheFile = z.infer<typeof cacheFileSchema>;

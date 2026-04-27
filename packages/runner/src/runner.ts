@@ -177,6 +177,7 @@ export function createRunner({
       cacheStore = createFsCacheStore({
         workspaceRoot,
         dir: config.cache?.dir,
+        maxEntriesPerEval: config.cache?.maxEntriesPerEval,
       });
 
       await loadPersistedRuns();

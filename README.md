@@ -540,7 +540,11 @@ Server API (`/api/cache`):
 
 - Default namespace is `${evalId}__${spanName}`; override per-call with
   `cache.namespace` for sharing across evals.
-- Entries live under `<workspaceRoot>/.agent-evals/cache/<namespace>/<sha256>.json`.
+- Entries live in inspectable per-owner files at
+  `<workspaceRoot>/.agent-evals/cache/<owner>.json`; for default namespaces,
+  the owner is the eval id.
+- Each owner file keeps at most `cache.maxEntriesPerEval ?? 100` entries,
+  pruning the oldest entries on write so committed caches do not grow forever.
 - The cache key folds in a `codeFingerprint` — the sha256 of the eval file's
   source — so editing the eval produces a miss instead of a stale hit.
 - Modes: `bypass` never reads or writes; `refresh` skips the read and always
@@ -561,6 +565,15 @@ Disable caching globally from `agent-evals.config.ts`:
 export const config: AgentEvalsConfig = {
   include: ['evals/**/*.eval.ts'],
   cache: { enabled: false },
+};
+```
+
+You can also tune the per-eval retention cap:
+
+```ts
+export const config: AgentEvalsConfig = {
+  include: ['evals/**/*.eval.ts'],
+  cache: { maxEntriesPerEval: 50 },
 };
 ```
 

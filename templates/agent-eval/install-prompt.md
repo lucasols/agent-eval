@@ -43,11 +43,15 @@ needed to author evals.
    }
    ```
 
-5. Ignore persisted runs and caches. Append to `.gitignore` if the entries are
-   not already there:
+5. Ignore persisted run output. Cache files under `.agent-evals/cache/*.json`
+   are bounded and may be committed when a project wants to share them. Append
+   to `.gitignore` if the entries are not already there:
 
    ```gitignore
-   .agent-evals/
+   .agent-evals/runs/
+   .agent-evals/cache/*/
+   .agent-evals/cache/*.tmp
+   .agent-evals/cache/*.lock/
    ```
 
 6. Install the `agent-eval` skill so future authoring work uses the authored

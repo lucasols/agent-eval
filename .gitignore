@@ -1,6 +1,11 @@
 node_modules/
 dist/
-.agent-evals/
+**/.agent-evals/*
+!**/.agent-evals/cache/
+**/.agent-evals/cache/*
+!**/.agent-evals/cache/*.json
+**/.agent-evals/cache/*.tmp
+**/.agent-evals/cache/*.lock/
 *.tsbuildinfo
 
 # IDE

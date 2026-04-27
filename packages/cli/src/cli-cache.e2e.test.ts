@@ -3,7 +3,9 @@ import { readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import {
   cacheEntrySchema,
+  cacheFileSchema,
   cacheListItemSchema,
+  type CacheEntry,
   type EvalTraceSpan,
 } from '@agent-evals/shared';
 import { describe, expect, test } from 'vitest';
@@ -33,18 +35,34 @@ async function resetRunsDirectory(workspacePath: string): Promise<void> {
 async function readCacheDir(workspacePath: string): Promise<string[]> {
   const cachePath = resolve(workspacePath, '.agent-evals/cache');
   if (!existsSync(cachePath)) return [];
-  const namespaces = await readdir(cachePath);
+  const files = await readdir(cachePath);
   const collected: string[] = [];
-  for (const namespace of namespaces) {
-    const nsPath = resolve(cachePath, namespace);
-    const info = await stat(nsPath);
-    if (!info.isDirectory()) continue;
-    const files = await readdir(nsPath);
-    for (const file of files) {
-      collected.push(`${namespace}/${file}`);
-    }
+  for (const file of files) {
+    if (!file.endsWith('.json')) continue;
+    const filePath = resolve(cachePath, file);
+    const info = await stat(filePath);
+    if (info.isFile()) collected.push(file);
   }
   return collected.sort();
+}
+
+async function readCacheEntries(cacheFilePath: string): Promise<CacheEntry[]> {
+  const cacheFile = cacheFileSchema.parse(
+    JSON.parse(await readFile(cacheFilePath, 'utf8')),
+  );
+  return Object.values(cacheFile.entries).map((entry) =>
+    cacheEntrySchema.parse(entry),
+  );
+}
+
+async function readSingleCacheEntry(
+  cacheFilePath: string,
+): Promise<CacheEntry> {
+  const [entry, extraEntry] = await readCacheEntries(cacheFilePath);
+  if (entry === undefined || extraEntry !== undefined) {
+    throw new Error('Expected exactly one cache entry');
+  }
+  return entry;
 }
 
 function findLlmSpan(spans: EvalTraceSpan[], name: string): EvalTraceSpan {
@@ -90,15 +108,13 @@ describe('CLI operation caching', () => {
       expect(firstArtifacts.manifest.cacheMode).toBe('use');
 
       const cacheFilesAfterFirst = await readCacheDir(workspacePath);
-      expect(cacheFilesAfterFirst).toHaveLength(1);
+      expect(cacheFilesAfterFirst).toEqual(['refund-workflow.json']);
       const cacheFilePath = resolve(
         workspacePath,
         '.agent-evals/cache',
         requireDefined(cacheFilesAfterFirst[0], 'first cache file'),
       );
-      const cacheEntry = cacheEntrySchema.parse(
-        JSON.parse(await readFile(cacheFilePath, 'utf8')),
-      );
+      const cacheEntry = await readSingleCacheEntry(cacheFilePath);
       expect(cacheEntry.namespace).toBe('refund-workflow__plan-refund');
       expect(cacheEntry.recording.ops.length).toBeGreaterThan(0);
 
@@ -135,9 +151,7 @@ describe('CLI operation caching', () => {
       // cache file must still be a single untouched entry
       const cacheFilesAfterSecond = await readCacheDir(workspacePath);
       expect(cacheFilesAfterSecond).toEqual(cacheFilesAfterFirst);
-      const secondEntry = cacheEntrySchema.parse(
-        JSON.parse(await readFile(cacheFilePath, 'utf8')),
-      );
+      const secondEntry = await readSingleCacheEntry(cacheFilePath);
       expect(secondEntry.storedAt).toBe(firstStoredAt);
     });
   });
@@ -204,9 +218,7 @@ describe('CLI operation caching', () => {
         '.agent-evals/cache',
         requireDefined(cacheFiles[0], 'primed cache file'),
       );
-      const originalEntry = cacheEntrySchema.parse(
-        JSON.parse(await readFile(cacheFilePath, 'utf8')),
-      );
+      const originalEntry = await readSingleCacheEntry(cacheFilePath);
 
       await resetRunsDirectory(workspacePath);
       // wait a tick so `storedAt` differs
@@ -229,9 +241,7 @@ describe('CLI operation caching', () => {
       );
       expect(getCacheStatus(planSpan)).toBe('refresh');
 
-      const refreshed = cacheEntrySchema.parse(
-        JSON.parse(await readFile(cacheFilePath, 'utf8')),
-      );
+      const refreshed = await readSingleCacheEntry(cacheFilePath);
       expect(refreshed.storedAt).not.toBe(originalEntry.storedAt);
       expect(refreshed.key).toBe(originalEntry.key);
     });
@@ -340,7 +350,51 @@ describe('CLI operation caching', () => {
       expect(getCacheStatus(planSpan)).toBe('miss');
 
       const cacheAfter = await readCacheDir(workspacePath);
-      expect(cacheAfter).toHaveLength(2);
+      expect(cacheAfter).toEqual(['refund-workflow.json']);
+      const cacheFilePath = resolve(
+        workspacePath,
+        '.agent-evals/cache',
+        requireDefined(cacheAfter[0], 'cache file after source edit'),
+      );
+      const entries = await readCacheEntries(cacheFilePath);
+      expect(entries).toHaveLength(2);
+    });
+  });
+
+  test('prunes each eval cache file to the configured max entries', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const configPath = resolve(workspacePath, 'agent-evals.config.ts');
+      const configSource = await readFile(configPath, 'utf8');
+      await writeFile(
+        configPath,
+        configSource.replace(
+          '\n};\n',
+          '\n  cache: { maxEntriesPerEval: 2 },\n};\n',
+        ),
+      );
+
+      const run = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'refund-workflow',
+      ]);
+      expect(run.exitCode).toBe(0);
+      expect(run.stderr).toBe('');
+
+      const cacheFiles = await readCacheDir(workspacePath);
+      expect(cacheFiles).toEqual(['refund-workflow.json']);
+      const cacheFilePath = resolve(
+        workspacePath,
+        '.agent-evals/cache',
+        requireDefined(cacheFiles[0], 'pruned cache file'),
+      );
+      const entries = await readCacheEntries(cacheFilePath);
+      expect(entries).toHaveLength(2);
+      expect(
+        entries.every(
+          (entry) => entry.namespace === 'refund-workflow__plan-refund',
+        ),
+      ).toBe(true);
     });
   });
 });
