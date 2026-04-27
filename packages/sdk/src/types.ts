@@ -80,7 +80,7 @@ export type EvalTraceTree = {
   spans: EvalTraceSpan[];
   rootSpans: EvalTraceSpan[];
   findSpan: (name: string) => EvalTraceSpan | undefined;
-  findSpansByKind: (kind: EvalTraceSpan['kind']) => EvalTraceSpan[];
+  findSpansByKind: (kind: string) => EvalTraceSpan[];
   flattenDfs: () => EvalTraceSpan[];
   checkpoints: Map<string, unknown>;
 };

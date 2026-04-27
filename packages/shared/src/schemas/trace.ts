@@ -1,19 +1,13 @@
 import { z } from 'zod/v4';
 import { numberDisplayOptionsSchema } from './display.ts';
 
-/** Schema for the semantic categories used to classify trace spans. */
-export const traceSpanKindSchema = z.enum([
-  'eval',
-  'agent',
-  'llm',
-  'tool',
-  'retrieval',
-  'scorer',
-  'checkpoint',
-  'custom',
-]);
-/** Semantic category used to classify a trace span in the UI. */
-export type TraceSpanKind = z.infer<typeof traceSpanKindSchema>;
+/**
+ * Schema for span categories recorded in traces.
+ *
+ * The value is intentionally open-ended so external tracers can preserve their
+ * native span kinds instead of collapsing them into the built-in categories.
+ */
+export const traceSpanKindSchema = z.string().min(1);
 
 /** Schema for the supported presentation formats of trace attributes. */
 export const traceAttributeDisplayFormatSchema = z.enum([

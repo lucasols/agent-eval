@@ -31,7 +31,7 @@ export async function runHighValueRefundWorkflow(
       evalSpan.setAttribute('input', input);
 
       const policySpan = evalTracer.startSpan({
-        kind: 'retrieval',
+        kind: 'policy.retrieval',
         name: 'premium-refund-policy-snapshot',
         attributes: {
           input: {

@@ -29,7 +29,6 @@ export {
   traceDisplayConfigSchema,
   traceDisplayInputConfigSchema,
   type EvalTraceSpan,
-  type TraceSpanKind,
   type TraceAttributeDisplay,
   type TraceAttributeDisplayInput,
   type TraceAttributeDisplayFormat,

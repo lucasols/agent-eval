@@ -1,5 +1,5 @@
 import { z } from 'zod/v4';
-import { traceSpanKindSchema, type TraceSpanKind } from './trace.ts';
+import { traceSpanKindSchema } from './trace.ts';
 
 /**
  * Mode that controls how the cache is consulted for a given run.
@@ -37,7 +37,7 @@ export type CacheListItem = z.infer<typeof cacheListItemSchema>;
 
 /** Serialized nested span captured while recording a cached operation. */
 export type SerializedCacheSpan = {
-  kind: TraceSpanKind;
+  kind: string;
   name: string;
   attributes?: Record<string, unknown>;
   status: 'running' | 'ok' | 'error' | 'cancelled';

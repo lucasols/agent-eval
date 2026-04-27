@@ -38,7 +38,7 @@ export type TraceExternalSpanStartInfo = {
   /** Parent span id from the upstream tracer. Defaults to the active eval span. */
   parentId?: string | null;
   /** Semantic category used by the trace UI. */
-  kind: EvalTraceSpan['kind'];
+  kind: string;
   /** Display name for the span. */
   name: string;
   /** Span start time. Defaults to now. */
@@ -74,7 +74,7 @@ export type TraceExternalSpanRecordInfo = {
   /** Parent span id from the upstream tracer. Defaults to the active eval span. */
   parentId?: string | null;
   /** Semantic category used by the trace UI. */
-  kind: EvalTraceSpan['kind'];
+  kind: string;
   /** Display name for the span. */
   name: string;
   /** Span start time. Defaults to now. */
@@ -303,7 +303,7 @@ export const evalSpan: TraceActiveSpan = {
 };
 
 type TraceSpanInfoBase = {
-  kind: EvalTraceSpan['kind'];
+  kind: string;
   name: string;
   attributes?: Record<string, unknown>;
 };

@@ -80,10 +80,13 @@ export async function runRefundWorkflow(input: RefundInput) {
 }
 ```
 
-Span `kind` values are color-coded in the UI — pick the most specific kind
-(`agent | tool | llm | scorer | checkpoint | custom`). The UI automatically
-promotes only the `input` and `output` span attributes. Use `traceDisplay` for
-other span attributes such as `model`, `usage`, or `costUsd`.
+Span `kind` values are open-ended strings and are color-coded automatically in
+the UI for every kind used during the app session. Use familiar kinds such as
+`agent`, `tool`, `llm`, `retrieval`, `scorer`, or `checkpoint` when they fit,
+and preserve external tracer kinds such as `mastra.workflow.step` when they are
+more specific. The UI automatically promotes only the `input` and `output` span
+attributes. Use `traceDisplay` for other span attributes such as `model`,
+`usage`, or `costUsd`.
 
 For libraries or observability exporters that already emit span lifecycle
 events, use `evalTracer.startSpan(...)`, `evalTracer.updateSpan(...)`,

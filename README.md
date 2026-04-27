@@ -229,6 +229,12 @@ execute: async ({ input }) => {
 };
 ```
 
+Span `kind` values are open-ended strings. The UI assigns colors
+automatically to every kind used during the app session, so external tracing
+adapters can preserve native categories like `mastra.workflow.step` instead of
+collapsing everything into the built-in `agent`, `llm`, `tool`, `retrieval`,
+`scorer`, `checkpoint`, or `custom` kinds.
+
 For observability systems that already emit span lifecycle events, use the
 external span API. This lets an adapter translate start/update/end events into
 the same eval trace tree without wrapping work in a callback:

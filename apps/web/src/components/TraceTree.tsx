@@ -1,6 +1,12 @@
 import type { EvalTraceSpan, TraceDisplayConfig } from '@agent-evals/shared';
 import { ChevronRight, PanelRightClose, PanelRightOpen, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type CSSProperties,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { styled } from 'vindur';
 import {
   updateSearchParams,
@@ -15,6 +21,92 @@ import {
 import { SpanDetail } from './SpanDetail.tsx';
 
 const NARROW_BREAKPOINT = 720;
+
+type TraceKindColors = {
+  badgeBg: string;
+  badgeText: string;
+  barBg: string;
+  runningStrong: string;
+  runningSoft: string;
+};
+
+type TraceKindStyle = CSSProperties & {
+  '---trace-kind-badge-bg': string;
+  '---trace-kind-badge-text': string;
+  '---trace-kind-bar-bg': string;
+  '---trace-kind-running-strong': string;
+  '---trace-kind-running-soft': string;
+};
+
+type TraceKindBarStyle = TraceKindStyle & { left: string; width: string };
+
+const traceKindColorAssignments = new Map<string, TraceKindColors>();
+
+function mixColor(first: string, second: string, firstPercent: number): string {
+  return `color-mix(in oklab, ${first} ${String(firstPercent)}%, ${second})`;
+}
+
+function colorAlpha(value: string, percent: number): string {
+  return mixColor(value, 'transparent', percent);
+}
+
+function traceKindColor(value: string): TraceKindColors {
+  return {
+    badgeBg: colorAlpha(value, 14),
+    badgeText: value,
+    barBg: colorAlpha(value, 58),
+    runningStrong: colorAlpha(value, 48),
+    runningSoft: colorAlpha(value, 18),
+  };
+}
+
+const TRACE_KIND_COLOR_PALETTE: TraceKindColors[] = [
+  traceKindColor(colors.accentDim.var),
+  traceKindColor(colors.warning.var),
+  traceKindColor(colors.success.var),
+  traceKindColor(colors.error.var),
+  traceKindColor(colors.cost.var),
+  traceKindColor(mixColor(colors.accent.var, colors.warning.var, 55)),
+  traceKindColor(mixColor(colors.accent.var, colors.success.var, 55)),
+  traceKindColor(mixColor(colors.warning.var, colors.success.var, 50)),
+  traceKindColor(mixColor(colors.error.var, colors.accent.var, 58)),
+  traceKindColor(mixColor(colors.cost.var, colors.accent.var, 55)),
+  traceKindColor(mixColor(colors.error.var, colors.warning.var, 50)),
+  traceKindColor(mixColor(colors.success.var, colors.cost.var, 55)),
+];
+
+function getTraceKindPaletteColor(index: number): TraceKindColors {
+  return (
+    TRACE_KIND_COLOR_PALETTE[index % TRACE_KIND_COLOR_PALETTE.length] ??
+    traceKindColor(colors.accentDim.var)
+  );
+}
+
+function getTraceKindColors(kind: string): TraceKindColors {
+  const assigned = traceKindColorAssignments.get(kind);
+  if (assigned !== undefined) return assigned;
+
+  const next = getTraceKindPaletteColor(traceKindColorAssignments.size);
+  traceKindColorAssignments.set(kind, next);
+  return next;
+}
+
+function getTraceKindStyle(kindColors: TraceKindColors): TraceKindStyle {
+  return {
+    '---trace-kind-badge-bg': kindColors.badgeBg,
+    '---trace-kind-badge-text': kindColors.badgeText,
+    '---trace-kind-bar-bg': kindColors.barBg,
+    '---trace-kind-running-strong': kindColors.runningStrong,
+    '---trace-kind-running-soft': kindColors.runningSoft,
+  };
+}
+
+function getTraceKindBarStyle(
+  kindStyle: TraceKindStyle,
+  bar: SpanBar,
+): TraceKindBarStyle {
+  return { ...kindStyle, left: `${bar.leftPct}%`, width: `${bar.widthPct}%` };
+}
 
 const Root = styled.div`
   display: flex;
@@ -255,54 +347,26 @@ const TimelineCell = styled.div`
     );
 `;
 
-const WaterfallBar = styled.div<{
-  agent: boolean;
-  llm: boolean;
-  tool: boolean;
-  retrieval: boolean;
-  scorer: boolean;
-  checkpoint: boolean;
-  evalKind: boolean;
-  isRunning: boolean;
-  isError: boolean;
-}>`
+const WaterfallBar = styled.div<{ isRunning: boolean; isError: boolean }>`
+  ---trace-kind-bar-bg: ${colors.borderStrong.var};
+  ---trace-kind-running-strong: ${colors.accent.alpha(0.4)};
+  ---trace-kind-running-soft: ${colors.accent.alpha(0.15)};
+
   position: absolute;
   top: 7px;
   height: 12px;
   min-width: 2px;
   border-radius: 3px;
-  background: ${colors.borderStrong.var};
+  background: var(---trace-kind-bar-bg, ${colors.borderStrong.var});
   border: 1px solid transparent;
-
-  &.agent {
-    background: rgba(167, 139, 250, 0.55);
-  }
-  &.llm {
-    background: rgba(103, 232, 249, 0.7);
-  }
-  &.tool {
-    background: rgba(240, 171, 252, 0.6);
-  }
-  &.retrieval {
-    background: ${colors.warning.alpha(0.55)};
-  }
-  &.scorer {
-    background: rgba(236, 72, 153, 0.5);
-  }
-  &.checkpoint {
-    background: rgba(99, 102, 241, 0.5);
-  }
-  &.evalKind {
-    background: ${colors.surfaceActive.var};
-  }
 
   &.isRunning {
     background: repeating-linear-gradient(
       45deg,
-      ${colors.accent.alpha(0.4)} 0,
-      ${colors.accent.alpha(0.4)} 6px,
-      ${colors.accent.alpha(0.15)} 6px,
-      ${colors.accent.alpha(0.15)} 12px
+      var(---trace-kind-running-strong, ${colors.accent.alpha(0.4)}) 0,
+      var(---trace-kind-running-strong, ${colors.accent.alpha(0.4)}) 6px,
+      var(---trace-kind-running-soft, ${colors.accent.alpha(0.15)}) 6px,
+      var(---trace-kind-running-soft, ${colors.accent.alpha(0.15)}) 12px
     );
   }
 
@@ -351,15 +415,10 @@ const Spacer = styled.span`
   flex-shrink: 0;
 `;
 
-const KindBadge = styled.span<{
-  agent: boolean;
-  llm: boolean;
-  tool: boolean;
-  retrieval: boolean;
-  scorer: boolean;
-  checkpoint: boolean;
-  evalKind: boolean;
-}>`
+const KindBadge = styled.span`
+  ---trace-kind-badge-bg: ${colors.surface.var};
+  ---trace-kind-badge-text: ${colors.textMuted.var};
+
   ${monoFont};
   padding: 2px 6px;
   border-radius: 4px;
@@ -367,38 +426,9 @@ const KindBadge = styled.span<{
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: ${colors.textMuted.var};
-  background: ${colors.surface.var};
+  color: var(---trace-kind-badge-text, ${colors.textMuted.var});
+  background: var(---trace-kind-badge-bg, ${colors.surface.var});
   flex-shrink: 0;
-
-  &.agent {
-    background: rgba(167, 139, 250, 0.14);
-    color: #7c3aed;
-  }
-  &.llm {
-    background: rgba(103, 232, 249, 0.18);
-    color: ${colors.accentDim.var};
-  }
-  &.tool {
-    background: rgba(240, 171, 252, 0.18);
-    color: #a21caf;
-  }
-  &.retrieval {
-    background: ${colors.warning.alpha(0.12)};
-    color: ${colors.warning.var};
-  }
-  &.scorer {
-    background: rgba(236, 72, 153, 0.15);
-    color: #be185d;
-  }
-  &.checkpoint {
-    background: rgba(99, 102, 241, 0.15);
-    color: #4338ca;
-  }
-  &.evalKind {
-    background: ${colors.surface.var};
-    color: ${colors.textMuted.var};
-  }
 `;
 
 const SpanName = styled.span`
@@ -632,6 +662,9 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
               {visibleRows.map(({ span, depth, hasChildren }) => {
                 const bar = computeSpanBar(span, metrics);
                 const isCollapsed = collapsed.has(span.id);
+                const kindStyle = getTraceKindStyle(
+                  getTraceKindColors(span.kind),
+                );
                 const treeAttributeItems = getTraceAttributeItems(
                   span,
                   spans,
@@ -664,17 +697,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
                       ) : (
                         <Spacer />
                       )}
-                      <KindBadge
-                        agent={span.kind === 'agent'}
-                        llm={span.kind === 'llm'}
-                        tool={span.kind === 'tool'}
-                        retrieval={span.kind === 'retrieval'}
-                        scorer={span.kind === 'scorer'}
-                        checkpoint={span.kind === 'checkpoint'}
-                        evalKind={span.kind === 'eval'}
-                      >
-                        {span.kind}
-                      </KindBadge>
+                      <KindBadge style={kindStyle}>{span.kind}</KindBadge>
                       <SpanName>{span.name}</SpanName>
                       {renderCacheBadge(span)}
                       {span.status === 'error' ? (
@@ -689,19 +712,9 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
                     {!timelineCollapsed ? (
                       <TimelineCell>
                         <WaterfallBar
-                          agent={span.kind === 'agent'}
-                          llm={span.kind === 'llm'}
-                          tool={span.kind === 'tool'}
-                          retrieval={span.kind === 'retrieval'}
-                          scorer={span.kind === 'scorer'}
-                          checkpoint={span.kind === 'checkpoint'}
-                          evalKind={span.kind === 'eval'}
                           isRunning={bar.isRunning}
                           isError={span.status === 'error'}
-                          style={{
-                            left: `${bar.leftPct}%`,
-                            width: `${bar.widthPct}%`,
-                          }}
+                          style={getTraceKindBarStyle(kindStyle, bar)}
                         />
                         <BarDurationLabel
                           style={

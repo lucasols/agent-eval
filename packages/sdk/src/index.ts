@@ -30,7 +30,12 @@ export {
   type TraceSpanInfo,
   type TraceSpanTimestamp,
 } from './tracer.ts';
-export type { FileRef, RepoFileRef, RunArtifactRef } from '@agent-evals/shared';
+export type {
+  EvalTraceSpan,
+  FileRef,
+  RepoFileRef,
+  RunArtifactRef,
+} from '@agent-evals/shared';
 export type {
   EvalCase,
   EvalColumnOverride,

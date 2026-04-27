@@ -66,6 +66,16 @@ defineEval({
     });
 
     evalTracer.recordSpan({
+      id: 'mastra-workflow-step',
+      parentId: agentSpan.id,
+      kind: 'mastra.workflow.step',
+      name: 'prepare-refund-context',
+      startedAt: '2026-04-21T12:00:00.020Z',
+      endedAt: '2026-04-21T12:00:00.040Z',
+      attributes: { input: input.prompt },
+    });
+
+    evalTracer.recordSpan({
       id: 'mastra-tool-call',
       parentId: modelSpan.id,
       kind: 'tool',
@@ -89,6 +99,7 @@ defineEval({
   },
   deriveFromTracing: ({ trace }) => ({
     llmSpans: trace.findSpansByKind('llm').length,
+    workflowSteps: trace.findSpansByKind('mastra.workflow.step').length,
     toolSpans: trace.findSpansByKind('tool').length,
   }),
 });
@@ -118,6 +129,7 @@ defineEval({
     expect(detail?.columns).toMatchObject({
       response: 'Refund is eligible.',
       llmSpans: 1,
+      workflowSteps: 1,
       toolSpans: 1,
     });
 
@@ -137,6 +149,16 @@ defineEval({
         usage: { inputTokens: 42 },
         output: 'Refund is eligible.',
       },
+    });
+
+    expect(
+      detail?.trace.find((span) => span.id === 'mastra-workflow-step'),
+    ).toMatchObject({
+      parentId: 'mastra-agent-run',
+      kind: 'mastra.workflow.step',
+      name: 'prepare-refund-context',
+      status: 'ok',
+      attributes: { input: 'Check refund policy' },
     });
 
     expect(
