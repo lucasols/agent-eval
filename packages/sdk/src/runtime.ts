@@ -5,6 +5,7 @@ import type {
   CacheMode,
   CacheRecordingOp,
   EvalTraceSpan,
+  TraceCacheRef,
 } from '@agent-evals/shared';
 
 /**
@@ -63,6 +64,12 @@ export type EvalCaseScope = {
   replayingDepth: number;
   /** Runner-provided cache adapter + mode; absent when caching is disabled. */
   cacheContext: CacheScopeContext | undefined;
+  /**
+   * Value-cache refs recorded by `evalTracer.cache(...)` calls made with no
+   * active span. Span-bound refs are appended to the owning span's
+   * `cache.refs` attribute instead.
+   */
+  caseCacheRefs: TraceCacheRef[];
 };
 
 const scopeStorage = new AsyncLocalStorage<EvalCaseScope>();
@@ -177,6 +184,7 @@ export async function runInEvalScope<T>(
     recordingStack: [],
     replayingDepth: 0,
     cacheContext: options.cacheContext,
+    caseCacheRefs: [],
   };
   activeEvalScopeCount++;
   try {

@@ -11,6 +11,7 @@ import type {
   SseEnvelope,
   CreateRunRequest,
   AgentEvalsConfig,
+  CacheEntry,
   CacheListItem,
   CacheMode,
   ResolvedLlmCallsConfig,
@@ -105,6 +106,13 @@ export type EvalRunner = {
   getArtifactPath(artifactId: string): string | undefined;
   /** Return summaries for every persisted cache entry in the workspace. */
   listCache(): Promise<CacheListItem[]>;
+  /**
+   * Return the full persisted cache entry for `namespace` + `key`, including
+   * its recording. Returns `null` when no entry matches. Used by the case
+   * drawer's Cache hits tab to lazily fetch the cached return value when a
+   * row is expanded.
+   */
+  getCacheEntry(namespace: string, key: string): Promise<CacheEntry | null>;
   /**
    * Remove cache entries matching `filter`, or all entries when no filter is
    * supplied.
@@ -258,6 +266,9 @@ export function createRunner({
     },
     async listCache() {
       return cacheStore.list();
+    },
+    async getCacheEntry(namespace, key) {
+      return cacheStore.lookup(namespace, key);
     },
     async clearCache(filter) {
       await cacheStore.clear(filter);

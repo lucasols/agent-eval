@@ -1,4 +1,5 @@
 import {
+  captureEvalSpanError,
   evalAssert,
   incrementEvalOutput,
   setEvalOutput,
@@ -45,26 +46,70 @@ export async function runReceiptFraudReviewWorkflow(
       );
 
       await evalTracer.span(
+        { kind: 'llm', name: 'probe-vision-model' },
+        async () => {
+          await waitForWorkflowDelay('probeVisionModel');
+
+          evalSpan.setAttributes({
+            input: { receiptImage: input.receiptImage },
+            model: 'gpt-4o-vision-preview',
+            provider: 'openai',
+            usage: { inputTokens: 0, outputTokens: 0 },
+            costUsd: 0,
+            steps: 0,
+            finishReason: 'error',
+            retryCount: 1,
+            streamed: false,
+          });
+
+          captureEvalSpanError({
+            name: 'ModelUnavailable',
+            message:
+              'The requested vision preview model returned 503; falling back to the text-only fraud reviewer.',
+          });
+        },
+      );
+
+      await evalTracer.span(
         { kind: 'llm', name: 'flag-tampering-signals' },
         async () => {
           await waitForWorkflowDelay('flagTamperingSignals');
 
           const usage = { inputTokens: 240, outputTokens: 90 };
           const costUsd = calculateWorkflowCostUsd(usage);
+          const inputCostUsd = (usage.inputTokens / 1_000_000) * 2.5;
+          const outputCostUsd = (usage.outputTokens / 1_000_000) * 10;
 
           evalSpan.setAttributes({
             input: {
               customerMessage: input.customerMessage,
               claimedAmountUsd: input.claimedAmountUsd,
             },
-            model: 'gpt-4o-mini',
+            model: 'claude-3-5-sonnet',
+            provider: 'anthropic',
             usage,
             costUsd,
+            cost: { inputUsd: inputCostUsd, outputUsd: outputCostUsd },
+            steps: 1,
+            finishReason: 'stop',
+            tokensPerSecond: 41.5,
+            retryCount: 2,
+            streamed: true,
+            params: { temperature: 0.1 },
             output: {
               riskLevel: 'high',
               tamperingSignals: ['edited_total', 'mismatched_font_weight'],
             },
           });
+
+          captureEvalSpanError(
+            {
+              name: 'RateLimitRetried',
+              message:
+                'Provider returned 429 twice; succeeded on the third attempt with backoff.',
+            },
+            'warning',
+          );
 
           incrementEvalOutput('costUsd', costUsd);
         },

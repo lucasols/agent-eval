@@ -4,6 +4,12 @@ import {
   type EvalDisplayStatus,
   type EvalSummary,
 } from '@agent-evals/shared';
+import {
+  fuzzySearchItems,
+  getUFuzzyInstance,
+} from '@ls-stack/utils/fuzzySearch';
+
+const fuzzySearchInstance = getUFuzzyInstance();
 
 export type TreeFolder = {
   kind: 'folder';
@@ -255,6 +261,24 @@ export function filterEvalsByStatuses(
   return evals.filter((ev) =>
     statuses.has(getEvalSummaryDisplayStatus(ev, isEvalRunning)),
   );
+}
+
+/**
+ * Filter evals by a free-text query using fuzzy matching. Matches against the
+ * eval id, the resolved title, and the file path so folder/file names are
+ * searchable too. Returns the input unchanged when the query is empty.
+ */
+export function filterEvalsBySearchQuery(
+  evals: EvalSummary[],
+  query: string,
+): EvalSummary[] {
+  if (query.trim().length === 0) return evals;
+  return fuzzySearchItems({
+    items: evals,
+    searchQuery: query,
+    uFuzzy: fuzzySearchInstance,
+    getStringToMatch: (ev) => `${getEvalTitle(ev)} ${ev.id} ${ev.filePath}`,
+  });
 }
 
 export type StatusBreakdown = {

@@ -1,4 +1,5 @@
 import { z } from 'zod/v4';
+import { traceCacheRefSchema } from './cache.ts';
 import { evalChartsConfigSchema } from './chart.ts';
 import {
   cellValueSchema,
@@ -148,6 +149,12 @@ export const caseDetailSchema = z.object({
     .nullable(),
   /** Winning trial index for the persisted case detail. */
   trial: z.number(),
+  /**
+   * Value-cache refs recorded by `evalTracer.cache(...)` calls made directly
+   * from the case body (with no surrounding `traceSpan`). Span-bound refs are
+   * stored on each owning span's `cache.refs` attribute instead.
+   */
+  cacheRefs: z.array(traceCacheRefSchema).default([]),
 });
 /** Full case payload including inputs, trace, outputs, and failures. */
 export type CaseDetail = z.infer<typeof caseDetailSchema>;

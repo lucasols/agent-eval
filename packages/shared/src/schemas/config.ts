@@ -42,6 +42,12 @@ export type LlmCallMetricPlacement = z.infer<
 export const llmCallMetricSchema = z.object({
   /** Display label for the metric row or header chip. */
   label: z.string().min(1),
+  /**
+   * Optional hover tooltip shown on the metric. Useful when `label` is a
+   * compact abbreviation (e.g. `'t/s'`) and the full meaning needs to be
+   * surfaced on hover (e.g. `'Tokens per second'`).
+   */
+  tooltip: z.string().min(1).optional(),
   /** Dot-path inside `span.attributes` used to read the value. */
   path: z.string().min(1),
   /** Render hint applied to the resolved value. Defaults to `'string'`. */
@@ -65,6 +71,10 @@ export const llmCallsConfigSchema = z.object({
    * Attribute paths used to extract structured per-call fields. Each entry is
    * a dot-path inside `span.attributes`. Missing paths fall back to the
    * built-in defaults (e.g. `usage.inputTokens`, `costUsd`).
+   *
+   * Per-token-type cost paths (`inputCost`, `outputCost`, `cachedInputCost`,
+   * `reasoningCost`) feed the cost breakdown table in the expanded row.
+   * Record them as USD numbers alongside `costUsd` in your span attributes.
    */
   attributes: z
     .object({
@@ -73,9 +83,15 @@ export const llmCallsConfigSchema = z.object({
       inputTokens: z.string().optional(),
       outputTokens: z.string().optional(),
       cachedInputTokens: z.string().optional(),
+      cacheCreationInputTokens: z.string().optional(),
       reasoningTokens: z.string().optional(),
       totalTokens: z.string().optional(),
       cost: z.string().optional(),
+      inputCost: z.string().optional(),
+      outputCost: z.string().optional(),
+      cachedInputCost: z.string().optional(),
+      cacheCreationInputCost: z.string().optional(),
+      reasoningCost: z.string().optional(),
       steps: z.string().optional(),
       finishReason: z.string().optional(),
       input: z.string().optional(),
@@ -99,9 +115,15 @@ export type ResolvedLlmCallsConfig = {
     inputTokens: string;
     outputTokens: string;
     cachedInputTokens: string;
+    cacheCreationInputTokens: string;
     reasoningTokens: string;
     totalTokens: string;
     cost: string;
+    inputCost: string;
+    outputCost: string;
+    cachedInputCost: string;
+    cacheCreationInputCost: string;
+    reasoningCost: string;
     steps: string;
     finishReason: string;
     input: string;
@@ -115,6 +137,7 @@ export type ResolvedLlmCallsConfig = {
 /** Fully-resolved LLM-call metric used by the runner and UI. */
 export type ResolvedLlmCallMetric = {
   label: string;
+  tooltip?: string;
   path: string;
   format: LlmCallMetricFormat;
   numberFormat?: NumberDisplayOptions;
@@ -130,9 +153,15 @@ export const DEFAULT_LLM_CALLS_CONFIG: ResolvedLlmCallsConfig = {
     inputTokens: 'usage.inputTokens',
     outputTokens: 'usage.outputTokens',
     cachedInputTokens: 'usage.cachedInputTokens',
+    cacheCreationInputTokens: 'usage.cacheCreationInputTokens',
     reasoningTokens: 'usage.reasoningTokens',
     totalTokens: 'usage.totalTokens',
     cost: 'costUsd',
+    inputCost: 'cost.inputUsd',
+    outputCost: 'cost.outputUsd',
+    cachedInputCost: 'cost.cachedInputUsd',
+    cacheCreationInputCost: 'cost.cacheCreationInputUsd',
+    reasoningCost: 'cost.reasoningUsd',
     steps: 'steps',
     finishReason: 'finishReason',
     input: 'input',
@@ -167,6 +196,7 @@ export function resolveLlmCallsConfig(
     },
     metrics: (input?.metrics ?? []).map((m) => ({
       label: m.label,
+      tooltip: m.tooltip,
       path: m.path,
       format: m.format ?? 'string',
       numberFormat: m.numberFormat,

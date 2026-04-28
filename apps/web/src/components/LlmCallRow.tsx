@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react';
 import { styled } from 'vindur';
 import { JsonViewer } from '#src/components/JsonViewer';
 import { StatusBadge } from '#src/components/StatusBadge';
+import { Tooltip } from '#src/components/Tooltip';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
 import { formatDuration, formatNumber } from '#src/utils/formatters';
@@ -55,6 +56,24 @@ const HeaderMeta = styled.span`
   color: ${colors.textMuted.var};
   flex-wrap: wrap;
   justify-content: flex-end;
+`;
+
+const TokenChip = styled.span`
+  ${inline({ gap: 4, align: 'center' })}
+  ${monoFont};
+  font-size: 11px;
+  color: ${colors.textMuted.var};
+`;
+
+const TokenDirection = styled.span`
+  color: ${colors.textDim.var};
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+`;
+
+const TokenSeparator = styled.span`
+  color: ${colors.borderStrong.var};
 `;
 
 const ModelChip = styled.span`
@@ -116,6 +135,59 @@ const MetricRowValue = styled.span`
   ${monoFont};
   color: ${colors.text.var};
   word-break: break-word;
+`;
+
+const BreakdownTable = styled.div`
+  ${stack({ gap: 0 })}
+  border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-md);
+  overflow: hidden;
+`;
+
+const BreakdownHeader = styled.div`
+  ${kicker};
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 16px;
+  padding: 8px 12px;
+  background: ${colors.surface.var};
+  color: ${colors.textMuted.var};
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+`;
+
+const BreakdownRow = styled.div`
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 16px;
+  padding: 8px 12px;
+  align-items: baseline;
+  border-top: 1px solid ${colors.border.var};
+  font-size: 12px;
+`;
+
+const BreakdownLabel = styled.span`
+  color: ${colors.text.var};
+`;
+
+const BreakdownValue = styled.span`
+  ${monoFont};
+  color: ${colors.text.var};
+  text-align: right;
+  min-width: 56px;
+`;
+
+const BreakdownTotalRow = styled(BreakdownRow)`
+  background: ${colors.surface.var};
+  font-weight: 600;
+`;
+
+const BreakdownColumnHeader = styled.span`
+  text-align: right;
+`;
+
+const BreakdownDim = styled.span`
+  color: ${colors.textMuted.var};
 `;
 
 const RawSectionWrapper = styled.div``;
@@ -219,18 +291,191 @@ function RawSection({ label, data }: { label: string; data: unknown }) {
   );
 }
 
-function formatTokenChip(total: number | null): string {
-  if (total === null) return '';
-  return `${formatNumber(total)} tok`;
-}
-
 function formatCostChip(cost: number | null): string {
   if (cost === null) return '';
   return formatNumber(cost, { prefix: '$', decimalPlaces: 4 });
 }
 
+const compactTokenFormatter = new Intl.NumberFormat(undefined, {
+  notation: 'compact',
+  compactDisplay: 'short',
+  maximumFractionDigits: 1,
+});
+
+function formatCompactTokens(value: number): string {
+  return compactTokenFormatter.format(value);
+}
+
+function HeaderTokenChip({
+  inputTokens,
+  outputTokens,
+  totalTokens,
+}: {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+}) {
+  const hasDirectional = inputTokens !== null || outputTokens !== null;
+
+  if (!hasDirectional) {
+    if (totalTokens === null) return null;
+    return (
+      <Tooltip content={`Total tokens · exact: ${formatNumber(totalTokens)}`}>
+        <TokenChip>
+          {formatCompactTokens(totalTokens)}
+          <TokenDirection>tok</TokenDirection>
+        </TokenChip>
+      </Tooltip>
+    );
+  }
+
+  const exactBreakdown = [
+    inputTokens !== null ? `in ${formatNumber(inputTokens)}` : null,
+    outputTokens !== null ? `out ${formatNumber(outputTokens)}` : null,
+    totalTokens !== null ? `total ${formatNumber(totalTokens)}` : null,
+  ]
+    .filter((part): part is string => part !== null)
+    .join(' · ');
+
+  return (
+    <Tooltip
+      content={
+        exactBreakdown.length > 0
+          ? `Input · Output tokens · exact: ${exactBreakdown}`
+          : 'Input · Output tokens'
+      }
+    >
+      <TokenChip>
+        <TokenDirection>in</TokenDirection>
+        {inputTokens === null ? EM_DASH : formatCompactTokens(inputTokens)}
+        <TokenSeparator>·</TokenSeparator>
+        <TokenDirection>out</TokenDirection>
+        {outputTokens === null ? EM_DASH : formatCompactTokens(outputTokens)}
+      </TokenChip>
+    </Tooltip>
+  );
+}
+
 function metricKey(metric: LlmCallMetricValue): string {
   return `${metric.label}-${metric.placements.join(',')}`;
+}
+
+function formatTokenCount(value: number | null): string {
+  return value === null ? EM_DASH : formatNumber(value);
+}
+
+function formatCostValue(value: number | null): string {
+  return value === null
+    ? EM_DASH
+    : formatNumber(value, { prefix: '$', decimalPlaces: 4 });
+}
+
+type BreakdownItem = {
+  key: string;
+  label: string;
+  tokens: number | null;
+  cost: number | null;
+};
+
+type BreakdownItemWithTooltip = BreakdownItem & { tooltip?: string };
+
+function TokenBreakdownTable({ entry }: { entry: LlmCallEntry }) {
+  const items: BreakdownItemWithTooltip[] = [
+    {
+      key: 'input',
+      label: 'Input',
+      tokens: entry.inputTokens,
+      cost: entry.inputCostUsd,
+    },
+    {
+      key: 'cacheCreationInput',
+      label: 'Cache write',
+      tooltip:
+        'Tokens written to the prompt cache. Providers like Anthropic charge a premium for cache creation (e.g. 1.25× / 2× the base input rate).',
+      tokens: entry.cacheCreationInputTokens,
+      cost: entry.cacheCreationInputCostUsd,
+    },
+    {
+      key: 'cacheReadInput',
+      label: 'Cache read',
+      tooltip:
+        'Tokens read from the prompt cache. Typically billed at a deep discount (e.g. 0.1× the base input rate on Anthropic).',
+      tokens: entry.cachedInputTokens,
+      cost: entry.cachedInputCostUsd,
+    },
+    {
+      key: 'output',
+      label: 'Output',
+      tokens: entry.outputTokens,
+      cost: entry.outputCostUsd,
+    },
+    {
+      key: 'reasoning',
+      label: 'Reasoning',
+      tokens: entry.reasoningTokens,
+      cost: entry.reasoningCostUsd,
+    },
+  ];
+
+  const visible = items.filter(
+    (item) => item.tokens !== null || item.cost !== null,
+  );
+
+  if (
+    visible.length === 0 &&
+    entry.totalTokens === null &&
+    entry.costUsd === null
+  ) {
+    return null;
+  }
+
+  let breakdownCostSum: number | null = null;
+  for (const item of visible) {
+    if (item.cost === null) continue;
+    breakdownCostSum = (breakdownCostSum ?? 0) + item.cost;
+  }
+
+  return (
+    <BreakdownTable>
+      <BreakdownHeader>
+        <span>Token type</span>
+        <BreakdownColumnHeader>Tokens</BreakdownColumnHeader>
+        <BreakdownColumnHeader>Cost</BreakdownColumnHeader>
+      </BreakdownHeader>
+      {visible.map((item) => (
+        <BreakdownRow key={item.key}>
+          <Tooltip content={item.tooltip}>
+            <BreakdownLabel>{item.label}</BreakdownLabel>
+          </Tooltip>
+          <BreakdownValue>{formatTokenCount(item.tokens)}</BreakdownValue>
+          <BreakdownValue>
+            {item.cost === null ? (
+              <BreakdownDim>{EM_DASH}</BreakdownDim>
+            ) : (
+              formatCostValue(item.cost)
+            )}
+          </BreakdownValue>
+        </BreakdownRow>
+      ))}
+      {entry.totalTokens !== null || entry.costUsd !== null ? (
+        <BreakdownTotalRow>
+          <BreakdownLabel>Total</BreakdownLabel>
+          <BreakdownValue>{formatTokenCount(entry.totalTokens)}</BreakdownValue>
+          <BreakdownValue>
+            {entry.costUsd !== null ? (
+              formatCostValue(entry.costUsd)
+            ) : breakdownCostSum !== null ? (
+              <Tooltip content="Sum of per-token costs above">
+                <span>{formatCostValue(breakdownCostSum)}</span>
+              </Tooltip>
+            ) : (
+              <BreakdownDim>{EM_DASH}</BreakdownDim>
+            )}
+          </BreakdownValue>
+        </BreakdownTotalRow>
+      ) : null}
+    </BreakdownTable>
+  );
 }
 
 /**
@@ -253,7 +498,6 @@ export function LlmCallRow({ entry }: { entry: LlmCallEntry }) {
     m.placements.includes('body'),
   );
 
-  const tokenLabel = formatTokenChip(entry.totalTokens);
   const costLabel = formatCostChip(entry.costUsd);
   const latencyLabel =
     entry.latencyMs === null ? null : formatDuration(entry.latencyMs);
@@ -285,41 +529,30 @@ export function LlmCallRow({ entry }: { entry: LlmCallEntry }) {
           <StatusBadge status={entry.status} />
           {entry.model !== null ? <ModelChip>{entry.model}</ModelChip> : null}
           {latencyLabel !== null ? <span>{latencyLabel}</span> : null}
-          {tokenLabel ? <span>{tokenLabel}</span> : null}
+          <HeaderTokenChip
+            inputTokens={entry.inputTokens}
+            outputTokens={entry.outputTokens}
+            totalTokens={entry.totalTokens}
+          />
           {costLabel ? <span>{costLabel}</span> : null}
           {headerMetrics.map((metric) => (
-            <MetricChip key={metricKey(metric)}>
-              <MetricChipLabel>{metric.label}</MetricChipLabel>
-              {formatMetricValue(metric)}
-            </MetricChip>
+            <Tooltip
+              key={metricKey(metric)}
+              content={metric.tooltip}
+            >
+              <MetricChip>
+                <MetricChipLabel>{metric.label}</MetricChipLabel>
+                {formatMetricValue(metric)}
+              </MetricChip>
+            </Tooltip>
           ))}
         </HeaderMeta>
       </HeaderButton>
 
       {expanded ? (
         <Body>
-          {showTokenBreakdown ? (
-            <MetaRow>
-              <span>
-                Tokens{' '}
-                {entry.inputTokens === null
-                  ? EM_DASH
-                  : formatNumber(entry.inputTokens)}
-                {' → '}
-                {entry.outputTokens === null
-                  ? EM_DASH
-                  : formatNumber(entry.outputTokens)}
-                {entry.totalTokens !== null
-                  ? ` (${formatNumber(entry.totalTokens)})`
-                  : ''}
-              </span>
-              {entry.cachedInputTokens !== null ? (
-                <span>cached {formatNumber(entry.cachedInputTokens)}</span>
-              ) : null}
-              {entry.reasoningTokens !== null ? (
-                <span>reasoning {formatNumber(entry.reasoningTokens)}</span>
-              ) : null}
-            </MetaRow>
+          {showTokenBreakdown || entry.costUsd !== null ? (
+            <TokenBreakdownTable entry={entry} />
           ) : null}
 
           {showStepRow ? (
@@ -363,7 +596,9 @@ export function LlmCallRow({ entry }: { entry: LlmCallEntry }) {
 
           {bodyMetrics.map((metric) => (
             <MetricRow key={metricKey(metric)}>
-              <MetricRowLabel>{metric.label}</MetricRowLabel>
+              <Tooltip content={metric.tooltip}>
+                <MetricRowLabel>{metric.label}</MetricRowLabel>
+              </Tooltip>
               <MetricRowValue>{formatMetricValue(metric)}</MetricRowValue>
             </MetricRow>
           ))}

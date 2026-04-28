@@ -1,12 +1,16 @@
 import type { CacheRecording } from '@agent-evals/shared';
-import { hashCacheKey, toJsonSafe } from './cacheKey.ts';
+import { hashCacheKey } from './cacheKey.ts';
 import {
-  appendCacheRef,
   appendSubSpanOps,
   diffNonCacheAttributes,
+  recordCacheRef,
   replayRecording,
   snapshotNonCacheAttributes,
 } from './cacheRecording.ts';
+import {
+  deserializeCacheRecording,
+  serializeCacheRecording,
+} from './cacheSerialization.ts';
 import type { CacheRecordingFrame } from './runtime.ts';
 import { getCurrentScope } from './runtime.ts';
 
@@ -55,7 +59,7 @@ export function createTraceCache(generateSpanId: () => string): {
       if (hit) {
         const storedAt = hit.storedAt;
         const age = Date.now() - new Date(storedAt).getTime();
-        appendCacheRef(activeSpan, {
+        recordCacheRef(scope, activeSpan, {
           type: 'value',
           name: info.name,
           namespace,
@@ -64,10 +68,11 @@ export function createTraceCache(generateSpanId: () => string): {
           storedAt,
           age,
         });
-        replayRecording(scope, activeSpan, hit.recording, { generateSpanId });
-        return hit.recording.returnValue;
+        const recording = deserializeCacheRecording(hit.recording);
+        replayRecording(scope, activeSpan, recording, { generateSpanId });
+        return recording.returnValue;
       }
-      appendCacheRef(activeSpan, {
+      recordCacheRef(scope, activeSpan, {
         type: 'value',
         name: info.name,
         namespace,
@@ -75,7 +80,7 @@ export function createTraceCache(generateSpanId: () => string): {
         status: 'miss',
       });
     } else if (cacheCtx.mode === 'refresh') {
-      appendCacheRef(activeSpan, {
+      recordCacheRef(scope, activeSpan, {
         type: 'value',
         name: info.name,
         namespace,
@@ -83,7 +88,7 @@ export function createTraceCache(generateSpanId: () => string): {
         status: 'refresh',
       });
     } else {
-      appendCacheRef(activeSpan, {
+      recordCacheRef(scope, activeSpan, {
         type: 'value',
         name: info.name,
         namespace,
@@ -92,7 +97,7 @@ export function createTraceCache(generateSpanId: () => string): {
       });
     }
 
-    const beforeAttributes = snapshotNonCacheAttributes(activeSpan);
+    const beforeAttributes = await snapshotNonCacheAttributes(activeSpan);
     const frame: CacheRecordingFrame = {
       baseSpanIndex: scope.spans.length,
       replayParentSpanId: activeSpan?.id ?? null,
@@ -112,11 +117,10 @@ export function createTraceCache(generateSpanId: () => string): {
     if (cacheCtx.mode !== 'bypass') {
       const finalAttributes = diffNonCacheAttributes(
         beforeAttributes,
-        snapshotNonCacheAttributes(activeSpan),
+        await snapshotNonCacheAttributes(activeSpan),
       );
-      const returnValue = toJsonSafe(bodyResult);
       const recording: CacheRecording = {
-        returnValue,
+        returnValue: bodyResult,
         finalAttributes,
         ops: frame.ops,
       };
@@ -128,7 +132,7 @@ export function createTraceCache(generateSpanId: () => string): {
         operationName: info.name,
         storedAt: new Date().toISOString(),
         codeFingerprint: cacheCtx.codeFingerprint,
-        recording,
+        recording: await serializeCacheRecording(recording),
       });
     }
 

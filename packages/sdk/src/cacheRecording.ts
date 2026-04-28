@@ -3,20 +3,12 @@ import type {
   CacheRecordingOp,
   EvalTraceSpan,
   SerializedCacheSpan,
+  TraceCacheRef,
 } from '@agent-evals/shared';
-import { toJsonSafe } from './cacheKey.ts';
+import { cloneCacheValue } from './cacheSerialization.ts';
 import type { CacheRecordingFrame, EvalCaseScope } from './runtime.ts';
 
-/** Cache reference appended to the active span by `evalTracer.cache(...)`. */
-export type TraceCacheRef = {
-  type: 'value';
-  name: string;
-  namespace: string;
-  key: string;
-  status: 'hit' | 'miss' | 'refresh' | 'bypass';
-  storedAt?: string;
-  age?: number;
-};
+export type { TraceCacheRef } from '@agent-evals/shared';
 
 type ReplayRecordingOptions = { generateSpanId(): string };
 
@@ -52,10 +44,12 @@ export function stripCacheAttributes(
   return result;
 }
 
-export function snapshotNonCacheAttributes(
+export async function snapshotNonCacheAttributes(
   span: EvalTraceSpan | undefined,
-): Record<string, unknown> {
-  const snapshot = toJsonSafe(stripCacheAttributes(span?.attributes));
+): Promise<Record<string, unknown>> {
+  const snapshot = await cloneCacheValue(
+    stripCacheAttributes(span?.attributes),
+  );
   return isRecordLike(snapshot) ? snapshot : {};
 }
 
@@ -89,6 +83,24 @@ export function appendCacheRef(
   const existing = span.attributes?.['cache.refs'];
   const existingRefs = Array.isArray(existing) ? copyArray(existing) : [];
   mergeSpanAttributes(span, { 'cache.refs': [...existingRefs, ref] });
+}
+
+/**
+ * Record a cache ref against the active span when present, or against the
+ * case scope's `caseCacheRefs` bucket when the call originated from outside
+ * any `traceSpan(...)` body. Without this, spanless refs would be silently
+ * dropped and never surface in the trace or case detail.
+ */
+export function recordCacheRef(
+  scope: EvalCaseScope,
+  span: EvalTraceSpan | undefined,
+  ref: TraceCacheRef,
+): void {
+  if (span !== undefined) {
+    appendCacheRef(span, ref);
+    return;
+  }
+  scope.caseCacheRefs.push(ref);
 }
 
 function serializeSubSpanTree(

@@ -352,7 +352,9 @@ Use `key` when you want to display the same source attribute more than once, suc
 
 ### LLM calls tab
 
-The case-run drawer surfaces a dedicated **LLM calls** tab that derives a focused list from the trace whenever a case run produced at least one matching span. By default, every span with `kind: 'llm'` is treated as an LLM call and the tab reads `model`, `usage.inputTokens`, `usage.outputTokens`, `usage.cachedInputTokens`, `usage.reasoningTokens`, `costUsd`, `steps`, `finishReason`, `provider`, `input`, `output`, `reasoning`, and `toolCalls` from the span's attributes. Each row is collapsed by default; clicking expands it to show the full token breakdown, finish reason, input/output JSON, reasoning text, tool calls, and any custom metrics.
+The case-run drawer surfaces a dedicated **LLM calls** tab that derives a focused list from the trace whenever a case run produced at least one matching span. By default, every span with `kind: 'llm'` is treated as an LLM call and the tab reads `model`, `usage.inputTokens`, `usage.outputTokens`, `usage.cachedInputTokens`, `usage.reasoningTokens`, `costUsd`, `steps`, `finishReason`, `provider`, `input`, `output`, `reasoning`, and `toolCalls` from the span's attributes. Each row is collapsed by default; clicking expands it to show a per-token-type tokens + cost breakdown table, finish reason, input/output JSON, reasoning text, tool calls, and any custom metrics.
+
+The expanded breakdown table includes separate **Cache write** and **Cache read** rows so providers like Anthropic — which charge a premium for cache creation (1.25× / 2× the base input rate) and a deep discount on cache reads (0.1×) — show up correctly. By default the table reads tokens from `usage.cacheCreationInputTokens` and `usage.cachedInputTokens`, and per-token-type costs from `cost.inputUsd`, `cost.outputUsd`, `cost.cacheCreationInputUsd`, `cost.cachedInputUsd`, and `cost.reasoningUsd` — record those alongside `costUsd` in your span attributes (or override the paths via `attributes.inputCost` / `outputCost` / `cacheCreationInputCost` / `cachedInputCost` / `reasoningCost`).
 
 Override the defaults globally from `agent-evals.config.ts`:
 
@@ -369,7 +371,8 @@ llmCalls: {
   // `['body']`; include `'header'` to also show a chip on the collapsed row.
   metrics: [
     {
-      label: 'Tokens/sec',
+      label: 't/s',
+      tooltip: 'Tokens per second', // shown on hover
       path: 'tokensPerSecond',
       format: 'number',
       numberFormat: { decimalPlaces: 1 },
@@ -382,7 +385,7 @@ llmCalls: {
 }
 ```
 
-Custom metrics support `'string' | 'number' | 'duration' | 'json' | 'boolean'` formats. The tab is hidden automatically for cases with no matching spans.
+Custom metrics support `'string' | 'number' | 'duration' | 'json' | 'boolean'` formats. Use `tooltip` to add a hover description for compact labels. The tab is hidden automatically for cases with no matching spans.
 
 ### Scorers
 
@@ -652,10 +655,21 @@ const receiptContext = await evalTracer.cache(
 
 If `evalTracer.cache(...)` runs inside an active span, that span receives a
 `cache.refs` array entry like `{ type: 'value', name, namespace, key, status }`
-with `storedAt` and `age` on hits. The cache call itself does not create a trace
+with `storedAt` and `age` on hits. When `evalTracer.cache(...)` is called
+directly from the case body (no surrounding `traceSpan`), the same ref is
+recorded on the case detail's `cacheRefs` array instead — so spanless value
+caches still surface in the UI. The cache call itself does not create a trace
 span. SDK-mediated effects inside the callback still replay on hits, including
 nested spans, checkpoints, output helper calls, and active span attributes
 changed by the callback.
+
+The case-run drawer adds a **Cache hits** tab whenever a case run produced at
+least one cache hit. It lists every span- and value-cache hit (including
+spanless ones tagged "case root") with namespace, age, stored-at timestamp, and
+truncated key. Each row expands to fetch the persisted entry from
+`GET /api/cache/:namespace/:key` and render its cached `returnValue` (and any
+replayed span attributes) inline. Misses, refreshes, and bypasses remain
+visible inline as per-span badges in the **Trace** tab.
 
 ### Cache controls
 
@@ -715,8 +729,10 @@ Server API (`/api/cache`):
   `evalTracer.checkpoint`, output helper calls, span attributes). External side
   effects (network, DB writes) do _not_ replay on cache hits — use caching only
   for pure functions of their key.
-- Return values are JSON round-tripped before storage; return JSON-safe values
-  or carry richer data through `setEvalOutput`.
+- Cached payloads are serialized with Seroval's Web API plugin set, so return
+  values and recorded SDK effects preserve richer built-ins such as `Date`,
+  `Map`, `Set`, typed arrays, `URL`, `Headers`, `Blob`, and `File` on cache
+  hits. Cache keys still use the deterministic key-hashing rules above.
 
 Disable caching globally from `agent-evals.config.ts`:
 

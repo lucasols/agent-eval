@@ -27,6 +27,7 @@ import {
   buildEvalTree,
   collectNodeEvals,
   deriveCombinedStatus,
+  filterEvalsBySearchQuery,
   filterEvalsByStatuses,
   formatStatusBreakdown,
   getEvalSummaryDisplayStatus,
@@ -221,11 +222,12 @@ export function EvalTree() {
     hasLoaded: s.hasLoaded,
     error: s.error,
   }));
-  const { selection, collapsedFolders, statusFilters } =
+  const { selection, collapsedFolders, statusFilters, searchQuery } =
     selectionStore.useSelectorRC((s) => ({
       selection: s.selection,
       collapsedFolders: s.collapsedFolders,
       statusFilters: s.statusFilters,
+      searchQuery: s.searchQuery,
     }));
   const { currentRun } = runStore.useSelectorRC((s) => ({
     currentRun: s.currentRun,
@@ -286,22 +288,34 @@ export function EvalTree() {
     );
   }
 
-  const visibleEvals = filterEvalsByStatuses(
+  const statusFilteredEvals = filterEvalsByStatuses(
     evals,
     statusFilters,
     isEvalRunning,
   );
+  const visibleEvals = filterEvalsBySearchQuery(
+    statusFilteredEvals,
+    searchQuery,
+  );
+  const hasActiveSearch = searchQuery.trim().length > 0;
 
   if (visibleEvals.length === 0) {
     return (
       <Empty>
         <EmptyTitle>No evals match</EmptyTitle>
-        <EmptyBody>The active status filters hide every eval.</EmptyBody>
+        <EmptyBody>
+          {hasActiveSearch
+            ? `No evals match "${searchQuery.trim()}".`
+            : 'The active status filters hide every eval.'}
+        </EmptyBody>
       </Empty>
     );
   }
 
   const tree = buildEvalTree(visibleEvals);
+  const effectiveCollapsedFolders = hasActiveSearch
+    ? new Set<string>()
+    : collapsedFolders;
 
   return (
     <Root>
@@ -311,7 +325,7 @@ export function EvalTree() {
           node={node}
           depth={0}
           selection={selection}
-          collapsedFolders={collapsedFolders}
+          collapsedFolders={effectiveCollapsedFolders}
           showFilenamePrefix
           isEvalRunning={isEvalRunning}
         />

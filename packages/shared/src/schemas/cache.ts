@@ -38,6 +38,30 @@ export const cacheOperationTypeSchema = z.enum(['span', 'value']);
 /** Category of operation stored in the eval cache. */
 export type CacheOperationType = z.infer<typeof cacheOperationTypeSchema>;
 
+/** Status of a cache lookup recorded on a span or case scope. */
+export const cacheStatusSchema = z.enum(['hit', 'miss', 'refresh', 'bypass']);
+/** Status of a cache lookup recorded on a span or case scope. */
+export type CacheStatus = z.infer<typeof cacheStatusSchema>;
+
+/**
+ * Reference to a value-cache lookup performed via `evalTracer.cache(...)`.
+ *
+ * Refs are appended to the active span's `cache.refs` attribute when the call
+ * happens inside a `traceSpan(...)` body, or to the case scope's
+ * `caseCacheRefs` bucket when the call is made directly from the case body.
+ */
+export const traceCacheRefSchema = z.object({
+  type: z.literal('value'),
+  name: z.string(),
+  namespace: z.string(),
+  key: z.string(),
+  status: cacheStatusSchema,
+  storedAt: z.string().optional(),
+  age: z.number().optional(),
+});
+/** Reference to a value-cache lookup performed via `evalTracer.cache(...)`. */
+export type TraceCacheRef = z.infer<typeof traceCacheRefSchema>;
+
 /** Summary of a single persisted cache entry, used by list/delete endpoints. */
 export const cacheListItemSchema = z.object({
   key: z.string(),

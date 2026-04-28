@@ -1,4 +1,5 @@
 import {
+  extractCacheHits,
   extractLlmCalls,
   type CellValue,
   type ColumnDef,
@@ -6,6 +7,7 @@ import {
 import { Maximize2, Minimize2, X } from 'lucide-react';
 import { useRef } from 'react';
 import { styled } from 'vindur';
+import { CacheHitRow } from '#src/components/CacheHitRow';
 import { EmptyState } from '#src/components/EmptyState';
 import {
   FormattedCellValue,
@@ -38,6 +40,7 @@ type Tab =
   | 'scores'
   | 'trace'
   | 'llmCalls'
+  | 'cacheHits'
   | 'scoring'
   | 'raw'
   | 'failures'
@@ -49,6 +52,7 @@ const TAB_LABELS: Record<Tab, string> = {
   scores: 'Scores',
   trace: 'Trace',
   llmCalls: 'LLM calls',
+  cacheHits: 'Cache hits',
   scoring: 'Scoring',
   raw: 'Raw',
   failures: 'Failures',
@@ -347,6 +351,10 @@ const LlmCallsList = styled.div`
   ${stack({ gap: 8 })}
 `;
 
+const CacheHitsList = styled.div`
+  ${stack({ gap: 8 })}
+`;
+
 function resolveActiveTab(
   requestedTab: string | null,
   availableTabs: Tab[],
@@ -364,6 +372,7 @@ function parseTab(value: string): Tab | null {
     case 'scores':
     case 'trace':
     case 'llmCalls':
+    case 'cacheHits':
     case 'scoring':
     case 'raw':
     case 'failures':
@@ -437,10 +446,12 @@ export function CaseDrawer() {
   const scoringTraces = d.scoringTraces ?? {};
   const scoringTraceEntries = Object.entries(scoringTraces);
   const llmCallEntries = extractLlmCalls(d.trace, llmCallsConfig);
+  const cacheHitEntries = extractCacheHits(d.trace, d.cacheRefs);
   const tabs: Tab[] = ['input', 'output'];
   if (scoreColumns.length > 0) tabs.push('scores');
   tabs.push('trace');
   if (llmCallEntries.length > 0) tabs.push('llmCalls');
+  if (cacheHitEntries.length > 0) tabs.push('cacheHits');
   if (scoringTraceEntries.length > 0) tabs.push('scoring');
   tabs.push('raw');
   if (d.assertionFailures.length > 0) tabs.push('failures');
@@ -608,6 +619,17 @@ export function CaseDrawer() {
               description="No spans matched the configured LLM call kinds in this case run."
             />
           )
+        ) : null}
+
+        {activeTab === 'cacheHits' ? (
+          <CacheHitsList>
+            {cacheHitEntries.map((entry) => (
+              <CacheHitRow
+                key={entry.id}
+                entry={entry}
+              />
+            ))}
+          </CacheHitsList>
         ) : null}
 
         {activeTab === 'scoring' ? (

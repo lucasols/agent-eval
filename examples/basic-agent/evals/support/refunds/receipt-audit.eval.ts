@@ -1,4 +1,4 @@
-import { defineEval } from '@ls-stack/agent-eval';
+import { defineEval, evalTracer } from '@ls-stack/agent-eval';
 import {
   getTraceCounts,
   sharedTraceDisplay,
@@ -52,6 +52,10 @@ defineEval<ReceiptAuditInput>({
   },
   traceDisplay: sharedTraceDisplay,
   execute: async ({ input }) => {
+    await evalTracer.cache(
+      { name: 'audit-policy-snapshot', key: { orderId: input.orderId } },
+      () => ({ policyVersion: '2026.04', strictMode: true }),
+    );
     await runReceiptAuditWorkflow(input);
   },
   deriveFromTracing: ({ trace }) => getTraceCounts(trace),

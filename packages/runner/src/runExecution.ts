@@ -309,6 +309,7 @@ export async function runCase<
     assertionFailures: scope.assertionFailures,
     error: errorInfo,
     trial,
+    cacheRefs: scope.caseCacheRefs,
   };
   if (Object.keys(scoringTraces).length > 0) {
     caseDetail.scoringTraces = scoringTraces;

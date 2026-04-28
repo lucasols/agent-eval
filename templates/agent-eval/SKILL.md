@@ -282,7 +282,9 @@ Mental model:
   functions of the key.
 - `evalTracer.cache(...)` does not create a span. When it runs inside an active
   span, that span gets a `cache.refs` entry with the value cache name, key,
-  namespace, and hit/miss status.
+  namespace, and hit/miss status. When called directly from the case body
+  (no surrounding span), the ref is recorded on the case detail's `cacheRefs`
+  array so spanless caches still appear in the UI's **Cache hits** tab.
 - The cache key folds in a source-file fingerprint, so editing the eval busts
   the cache automatically.
 - `cache.namespace` on spans or `namespace` on value caches can share entries
@@ -299,8 +301,10 @@ Mental model:
   `.agent-evals/cache/<owner>.json`; each namespace is capped at 100 entries by
   default. Configure `cache.maxEntriesPerNamespace` for the default cap and
   `cache.maxEntriesByNamespace` for exact namespace-specific caps.
-- Return values are JSON round-tripped; carry non-JSON data through
-  `setEvalOutput` instead.
+- Cached payloads use advance serialization/deserialization with the Web API plugin set, so return values and
+  recorded SDK effects preserve richer built-ins such as `Date`, `Map`, `Set`,
+  typed arrays, `URL`, `Headers`, `Blob`, and `File` on hits. Cache keys still
+  use the deterministic key-hashing rules above.
 - Cache mode per run is controlled by CLI flags (see `agent-evals run --help`)
   and by a chevron menu on each eval card in the UI.
 - The UI Stop action cancels the whole active run by terminating that run's

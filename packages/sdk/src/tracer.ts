@@ -4,12 +4,16 @@ import type {
   EvalTraceSpan,
   SpanCacheOptions,
 } from '@agent-evals/shared';
-import { hashCacheKey, toJsonSafe } from './cacheKey.ts';
+import { hashCacheKey } from './cacheKey.ts';
 import {
   appendSubSpanOps,
   replayRecording,
   stripCacheAttributes,
 } from './cacheRecording.ts';
+import {
+  deserializeCacheRecording,
+  serializeCacheRecording,
+} from './cacheSerialization.ts';
 import type { CacheRecordingFrame, EvalCaseScope } from './runtime.ts';
 import { getCurrentScope } from './runtime.ts';
 import {
@@ -531,8 +535,8 @@ export type TraceSpanInfoUncached = TraceSpanInfoBase & { cache?: undefined };
 /**
  * Info accepted by `evalTracer.span(info, fn)` when opting in to caching.
  *
- * Cached spans return `Promise<unknown>` because the replayed value comes from
- * a JSON round-trip on cache hit. Narrow the value yourself when you need a
+ * Cached spans return `Promise<unknown>` because the replayed value is revived
+ * from persisted cache data on hit. Narrow the value yourself when you need a
  * typed return.
  */
 export type TraceSpanInfoCached = TraceSpanInfoBase & {
@@ -618,12 +622,13 @@ async function traceSpan(
             'cache.storedAt': storedAt,
             'cache.age': age,
           });
-          replayRecording(scope, spanRecord, hit.recording, { generateSpanId });
+          const recording = deserializeCacheRecording(hit.recording);
+          replayRecording(scope, spanRecord, recording, { generateSpanId });
           spanRecord.status =
-            hit.recording.finalStatus ??
+            recording.finalStatus ??
             (hasSpanError(spanRecord) ? 'error' : 'ok');
           spanRecord.endedAt = new Date().toISOString();
-          return hit.recording.returnValue;
+          return recording.returnValue;
         }
         mergeSpanAttributes(spanRecord, { 'cache.status': 'miss' });
       } else if (ctx.mode === 'refresh') {
@@ -650,9 +655,8 @@ async function traceSpan(
       finishSpanWithoutThrownError(spanRecord);
 
       if (ctx.mode !== 'bypass') {
-        const returnValue = toJsonSafe(bodyResult);
         const recording: CacheRecording = {
-          returnValue,
+          returnValue: bodyResult,
           finalAttributes: stripCacheAttributes(spanRecord.attributes),
           finalStatus: spanRecord.status,
           finalError: spanRecord.error,
@@ -671,7 +675,7 @@ async function traceSpan(
           spanKind: info.kind,
           storedAt: new Date().toISOString(),
           codeFingerprint: ctx.codeFingerprint,
-          recording,
+          recording: await serializeCacheRecording(recording),
         };
         await ctx.adapter.write(entry);
       }

@@ -39,12 +39,21 @@ export async function runVoiceReturnFollowUpWorkflow(
 
           const usage = { inputTokens: 130, outputTokens: 90 };
           const costUsd = calculateWorkflowCostUsd(usage);
+          const inputCostUsd = (usage.inputTokens / 1_000_000) * 2.5;
+          const outputCostUsd = (usage.outputTokens / 1_000_000) * 10;
 
           evalSpan.setAttributes({
             input: { voiceNote: input.voiceNote },
-            model: 'gpt-4o-mini',
+            model: 'whisper-1',
+            provider: 'openai',
             usage,
             costUsd,
+            cost: { inputUsd: inputCostUsd, outputUsd: outputCostUsd },
+            steps: 1,
+            finishReason: 'stop',
+            tokensPerSecond: 88.4,
+            retryCount: 0,
+            streamed: false,
             output: {
               detectedLocale,
               transcriptSummary:
@@ -79,8 +88,10 @@ export async function runVoiceReturnFollowUpWorkflow(
         async () => {
           await waitForWorkflowDelay('localizeFollowUp');
 
-          const usage = { inputTokens: 110, outputTokens: 70 };
+          const usage = { inputTokens: 320, outputTokens: 180 };
           const costUsd = calculateWorkflowCostUsd(usage);
+          const inputCostUsd = (usage.inputTokens / 1_000_000) * 2.5;
+          const outputCostUsd = (usage.outputTokens / 1_000_000) * 10;
           const finalText = `Prepared a ${input.preferredChannel} follow-up with return steps for order ${input.orderId}.`;
 
           evalSpan.setAttributes({
@@ -88,9 +99,33 @@ export async function runVoiceReturnFollowUpWorkflow(
               customerMessage: input.customerMessage,
               locale: detectedLocale,
             },
-            model: 'gpt-4o-mini',
+            model: 'gpt-4o',
+            provider: 'openai',
             usage,
             costUsd,
+            cost: { inputUsd: inputCostUsd, outputUsd: outputCostUsd },
+            steps: 3,
+            finishReason: 'tool_use',
+            tokensPerSecond: 54.8,
+            retryCount: 0,
+            streamed: true,
+            params: { temperature: 0.4, toolChoice: 'auto' },
+            toolCalls: [
+              {
+                id: 'call_lookup_locale',
+                name: 'lookup-locale-templates',
+                arguments: { locale: detectedLocale },
+              },
+              {
+                id: 'call_render_template',
+                name: 'render-follow-up-template',
+                arguments: {
+                  channel: input.preferredChannel,
+                  orderId: input.orderId,
+                  locale: detectedLocale,
+                },
+              },
+            ],
             output: {
               detectedLocale,
               finalText,

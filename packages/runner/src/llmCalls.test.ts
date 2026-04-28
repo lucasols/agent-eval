@@ -45,6 +45,7 @@ test('resolveLlmCallsConfig defaults metric format and placements', () => {
   expect(resolved.metrics).toEqual([
     {
       label: 'Retries',
+      tooltip: undefined,
       path: 'retryCount',
       format: 'string',
       numberFormat: undefined,
@@ -52,12 +53,28 @@ test('resolveLlmCallsConfig defaults metric format and placements', () => {
     },
     {
       label: 'Tokens/sec',
+      tooltip: undefined,
       path: 'tps',
       format: 'number',
       numberFormat: undefined,
       placements: ['header', 'body'],
     },
   ]);
+});
+
+test('resolveLlmCallsConfig passes through tooltip on metrics', () => {
+  const resolved = resolveLlmCallsConfig({
+    metrics: [
+      {
+        label: 't/s',
+        tooltip: 'Tokens per second',
+        path: 'tokensPerSecond',
+        format: 'number',
+      },
+    ],
+  });
+
+  expect(resolved.metrics[0]?.tooltip).toBe('Tokens per second');
 });
 
 function llmSpan(overrides: Partial<EvalTraceSpan> = {}): EvalTraceSpan {
@@ -100,11 +117,54 @@ test('extractLlmCalls filters by configured kinds and projects defaults', () => 
     outputTokens: 50,
     totalTokens: 200,
     costUsd: 0.0015,
+    inputCostUsd: null,
+    outputCostUsd: null,
+    cachedInputCostUsd: null,
+    cacheCreationInputCostUsd: null,
+    reasoningCostUsd: null,
+    cacheCreationInputTokens: null,
     latencyMs: 142,
     input: { prompt: 'hi' },
     output: { reply: 'hello' },
     error: null,
     warnings: [],
+  });
+});
+
+test('extractLlmCalls reads per-token-type cost breakdown', () => {
+  const spans: EvalTraceSpan[] = [
+    llmSpan({
+      attributes: {
+        model: 'claude-sonnet',
+        usage: {
+          inputTokens: 100,
+          outputTokens: 200,
+          cachedInputTokens: 50,
+          cacheCreationInputTokens: 80,
+        },
+        costUsd: 0.0145,
+        cost: {
+          inputUsd: 0.001,
+          outputUsd: 0.0105,
+          cachedInputUsd: 0.001,
+          cacheCreationInputUsd: 0.002,
+        },
+      },
+    }),
+  ];
+
+  expect(extractLlmCalls(spans, DEFAULT_LLM_CALLS_CONFIG)[0]).toMatchObject({
+    inputTokens: 100,
+    outputTokens: 200,
+    cachedInputTokens: 50,
+    cacheCreationInputTokens: 80,
+    totalTokens: 430,
+    inputCostUsd: 0.001,
+    outputCostUsd: 0.0105,
+    cachedInputCostUsd: 0.001,
+    cacheCreationInputCostUsd: 0.002,
+    reasoningCostUsd: null,
+    costUsd: 0.0145,
   });
 });
 
@@ -140,6 +200,7 @@ test('extractLlmCalls reads custom metrics and drops undefined values', () => {
   expect(call?.metrics).toEqual([
     {
       label: 'Tokens/sec',
+      tooltip: undefined,
       rawValue: 38.2,
       format: 'number',
       numberFormat: undefined,
@@ -147,6 +208,7 @@ test('extractLlmCalls reads custom metrics and drops undefined values', () => {
     },
     {
       label: 'Retries',
+      tooltip: undefined,
       rawValue: 0,
       format: 'number',
       numberFormat: undefined,
@@ -154,6 +216,7 @@ test('extractLlmCalls reads custom metrics and drops undefined values', () => {
     },
     {
       label: 'Streamed',
+      tooltip: undefined,
       rawValue: false,
       format: 'boolean',
       numberFormat: undefined,

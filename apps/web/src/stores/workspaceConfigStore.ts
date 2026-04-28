@@ -16,9 +16,15 @@ const llmCallsConfigSchema: z.ZodType<ResolvedLlmCallsConfig> = z.object({
     inputTokens: z.string(),
     outputTokens: z.string(),
     cachedInputTokens: z.string(),
+    cacheCreationInputTokens: z.string(),
     reasoningTokens: z.string(),
     totalTokens: z.string(),
     cost: z.string(),
+    inputCost: z.string(),
+    outputCost: z.string(),
+    cachedInputCost: z.string(),
+    cacheCreationInputCost: z.string(),
+    reasoningCost: z.string(),
     steps: z.string(),
     finishReason: z.string(),
     input: z.string(),
@@ -29,6 +35,7 @@ const llmCallsConfigSchema: z.ZodType<ResolvedLlmCallsConfig> = z.object({
   metrics: z.array(
     z.object({
       label: z.string(),
+      tooltip: z.string().optional(),
       path: z.string(),
       format: z.enum(['string', 'number', 'duration', 'json', 'boolean']),
       numberFormat: z

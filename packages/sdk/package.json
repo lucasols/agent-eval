@@ -28,6 +28,8 @@
   "dependencies": {
     "@agent-evals/shared": "workspace:*",
     "@ls-stack/utils": "^3.77.0",
+    "seroval": "^1.5.2",
+    "seroval-plugins": "^1.5.2",
     "zod": "^4.1.11"
   },
   "devDependencies": {

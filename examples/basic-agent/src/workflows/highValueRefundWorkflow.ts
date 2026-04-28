@@ -52,8 +52,22 @@ export async function runHighValueRefundWorkflow(
         async () => {
           await waitForWorkflowDelay('assessRefundRisk');
 
-          const usage = { inputTokens: 260, outputTokens: 80 };
-          const costUsd = calculateWorkflowCostUsd(usage);
+          const REASONING_PRICE_PER_MILLION = 60;
+          const usage = {
+            inputTokens: 260,
+            outputTokens: 80,
+            reasoningTokens: 320,
+            totalTokens: 660,
+          };
+          const baseCost = calculateWorkflowCostUsd({
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+          });
+          const reasoningCostUsd =
+            (usage.reasoningTokens / 1_000_000) * REASONING_PRICE_PER_MILLION;
+          const inputCostUsd = (usage.inputTokens / 1_000_000) * 2.5;
+          const outputCostUsd = (usage.outputTokens / 1_000_000) * 10;
+          const costUsd = baseCost + reasoningCostUsd;
 
           evalSpan.setAttributes({
             input: {
@@ -61,9 +75,23 @@ export async function runHighValueRefundWorkflow(
               loyaltyTier: input.loyaltyTier,
               requestedRefundUsd: input.requestedRefundUsd,
             },
-            model: 'gpt-4o-mini',
+            model: 'o1-mini',
+            provider: 'openai',
             usage,
             costUsd,
+            cost: {
+              inputUsd: inputCostUsd,
+              outputUsd: outputCostUsd,
+              reasoningUsd: reasoningCostUsd,
+            },
+            steps: 1,
+            finishReason: 'stop',
+            tokensPerSecond: 22.6,
+            retryCount: 0,
+            streamed: false,
+            params: { temperature: 0 },
+            reasoning:
+              'Premium loyalty status raises refund authority but the requested amount exceeds the manager-approval threshold. Receipt verification still pending so escalate to finance review rather than auto-approving.',
             output: { riskLevel: 'high', requiresManagerApproval: true },
           });
 
@@ -80,6 +108,44 @@ export async function runHighValueRefundWorkflow(
             input: { path: input.receiptImage },
             output: { orderId: input.orderId, purchaseVerified: true },
           });
+        },
+      );
+
+      await evalTracer.span(
+        { kind: 'llm', name: 'summarize-finance-handoff' },
+        async () => {
+          await waitForWorkflowDelay('summarizeFinanceHandoff');
+
+          const usage = { inputTokens: 540, outputTokens: 256 };
+          const costUsd = calculateWorkflowCostUsd(usage);
+          const inputCostUsd = (usage.inputTokens / 1_000_000) * 2.5;
+          const outputCostUsd = (usage.outputTokens / 1_000_000) * 10;
+
+          evalSpan.setAttributes({
+            input: {
+              orderId: input.orderId,
+              loyaltyTier: input.loyaltyTier,
+              requestedRefundUsd: input.requestedRefundUsd,
+            },
+            model: 'gpt-4o-mini',
+            provider: 'openai',
+            usage,
+            costUsd,
+            cost: { inputUsd: inputCostUsd, outputUsd: outputCostUsd },
+            steps: 1,
+            finishReason: 'length',
+            tokensPerSecond: 64.4,
+            retryCount: 0,
+            streamed: true,
+            params: { temperature: 0.3, maxOutputTokens: 256 },
+            output: {
+              draftSummary:
+                'VIP customer requesting a refund well above the manager threshold. Receipt verified, escalation routing prepared. Suggest finance reviewer pull last 90 days of order history before...',
+              truncated: true,
+            },
+          });
+
+          incrementEvalOutput('costUsd', costUsd);
         },
       );
 

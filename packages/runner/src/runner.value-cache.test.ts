@@ -1,7 +1,9 @@
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { EvalTraceSpan } from '@agent-evals/shared';
+import type { CacheAdapter } from '@agent-evals/sdk';
+import { evalTracer, runInEvalScope, setEvalOutput } from '@agent-evals/sdk';
+import type { CacheEntry, EvalTraceSpan } from '@agent-evals/shared';
 import { afterEach, expect, test } from 'vitest';
 import { createRunner } from './runner.ts';
 
@@ -63,7 +65,11 @@ defineEval({
         { name: 'value-plan', key: { prompt: input.prompt } },
         async () => {
           activeCalls++;
+          const planDate = new Date('2024-01-02T03:04:05.000Z');
+          const planTags = new Map([['tier', 'gold']]);
           evalSpan.setAttribute('planSource', 'fresh');
+          evalSpan.setAttribute('planDate', planDate);
+          evalSpan.setAttribute('planTags', planTags);
           evalSpan.incrementAttribute('cachedCostUsd', 0.1);
           evalSpan.incrementAttribute('cachedCostUsd', 0.15);
           evalSpan.appendToAttribute('planSteps', 'draft');
@@ -71,6 +77,7 @@ defineEval({
           evalSpan.mergeAttribute('planMetadata', { source: 'fresh' });
           evalSpan.mergeAttribute('planMetadata', { activeCalls });
           incrementEvalOutput('costUsd', 0.25);
+          setEvalOutput('plannedDateOutput', planDate);
           appendToEvalOutput('auditTrail', 'draft');
           appendToEvalOutput('auditTrail', { step: 'review', activeCalls });
           setEvalOutput('scalarTrail', 'first');
@@ -79,14 +86,17 @@ defineEval({
           mergeEvalOutput('cacheMetadata', { activeCalls, status: 'ok' });
           await evalTracer.span({ kind: 'tool', name: 'cached-child' }, async () => {
             evalSpan.setAttribute('childSource', 'fresh');
+            evalSpan.setAttribute('childDate', planDate);
             evalSpan.incrementAttribute('childAttempts', 1);
             evalSpan.appendToAttribute('childEvents', 'lookup');
             evalSpan.mergeAttribute('childMetadata', { source: 'fresh' });
           });
-          evalTracer.checkpoint('value-plan-checkpoint', { activeCalls });
+          evalTracer.checkpoint('value-plan-checkpoint', { activeCalls, planDate });
           return {
             text: \`cached \${input.prompt}\`,
             activeCalls,
+            generatedAt: planDate,
+            metadata: planTags,
           };
         },
       );
@@ -98,6 +108,22 @@ defineEval({
         typeof planned.text === 'string'
       ) {
         setEvalOutput('response', planned.text);
+      }
+      if (
+        typeof planned === 'object' &&
+        planned !== null &&
+        'generatedAt' in planned &&
+        planned.generatedAt instanceof Date
+      ) {
+        setEvalOutput('plannedIso', planned.generatedAt.toISOString());
+      }
+      if (
+        typeof planned === 'object' &&
+        planned !== null &&
+        'metadata' in planned &&
+        planned.metadata instanceof Map
+      ) {
+        setEvalOutput('plannedTier', planned.metadata.get('tier'));
       }
       if (
         typeof rootValue === 'object' &&
@@ -138,6 +164,20 @@ function valueCacheRef(
   return candidates.find(
     (ref): ref is Record<string, unknown> => isRecord(ref) && ref.name === name,
   );
+}
+
+function expectDateValue(value: unknown, iso: string): void {
+  expect(value).toBeInstanceOf(Date);
+  if (value instanceof Date) {
+    expect(value.toISOString()).toBe(iso);
+  }
+}
+
+function expectMapEntry(value: unknown, key: string, expected: unknown): void {
+  expect(value).toBeInstanceOf(Map);
+  if (value instanceof Map) {
+    expect(value.get(key)).toBe(expected);
+  }
 }
 
 test('caches values without creating a cache span and replays SDK effects', async () => {
@@ -188,6 +228,9 @@ test('caches values without creating a cache span and replays SDK effects', asyn
       response: 'cached refund please',
       rootCalls: 1,
       costUsd: 0.25,
+      plannedIso: '2024-01-02T03:04:05.000Z',
+      plannedTier: 'gold',
+      plannedDateOutput: '"2024-01-02T03:04:05.000Z"',
       auditTrail: JSON.stringify(['draft', { step: 'review', activeCalls: 1 }]),
       scalarTrail: JSON.stringify(['first', 'second']),
       cacheMetadata: JSON.stringify({
@@ -251,6 +294,9 @@ test('caches values without creating a cache span and replays SDK effects', asyn
       response: 'cached refund please',
       rootCalls: 1,
       costUsd: 0.25,
+      plannedIso: '2024-01-02T03:04:05.000Z',
+      plannedTier: 'gold',
+      plannedDateOutput: '"2024-01-02T03:04:05.000Z"',
       auditTrail: JSON.stringify(['draft', { step: 'review', activeCalls: 1 }]),
       scalarTrail: JSON.stringify(['first', 'second']),
       cacheMetadata: JSON.stringify({
@@ -321,5 +367,67 @@ test('value cache respects bypass and refresh modes', async () => {
     });
   } finally {
     process.chdir(previousCwd);
+  }
+});
+
+test('revives rich cached values with Seroval while using the existing cache key adapter', async () => {
+  const entries = new Map<string, CacheEntry>();
+  const adapter = {
+    lookup(namespace, keyHash) {
+      return Promise.resolve(entries.get(`${namespace}:${keyHash}`) ?? null);
+    },
+    write(entry) {
+      entries.set(`${entry.namespace}:${entry.key}`, entry);
+      return Promise.resolve();
+    },
+  } satisfies CacheAdapter;
+
+  let calls = 0;
+  async function runCachedValue() {
+    return await runInEvalScope(
+      'case',
+      async () => {
+        return await evalTracer.cache(
+          { name: 'rich-value', key: { id: 'same-key' } },
+          () => {
+            calls++;
+            const generatedAt = new Date('2024-01-02T03:04:05.000Z');
+            const metadata = new Map([['tier', 'gold']]);
+            setEvalOutput('generatedAt', generatedAt);
+            evalTracer.checkpoint('rich-checkpoint', { generatedAt });
+            return { generatedAt, metadata };
+          },
+        );
+      },
+      {
+        cacheContext: {
+          adapter,
+          mode: 'use',
+          evalId: 'rich-cache-eval',
+          codeFingerprint: 'source-fingerprint',
+        },
+      },
+    );
+  }
+
+  const first = await runCachedValue();
+  const second = await runCachedValue();
+
+  expect(first.error).toBeUndefined();
+  expect(second.error).toBeUndefined();
+  expect(calls).toBe(1);
+  expect(entries.size).toBe(1);
+
+  expect(isRecord(second.result)).toBe(true);
+  if (isRecord(second.result)) {
+    expectDateValue(second.result.generatedAt, '2024-01-02T03:04:05.000Z');
+    expectMapEntry(second.result.metadata, 'tier', 'gold');
+  }
+
+  expectDateValue(second.scope.outputs.generatedAt, '2024-01-02T03:04:05.000Z');
+  const checkpoint = second.scope.checkpoints.get('rich-checkpoint');
+  expect(isRecord(checkpoint)).toBe(true);
+  if (isRecord(checkpoint)) {
+    expectDateValue(checkpoint.generatedAt, '2024-01-02T03:04:05.000Z');
   }
 });

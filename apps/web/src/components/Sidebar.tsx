@@ -1,5 +1,5 @@
 import type { EvalDisplayStatus } from '@agent-evals/shared';
-import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { ChevronsDownUp, ChevronsUpDown, Search, X } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { styled } from 'vindur';
 import { EvalTree } from '#src/components/EvalTree';
@@ -21,6 +21,7 @@ import {
   expandAllFolders,
   selectionStore,
   selectFolder,
+  setSearchQuery,
   toggleEvalStatusFilter,
 } from '#src/stores/selectionStore';
 import { colors } from '#src/style/colors';
@@ -28,6 +29,7 @@ import { inline, kicker, stack, transition } from '#src/style/helpers';
 import {
   buildEvalTree,
   collectCollapsiblePaths,
+  filterEvalsBySearchQuery,
   filterEvalsByStatuses,
   getStatusBreakdown,
 } from '#src/utils/buildEvalTree';
@@ -84,6 +86,69 @@ const BrandSub = styled.div`
   font-size: 10px;
   color: ${colors.textMuted.var};
   font-variant-numeric: tabular-nums;
+`;
+
+const SearchWrap = styled.div`
+  ${inline({ gap: 6, align: 'center' })}
+  ${transition({ property: 'background, border-color' })}
+  margin: 10px 12px 0;
+  padding: 0 8px;
+  background: ${colors.surface.var};
+  border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-sm);
+  color: ${colors.textMuted.var};
+
+  &:focus-within {
+    border-color: ${colors.accent.var};
+    background: ${colors.bg.var};
+    color: ${colors.text.var};
+  }
+
+  & > svg {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+  }
+`;
+
+const SearchInput = styled.input`
+  flex: 1;
+  appearance: none;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 6px 0;
+  font-size: 12.5px;
+  color: ${colors.text.var};
+  min-width: 0;
+
+  &::placeholder {
+    color: ${colors.textDim.var};
+  }
+`;
+
+const SearchClearButton = styled.button`
+  ${inline({ align: 'center', justify: 'center' })}
+  ${transition({ property: 'background, color' })}
+  width: 18px;
+  height: 18px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0;
+  color: ${colors.textDim.var};
+  cursor: pointer;
+  flex-shrink: 0;
+
+  &:hover {
+    background: ${colors.surfaceHover.var};
+    color: ${colors.text.var};
+  }
+
+  & > svg {
+    width: 12px;
+    height: 12px;
+  }
 `;
 
 const SectionHeader = styled.div`
@@ -255,11 +320,12 @@ const ScrollArea = styled.div`
 
 export function Sidebar() {
   const { evals } = evalsStore.useSelectorRC((s) => ({ evals: s.evals }));
-  const { collapsedFolders, selection, statusFilters } =
+  const { collapsedFolders, selection, statusFilters, searchQuery } =
     selectionStore.useSelectorRC((s) => ({
       collapsedFolders: s.collapsedFolders,
       selection: s.selection,
       statusFilters: s.statusFilters,
+      searchQuery: s.searchQuery,
     }));
   const { currentRun } = runStore.useSelectorRC((s) => ({
     currentRun: s.currentRun,
@@ -280,11 +346,16 @@ export function Sidebar() {
   const isEvalRunning = (evalId: string): boolean =>
     currentRun?.manifest.status === 'running' &&
     targetIncludesEval(currentRun.manifest.target, evalId);
-  const filteredEvals = filterEvalsByStatuses(
+  const statusFilteredEvals = filterEvalsByStatuses(
     evals,
     statusFilters,
     isEvalRunning,
   );
+  const filteredEvals = filterEvalsBySearchQuery(
+    statusFilteredEvals,
+    searchQuery,
+  );
+  const hasActiveSearch = searchQuery.trim().length > 0;
   const statusBreakdown = getStatusBreakdown(evals, isEvalRunning);
   const statusFilterItems = EVAL_STATUS_FILTER_OPTIONS.map((status) => ({
     status,
@@ -297,6 +368,7 @@ export function Sidebar() {
     [filteredEvals],
   );
   const allCollapsed =
+    !hasActiveSearch &&
     collapsiblePaths.length > 0 &&
     collapsiblePaths.every((p) => collapsedFolders.has(p));
   const isRootFolderSelected =
@@ -315,6 +387,35 @@ export function Sidebar() {
           <BrandSub>workspace · main</BrandSub>
         </BrandText>
       </Masthead>
+      <SearchWrap>
+        <Search aria-hidden="true" />
+        <SearchInput
+          type="search"
+          value={searchQuery}
+          placeholder="Search evals"
+          aria-label="Search evals"
+          onChange={(event) => {
+            setSearchQuery(event.currentTarget.value);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape' && searchQuery.length > 0) {
+              event.preventDefault();
+              setSearchQuery('');
+            }
+          }}
+        />
+        {hasActiveSearch ? (
+          <SearchClearButton
+            type="button"
+            aria-label="Clear search"
+            onClick={() => {
+              setSearchQuery('');
+            }}
+          >
+            <X />
+          </SearchClearButton>
+        ) : null}
+      </SearchWrap>
       {statusFilterItems.length > 0 ? (
         <StatusFilters aria-label="Eval status filters">
           {statusFilterItems.map(({ status, count, active, tone }) => (
@@ -368,7 +469,7 @@ export function Sidebar() {
             </IconButton>
           </Tooltip>
           <SectionCounter>
-            {statusFilters.size > 0
+            {statusFilters.size > 0 || hasActiveSearch
               ? `${filteredEvals.length}/${evals.length}`
               : evals.length}
           </SectionCounter>

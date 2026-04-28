@@ -14,6 +14,7 @@ import { getNestedAttribute } from './getNestedAttribute.ts';
 /** Resolved value for one user-defined metric on an LLM call row. */
 export type LlmCallMetricValue = {
   label: string;
+  tooltip: string | undefined;
   rawValue: unknown;
   format: LlmCallMetricFormat;
   numberFormat: NumberDisplayOptions | undefined;
@@ -31,9 +32,15 @@ export type LlmCallEntry = {
   inputTokens: number | null;
   outputTokens: number | null;
   cachedInputTokens: number | null;
+  cacheCreationInputTokens: number | null;
   reasoningTokens: number | null;
   totalTokens: number | null;
   costUsd: number | null;
+  inputCostUsd: number | null;
+  outputCostUsd: number | null;
+  cachedInputCostUsd: number | null;
+  cacheCreationInputCostUsd: number | null;
+  reasoningCostUsd: number | null;
   steps: number | null;
   finishReason: string | null;
   latencyMs: number | null;
@@ -70,15 +77,24 @@ function computeTotalTokens({
   input,
   output,
   cached,
+  cacheCreation,
 }: {
   declared: number | null;
   input: number | null;
   output: number | null;
   cached: number | null;
+  cacheCreation: number | null;
 }): number | null {
   if (declared !== null) return declared;
-  if (input === null && output === null && cached === null) return null;
-  return (input ?? 0) + (output ?? 0) + (cached ?? 0);
+  if (
+    input === null &&
+    output === null &&
+    cached === null &&
+    cacheCreation === null
+  ) {
+    return null;
+  }
+  return (input ?? 0) + (output ?? 0) + (cached ?? 0) + (cacheCreation ?? 0);
 }
 
 function collectWarnings(span: EvalTraceSpan): EvalTraceSpanWarning[] {
@@ -125,6 +141,10 @@ export function extractLlmCalls(
       attrs,
       config.attributes.cachedInputTokens,
     );
+    const cacheCreationInputTokens = readNumber(
+      attrs,
+      config.attributes.cacheCreationInputTokens,
+    );
     const reasoningTokens = readNumber(
       attrs,
       config.attributes.reasoningTokens,
@@ -140,6 +160,7 @@ export function extractLlmCalls(
       if (rawValue === undefined) continue;
       metrics.push({
         label: metric.label,
+        tooltip: metric.tooltip,
         rawValue,
         format: metric.format,
         numberFormat: metric.numberFormat,
@@ -157,14 +178,24 @@ export function extractLlmCalls(
       inputTokens,
       outputTokens,
       cachedInputTokens,
+      cacheCreationInputTokens,
       reasoningTokens,
       totalTokens: computeTotalTokens({
         declared: declaredTotalTokens,
         input: inputTokens,
         output: outputTokens,
         cached: cachedInputTokens,
+        cacheCreation: cacheCreationInputTokens,
       }),
       costUsd: readNumber(attrs, config.attributes.cost),
+      inputCostUsd: readNumber(attrs, config.attributes.inputCost),
+      outputCostUsd: readNumber(attrs, config.attributes.outputCost),
+      cachedInputCostUsd: readNumber(attrs, config.attributes.cachedInputCost),
+      cacheCreationInputCostUsd: readNumber(
+        attrs,
+        config.attributes.cacheCreationInputCost,
+      ),
+      reasoningCostUsd: readNumber(attrs, config.attributes.reasoningCost),
       steps: readNumber(attrs, config.attributes.steps),
       finishReason: readString(attrs, config.attributes.finishReason),
       latencyMs: computeLatencyMs(span),

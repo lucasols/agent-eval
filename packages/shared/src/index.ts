@@ -104,6 +104,10 @@ export {
   type LlmCallMetricValue,
 } from './utils/extractLlmCalls.ts';
 export {
+  extractCacheHits,
+  type CacheHitEntry,
+} from './utils/extractCacheHits.ts';
+export {
   sseEnvelopeSchema,
   type SseEnvelope,
   type SseEventType,
@@ -139,9 +143,11 @@ export {
   cacheFileSchema,
   cacheRecordingSchema,
   cacheRecordingOpSchema,
+  cacheStatusSchema,
   serializedCacheSpanSchema,
   spanCacheOptionsSchema,
   cacheOperationTypeSchema,
+  traceCacheRefSchema,
   type CacheMode,
   type CacheOperationType,
   type CacheListItem,
@@ -149,6 +155,8 @@ export {
   type CacheFile,
   type CacheRecording,
   type CacheRecordingOp,
+  type CacheStatus,
   type SerializedCacheSpan,
   type SpanCacheOptions,
+  type TraceCacheRef,
 } from './schemas/cache.ts';

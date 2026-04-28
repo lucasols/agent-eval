@@ -27,6 +27,7 @@ type SelectionState = {
   selection: Selection;
   collapsedFolders: Set<string>;
   statusFilters: Set<EvalDisplayStatus>;
+  searchQuery: string;
 };
 
 function parseEvalDisplayStatus(value: string): EvalDisplayStatus | undefined {
@@ -98,8 +99,14 @@ export const selectionStore = new Store<SelectionState>({
     selection: initialSelection,
     collapsedFolders: new Set<string>(),
     statusFilters: initialStatusFilters,
+    searchQuery: '',
   },
 });
+
+/** Update the eval search query used to filter the sidebar tree. */
+export function setSearchQuery(query: string): void {
+  selectionStore.setPartialState({ searchQuery: query });
+}
 
 export function isFolderExpanded(
   collapsedFolders: Set<string>,

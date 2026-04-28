@@ -174,10 +174,3 @@ function isBlob(value: unknown): value is Blob {
 function isFile(value: unknown): value is File {
   return value instanceof File;
 }
-
-export function toJsonSafe(value: unknown): unknown {
-  if (value === undefined) return undefined;
-  const text = JSON.stringify(value);
-  const parsed: unknown = JSON.parse(text);
-  return parsed;
-}

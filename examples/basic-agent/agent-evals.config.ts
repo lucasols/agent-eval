@@ -25,7 +25,8 @@ export const config: AgentEvalsConfig = {
   llmCalls: {
     metrics: [
       {
-        label: 'Tokens/sec',
+        label: 't/s',
+        tooltip: 'Tokens per second',
         path: 'tokensPerSecond',
         format: 'number',
         numberFormat: { decimalPlaces: 1 },
