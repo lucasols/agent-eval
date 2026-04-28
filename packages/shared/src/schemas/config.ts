@@ -51,9 +51,16 @@ export type AgentEvalsConfig = {
     /** Override the directory used to persist cache entries. */
     dir?: string;
     /**
-     * Maximum entries retained in each per-eval cache file. Defaults to `100`;
-     * non-positive or non-finite values fall back to the default.
+     * Default maximum entries retained for each cache namespace. Defaults to
+     * `100`; non-positive or non-finite values fall back to the default.
      */
+    maxEntriesPerNamespace?: number;
+    /**
+     * Exact namespace-specific retention caps. Values override
+     * `maxEntriesPerNamespace` for matching namespaces.
+     */
+    maxEntriesByNamespace?: Record<string, number>;
+    /** Legacy alias for `maxEntriesPerNamespace`, retained so older config files keep working. */
     maxEntriesPerEval?: number;
   };
 };
@@ -71,6 +78,14 @@ export const agentEvalsConfigSchema = z.object({
     .object({
       enabled: z.boolean().optional(),
       dir: z.string().optional(),
+      maxEntriesPerNamespace: z.preprocess(
+        (value) =>
+          typeof value === 'number' && Number.isFinite(value)
+            ? value
+            : undefined,
+        z.number().optional(),
+      ),
+      maxEntriesByNamespace: z.record(z.string(), z.number()).optional(),
       maxEntriesPerEval: z.preprocess(
         (value) =>
           typeof value === 'number' && Number.isFinite(value)

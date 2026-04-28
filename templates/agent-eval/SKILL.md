@@ -285,9 +285,10 @@ Mental model:
   `Buffer`, `ArrayBuffer`, and typed arrays hash by bytes. Native `Blob`/`File`
   keys are read asynchronously and hash by bytes plus stable metadata (`type`,
   `size`, plus `name`/`lastModified` for `File`).
-- Cache entries are stored in inspectable per-eval files under
-  `.agent-evals/cache/<eval-id>.json`, capped at 100 entries per eval by
-  default so shared caches do not grow forever.
+- Cache entries are stored in inspectable owner files under
+  `.agent-evals/cache/<owner>.json`; each namespace is capped at 100 entries by
+  default. Configure `cache.maxEntriesPerNamespace` for the default cap and
+  `cache.maxEntriesByNamespace` for exact namespace-specific caps.
 - Return values are JSON round-tripped; carry non-JSON data through
   `setEvalOutput` instead.
 - Cache mode per run is controlled by CLI flags (see `agent-evals run --help`)

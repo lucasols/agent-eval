@@ -441,7 +441,7 @@ describe('CLI operation caching', () => {
     });
   });
 
-  test('prunes each eval cache file to the configured max entries', async () => {
+  test('prunes each namespace to the configured default max entries', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const configPath = resolve(workspacePath, 'agent-evals.config.ts');
       const configSource = await readFile(configPath, 'utf8');
@@ -449,7 +449,7 @@ describe('CLI operation caching', () => {
         configPath,
         configSource.replace(
           '\n};\n',
-          '\n  cache: { maxEntriesPerEval: 2 },\n};\n',
+          '\n  cache: { maxEntriesPerNamespace: 2 },\n};\n',
         ),
       );
 
@@ -475,6 +475,41 @@ describe('CLI operation caching', () => {
           (entry) => entry.namespace === 'refund-workflow__plan-refund',
         ),
       ).toBe(true);
+    });
+  });
+
+  test('uses namespace-specific max entry overrides', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const configPath = resolve(workspacePath, 'agent-evals.config.ts');
+      const configSource = await readFile(configPath, 'utf8');
+      await writeFile(
+        configPath,
+        configSource.replace(
+          '\n};\n',
+          "\n  cache: { maxEntriesByNamespace: { 'receipt-audit__receipt-audit-context': 1 } },\n};\n",
+        ),
+      );
+
+      const run = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'receipt-audit',
+      ]);
+      expect(run.exitCode).toBe(0);
+      expect(run.stderr).toBe('');
+
+      const cacheFiles = await readCacheDir(workspacePath);
+      expect(cacheFiles).toEqual(['receipt-audit.json']);
+      const cacheFilePath = resolve(
+        workspacePath,
+        '.agent-evals/cache',
+        requireDefined(cacheFiles[0], 'namespace override cache file'),
+      );
+      const entries = await readCacheEntries(cacheFilePath);
+      expect(entries).toHaveLength(1);
+      expect(entries[0]?.namespace).toBe(
+        'receipt-audit__receipt-audit-context',
+      );
     });
   });
 });

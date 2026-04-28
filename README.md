@@ -659,8 +659,10 @@ Server API (`/api/cache`):
 - Entries live in inspectable per-owner files at
   `<workspaceRoot>/.agent-evals/cache/<owner>.json`; for default namespaces,
   the owner is the eval id.
-- Each owner file keeps at most `cache.maxEntriesPerEval ?? 100` entries,
-  pruning the oldest entries on write so committed caches do not grow forever.
+- Each namespace keeps at most `cache.maxEntriesPerNamespace ?? 100` entries,
+  pruning the oldest entries in that namespace on write so committed caches do
+  not grow forever. Use `cache.maxEntriesByNamespace` for exact namespace
+  overrides.
 - Cache keys should be deterministic primitives, arrays, and plain objects.
   `Buffer`, `ArrayBuffer`, and typed-array values are serialized by a sha256 of
   their bytes. Native `Blob`/`File` keys are read asynchronously and serialized
@@ -689,12 +691,16 @@ export const config: AgentEvalsConfig = {
 };
 ```
 
-You can also tune the per-eval retention cap:
+You can also tune cache retention globally per namespace or for specific
+namespaces:
 
 ```ts
 export const config: AgentEvalsConfig = {
   include: ['evals/**/*.eval.ts'],
-  cache: { maxEntriesPerEval: 50 },
+  cache: {
+    maxEntriesPerNamespace: 50,
+    maxEntriesByNamespace: { 'receipt-audit__receipt-audit-context': 200 },
+  },
 };
 ```
 

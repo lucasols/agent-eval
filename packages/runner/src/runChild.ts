@@ -100,7 +100,9 @@ async function main(): Promise<void> {
   const cacheStore = createFsCacheStore({
     workspaceRoot: context.workspaceRoot,
     dir: config.cache?.dir,
-    maxEntriesPerEval: config.cache?.maxEntriesPerEval,
+    maxEntriesPerNamespace:
+      config.cache?.maxEntriesPerNamespace ?? config.cache?.maxEntriesPerEval,
+    maxEntriesByNamespace: config.cache?.maxEntriesByNamespace,
   });
   const evals = new Map(
     context.evals.map((evalMeta) => [evalMeta.id, evalMeta]),

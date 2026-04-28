@@ -18,7 +18,7 @@ import {
 } from '@agent-evals/shared';
 import { resultify } from 't-result';
 
-const defaultMaxEntriesPerEval = 100;
+const defaultMaxEntriesPerNamespace = 100;
 
 /** Filter accepted by `FsCacheStore.clear` to narrow the set of entries removed. */
 export type CacheClearFilter = { namespace?: string; key?: string };
@@ -43,20 +43,21 @@ export type BufferedCacheStore = CacheAdapter & {
 /**
  * Create a filesystem-backed cache adapter rooted at `<workspaceRoot>/<dir>`.
  *
- * Cache entries are grouped into one inspectable JSON file per eval/cache
- * owner. Writes use a short-lived lock directory plus `<name>.tmp` + atomic
+ * Cache entries are grouped into one inspectable JSON file per cache owner.
+ * Writes use a short-lived lock directory plus `<name>.tmp` + atomic
  * `rename` to avoid partial reads and lost updates under concurrent access.
  */
 export function createFsCacheStore(options: {
   workspaceRoot: string;
   dir?: string;
-  maxEntriesPerEval?: number;
+  maxEntriesPerNamespace?: number;
+  maxEntriesByNamespace?: Record<string, number>;
 }): FsCacheStore {
   const cacheDir = resolve(
     options.workspaceRoot,
     options.dir ?? '.agent-evals/cache',
   );
-  const maxEntriesPerEval = normalizeMaxEntries(options.maxEntriesPerEval);
+  const defaultMaxEntries = normalizeMaxEntries(options.maxEntriesPerNamespace);
 
   return {
     dir() {
@@ -78,7 +79,12 @@ export function createFsCacheStore(options: {
         const entries = existing?.entries ?? {};
         const prunedEntries = pruneEntries(
           { ...entries, [entry.key]: entry },
-          maxEntriesPerEval,
+          entry.namespace,
+          maxEntriesForNamespace(
+            entry.namespace,
+            defaultMaxEntries,
+            options.maxEntriesByNamespace,
+          ),
           entry.key,
         );
         await writeCacheFile(cacheDir, {
@@ -219,11 +225,25 @@ export function createBufferedCacheStore(
   };
 }
 
-function normalizeMaxEntries(value: number | undefined): number {
+function normalizeMaxEntries(
+  value: number | undefined,
+  fallback = defaultMaxEntriesPerNamespace,
+): number {
   if (value === undefined || !Number.isFinite(value) || value <= 0) {
-    return defaultMaxEntriesPerEval;
+    return fallback;
   }
   return Math.floor(value);
+}
+
+function maxEntriesForNamespace(
+  namespace: string,
+  defaultMaxEntries: number,
+  maxEntriesByNamespace: Record<string, number> | undefined,
+): number {
+  const namespaceMaxEntries = maxEntriesByNamespace?.[namespace];
+  return namespaceMaxEntries === undefined
+    ? defaultMaxEntries
+    : normalizeMaxEntries(namespaceMaxEntries, defaultMaxEntries);
 }
 
 function ownerFromNamespace(namespace: string): string {
@@ -285,15 +305,16 @@ async function writeCacheFile(
 
 function pruneEntries(
   entries: Record<string, CacheEntry>,
+  namespace: string,
   maxEntries: number,
   protectedKey: string,
 ): Record<string, CacheEntry> {
-  const sorted = Object.values(entries).toSorted((a, b) =>
-    a.storedAt < b.storedAt ? 1 : -1,
-  );
+  const sorted = Object.values(entries)
+    .filter((entry) => entry.namespace === namespace)
+    .toSorted((a, b) => (a.storedAt < b.storedAt ? 1 : -1));
   const kept = new Map<string, CacheEntry>();
   const protectedEntry = entries[protectedKey];
-  if (protectedEntry !== undefined) {
+  if (protectedEntry?.namespace === namespace) {
     kept.set(protectedEntry.key, protectedEntry);
   }
 
@@ -303,7 +324,8 @@ function pruneEntries(
   }
 
   return Object.fromEntries(
-    [...kept.values()]
+    Object.values(entries)
+      .filter((entry) => entry.namespace !== namespace || kept.has(entry.key))
       .toSorted((a, b) => (a.key < b.key ? -1 : 1))
       .map((entry) => [entry.key, entry]),
   );
