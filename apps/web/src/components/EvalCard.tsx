@@ -12,7 +12,9 @@ import {
   SquareStop,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { resultify } from 't-result';
 import { styled } from 'vindur';
+import { z } from 'zod/v4';
 import { Button } from '#src/components/Button';
 import { EvalRunsChart } from '#src/components/EvalRunsChart';
 import { EvalRunsTable } from '#src/components/EvalRunsTable';
@@ -48,11 +50,19 @@ import {
 } from '#src/style/helpers';
 import { getDisplayFolderSegments } from '#src/utils/buildEvalTree';
 import { buildChartPoints } from '#src/utils/chartData';
+import {
+  buildEvalRunCliCommand,
+  type PackageManager,
+} from '#src/utils/cliCommand';
 import { buildEvalScopedRunRows } from '#src/utils/evalRuns';
 import { computeStatDisplay } from '#src/utils/evalStats';
 import { getFreshnessTooltip } from '#src/utils/freshness';
 
 type EvalCardProps = { evalSummary: EvalSummary; mode: 'single' | 'stacked' };
+
+const workspaceInfoSchema = z.object({
+  packageManager: z.enum(['npm', 'pnpm', 'yarn', 'bun']),
+});
 
 const Card = styled.section<{ stacked: boolean; single: boolean }>`
   ${stack({ gap: 0 })}
@@ -299,6 +309,28 @@ function readScoreHistoryCollapsed(): boolean {
   );
 }
 
+async function fetchWorkspacePackageManager(): Promise<PackageManager> {
+  const fetchResult = await resultify(() => fetch('/api/workspace'));
+  if (fetchResult.error || !fetchResult.value.ok) return 'pnpm';
+
+  const jsonResult = await resultify(() => fetchResult.value.json());
+  if (jsonResult.error) return 'pnpm';
+
+  const parseResult = resultify(() =>
+    workspaceInfoSchema.parse(jsonResult.value),
+  );
+  if (parseResult.error) return 'pnpm';
+
+  return parseResult.value.packageManager;
+}
+
+async function copyTextToClipboard(text: string): Promise<void> {
+  const copyResult = await resultify(() => navigator.clipboard.writeText(text));
+  if (!copyResult.error) return;
+
+  window.prompt('Copy CLI run command', text);
+}
+
 export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [scoreHistoryCollapsed, setScoreHistoryCollapsed] = useState(
@@ -479,7 +511,23 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     }
   }
 
+  async function handleCopyCliRunCommand() {
+    const packageManager = await fetchWorkspacePackageManager();
+    await copyTextToClipboard(
+      buildEvalRunCliCommand({ packageManager, evalId: evalSummary.id }),
+    );
+  }
+
   const moreMenu: SplitButtonMenuEntry[] = [
+    {
+      id: 'copy-cli-run-command',
+      label: 'Copy CLI run command',
+      description: 'Copy the package-manager command for this eval.',
+      onSelect: () => {
+        void handleCopyCliRunCommand();
+      },
+    },
+    { kind: 'separator' },
     {
       id: 'recompute-status',
       label: 'Recompute status',

@@ -8,6 +8,7 @@ import { assetsRoutes } from './routes/assets.ts';
 import { cacheRoutes } from './routes/cache.ts';
 import { evalsRoutes } from './routes/evals.ts';
 import { runsRoutes } from './routes/runs.ts';
+import { workspaceRoutes } from './routes/workspace.ts';
 
 const baseApp = new Hono();
 
@@ -18,6 +19,7 @@ const routes_ = baseApp
   .route('/api/evals', evalsRoutes)
   .route('/api/runs', runsRoutes)
   .route('/api/cache', cacheRoutes)
+  .route('/api/workspace', workspaceRoutes)
   .route('/api', assetsRoutes);
 
 export type AppType = typeof routes_;
