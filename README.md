@@ -665,9 +665,10 @@ Server API (`/api/cache`):
   overrides.
 - Cache keys should be deterministic primitives, arrays, and plain objects.
   `Buffer`, `ArrayBuffer`, and typed-array values are serialized by a sha256 of
-  their bytes. Native `Blob`/`File` keys are read asynchronously and serialized
-  from a sha256 of their bytes plus stable metadata (`type`, `size`, plus
-  `name`/`lastModified` for `File`).
+  their bytes. Native `Blob`/`File` keys use stable metadata by default
+  (`type`, `size`, plus `name`/`lastModified` for `File`) and do not read file
+  bytes. Add `serializeFileBytes: true` to a cached span or
+  `evalTracer.cache(...)` call when byte-level cache invalidation is required.
 - The cache key folds in a `codeFingerprint` — the sha256 of the eval file's
   source — so editing the eval produces a miss instead of a stale hit.
 - Modes: `bypass` never reads or writes; `refresh` skips the read and always

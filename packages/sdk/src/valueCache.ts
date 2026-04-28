@@ -18,6 +18,11 @@ export type TraceCacheInfo = {
   key: unknown;
   /** Override the default namespace (`${evalId}__${name}`). */
   namespace?: string;
+  /**
+   * Include native `Blob`/`File` bytes in the cache key. By default only stable
+   * metadata (`type`, `size`, plus `name`/`lastModified` for `File`) is used.
+   */
+  serializeFileBytes?: boolean;
 };
 
 export type { TraceCacheRef } from './cacheRecording.ts';
@@ -39,11 +44,10 @@ export function createTraceCache(generateSpanId: () => string): {
     }
 
     const namespace = info.namespace ?? `${cacheCtx.evalId}__${info.name}`;
-    const keyHash = await hashCacheKey({
-      namespace,
-      codeFingerprint: cacheCtx.codeFingerprint,
-      key: info.key,
-    });
+    const keyHash = await hashCacheKey(
+      { namespace, codeFingerprint: cacheCtx.codeFingerprint, key: info.key },
+      { serializeFileBytes: info.serializeFileBytes === true },
+    );
     const activeSpan = scope.activeSpanStack.at(-1);
 
     if (cacheCtx.mode === 'use') {

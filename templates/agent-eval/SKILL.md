@@ -283,8 +283,10 @@ Mental model:
   file; evals in different files miss even with the same namespace and key.
 - Cache keys should be deterministic primitives, arrays, and plain objects.
   `Buffer`, `ArrayBuffer`, and typed arrays hash by bytes. Native `Blob`/`File`
-  keys are read asynchronously and hash by bytes plus stable metadata (`type`,
-  `size`, plus `name`/`lastModified` for `File`).
+  keys use stable metadata by default (`type`, `size`, plus
+  `name`/`lastModified` for `File`) and do not read file bytes. Add
+  `serializeFileBytes: true` to a cached span or `evalTracer.cache(...)` call
+  when byte-level cache invalidation is required.
 - Cache entries are stored in inspectable owner files under
   `.agent-evals/cache/<owner>.json`; each namespace is capped at 100 entries by
   default. Configure `cache.maxEntriesPerNamespace` for the default cap and

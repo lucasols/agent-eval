@@ -24,6 +24,11 @@ export const spanCacheOptionsSchema = z.object({
   key: z.unknown(),
   /** Override the default namespace (`${evalId}__${spanName}`). */
   namespace: z.string().optional(),
+  /**
+   * Include native `Blob`/`File` bytes in the cache key. By default only stable
+   * metadata (`type`, `size`, plus `name`/`lastModified` for `File`) is used.
+   */
+  serializeFileBytes: z.boolean().optional(),
 });
 /** Options accepted by an `evalTracer.span` call to opt the span into caching. */
 export type SpanCacheOptions = z.infer<typeof spanCacheOptionsSchema>;

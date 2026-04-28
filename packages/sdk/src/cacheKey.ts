@@ -2,10 +2,23 @@ import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import { getCompositeKey } from '@ls-stack/utils/getCompositeKey';
 
-type CacheKeyHashInput = {
+/** Components folded into a deterministic cache key hash. */
+export type CacheKeyHashInput = {
+  /** Cache namespace, usually derived from the eval id and operation name. */
   namespace: string;
+  /** Eval source fingerprint used to invalidate cache entries on code edits. */
   codeFingerprint: string;
+  /** User-authored cache key value. */
   key: unknown;
+};
+
+/** Optional controls for cache key hashing. */
+export type CacheKeyHashOptions = {
+  /**
+   * When true, native `Blob` and `File` values are read asynchronously and
+   * hashed by bytes plus stable metadata. Defaults to metadata-only hashing.
+   */
+  serializeFileBytes?: boolean;
 };
 
 class SerializedCacheKeyValue {
@@ -19,18 +32,25 @@ class SerializedCacheKeyValue {
 /**
  * Hash the components of a cache key into a deterministic hex digest.
  *
- * Native `Blob` and `File` values are read asynchronously and hashed by
- * content. Use `hashCacheKeySync` only when the key contains no async values.
+ * Native `Blob` and `File` values use stable metadata by default. Pass
+ * `serializeFileBytes: true` to read them asynchronously and include their byte
+ * hash in the key.
  */
-export async function hashCacheKey(input: CacheKeyHashInput): Promise<string> {
-  const materialized = await materializeAsyncCacheKeyValue(input);
+export async function hashCacheKey(
+  input: CacheKeyHashInput,
+  options: CacheKeyHashOptions = {},
+): Promise<string> {
+  const materialized =
+    options.serializeFileBytes === true
+      ? await materializeAsyncCacheKeyValue(input)
+      : input;
   return hashCacheKeySyncMaterialized(materialized);
 }
 
 /**
  * Synchronously hash cache key components. This supports JSON-like data and
  * in-memory binary values such as `Buffer`, `ArrayBuffer`, and typed arrays,
- * but cannot content-hash native `Blob` or `File` values.
+ * plus stable metadata for native `Blob` and `File` values.
  */
 export function hashCacheKeySync(input: CacheKeyHashInput): string {
   return hashCacheKeySyncMaterialized(input);

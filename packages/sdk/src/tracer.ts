@@ -29,7 +29,12 @@ export type {
   CaptureEvalSpanErrorOptions,
 } from './traceDiagnostics.ts';
 export type { TraceCacheInfo, TraceCacheRef } from './valueCache.ts';
-export { hashCacheKey, hashCacheKeySync } from './cacheKey.ts';
+export {
+  hashCacheKey,
+  hashCacheKeySync,
+  type CacheKeyHashInput,
+  type CacheKeyHashOptions,
+} from './cacheKey.ts';
 /** Mutable handle for the current span. Prefer ambient `evalSpan` in helpers. */
 export type TraceActiveSpan = {
   /** Rename the active span after it has been created. */
@@ -593,11 +598,10 @@ async function traceSpan(
     ) {
       const ctx = cacheCtx;
       const namespace = cacheOpts.namespace ?? `${ctx.evalId}__${info.name}`;
-      const keyHash = await hashCacheKey({
-        namespace,
-        codeFingerprint: ctx.codeFingerprint,
-        key: cacheOpts.key,
-      });
+      const keyHash = await hashCacheKey(
+        { namespace, codeFingerprint: ctx.codeFingerprint, key: cacheOpts.key },
+        { serializeFileBytes: cacheOpts.serializeFileBytes === true },
+      );
 
       mergeSpanAttributes(spanRecord, {
         'cache.key': keyHash,

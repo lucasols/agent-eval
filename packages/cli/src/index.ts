@@ -41,6 +41,8 @@ export {
   type EvalScoreDef,
   type EvalManualScoreDef,
   type EvalDefinition,
+  type CacheKeyHashInput,
+  type CacheKeyHashOptions,
   type TraceActiveSpan,
   type TraceCacheInfo,
   type TraceCacheRef,
