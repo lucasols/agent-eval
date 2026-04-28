@@ -187,10 +187,12 @@ export function ScoreCell({
   score,
   passThreshold,
   column,
+  isAverage = false,
 }: {
   score: number | null;
   passThreshold: number | undefined;
   column: ColumnDef;
+  isAverage?: boolean;
 }) {
   if (score === null) return <Dim>{EM_DASH}</Dim>;
   if (column.format === 'passFail') {
@@ -233,7 +235,10 @@ export function ScoreCell({
           style={{ width: `${score * 100}%` }}
         />
       </ScoreBar>
-      <ScoreText>{formatScore(score)}</ScoreText>
+      <ScoreText>
+        {isAverage ? '~' : ''}
+        {formatScore(score)}
+      </ScoreText>
     </ScoreCellWrap>
   );
   if (passThreshold === undefined) return bar;

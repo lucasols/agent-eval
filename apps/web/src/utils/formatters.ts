@@ -1,5 +1,7 @@
 import type { ColumnDef, NumberDisplayOptions } from '@agent-evals/shared';
 
+const DEFAULT_MAX_DECIMAL_PLACES = 4;
+
 export function formatNumber(
   value: number | null | undefined,
   options: NumberDisplayOptions | undefined = undefined,
@@ -11,14 +13,14 @@ export function formatNumber(
           notation: 'compact',
           compactDisplay: options.compactDisplay ?? 'short',
           ...(options.decimalPlaces === undefined
-            ? {}
+            ? { maximumFractionDigits: DEFAULT_MAX_DECIMAL_PLACES }
             : {
                 maximumFractionDigits: options.decimalPlaces,
                 minimumFractionDigits: options.decimalPlaces,
               }),
         }).format(value)
       : options?.decimalPlaces === undefined
-        ? String(value)
+        ? Number(value.toFixed(DEFAULT_MAX_DECIMAL_PLACES)).toString()
         : value.toFixed(options.decimalPlaces);
   return `${options?.prefix ?? ''}${rendered}${options?.suffix ?? ''}`;
 }
@@ -35,7 +37,7 @@ export function formatNumericCellValue(c: ColumnDef, value: number): string {
   if (c.format === 'passFail') return formatPassFail(value);
   if (c.format === 'stars') return formatStars(value, c.maxStars);
   if (c.isScore === true) return formatScore(value);
-  return String(value);
+  return formatNumber(value);
 }
 
 export function formatDuration(ms: number | null | undefined): string {

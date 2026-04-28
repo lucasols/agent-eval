@@ -317,6 +317,28 @@ function averageNumericColumn(cases: CaseRow[], key: string): number | null {
   return sum / count;
 }
 
+function pickBestScoringCase(
+  cases: CaseRow[],
+  scoreColumns: ColumnDef[],
+): CaseRow | null {
+  let best: { row: CaseRow; mean: number } | null = null;
+  for (const row of cases) {
+    let sum = 0;
+    let count = 0;
+    for (const col of scoreColumns) {
+      const v = row.columns[col.key];
+      if (typeof v === 'number' && Number.isFinite(v)) {
+        sum += v;
+        count += 1;
+      }
+    }
+    if (count === 0) continue;
+    const mean = sum / count;
+    if (best === null || mean > best.mean) best = { row, mean };
+  }
+  return best?.row ?? null;
+}
+
 export function EvalRunsTable({
   runs,
   columnDefs,
@@ -502,6 +524,7 @@ function RunGroup({
                 score={avg}
                 passThreshold={c.passThreshold}
                 column={c}
+                isAverage={cases.length > 1}
               />
             </RunHeaderTd>
           );
@@ -517,20 +540,66 @@ function RunGroup({
           )}
         </RunHeaderTd>
         {otherCustomColumns.map((c) => {
-          const avg = isNumericColumn(c)
-            ? averageNumericColumn(cases, c.key)
-            : null;
+          if (isNumericColumn(c)) {
+            const avg = averageNumericColumn(cases, c.key);
+            return (
+              <RunHeaderTd
+                key={c.key}
+                rightAlign={true}
+                mono={true}
+              >
+                {avg === null ? (
+                  <Dim>{EM_DASH}</Dim>
+                ) : (
+                  `${cases.length > 1 ? '~' : ''}${formatNumericCellValue(c, avg)}`
+                )}
+              </RunHeaderTd>
+            );
+          }
+          if (expanded) {
+            return (
+              <RunHeaderTd
+                key={c.key}
+                rightAlign={c.align === 'right'}
+                mono={true}
+              >
+                <Dim>{EM_DASH}</Dim>
+              </RunHeaderTd>
+            );
+          }
+          const bestCase = pickBestScoringCase(cases, scoreColumns) ?? cases[0];
+          const bestValue =
+            bestCase === undefined ? undefined : bestCase.columns[c.key];
+          const display = formatCellValue(c, bestValue);
+          if (display === EM_DASH) {
+            return (
+              <RunHeaderTd
+                key={c.key}
+                rightAlign={c.align === 'right'}
+                mono={true}
+              >
+                <Dim>{display}</Dim>
+              </RunHeaderTd>
+            );
+          }
+          const allCasesTooltip =
+            cases.length > 1
+              ? cases
+                  .map(
+                    (row) =>
+                      `${row.caseId}: ${formatCellValue(c, row.columns[c.key])}`,
+                  )
+                  .join('\n')
+              : undefined;
           return (
             <RunHeaderTd
               key={c.key}
-              rightAlign={c.align === 'right' || isNumericColumn(c)}
+              rightAlign={c.align === 'right'}
               mono={true}
             >
-              {avg === null ? (
-                <Dim>{EM_DASH}</Dim>
-              ) : (
-                formatNumericCellValue(c, avg)
-              )}
+              <Tooltip content={allCasesTooltip}>
+                <ColumnText>{display}</ColumnText>
+              </Tooltip>
             </RunHeaderTd>
           );
         })}
