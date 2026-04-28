@@ -200,7 +200,7 @@ lower median when the number of trials is even.
 | `id`                | yes      | Unique eval id                                                                  |
 | `title`             |          | Display title (defaults to a humanized version of `id`)                         |
 | `cases`             | yes      | `EvalCase[]` or `() => Promise<EvalCase[]>` (async loader for dynamic datasets) |
-| `execute`           | yes      | `async ({ input, signal }) => { ... }`                                          |
+| `execute`           | yes      | `async ({ input }) => { ... }`                                                  |
 | `outputsSchema`     |          | Zod schema that validates and types collected outputs before scoring            |
 | `traceDisplay`      |          | Per-eval trace attribute display overrides for the UI                           |
 | `deriveFromTracing` |          | Derive output columns from the finished trace tree                              |
@@ -637,7 +637,8 @@ CLI:
 UI: every `EvalCard` has a split button next to **Run** with a chevron menu
 containing the same four run modes plus a danger-toned "Clear cache for this
 eval". While a run is active, eval cards, folder headers, and the run drawer
-show **Stop** to cancel the whole in-flight run.
+show **Stop** to cancel the whole in-flight run by terminating its isolated
+run process.
 
 Server API (`/api/cache`):
 

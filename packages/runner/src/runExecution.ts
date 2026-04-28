@@ -70,7 +70,6 @@ export async function runCase<
   evalCase: { id: string; input: TRunInput; tags?: string[] };
   globalTraceDisplay: TraceDisplayInputConfig | undefined;
   trial: number;
-  signal: AbortSignal;
   startTime: number;
   cacheAdapter: CacheAdapter | null;
   cacheMode: CacheMode;
@@ -85,7 +84,6 @@ export async function runCase<
     evalCase,
     globalTraceDisplay,
     trial,
-    signal,
     startTime,
     cacheAdapter,
     cacheMode,
@@ -100,7 +98,7 @@ export async function runCase<
     async () => {
       const execute = async () => {
         await Reflect.apply(evalDef.execute, evalDef, [
-          { input: evalCase.input, signal },
+          { input: evalCase.input },
         ]);
       };
       if (moduleIsolation === undefined) {

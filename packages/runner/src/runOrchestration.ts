@@ -54,7 +54,6 @@ export type RunState = {
   cases: CaseRow[];
   caseDetails: Map<string, CaseDetail>;
   listeners: Set<(event: SseEnvelope) => void>;
-  abortController: AbortController;
 };
 
 type TrialExecutionResult = {
@@ -66,6 +65,7 @@ type TrialExecutionResult = {
 type PreparedEvalCase = {
   caseId: string;
   trialResults: TrialExecutionResult[];
+  finalized: boolean;
 };
 
 type PreparedEvalRun = {
@@ -93,6 +93,7 @@ type ExecuteRunParams = {
   getConfiguredConcurrency: () => number;
   getSortedEvalMetas: () => EvalMeta[];
   getTargetEvals: (request: CreateRunRequest) => EvalMeta[];
+  onCaseFinished?: (caseDetail: CaseDetail, caseRow: CaseRow) => void;
 };
 
 /**
@@ -162,6 +163,94 @@ function pickWinningTrial(params: {
   return medianAttempt;
 }
 
+async function finalizePreparedCase(params: {
+  runState: RunState;
+  runDir: string;
+  preparedEval: PreparedEvalRun;
+  preparedCase: PreparedEvalCase;
+  onCaseFinished: ExecuteRunParams['onCaseFinished'];
+  emitEvent: ExecuteRunParams['emitEvent'];
+}): Promise<void> {
+  const {
+    runState,
+    runDir,
+    preparedEval,
+    preparedCase,
+    onCaseFinished,
+    emitEvent,
+  } = params;
+  if (preparedCase.finalized || preparedCase.trialResults.length === 0) return;
+  preparedCase.finalized = true;
+
+  const winningTrial = pickWinningTrial({
+    strategy: runState.manifest.trialSelection,
+    attempts: preparedCase.trialResults,
+    scoreKeys: preparedEval.scoreKeys,
+  });
+
+  if (winningTrial.bufferedCacheStore !== null) {
+    await winningTrial.bufferedCacheStore.commit();
+  }
+
+  runState.cases.push(winningTrial.caseRow);
+  runState.caseDetails.set(preparedCase.caseId, winningTrial.caseDetail);
+  preparedEval.mergeColumns(winningTrial.caseDetail.columns);
+
+  if (winningTrial.caseRow.status === 'pass') {
+    runState.summary.passedCases++;
+  } else if (winningTrial.caseRow.status === 'error') {
+    runState.summary.errorCases++;
+  } else {
+    runState.summary.failedCases++;
+  }
+
+  await writeFile(
+    join(runDir, 'traces', `${preparedCase.caseId}.json`),
+    JSON.stringify(winningTrial.caseDetail.trace, null, 2),
+  );
+  await persistCaseDetail(runDir, winningTrial.caseDetail);
+  onCaseFinished?.(winningTrial.caseDetail, winningTrial.caseRow);
+
+  emitEvent(runState, {
+    type: 'case.finished',
+    runId: runState.manifest.id,
+    timestamp: new Date().toISOString(),
+    payload: winningTrial.caseRow,
+  });
+
+  preparedEval.evalCaseRows.push(winningTrial.caseRow);
+}
+
+function getPreparedCaseOrderKey(caseRow: CaseRow): string {
+  return `${caseRow.evalId}\u0000${caseRow.caseId}`;
+}
+
+function sortCaseRowsByPreparedOrder(
+  caseRows: CaseRow[],
+  preparedEvals: PreparedEvalRun[],
+): void {
+  const orderByCase = new Map<string, number>();
+  let order = 0;
+  for (const preparedEval of preparedEvals) {
+    for (const preparedCase of preparedEval.preparedCases) {
+      orderByCase.set(
+        `${preparedEval.evalMeta.id}\u0000${preparedCase.caseId}`,
+        order,
+      );
+      order++;
+    }
+  }
+
+  caseRows.sort((left, right) => {
+    const leftOrder =
+      orderByCase.get(getPreparedCaseOrderKey(left)) ?? Number.MAX_SAFE_INTEGER;
+    const rightOrder =
+      orderByCase.get(getPreparedCaseOrderKey(right)) ??
+      Number.MAX_SAFE_INTEGER;
+    return leftOrder - rightOrder;
+  });
+}
+
 export async function executeRun({
   runState,
   request,
@@ -178,6 +267,7 @@ export async function executeRun({
   getConfiguredConcurrency,
   getSortedEvalMetas,
   getTargetEvals,
+  onCaseFinished,
 }: ExecuteRunParams): Promise<void> {
   try {
     const targetEvals = getTargetEvals(request);
@@ -189,7 +279,6 @@ export async function executeRun({
       payload: runState.manifest,
     });
 
-    const allCaseRows: CaseRow[] = [];
     const evalErrors: { evalId: string; message: string }[] = [];
     const queuedCases: QueuedCaseRun[] = [];
     const preparedEvals: PreparedEvalRun[] = [];
@@ -198,8 +287,6 @@ export async function executeRun({
     const moduleIsolation = { key: runState.manifest.id, workspaceRoot };
 
     for (const evalMeta of targetEvals) {
-      if (runState.abortController.signal.aborted) break;
-
       const evalFilePath = evalMeta.sourceFilePath;
       let codeFingerprint = '';
       try {
@@ -253,7 +340,7 @@ export async function executeRun({
             const manualScoreKeys = Object.freeze(
               Object.keys(evalDef.manualScores ?? {}),
             );
-            preparedEvals.push({
+            const preparedEval: PreparedEvalRun = {
               evalMeta,
               accumulatedColumns,
               evalCaseRows,
@@ -268,13 +355,17 @@ export async function executeRun({
                   evalDef.manualScores,
                 );
               },
-            });
+            };
+            preparedEvals.push(preparedEval);
 
             for (const evalCase of cases) {
-              if (runState.abortController.signal.aborted) break;
-
               const trialResults: TrialExecutionResult[] = [];
-              preparedCases.push({ caseId: evalCase.id, trialResults });
+              const preparedCase: PreparedEvalCase = {
+                caseId: evalCase.id,
+                trialResults,
+                finalized: false,
+              };
+              preparedCases.push(preparedCase);
 
               for (let trial = 0; trial < request.trials; trial++) {
                 const bufferedCacheStore =
@@ -283,18 +374,13 @@ export async function executeRun({
                     : null;
 
                 queuedCases.push({
-                  execute: async ({
-                    startTime,
-                    signal,
-                    globalTraceDisplay,
-                  }) => {
+                  execute: async ({ startTime, globalTraceDisplay }) => {
                     const { caseDetail, caseRowUpdate } = await runCase({
                       evalDef,
                       evalId: evalMeta.id,
                       evalCase,
                       globalTraceDisplay,
                       trial,
-                      signal,
                       startTime,
                       cacheAdapter:
                         bufferedCacheStore ??
@@ -318,11 +404,20 @@ export async function executeRun({
                       },
                     };
                   },
-                  onComplete: ({ caseDetail, caseRow }) => {
+                  onComplete: async ({ caseDetail, caseRow }) => {
                     trialResults.push({
                       caseDetail,
                       caseRow,
                       bufferedCacheStore,
+                    });
+                    if (trialResults.length !== request.trials) return;
+                    await finalizePreparedCase({
+                      runState,
+                      runDir,
+                      preparedEval,
+                      preparedCase,
+                      onCaseFinished,
+                      emitEvent,
                     });
                   },
                 });
@@ -348,7 +443,6 @@ export async function executeRun({
     }
 
     await executeQueuedCases({
-      runState,
       queuedCases,
       concurrency: getConfiguredConcurrency(),
       globalTraceDisplay: config.traceDisplay,
@@ -356,47 +450,14 @@ export async function executeRun({
 
     for (const preparedEval of preparedEvals) {
       for (const preparedCase of preparedEval.preparedCases) {
-        if (preparedCase.trialResults.length === 0) {
-          continue;
-        }
-
-        const winningTrial = pickWinningTrial({
-          strategy: runState.manifest.trialSelection,
-          attempts: preparedCase.trialResults,
-          scoreKeys: preparedEval.scoreKeys,
+        await finalizePreparedCase({
+          runState,
+          runDir,
+          preparedEval,
+          preparedCase,
+          onCaseFinished,
+          emitEvent,
         });
-
-        if (winningTrial.bufferedCacheStore !== null) {
-          await winningTrial.bufferedCacheStore.commit();
-        }
-
-        runState.cases.push(winningTrial.caseRow);
-        runState.caseDetails.set(preparedCase.caseId, winningTrial.caseDetail);
-        preparedEval.mergeColumns(winningTrial.caseDetail.columns);
-
-        if (winningTrial.caseRow.status === 'pass') {
-          runState.summary.passedCases++;
-        } else if (winningTrial.caseRow.status === 'error') {
-          runState.summary.errorCases++;
-        } else {
-          runState.summary.failedCases++;
-        }
-
-        await writeFile(
-          join(runDir, 'traces', `${preparedCase.caseId}.json`),
-          JSON.stringify(winningTrial.caseDetail.trace, null, 2),
-        );
-        await persistCaseDetail(runDir, winningTrial.caseDetail);
-
-        emitEvent(runState, {
-          type: 'case.finished',
-          runId: runState.manifest.id,
-          timestamp: new Date().toISOString(),
-          payload: winningTrial.caseRow,
-        });
-
-        preparedEval.evalCaseRows.push(winningTrial.caseRow);
-        allCaseRows.push(winningTrial.caseRow);
       }
 
       preparedEval.evalMeta.columnDefs = [
@@ -421,15 +482,16 @@ export async function executeRun({
       });
     }
 
+    sortCaseRowsByPreparedOrder(runState.cases, preparedEvals);
+    for (const preparedEval of preparedEvals) {
+      sortCaseRowsByPreparedOrder(preparedEval.evalCaseRows, preparedEvals);
+    }
+
     const endTime = new Date();
     runState.summary.totalDurationMs =
       endTime.getTime() - new Date(runState.manifest.startedAt).getTime();
 
-    const finalStatus = runState.abortController.signal.aborted
-      ? 'cancelled'
-      : evalErrors.length > 0
-        ? 'error'
-        : 'completed';
+    const finalStatus = evalErrors.length > 0 ? 'error' : 'completed';
     runState.summary.status = finalStatus;
     runState.manifest.status = finalStatus;
     const completedRunAt = endTime.toISOString();
@@ -463,6 +525,8 @@ export async function executeRun({
       });
     }
 
+    await persistRunState(runState);
+
     emitEvent(runState, {
       type: 'run.summary',
       runId: runState.manifest.id,
@@ -481,13 +545,6 @@ export async function executeRun({
             .join('\n'),
         },
       });
-    } else if (finalStatus === 'cancelled') {
-      emitEvent(runState, {
-        type: 'run.cancelled',
-        runId: runState.manifest.id,
-        timestamp: new Date().toISOString(),
-        payload: runState.summary,
-      });
     } else {
       emitEvent(runState, {
         type: 'run.finished',
@@ -497,7 +554,6 @@ export async function executeRun({
       });
     }
 
-    await persistRunState(runState);
     emitDiscoveryEvent();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -506,6 +562,8 @@ export async function executeRun({
     runState.summary.status = 'error';
     runState.summary.errorMessage = message;
 
+    await persistRunState(runState);
+
     emitEvent(runState, {
       type: 'run.error',
       runId: runState.manifest.id,
@@ -513,7 +571,6 @@ export async function executeRun({
       payload: { message },
     });
 
-    await persistRunState(runState);
     emitDiscoveryEvent();
   }
 }

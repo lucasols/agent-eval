@@ -55,7 +55,7 @@ async function readPersistedStatuses(params: {
 }
 
 describe('runner.cancelRun', () => {
-  test('persists cancelled runs and stops queued cases without emitting finished', async () => {
+  test('persists cancelled runs by killing the child process without emitting finished', async () => {
     const workspacePath = await mkdtemp(
       join(tmpdir(), 'agent-evals-runner-cancel-'),
     );
@@ -85,15 +85,9 @@ defineEval({
     { id: 'case-b', input: { id: 'case-b' } },
     { id: 'case-c', input: { id: 'case-c' } },
   ],
-  execute: async ({ input, signal }) => {
+  execute: async ({ input }) => {
     await appendFile(${JSON.stringify(startedLogPath)}, \`\${input.id}\\n\`);
-    await new Promise<void>((resolve) => {
-      if (signal.aborted) {
-        resolve();
-        return;
-      }
-      signal.addEventListener('abort', () => resolve(), { once: true });
-    });
+    await new Promise<void>(() => {});
   },
 });
 `,
@@ -121,16 +115,12 @@ defineEval({
 
       await runner.cancelRun(startedRun.manifest.id);
 
-      await expect
-        .poll(() => runner.getRun(startedRun.manifest.id)?.cases.length, {
-          timeout: 10_000,
-        })
-        .toBe(1);
       unsubscribe();
 
       const run = runner.getRun(startedRun.manifest.id);
       expect(run?.manifest.status).toBe('cancelled');
       expect(run?.summary.status).toBe('cancelled');
+      expect(run?.cases).toHaveLength(0);
       expect(await readStartedCases(startedLogPath)).toEqual(['case-a']);
       expect(events.map((event) => event.type)).not.toContain('run.finished');
       expect(events.map((event) => event.type)).toContain('run.cancelled');
@@ -144,6 +134,87 @@ defineEval({
       await expect
         .poll(() => readPersistedStatuses({ runDir }), { timeout: 10_000 })
         .toEqual({ manifestStatus: 'cancelled', summaryStatus: 'cancelled' });
+    } finally {
+      process.chdir(previousCwd);
+    }
+  }, 10_000);
+
+  test('keeps finished case results while leaving queued cases unstarted', async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), 'agent-evals-runner-cancel-finished-'),
+    );
+    createdWorkspaces.push(workspacePath);
+
+    const startedLogPath = join(workspacePath, 'started-cases.log');
+
+    await mkdir(join(workspacePath, 'evals'), { recursive: true });
+    await writeFile(
+      join(workspacePath, 'agent-evals.config.ts'),
+      `export default {
+  include: ['evals/**/*.eval.ts'],
+  concurrency: 1,
+};
+`,
+    );
+    await writeFile(
+      join(workspacePath, 'evals', 'cancel-finished.eval.ts'),
+      `import { appendFile } from 'node:fs/promises';
+import { defineEval } from '@agent-evals/sdk';
+
+defineEval({
+  id: 'cancel-finished-eval',
+  title: 'Cancel Finished Eval',
+  cases: [
+    { id: 'case-a', input: { id: 'case-a' } },
+    { id: 'case-b', input: { id: 'case-b' } },
+    { id: 'case-c', input: { id: 'case-c' } },
+  ],
+  execute: async ({ input }) => {
+    await appendFile(${JSON.stringify(startedLogPath)}, \`\${input.id}\\n\`);
+    if (input.id === 'case-a') return { finished: input.id };
+    await new Promise<void>(() => {});
+  },
+});
+`,
+    );
+
+    const previousCwd = process.cwd();
+    process.chdir(workspacePath);
+
+    try {
+      const runner = createRunner({ watchForChanges: false });
+      await runner.init();
+
+      const startedRun = await runner.startRun({
+        target: { mode: 'evalIds', evalIds: ['cancel-finished-eval'] },
+        trials: 1,
+      });
+
+      await expect
+        .poll(
+          () =>
+            runner
+              .getRun(startedRun.manifest.id)
+              ?.cases.map((caseRow) => caseRow.caseId),
+          { timeout: 10_000 },
+        )
+        .toEqual(['case-a']);
+      await expect
+        .poll(() => readStartedCases(startedLogPath), { timeout: 10_000 })
+        .toEqual(['case-a', 'case-b']);
+
+      await runner.cancelRun(startedRun.manifest.id);
+
+      const run = runner.getRun(startedRun.manifest.id);
+      expect(run?.manifest.status).toBe('cancelled');
+      expect(run?.summary.status).toBe('cancelled');
+      expect(run?.summary.totalCases).toBe(1);
+      expect(run?.summary.passedCases).toBe(1);
+      expect(run?.cases.map((caseRow) => caseRow.caseId)).toEqual(['case-a']);
+      expect(await readStartedCases(startedLogPath)).toEqual([
+        'case-a',
+        'case-b',
+      ]);
     } finally {
       process.chdir(previousCwd);
     }

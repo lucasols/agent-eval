@@ -171,7 +171,7 @@ function toLastRunStatus(
   return status === 'pending' ? null : status;
 }
 
-async function loadPersistedRunSnapshot(
+export async function loadPersistedRunSnapshot(
   runDir: string,
 ): Promise<PersistedRunSnapshot | null> {
   const manifest = await readParsedJsonFile(join(runDir, 'run.json'), {

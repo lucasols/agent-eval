@@ -35,16 +35,18 @@ import {
 import { readGitWorktreeState } from './gitState.ts';
 import { resolveArtifactPath } from './outputArtifacts.ts';
 import {
+  killRunChild,
+  startRunChild,
+  type RunnerRunState,
+} from './runChildManager.ts';
+import { type RunChildContext } from './runChildProtocol.ts';
+import {
   persistRunState,
   recomputePersistedCaseStatus,
   recomputeEvalStatusesInRuns,
   runTouchesEval,
 } from './runMaintenance.ts';
-import {
-  executeRun,
-  type EvalMeta,
-  type RunState,
-} from './runOrchestration.ts';
+import { type EvalMeta, type RunState } from './runOrchestration.ts';
 import {
   generateRunId,
   getLastRunStatuses,
@@ -195,7 +197,7 @@ export function createRunner({
   let localStateDir: string;
   let cacheStore: FsCacheStore;
   const evals = new Map<string, EvalMeta>();
-  const runs = new Map<string, RunState>();
+  const runs = new Map<string, RunnerRunState>();
   const lastRunStatusMap = new Map<string, EvalSummary['lastRunStatus']>();
   const latestRunInfoMap = new Map<string, EvalLatestRunInfo>();
   const discoveryListeners = new Set<(event: SseEnvelope) => void>();
@@ -215,18 +217,6 @@ export function createRunner({
 
   function getSourceFingerprint(source: string): string {
     return createHash('sha256').update(source).digest('hex');
-  }
-
-  function getConfiguredConcurrency(): number {
-    const configuredConcurrency = config.concurrency;
-    if (
-      typeof configuredConcurrency !== 'number' ||
-      !Number.isFinite(configuredConcurrency)
-    ) {
-      return 1;
-    }
-
-    return Math.max(1, Math.floor(configuredConcurrency));
   }
 
   const runner: EvalRunner = {
@@ -520,16 +510,15 @@ export function createRunner({
         errorMessage: null,
       };
 
-      const abortController = new AbortController();
-
-      const runState: RunState = {
+      const runState: RunnerRunState = {
         runDir,
         manifest,
         summary,
         cases: [],
         caseDetails: new Map(),
         listeners: new Set(),
-        abortController,
+        childProcess: undefined,
+        childTerminalReceived: false,
       };
 
       runs.set(runId, runState);
@@ -558,22 +547,22 @@ export function createRunner({
         JSON.stringify(manifest, null, 2),
       );
 
-      void executeRun({
-        runState,
+      const childContext: RunChildContext = {
         request,
-        runDir,
-        config,
-        evals,
-        cacheStore,
-        lastRunStatusMap,
-        latestRunInfoMap,
-        emitEvent,
-        emitDiscoveryEvent,
         workspaceRoot,
-        getSourceFingerprint,
-        getConfiguredConcurrency,
-        getSortedEvalMetas,
-        getTargetEvals,
+        runDir,
+        manifest,
+        summary,
+        evals: getSortedEvalMetas(),
+      };
+      await writeFile(
+        join(runDir, 'run-child-context.json'),
+        JSON.stringify(childContext, null, 2),
+      );
+      startRunChild({
+        runState,
+        contextPath: join(runDir, 'run-child-context.json'),
+        managerContext: { workspaceRoot, evals, emitEvent, emitDiscoveryEvent },
       });
 
       return { manifest, summary, cases: [] };
@@ -592,12 +581,21 @@ export function createRunner({
       if (run.manifest.status !== 'running') return;
 
       const endedAt = new Date();
-      run.abortController.abort();
       run.manifest.status = 'cancelled';
       run.manifest.endedAt = endedAt.toISOString();
       run.summary.status = 'cancelled';
+      const derivedSummary = deriveScopedSummaryFromCases({
+        caseRows: run.cases,
+        lifecycleStatus: 'cancelled',
+      });
+      run.summary.totalCases = derivedSummary.totalCases;
+      run.summary.passedCases = derivedSummary.passedCases;
+      run.summary.failedCases = derivedSummary.failedCases;
+      run.summary.errorCases = derivedSummary.errorCases;
+      run.summary.cancelledCases = derivedSummary.cancelledCases;
       run.summary.totalDurationMs =
         endedAt.getTime() - new Date(run.manifest.startedAt).getTime();
+      killRunChild(run);
       await persistRunState(run);
       emitEvent(run, {
         type: 'run.cancelled',
@@ -709,15 +707,6 @@ export function createRunner({
     }
   }
 
-  function getTargetEvals(request: CreateRunRequest): EvalMeta[] {
-    if (request.target.evalIds && request.target.evalIds.length > 0) {
-      return request.target.evalIds
-        .map((id) => evals.get(id))
-        .filter((e): e is EvalMeta => e !== undefined);
-    }
-    return getSortedEvalMetas();
-  }
-
   function emitEvent(runState: RunState, event: SseEnvelope) {
     for (const listener of runState.listeners) {
       try {
@@ -737,7 +726,8 @@ export function createRunner({
       runs.set(persistedRun.manifest.id, {
         ...persistedRun,
         listeners: new Set(),
-        abortController: new AbortController(),
+        childProcess: undefined,
+        childTerminalReceived: false,
       });
     }
   }

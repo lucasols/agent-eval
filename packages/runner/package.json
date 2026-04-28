@@ -3,7 +3,8 @@
   "version": "0.0.1",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./run-child": "./src/runChild.ts"
   },
   "tsdown": {
     "clean": true,
@@ -16,7 +17,10 @@
     "dts": {
       "eager": true
     },
-    "entry": "src/index.ts",
+    "entry": [
+      "src/index.ts",
+      "src/runChild.ts"
+    ],
     "format": "esm",
     "platform": "node"
   },

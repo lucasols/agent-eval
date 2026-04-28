@@ -1,7 +1,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { createRequire } from 'node:module';
 import { registerHooks } from 'node:module';
 import { isAbsolute, relative } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const isolationParam = 'agent-evals-isolate';
 const pathSegmentSeparatorPattern = /[\\/]+/;
@@ -11,6 +12,24 @@ type ModuleIsolationContext = { key: string; workspaceRoot: string };
 const isolationStorage = new AsyncLocalStorage<ModuleIsolationContext>();
 const activeIsolationRoots = new Map<string, string>();
 let hooksRegistered = false;
+const requireFromRunner = createRequire(import.meta.url);
+const agentPackageUrlBySpecifier = new Map(
+  [
+    '@ls-stack/agent-eval',
+    '@agent-evals/sdk',
+    '@agent-evals/shared',
+    '@agent-evals/runner',
+    '@agent-evals/runner/run-child',
+  ].flatMap((specifier) => {
+    try {
+      return [
+        [specifier, pathToFileURL(requireFromRunner.resolve(specifier)).href],
+      ];
+    } catch {
+      return [];
+    }
+  }),
+);
 
 function isAgentEvalsPackageSpecifier(specifier: string): boolean {
   return (
@@ -65,6 +84,11 @@ function registerModuleIsolationHooks(): void {
 
   registerHooks({
     resolve(specifier, context, nextResolve) {
+      const agentPackageUrl = agentPackageUrlBySpecifier.get(specifier);
+      if (agentPackageUrl !== undefined) {
+        return { url: agentPackageUrl, shortCircuit: true };
+      }
+
       const resolved = nextResolve(specifier, context);
       if (isAgentEvalsPackageSpecifier(specifier)) return resolved;
 

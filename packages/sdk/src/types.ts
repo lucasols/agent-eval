@@ -99,7 +99,7 @@ export type EvalTraceTree = {
 };
 
 /** Context passed to an eval's `execute` function for a single case run. */
-export type EvalExecuteContext<TInput> = { input: TInput; signal: AbortSignal };
+export type EvalExecuteContext<TInput> = { input: TInput };
 
 /** Context passed to `deriveFromTracing` after execution has completed. */
 export type EvalDeriveContext<TInput> = {

@@ -292,8 +292,8 @@ Mental model:
   `setEvalOutput` instead.
 - Cache mode per run is controlled by CLI flags (see `agent-evals run --help`)
   and by a chevron menu on each eval card in the UI.
-- The UI Stop action cancels the whole active run. In-flight eval code stops
-  cooperatively when it observes the provided `AbortSignal`.
+- The UI Stop action cancels the whole active run by terminating that run's
+  isolated execution process.
 
 ## Artifacts
 

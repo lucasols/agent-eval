@@ -4,46 +4,29 @@ import type {
   TraceDisplayInputConfig,
 } from '@agent-evals/shared';
 
-export type QueuedCaseExecution = {
-  caseDetail: CaseDetail;
-  caseRow: CaseRow;
-};
+export type QueuedCaseExecution = { caseDetail: CaseDetail; caseRow: CaseRow };
 
 export type QueuedCaseRun = {
   execute: (params: {
     startTime: number;
-    signal: AbortSignal;
     globalTraceDisplay: TraceDisplayInputConfig | undefined;
   }) => Promise<QueuedCaseExecution>;
   onComplete: (result: QueuedCaseExecution) => Promise<void> | void;
 };
 
-type RunQueueState = {
-  abortController: AbortController;
-};
-
 export async function executeQueuedCases(params: {
-  runState: RunQueueState;
   queuedCases: QueuedCaseRun[];
   concurrency: number;
   globalTraceDisplay: TraceDisplayInputConfig | undefined;
 }): Promise<void> {
-  const {
-    runState,
-    queuedCases,
-    concurrency,
-    globalTraceDisplay,
-  } = params;
+  const { queuedCases, concurrency, globalTraceDisplay } = params;
 
   let nextCaseIndex = 0;
   let workerError: unknown = undefined;
   const workerCount = Math.min(concurrency, queuedCases.length);
 
   const workers = Array.from({ length: workerCount }, async () => {
-    while (
-      !runState.abortController.signal.aborted &&
-      workerError === undefined
-    ) {
+    while (workerError === undefined) {
       const queuedCase = queuedCases[nextCaseIndex];
       nextCaseIndex += 1;
 
@@ -52,14 +35,9 @@ export async function executeQueuedCases(params: {
       }
 
       try {
-        await executeQueuedCase({
-          queuedCase,
-          runState,
-          globalTraceDisplay,
-        });
+        await executeQueuedCase({ queuedCase, globalTraceDisplay });
       } catch (error) {
-        workerError =
-          error instanceof Error ? error : new Error(String(error));
+        workerError = error instanceof Error ? error : new Error(String(error));
         return;
       }
     }
@@ -87,16 +65,11 @@ export async function executeQueuedCases(params: {
 
 async function executeQueuedCase(params: {
   queuedCase: QueuedCaseRun;
-  runState: RunQueueState;
   globalTraceDisplay: TraceDisplayInputConfig | undefined;
 }): Promise<void> {
-  const { queuedCase, runState, globalTraceDisplay } = params;
+  const { queuedCase, globalTraceDisplay } = params;
 
   const startTime = Date.now();
-  const result = await queuedCase.execute({
-    globalTraceDisplay,
-    signal: runState.abortController.signal,
-    startTime,
-  });
+  const result = await queuedCase.execute({ globalTraceDisplay, startTime });
   await queuedCase.onComplete(result);
 }

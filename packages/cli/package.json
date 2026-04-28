@@ -45,7 +45,8 @@
     },
     "entry": [
       "src/index.ts",
-      "src/bin.ts"
+      "src/bin.ts",
+      "src/runChild.ts"
     ],
     "format": "esm",
     "platform": "node"
