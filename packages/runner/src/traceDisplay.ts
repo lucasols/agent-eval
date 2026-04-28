@@ -1,27 +1,14 @@
-import type {
-  EvalTraceSpan,
-  TraceAttributeDisplay,
-  TraceAttributeDisplayInput,
-  TraceDisplayConfig,
-  TraceDisplayInputConfig,
+import {
+  getNestedAttribute,
+  type EvalTraceSpan,
+  type TraceAttributeDisplay,
+  type TraceAttributeDisplayInput,
+  type TraceDisplayConfig,
+  type TraceDisplayInputConfig,
 } from '@agent-evals/shared';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
-}
-
-export function getNestedAttribute(value: unknown, path: string): unknown {
-  const parts = path.split('.');
-  let current = value;
-
-  for (const part of parts) {
-    if (!isRecord(current) || !(part in current)) {
-      return undefined;
-    }
-    current = current[part];
-  }
-
-  return current;
 }
 
 function mergeNestedAttribute(

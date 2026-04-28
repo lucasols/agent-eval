@@ -1,5 +1,9 @@
 import { z } from 'zod/v4';
 import {
+  numberDisplayOptionsSchema,
+  type NumberDisplayOptions,
+} from './display.ts';
+import {
   traceDisplayInputConfigSchema,
   type TraceDisplayInputConfig,
 } from './trace.ts';
@@ -8,6 +12,168 @@ import {
 export const trialSelectionModeSchema = z.enum(['lowestScore', 'median']);
 /** Strategy used to collapse repeated trials into one stored case result. */
 export type TrialSelectionMode = z.infer<typeof trialSelectionModeSchema>;
+
+/** Render formats supported by an LLM-call metric in the UI. */
+export const llmCallMetricFormatSchema = z.enum([
+  'string',
+  'number',
+  'duration',
+  'json',
+  'boolean',
+]);
+/** Render format applied to an LLM-call metric value. */
+export type LlmCallMetricFormat = z.infer<typeof llmCallMetricFormatSchema>;
+
+/** Where an LLM-call metric is rendered inside the LLM calls tab. */
+export const llmCallMetricPlacementSchema = z.enum(['header', 'body']);
+/** Placement option for an LLM-call metric. */
+export type LlmCallMetricPlacement = z.infer<
+  typeof llmCallMetricPlacementSchema
+>;
+
+/**
+ * Schema for a single user-defined metric attached to LLM call rows.
+ *
+ * Each metric reads `path` from the span's `attributes` and renders the value
+ * with the configured `format` and `numberFormat`. `placements` controls
+ * whether the metric appears as a chip on the collapsed row header, as a row
+ * inside the expanded body, or both. Defaults to `['body']` when omitted.
+ */
+export const llmCallMetricSchema = z.object({
+  /** Display label for the metric row or header chip. */
+  label: z.string().min(1),
+  /** Dot-path inside `span.attributes` used to read the value. */
+  path: z.string().min(1),
+  /** Render hint applied to the resolved value. Defaults to `'string'`. */
+  format: llmCallMetricFormatSchema.optional(),
+  /** Number presentation options applied when `format: 'number'`. */
+  numberFormat: numberDisplayOptionsSchema.optional(),
+  /**
+   * Where the metric should appear in the LLM calls tab. Defaults to
+   * `['body']` so metrics surface inside the expanded detail view only.
+   */
+  placements: z.array(llmCallMetricPlacementSchema).nonempty().optional(),
+});
+/** User-defined metric authored in `agent-evals.config.ts`. */
+export type LlmCallMetric = z.infer<typeof llmCallMetricSchema>;
+
+/** Schema for the global LLM calls config block in `agent-evals.config.ts`. */
+export const llmCallsConfigSchema = z.object({
+  /** Span kinds treated as LLM calls. Defaults to `['llm']`. */
+  kinds: z.array(z.string().min(1)).optional(),
+  /**
+   * Attribute paths used to extract structured per-call fields. Each entry is
+   * a dot-path inside `span.attributes`. Missing paths fall back to the
+   * built-in defaults (e.g. `usage.inputTokens`, `costUsd`).
+   */
+  attributes: z
+    .object({
+      model: z.string().optional(),
+      provider: z.string().optional(),
+      inputTokens: z.string().optional(),
+      outputTokens: z.string().optional(),
+      cachedInputTokens: z.string().optional(),
+      reasoningTokens: z.string().optional(),
+      totalTokens: z.string().optional(),
+      cost: z.string().optional(),
+      steps: z.string().optional(),
+      finishReason: z.string().optional(),
+      input: z.string().optional(),
+      output: z.string().optional(),
+      reasoning: z.string().optional(),
+      toolCalls: z.string().optional(),
+    })
+    .optional(),
+  /** Custom user-defined metrics surfaced on each LLM call. */
+  metrics: z.array(llmCallMetricSchema).optional(),
+});
+/** Authored LLM calls config accepted from `agent-evals.config.ts`. */
+export type LlmCallsConfigInput = z.infer<typeof llmCallsConfigSchema>;
+
+/** Resolved LLM-calls config sent to the UI with all defaults applied. */
+export type ResolvedLlmCallsConfig = {
+  kinds: string[];
+  attributes: {
+    model: string;
+    provider: string;
+    inputTokens: string;
+    outputTokens: string;
+    cachedInputTokens: string;
+    reasoningTokens: string;
+    totalTokens: string;
+    cost: string;
+    steps: string;
+    finishReason: string;
+    input: string;
+    output: string;
+    reasoning: string;
+    toolCalls: string;
+  };
+  metrics: ResolvedLlmCallMetric[];
+};
+
+/** Fully-resolved LLM-call metric used by the runner and UI. */
+export type ResolvedLlmCallMetric = {
+  label: string;
+  path: string;
+  format: LlmCallMetricFormat;
+  numberFormat?: NumberDisplayOptions;
+  placements: LlmCallMetricPlacement[];
+};
+
+/** Default LLM-calls config the UI uses before the workspace fetch resolves. */
+export const DEFAULT_LLM_CALLS_CONFIG: ResolvedLlmCallsConfig = {
+  kinds: ['llm'],
+  attributes: {
+    model: 'model',
+    provider: 'provider',
+    inputTokens: 'usage.inputTokens',
+    outputTokens: 'usage.outputTokens',
+    cachedInputTokens: 'usage.cachedInputTokens',
+    reasoningTokens: 'usage.reasoningTokens',
+    totalTokens: 'usage.totalTokens',
+    cost: 'costUsd',
+    steps: 'steps',
+    finishReason: 'finishReason',
+    input: 'input',
+    output: 'output',
+    reasoning: 'reasoning',
+    toolCalls: 'toolCalls',
+  },
+  metrics: [],
+};
+
+/**
+ * Resolve the user-authored LLM-calls config to a fully-defaulted shape used
+ * by the UI to derive the LLM calls tab.
+ *
+ * - Missing or empty `kinds` falls back to `['llm']`.
+ * - Missing `attributes.<field>` falls back to the corresponding default
+ *   attribute path.
+ * - Missing `metrics[].format` defaults to `'string'`.
+ * - Missing `metrics[].placements` defaults to `['body']`.
+ */
+export function resolveLlmCallsConfig(
+  input: LlmCallsConfigInput | undefined,
+): ResolvedLlmCallsConfig {
+  return {
+    kinds:
+      input?.kinds && input.kinds.length > 0
+        ? [...input.kinds]
+        : [...DEFAULT_LLM_CALLS_CONFIG.kinds],
+    attributes: {
+      ...DEFAULT_LLM_CALLS_CONFIG.attributes,
+      ...input?.attributes,
+    },
+    metrics: (input?.metrics ?? []).map((m) => ({
+      label: m.label,
+      path: m.path,
+      format: m.format ?? 'string',
+      numberFormat: m.numberFormat,
+      placements: m.placements ? [...m.placements] : ['body'],
+    })),
+  };
+}
 
 /** Top-level config authored in `agent-evals.config.ts`. */
 export type AgentEvalsConfig = {
@@ -42,6 +208,32 @@ export type AgentEvalsConfig = {
    */
   traceDisplay?: TraceDisplayInputConfig;
   /**
+   * Configuration for the "LLM calls" tab in the case-run drawer.
+   *
+   * Determines which trace spans are treated as LLM calls (`kinds`), how
+   * structured fields like `model` and `usage.inputTokens` are read from
+   * span attributes, and which custom user-defined metrics are surfaced on
+   * each call. All fields are optional and fall back to the documented
+   * defaults; the LLM calls tab is shown automatically when at least one
+   * matching span exists in a case run.
+   *
+   * @example
+   * ```ts
+   * llmCalls: {
+   *   kinds: ['llm', 'ai-sdk.generateText'],
+   *   attributes: {
+   *     cachedInputTokens: 'usage.cache_read_input_tokens',
+   *   },
+   *   metrics: [
+   *     { label: 'Tokens/sec', path: 'tokensPerSecond', format: 'number',
+   *       numberFormat: { decimalPlaces: 1 }, placements: ['header', 'body'] },
+   *     { label: 'Retries', path: 'retryCount', format: 'number' },
+   *   ],
+   * }
+   * ```
+   */
+  llmCalls?: LlmCallsConfigInput;
+  /**
    * Optional controls for the operation cache. When omitted, the cache is
    * enabled and stored under `<workspaceRoot>/.agent-evals/cache`.
    */
@@ -74,6 +266,7 @@ export const agentEvalsConfigSchema = z.object({
   concurrency: z.number().optional(),
   staleAfterDays: z.number().optional(),
   traceDisplay: traceDisplayInputConfigSchema.optional(),
+  llmCalls: llmCallsConfigSchema.optional(),
   cache: z
     .object({
       enabled: z.boolean().optional(),

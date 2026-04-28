@@ -7,5 +7,5 @@ export const workspaceRoutes = new Hono().get('/', async (c) => {
   const packageManager = await detectWorkspacePackageManager(
     runner.getWorkspaceRoot(),
   );
-  return c.json({ packageManager }, 200);
+  return c.json({ packageManager, llmCalls: runner.getLlmCallsConfig() }, 200);
 });

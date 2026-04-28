@@ -22,4 +22,34 @@ export const config: AgentEvalsConfig = {
       },
     ],
   },
+  llmCalls: {
+    metrics: [
+      {
+        label: 'Tokens/sec',
+        path: 'tokensPerSecond',
+        format: 'number',
+        numberFormat: { decimalPlaces: 1 },
+        placements: ['header', 'body'],
+      },
+      {
+        label: 'Retries',
+        path: 'retryCount',
+        format: 'number',
+        placements: ['body'],
+      },
+      {
+        label: 'Temperature',
+        path: 'params.temperature',
+        format: 'number',
+        numberFormat: { decimalPlaces: 2 },
+        placements: ['body'],
+      },
+      {
+        label: 'Streamed',
+        path: 'streamed',
+        format: 'boolean',
+        placements: ['body'],
+      },
+    ],
+  },
 };

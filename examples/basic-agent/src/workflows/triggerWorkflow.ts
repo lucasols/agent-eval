@@ -45,8 +45,15 @@ export async function triggerWorkflow(
           evalSpan.setAttributes({
             input: { prompt: input.message },
             model: 'gpt-4o-mini',
+            provider: 'openai',
             usage,
             costUsd,
+            steps: 1,
+            finishReason: 'stop',
+            tokensPerSecond: 38.2,
+            retryCount: 0,
+            streamed: true,
+            params: { temperature: 0.2 },
             output: { plan: 'approve refund' },
           });
 

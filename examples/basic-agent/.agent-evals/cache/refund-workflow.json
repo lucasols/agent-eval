@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "owner": "refund-workflow",
+  "entries": {
+    "54c3dad1df57a7695bad2a68d8add30a884c0ac3974a5618c8efd0510cbdd593": {
+      "version": 1,
+      "key": "54c3dad1df57a7695bad2a68d8add30a884c0ac3974a5618c8efd0510cbdd593",
+      "namespace": "refund-workflow__plan-refund",
+      "operationType": "span",
+      "operationName": "plan-refund",
+      "spanName": "plan-refund",
+      "spanKind": "llm",
+      "storedAt": "2026-04-28T14:12:54.065Z",
+      "codeFingerprint": "4945be42a8b999658d4e64510946dea138ca8f0a3e246bd60eafb9a29bf3fa60",
+      "recording": {
+        "finalAttributes": {
+          "input": { "prompt": "Please refund this damaged item" },
+          "model": "gpt-4o-mini",
+          "provider": "openai",
+          "usage": { "inputTokens": 150, "outputTokens": 50 },
+          "costUsd": 0.0008749999999999999,
+          "steps": 1,
+          "finishReason": "stop",
+          "tokensPerSecond": 38.2,
+          "retryCount": 0,
+          "streamed": true,
+          "params": { "temperature": 0.2 },
+          "output": { "plan": "approve refund" }
+        },
+        "finalStatus": "ok",
+        "ops": [
+          {
+            "kind": "incrementOutput",
+            "key": "costUsd",
+            "delta": 0.0008749999999999999
+          }
+        ]
+      }
+    },
+    "9881067dcaa63db2b82899d615fb6ded8167a5176a6e9431f839d0eb70da7f28": {
+      "version": 1,
+      "key": "9881067dcaa63db2b82899d615fb6ded8167a5176a6e9431f839d0eb70da7f28",
+      "namespace": "refund-workflow__plan-refund",
+      "operationType": "span",
+      "operationName": "plan-refund",
+      "spanName": "plan-refund",
+      "spanKind": "llm",
+      "storedAt": "2026-04-28T14:12:54.500Z",
+      "codeFingerprint": "4945be42a8b999658d4e64510946dea138ca8f0a3e246bd60eafb9a29bf3fa60",
+      "recording": {
+        "finalAttributes": {
+          "input": { "prompt": "I need to return this product" },
+          "model": "gpt-4o-mini",
+          "provider": "openai",
+          "usage": { "inputTokens": 150, "outputTokens": 50 },
+          "costUsd": 0.0008749999999999999,
+          "steps": 1,
+          "finishReason": "stop",
+          "tokensPerSecond": 38.2,
+          "retryCount": 0,
+          "streamed": true,
+          "params": { "temperature": 0.2 },
+          "output": { "plan": "approve refund" }
+        },
+        "finalStatus": "ok",
+        "ops": [
+          {
+            "kind": "incrementOutput",
+            "key": "costUsd",
+            "delta": 0.0008749999999999999
+          }
+        ]
+      }
+    },
+    "ecb29e121d5c5ee0cdf32c9740230c1cb441cbef2cab867e48f7eea157361061": {
+      "version": 1,
+      "key": "ecb29e121d5c5ee0cdf32c9740230c1cb441cbef2cab867e48f7eea157361061",
+      "namespace": "refund-workflow__plan-refund",
+      "operationType": "span",
+      "operationName": "plan-refund",
+      "spanName": "plan-refund",
+      "spanKind": "llm",
+      "storedAt": "2026-04-28T14:12:54.065Z",
+      "codeFingerprint": "4945be42a8b999658d4e64510946dea138ca8f0a3e246bd60eafb9a29bf3fa60",
+      "recording": {
+        "finalAttributes": {
+          "input": { "prompt": "I want a refund for order #123" },
+          "model": "gpt-4o-mini",
+          "provider": "openai",
+          "usage": { "inputTokens": 150, "outputTokens": 50 },
+          "costUsd": 0.0008749999999999999,
+          "steps": 1,
+          "finishReason": "stop",
+          "tokensPerSecond": 38.2,
+          "retryCount": 0,
+          "streamed": true,
+          "params": { "temperature": 0.2 },
+          "output": { "plan": "approve refund" }
+        },
+        "finalStatus": "ok",
+        "ops": [
+          {
+            "kind": "incrementOutput",
+            "key": "costUsd",
+            "delta": 0.0008749999999999999
+          }
+        ]
+      }
+    }
+  }
+}

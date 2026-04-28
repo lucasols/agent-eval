@@ -18,6 +18,7 @@ import {
   selectionStore,
   syncSelectionFromSearchParams,
 } from '#src/stores/selectionStore';
+import { fetchWorkspaceConfig } from '#src/stores/workspaceConfigStore';
 import { colors } from '#src/style/colors';
 import { inline, stack } from '#src/style/helpers';
 import { collectEvalsInFolder } from '#src/utils/buildEvalTree';
@@ -67,6 +68,7 @@ export function AppShell() {
   useEffect(() => {
     void fetchEvals();
     void refetchHistory();
+    void fetchWorkspaceConfig();
   }, []);
 
   useEffect(() => {

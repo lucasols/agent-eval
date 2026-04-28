@@ -1,4 +1,8 @@
-import type { CellValue, ColumnDef } from '@agent-evals/shared';
+import {
+  extractLlmCalls,
+  type CellValue,
+  type ColumnDef,
+} from '@agent-evals/shared';
 import { Maximize2, Minimize2, X } from 'lucide-react';
 import { useRef } from 'react';
 import { styled } from 'vindur';
@@ -10,6 +14,7 @@ import {
 } from '#src/components/FormattedCellValue';
 import { IconButton } from '#src/components/IconButton';
 import { JsonViewer } from '#src/components/JsonViewer';
+import { LlmCallRow } from '#src/components/LlmCallRow';
 import { ResizeHandle } from '#src/components/ResizeHandle';
 import { StatusBadge } from '#src/components/StatusBadge';
 import { TraceTree } from '#src/components/TraceTree';
@@ -22,6 +27,7 @@ import { useWindowWidth } from '#src/hooks/useWindowWidth';
 import { evalsStore } from '#src/stores/evalsStore';
 import { layoutStore } from '#src/stores/layoutStore';
 import { closeCase, runStore } from '#src/stores/runStore';
+import { workspaceConfigStore } from '#src/stores/workspaceConfigStore';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
 import { formatNumericCellValue, formatScore } from '#src/utils/formatters';
@@ -31,10 +37,23 @@ type Tab =
   | 'output'
   | 'scores'
   | 'trace'
+  | 'llmCalls'
   | 'scoring'
   | 'raw'
   | 'failures'
   | 'error';
+
+const TAB_LABELS: Record<Tab, string> = {
+  input: 'Input',
+  output: 'Output',
+  scores: 'Scores',
+  trace: 'Trace',
+  llmCalls: 'LLM calls',
+  scoring: 'Scoring',
+  raw: 'Raw',
+  failures: 'Failures',
+  error: 'Error',
+};
 
 const DrawerLoading = styled.div`
   border-left: 1px solid ${colors.border.var};
@@ -114,7 +133,6 @@ const TabButton = styled.button<{ active: boolean }>`
   white-space: nowrap;
   margin-bottom: -1px;
   border-bottom: 1.5px solid transparent;
-  text-transform: capitalize;
 
   &:hover {
     color: ${colors.text.var};
@@ -325,6 +343,10 @@ const FailureMessage = styled.div`
   line-height: 1.5;
 `;
 
+const LlmCallsList = styled.div`
+  ${stack({ gap: 8 })}
+`;
+
 function resolveActiveTab(
   requestedTab: string | null,
   availableTabs: Tab[],
@@ -341,6 +363,7 @@ function parseTab(value: string): Tab | null {
     case 'output':
     case 'scores':
     case 'trace':
+    case 'llmCalls':
     case 'scoring':
     case 'raw':
     case 'failures':
@@ -359,6 +382,9 @@ export function CaseDrawer() {
   const { evals } = evalsStore.useSelectorRC((s) => ({ evals: s.evals }));
   const { sidebarWidth } = layoutStore.useSelectorRC((s) => ({
     sidebarWidth: s.sidebarWidth,
+  }));
+  const { llmCallsConfig } = workspaceConfigStore.useSelectorRC((s) => ({
+    llmCallsConfig: s.llmCalls,
   }));
   const windowWidth = useWindowWidth();
   const minWidth = 360;
@@ -410,9 +436,11 @@ export function CaseDrawer() {
   const scoreColumns = columnDefs.filter((c) => c.isScore === true);
   const scoringTraces = d.scoringTraces ?? {};
   const scoringTraceEntries = Object.entries(scoringTraces);
+  const llmCallEntries = extractLlmCalls(d.trace, llmCallsConfig);
   const tabs: Tab[] = ['input', 'output'];
   if (scoreColumns.length > 0) tabs.push('scores');
   tabs.push('trace');
+  if (llmCallEntries.length > 0) tabs.push('llmCalls');
   if (scoringTraceEntries.length > 0) tabs.push('scoring');
   tabs.push('raw');
   if (d.assertionFailures.length > 0) tabs.push('failures');
@@ -470,7 +498,7 @@ export function CaseDrawer() {
             }}
             active={activeTab === tab}
           >
-            {tab}
+            {TAB_LABELS[tab]}
           </TabButton>
         ))}
       </TabBar>
@@ -562,6 +590,24 @@ export function CaseDrawer() {
             spans={d.trace}
             traceDisplay={d.traceDisplay}
           />
+        ) : null}
+
+        {activeTab === 'llmCalls' ? (
+          llmCallEntries.length > 0 ? (
+            <LlmCallsList>
+              {llmCallEntries.map((entry) => (
+                <LlmCallRow
+                  key={entry.id}
+                  entry={entry}
+                />
+              ))}
+            </LlmCallsList>
+          ) : (
+            <EmptyState
+              title="No LLM calls"
+              description="No spans matched the configured LLM call kinds in this case run."
+            />
+          )
         ) : null}
 
         {activeTab === 'scoring' ? (

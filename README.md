@@ -177,15 +177,16 @@ build also bundles the web UI assets used by `agent-evals app`.
 
 `agent-evals.config.ts` at your project root defines how evals are discovered and executed.
 
-| Field            | Type                         | Description                                                                   |
-| ---------------- | ---------------------------- | ----------------------------------------------------------------------------- |
-| `include`        | `string[]`                   | Glob patterns for eval files (e.g. `['evals/**/*.eval.ts']`)                  |
-| `workspaceRoot`  | `string?`                    | Root directory; defaults to `process.cwd()`                                   |
-| `defaultTrials`  | `number?`                    | Trials per case when not overridden (default: `1`)                            |
-| `trialSelection` | `'lowestScore' \| 'median'?` | Winner selection strategy for persisted multi-trial case results              |
-| `concurrency`    | `number?`                    | Max parallel case executions per run, including trials (default: `2`)         |
-| `staleAfterDays` | `number?`                    | Days before a mismatched-commit latest run is marked outdated (default: `14`) |
-| `traceDisplay`   | `TraceDisplayConfig?`        | Global trace attribute display config for the UI                              |
+| Field            | Type                         | Description                                                                           |
+| ---------------- | ---------------------------- | ------------------------------------------------------------------------------------- |
+| `include`        | `string[]`                   | Glob patterns for eval files (e.g. `['evals/**/*.eval.ts']`)                          |
+| `workspaceRoot`  | `string?`                    | Root directory; defaults to `process.cwd()`                                           |
+| `defaultTrials`  | `number?`                    | Trials per case when not overridden (default: `1`)                                    |
+| `trialSelection` | `'lowestScore' \| 'median'?` | Winner selection strategy for persisted multi-trial case results                      |
+| `concurrency`    | `number?`                    | Max parallel case executions per run, including trials (default: `2`)                 |
+| `staleAfterDays` | `number?`                    | Days before a mismatched-commit latest run is marked outdated (default: `14`)         |
+| `traceDisplay`   | `TraceDisplayConfig?`        | Global trace attribute display config for the UI                                      |
+| `llmCalls`       | `LlmCallsConfig?`            | LLM calls tab config for the case-run drawer (kinds, attribute paths, custom metrics) |
 
 When `trials > 1`, the runner executes the case repeatedly but persists a
 single winning result per case. `lowestScore` is the default. `median` uses the
@@ -348,6 +349,40 @@ traceDisplay: {
 Use `key` when you want to display the same source attribute more than once, such as raw and compact views of the same token count. `transform` runs in the runner and the UI receives the transformed result as plain data.
 
 `scope` controls whether a value is read from the current span only (`'self'`) or from the whole span subtree (`'subtree'`). `mode` controls how multiple matching values are resolved: `'all'`, `'last'`, or `'sum'`.
+
+### LLM calls tab
+
+The case-run drawer surfaces a dedicated **LLM calls** tab that derives a focused list from the trace whenever a case run produced at least one matching span. By default, every span with `kind: 'llm'` is treated as an LLM call and the tab reads `model`, `usage.inputTokens`, `usage.outputTokens`, `usage.cachedInputTokens`, `usage.reasoningTokens`, `costUsd`, `steps`, `finishReason`, `provider`, `input`, `output`, `reasoning`, and `toolCalls` from the span's attributes. Each row is collapsed by default; clicking expands it to show the full token breakdown, finish reason, input/output JSON, reasoning text, tool calls, and any custom metrics.
+
+Override the defaults globally from `agent-evals.config.ts`:
+
+```ts
+llmCalls: {
+  // Treat additional span kinds as LLM calls.
+  kinds: ['llm', 'ai-sdk.generateText'],
+  // Read structured fields from non-default attribute paths.
+  attributes: {
+    cachedInputTokens: 'usage.cache_read_input_tokens',
+    reasoningTokens: 'usage.completion_tokens_details.reasoning_tokens',
+  },
+  // Surface arbitrary user metrics on each call. `placements` defaults to
+  // `['body']`; include `'header'` to also show a chip on the collapsed row.
+  metrics: [
+    {
+      label: 'Tokens/sec',
+      path: 'tokensPerSecond',
+      format: 'number',
+      numberFormat: { decimalPlaces: 1 },
+      placements: ['header', 'body'],
+    },
+    { label: 'Retries', path: 'retryCount', format: 'number' },
+    { label: 'Temperature', path: 'params.temperature', format: 'number' },
+    { label: 'Streamed', path: 'streamed', format: 'boolean' },
+  ],
+}
+```
+
+Custom metrics support `'string' | 'number' | 'duration' | 'json' | 'boolean'` formats. The tab is hidden automatically for cases with no matching spans.
 
 ### Scorers
 

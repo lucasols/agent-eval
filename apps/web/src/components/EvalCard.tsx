@@ -14,7 +14,6 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { resultify } from 't-result';
 import { styled } from 'vindur';
-import { z } from 'zod/v4';
 import { Button } from '#src/components/Button';
 import { EvalRunsChart } from '#src/components/EvalRunsChart';
 import { EvalRunsTable } from '#src/components/EvalRunsTable';
@@ -38,6 +37,7 @@ import {
   startRun,
 } from '#src/stores/runStore';
 import { selectEval, selectFolder } from '#src/stores/selectionStore';
+import { workspaceConfigStore } from '#src/stores/workspaceConfigStore';
 import { colors } from '#src/style/colors';
 import {
   ellipsis,
@@ -50,19 +50,12 @@ import {
 } from '#src/style/helpers';
 import { getDisplayFolderSegments } from '#src/utils/buildEvalTree';
 import { buildChartPoints } from '#src/utils/chartData';
-import {
-  buildEvalRunCliCommand,
-  type PackageManager,
-} from '#src/utils/cliCommand';
+import { buildEvalRunCliCommand } from '#src/utils/cliCommand';
 import { buildEvalScopedRunRows } from '#src/utils/evalRuns';
 import { computeStatDisplay } from '#src/utils/evalStats';
 import { getFreshnessTooltip } from '#src/utils/freshness';
 
 type EvalCardProps = { evalSummary: EvalSummary; mode: 'single' | 'stacked' };
-
-const workspaceInfoSchema = z.object({
-  packageManager: z.enum(['npm', 'pnpm', 'yarn', 'bun']),
-});
 
 const Card = styled.section<{ stacked: boolean; single: boolean }>`
   ${stack({ gap: 0 })}
@@ -309,21 +302,6 @@ function readScoreHistoryCollapsed(): boolean {
   );
 }
 
-async function fetchWorkspacePackageManager(): Promise<PackageManager> {
-  const fetchResult = await resultify(() => fetch('/api/workspace'));
-  if (fetchResult.error || !fetchResult.value.ok) return 'pnpm';
-
-  const jsonResult = await resultify(() => fetchResult.value.json());
-  if (jsonResult.error) return 'pnpm';
-
-  const parseResult = resultify(() =>
-    workspaceInfoSchema.parse(jsonResult.value),
-  );
-  if (parseResult.error) return 'pnpm';
-
-  return parseResult.value.packageManager;
-}
-
 async function copyTextToClipboard(text: string): Promise<void> {
   const copyResult = await resultify(() => navigator.clipboard.writeText(text));
   if (!copyResult.error) return;
@@ -512,7 +490,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   }
 
   async function handleCopyCliRunCommand() {
-    const packageManager = await fetchWorkspacePackageManager();
+    const { packageManager } = workspaceConfigStore.state;
     await copyTextToClipboard(
       buildEvalRunCliCommand({ packageManager, evalId: evalSummary.id }),
     );

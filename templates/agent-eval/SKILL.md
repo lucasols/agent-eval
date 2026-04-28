@@ -224,6 +224,14 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   detail pane; it supports aggregation across subtrees (`scope`, `mode`) and
   user-defined `transform(...)` for derived views (e.g. currency conversion).
   See the `TraceDisplayInputConfig` type.
+- `llmCalls` (in `agent-evals.config.ts`) configures the LLM calls tab in the
+  case-run drawer. Defaults to `kind: 'llm'` spans with `model`, `usage.*`,
+  `costUsd`, `input`, `output`, etc. read from conventional attribute paths.
+  Override `kinds` to broaden the filter, override `attributes.<field>` for
+  non-default span shapes, and add entries to `metrics` to surface arbitrary
+  user metrics (`format: 'string' | 'number' | 'duration' | 'json' |
+'boolean'`, `placements: ['header' | 'body']`). The tab auto-hides when no
+  matching spans exist.
 
 Stats rows and history charts on the eval card are opt-in via `stats` /
 `charts` on the eval definition. Their shapes live in the types; no need to

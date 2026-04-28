@@ -97,6 +97,12 @@ export {
 } from './status.ts';
 export { getEvalDisplayStatus, type EvalDisplayStatus } from './evalStatus.ts';
 export { getEvalTitle } from './evalTitle.ts';
+export { getNestedAttribute } from './utils/getNestedAttribute.ts';
+export {
+  extractLlmCalls,
+  type LlmCallEntry,
+  type LlmCallMetricValue,
+} from './utils/extractLlmCalls.ts';
 export {
   sseEnvelopeSchema,
   type SseEnvelope,
@@ -111,8 +117,20 @@ export {
 export {
   trialSelectionModeSchema,
   agentEvalsConfigSchema,
+  llmCallsConfigSchema,
+  llmCallMetricSchema,
+  llmCallMetricFormatSchema,
+  llmCallMetricPlacementSchema,
+  resolveLlmCallsConfig,
+  DEFAULT_LLM_CALLS_CONFIG,
   type TrialSelectionMode,
   type AgentEvalsConfig,
+  type LlmCallsConfigInput,
+  type LlmCallMetric,
+  type LlmCallMetricFormat,
+  type LlmCallMetricPlacement,
+  type ResolvedLlmCallsConfig,
+  type ResolvedLlmCallMetric,
 } from './schemas/config.ts';
 export {
   cacheModeSchema,
