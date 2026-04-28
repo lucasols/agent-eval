@@ -19,6 +19,7 @@ import type {
 } from '@agent-evals/shared';
 import { z } from 'zod/v4';
 import { normalizeScoreDef, toCellValue } from './columnBuilder.ts';
+import { runWithModuleIsolation } from './moduleIsolation.ts';
 import { persistInlineArtifact } from './outputArtifacts.ts';
 import { resolveTracePresentation } from './traceDisplay.ts';
 
@@ -74,6 +75,7 @@ export async function runCase<
   cacheAdapter: CacheAdapter | null;
   cacheMode: CacheMode;
   codeFingerprint: string;
+  moduleIsolation: { key: string; workspaceRoot: string } | undefined;
   artifactDir: string;
   runId: string;
 }): Promise<{ caseDetail: CaseDetail; caseRowUpdate: Partial<CaseRow> }> {
@@ -88,6 +90,7 @@ export async function runCase<
     cacheAdapter,
     cacheMode,
     codeFingerprint,
+    moduleIsolation,
     artifactDir,
     runId,
   } = params;
@@ -95,9 +98,16 @@ export async function runCase<
   const { scope, error: executeError } = await runInEvalScope(
     evalCase.id,
     async () => {
-      await Reflect.apply(evalDef.execute, evalDef, [
-        { input: evalCase.input, signal },
-      ]);
+      const execute = async () => {
+        await Reflect.apply(evalDef.execute, evalDef, [
+          { input: evalCase.input, signal },
+        ]);
+      };
+      if (moduleIsolation === undefined) {
+        await execute();
+        return;
+      }
+      await runWithModuleIsolation(moduleIsolation, execute);
     },
     {
       input: evalCase.input,
@@ -176,14 +186,20 @@ export async function runCase<
       const { compute, passThreshold, label } = normalizeScoreDef(def);
       const scoreRun = await runInEvalScope(
         evalCase.id,
-        async () =>
-          await callWithUnknownResult(compute, [
-            {
-              input: evalCase.input,
-              outputs: { ...scope.outputs },
-              case: evalCase,
-            },
-          ]),
+        async () => {
+          const computeScore = async () =>
+            await callWithUnknownResult(compute, [
+              {
+                input: evalCase.input,
+                outputs: { ...scope.outputs },
+                case: evalCase,
+              },
+            ]);
+          if (moduleIsolation === undefined) {
+            return await computeScore();
+          }
+          return await runWithModuleIsolation(moduleIsolation, computeScore);
+        },
         {
           input: evalCase.input,
           cacheContext: cacheAdapter

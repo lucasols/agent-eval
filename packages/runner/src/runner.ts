@@ -569,6 +569,7 @@ export function createRunner({
         latestRunInfoMap,
         emitEvent,
         emitDiscoveryEvent,
+        workspaceRoot,
         getSourceFingerprint,
         getConfiguredConcurrency,
         getSortedEvalMetas,

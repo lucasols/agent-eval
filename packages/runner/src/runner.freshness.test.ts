@@ -1,7 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, test } from 'vitest';
 import { createRunner } from './runner.ts';
 
@@ -26,6 +27,116 @@ function runGit(workspacePath: string, args: string[]): void {
 }
 
 describe('runner freshness', () => {
+  test('reloads workspace modules between runs in the same runner process', async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), 'agent-evals-runner-module-isolation-'),
+    );
+    createdWorkspaces.push(workspacePath);
+
+    await mkdir(join(workspacePath, 'evals'), { recursive: true });
+    await mkdir(join(workspacePath, 'src'), { recursive: true });
+    await writeFile(
+      join(workspacePath, 'agent-evals.config.ts'),
+      `export default {
+  include: ['evals/**/*.eval.ts'],
+};
+`,
+    );
+    await writeFile(
+      join(workspacePath, 'src', 'dbState.ts'),
+      `import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+const initialized = existsSync(resolve(process.cwd(), 'db-ready.txt'));
+
+export function getDbStatus(): 'ready' | 'missing' {
+  return initialized ? 'ready' : 'missing';
+}
+`,
+    );
+    const sdkModuleUrl = pathToFileURL(
+      join(dirname(fileURLToPath(import.meta.url)), '../../sdk/src/index.ts'),
+    ).href;
+    await writeFile(
+      join(workspacePath, 'evals', 'db.eval.ts'),
+      `import { defineEval, evalAssert, setEvalOutput } from ${JSON.stringify(sdkModuleUrl)};
+import { getDbStatus } from '../src/dbState.ts';
+
+defineEval({
+  id: 'db-isolation-eval',
+  title: 'DB Isolation Eval',
+  cases: [{ id: 'case-1', input: {} }],
+  execute: async () => {
+    const status = getDbStatus();
+    setEvalOutput('dbStatus', status);
+    evalAssert(status === 'ready', 'db should be initialized');
+  },
+});
+`,
+    );
+
+    const runnerModuleUrl = pathToFileURL(
+      join(dirname(fileURLToPath(import.meta.url)), 'runner.ts'),
+    ).href;
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '--eval',
+        `
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { createRunner } from ${JSON.stringify(runnerModuleUrl)};
+
+const runner = createRunner({ watchForChanges: false });
+await runner.init();
+
+async function waitForRun(runId) {
+  while (true) {
+    const run = runner.getRun(runId);
+    const status = run?.manifest.status;
+    if (status === 'completed' || status === 'cancelled' || status === 'error') {
+      return run;
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 20));
+  }
+}
+
+const firstRun = await runner.startRun({
+  target: { mode: 'evalIds', evalIds: ['db-isolation-eval'] },
+  trials: 1,
+});
+const first = await waitForRun(firstRun.manifest.id);
+
+await writeFile(join(process.cwd(), 'db-ready.txt'), 'ready\\n');
+
+const secondRun = await runner.startRun({
+  target: { mode: 'evalIds', evalIds: ['db-isolation-eval'] },
+  trials: 1,
+});
+const second = await waitForRun(secondRun.manifest.id);
+
+console.log(JSON.stringify({
+  first: first?.summary,
+  second: second?.summary,
+}));
+`,
+      ],
+      {
+        cwd: workspacePath,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
+    expect(result.status, result.stderr).toBe(0);
+
+    const parsed: unknown = JSON.parse(result.stdout);
+    expect(parsed).toMatchObject({
+      first: { failedCases: 1, passedCases: 0 },
+      second: { failedCases: 0, passedCases: 1 },
+    });
+  });
+
   test('rerunning after the same eval-file change clears stale', async () => {
     const workspacePath = await mkdtemp(
       join(tmpdir(), 'agent-evals-runner-stale-reset-'),
