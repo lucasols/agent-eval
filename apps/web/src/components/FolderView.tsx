@@ -1,7 +1,8 @@
 import type { EvalDisplayStatus, EvalSummary } from '@agent-evals/shared';
-import { Play } from 'lucide-react';
+import { Play, SquareStop } from 'lucide-react';
 import { useState } from 'react';
 import { styled } from 'vindur';
+import { Button } from '#src/components/Button';
 import { EmptyState } from '#src/components/EmptyState';
 import { EvalCard } from '#src/components/EvalCard';
 import { MenuButton } from '#src/components/MenuButton';
@@ -13,6 +14,7 @@ import {
 import {
   cleanRunsForEval,
   clearCacheForEval,
+  cancelRun,
   recomputeStatusesForEval,
   startRun,
   runStore,
@@ -236,6 +238,10 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
     void startRun({ mode: 'evalIds', evalIds });
   }
 
+  function handleStop() {
+    void cancelRun(currentRun?.manifest.id);
+  }
+
   function handleRecomputeStatuses() {
     setMaintenanceAction('recompute');
     void Promise.all(
@@ -366,14 +372,25 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
                 </BreakdownPill>
               ))}
             </Count>
-            <SplitButton
-              label={isRunning ? 'Running' : 'Run all'}
-              leftIcon={<Play />}
-              onPrimaryClick={handleRunAll}
-              disabled={evalIds.length === 0 || isRunning}
-              menu={cacheMenu}
-              aria-label="Run all"
-            />
+            {isRunning ? (
+              <Button
+                variant="danger"
+                leftIcon={<SquareStop />}
+                onClick={handleStop}
+                aria-label="Stop run"
+              >
+                Stop
+              </Button>
+            ) : (
+              <SplitButton
+                label="Run all"
+                leftIcon={<Play />}
+                onPrimaryClick={handleRunAll}
+                disabled={evalIds.length === 0}
+                menu={cacheMenu}
+                aria-label="Run all"
+              />
+            )}
             <MenuButton
               menu={moreMenu}
               disabled={evalIds.length === 0 || maintenanceAction !== null}

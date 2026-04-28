@@ -9,9 +9,11 @@ import {
   ChevronsUpDown,
   Play,
   SquareArrowOutUpRight,
+  SquareStop,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { styled } from 'vindur';
+import { Button } from '#src/components/Button';
 import { EvalRunsChart } from '#src/components/EvalRunsChart';
 import { EvalRunsTable } from '#src/components/EvalRunsTable';
 import { IconButton } from '#src/components/IconButton';
@@ -28,6 +30,7 @@ import { getRunsForEval, historyStore } from '#src/stores/historyStore';
 import {
   cleanRunsForEval,
   clearCacheForEval,
+  cancelRun,
   recomputeStatusesForEval,
   runStore,
   startRun,
@@ -406,6 +409,11 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     void startRun({ mode: 'evalIds', evalIds: [evalSummary.id] });
   }
 
+  function handleStop(e: React.MouseEvent) {
+    e.stopPropagation();
+    void cancelRun(currentRun?.manifest.id);
+  }
+
   const cacheMenu: SplitButtonMenuEntry[] = [
     {
       id: 'run-default',
@@ -575,14 +583,24 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
                 </IconButton>
               </Tooltip>
             ) : null}
-            <SplitButton
-              label={isRunning ? 'Running' : 'Run'}
-              leftIcon={<Play />}
-              onPrimaryClick={handleRun}
-              disabled={isRunning}
-              menu={cacheMenu}
-              aria-label="Run"
-            />
+            {isRunning ? (
+              <Button
+                variant="danger"
+                leftIcon={<SquareStop />}
+                onClick={handleStop}
+                aria-label="Stop run"
+              >
+                Stop
+              </Button>
+            ) : (
+              <SplitButton
+                label="Run"
+                leftIcon={<Play />}
+                onPrimaryClick={handleRun}
+                menu={cacheMenu}
+                aria-label="Run"
+              />
+            )}
             <MenuButton
               menu={moreMenu}
               disabled={maintenanceAction !== null}

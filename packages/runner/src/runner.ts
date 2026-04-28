@@ -76,8 +76,8 @@ export type EvalRunner = {
   ):
     | { manifest: RunManifest; summary: RunSummary; cases: CaseRow[] }
     | undefined;
-  /** Request cancellation for an in-flight run. */
-  cancelRun(id: string): void;
+  /** Request cancellation for an in-flight run and persist its cancelled state. */
+  cancelRun(id: string): Promise<void>;
   /** Return full details for a single case in a run, when available. */
   getCaseDetail(runId: string, caseId: string): CaseDetail | undefined;
   /** Subscribe to streamed events for a specific run. */
@@ -586,19 +586,26 @@ export function createRunner({
       if (!run) return undefined;
       return { manifest: run.manifest, summary: run.summary, cases: run.cases };
     },
-    cancelRun(id) {
+    async cancelRun(id) {
       const run = runs.get(id);
       if (!run) return;
+      if (run.manifest.status !== 'running') return;
+
+      const endedAt = new Date();
       run.abortController.abort();
       run.manifest.status = 'cancelled';
-      run.manifest.endedAt = new Date().toISOString();
+      run.manifest.endedAt = endedAt.toISOString();
       run.summary.status = 'cancelled';
+      run.summary.totalDurationMs =
+        endedAt.getTime() - new Date(run.manifest.startedAt).getTime();
+      await persistRunState(run);
       emitEvent(run, {
         type: 'run.cancelled',
         runId: id,
         timestamp: new Date().toISOString(),
         payload: run.summary,
       });
+      emitDiscoveryEvent();
     },
     getCaseDetail(runId, caseId) {
       const run = runs.get(runId);

@@ -518,6 +518,8 @@ Flags:
   --eval <id>                Run specific eval(s) (comma-separated)
   --case <id>                Run specific case(s) (comma-separated)
   --trials <n>               Number of trials per case
+  --inspect[=host:port]      Run with the Node.js inspector enabled
+  --inspect-brk[=host:port]  Enable inspector and pause before startup
   --json                     Output run summary as JSON
   --cache <use|bypass|refresh>  Cache mode for this run (default: use)
   --no-cache                 Shortcut for --cache bypass
@@ -564,6 +566,8 @@ Options:
   --eval <id>                Run specific eval(s) (comma-separated)
   --case <id>                Run specific case(s) (comma-separated)
   --trials <n>               Number of trials per case
+  --inspect[=host:port]      Run with the Node.js inspector enabled
+  --inspect-brk[=host:port]  Enable inspector and pause before startup
   --json                     Output results as JSON
   --port <n>                 Server port (default: 4100)
   --cache <use|bypass|refresh>  Cache mode for this run (default: use)

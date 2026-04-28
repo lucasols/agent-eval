@@ -481,6 +481,13 @@ export async function executeRun({
             .join('\n'),
         },
       });
+    } else if (finalStatus === 'cancelled') {
+      emitEvent(runState, {
+        type: 'run.cancelled',
+        runId: runState.manifest.id,
+        timestamp: new Date().toISOString(),
+        payload: runState.summary,
+      });
     } else {
       emitEvent(runState, {
         type: 'run.finished',

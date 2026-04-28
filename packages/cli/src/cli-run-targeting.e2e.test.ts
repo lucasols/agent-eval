@@ -109,6 +109,8 @@ describe('CLI run targeting', () => {
       expect(result.stdout).toContain('agent-evals run - Run evals');
       expect(result.stdout).toContain('Usage:');
       expect(result.stdout).toContain('--eval <id>');
+      expect(result.stdout).toContain('--inspect[=host:port]');
+      expect(result.stdout).toContain('--inspect-brk[=host:port]');
       expect(result.stdout).not.toContain('Run started:');
       expect(result.stdout).not.toContain('Total:');
       expect(existsSync(resolve(workspacePath, '.agent-evals/runs'))).toBe(
@@ -228,6 +230,36 @@ describe('CLI run targeting', () => {
           },
         }
       `);
+    });
+  });
+
+  test('supports enabling the Node inspector for a targeted run', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const result = await runExampleCli(workspacePath, [
+        'run',
+        '--inspect=0',
+        '--eval',
+        'refund-workflow',
+        '--case',
+        'simple-text',
+        '--json',
+      ]);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toContain('Debugger listening on');
+
+      const summary = runSummarySchema.parse(JSON.parse(result.stdout));
+      const artifacts = await readSingleRunArtifacts(workspacePath);
+
+      expect(summary.totalCases).toBe(1);
+      expect(artifacts.manifest.target).toEqual({
+        caseIds: ['simple-text'],
+        evalIds: ['refund-workflow'],
+        mode: 'caseIds',
+      });
+      expect(artifacts.cases.map((caseRow) => caseRow.caseId)).toEqual([
+        'simple-text',
+      ]);
     });
   });
 

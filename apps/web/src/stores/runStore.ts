@@ -338,8 +338,23 @@ function subscribeToRunEvents(runId: string): void {
         ...prev,
         currentRun: {
           ...prev.currentRun,
+          summary: { ...prev.currentRun.summary, status: 'cancelled' },
           manifest: { ...prev.currentRun.manifest, status: 'cancelled' },
         },
+        selectedRunDetail:
+          prev.selectedRunDetail?.manifest.id === prev.currentRun.manifest.id
+            ? {
+                ...prev.selectedRunDetail,
+                summary: {
+                  ...prev.selectedRunDetail.summary,
+                  status: 'cancelled',
+                },
+                manifest: {
+                  ...prev.selectedRunDetail.manifest,
+                  status: 'cancelled',
+                },
+              }
+            : prev.selectedRunDetail,
         eventSource: null,
       };
     });
@@ -370,12 +385,42 @@ function subscribeToRunEvents(runId: string): void {
   });
 }
 
-export async function cancelRun(): Promise<void> {
-  const run = runStore.state.currentRun;
-  if (!run) return;
-  await resultify(() =>
-    fetch(`/api/runs/${run.manifest.id}/cancel`, { method: 'POST' }),
+export async function cancelRun(runId?: string): Promise<void> {
+  const targetRunId = runId ?? runStore.state.currentRun?.manifest.id;
+  if (!targetRunId) return;
+  const cancelResult = await resultify(() =>
+    fetch(`/api/runs/${targetRunId}/cancel`, { method: 'POST' }),
   );
+  if (cancelResult.error) return;
+
+  const eventSource = runStore.state.eventSource;
+  if (eventSource) eventSource.close();
+
+  runStore.setState((prev) => ({
+    ...prev,
+    currentRun:
+      prev.currentRun?.manifest.id === targetRunId
+        ? {
+            ...prev.currentRun,
+            manifest: { ...prev.currentRun.manifest, status: 'cancelled' },
+            summary: { ...prev.currentRun.summary, status: 'cancelled' },
+          }
+        : prev.currentRun,
+    selectedRunDetail:
+      prev.selectedRunDetail?.manifest.id === targetRunId
+        ? {
+            ...prev.selectedRunDetail,
+            manifest: {
+              ...prev.selectedRunDetail.manifest,
+              status: 'cancelled',
+            },
+            summary: { ...prev.selectedRunDetail.summary, status: 'cancelled' },
+          }
+        : prev.selectedRunDetail,
+    eventSource: null,
+  }));
+  void refetchHistory();
+  void fetchEvals();
 }
 
 export async function selectCase(runId: string, caseId: string): Promise<void> {

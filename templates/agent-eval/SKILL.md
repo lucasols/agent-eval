@@ -292,6 +292,8 @@ Mental model:
   `setEvalOutput` instead.
 - Cache mode per run is controlled by CLI flags (see `agent-evals run --help`)
   and by a chevron menu on each eval card in the UI.
+- The UI Stop action cancels the whole active run. In-flight eval code stops
+  cooperatively when it observes the provided `AbortSignal`.
 
 ## Artifacts
 
@@ -346,3 +348,6 @@ When adding or changing evals:
 7. Sanity-check after changes: `agent-evals list`, then
    `agent-evals run --eval <id>`. Open the UI only when you need to inspect
    traces, trends, or fill manual scores.
+8. To debug a focused run, use
+   `agent-evals run --inspect-brk --eval <id> --case <case-id>` and attach a
+   Node.js debugger before continuing execution.

@@ -40,10 +40,10 @@ export const runsRoutes = new Hono()
     }
     return c.json(run, 200);
   })
-  .post('/:runId/cancel', (c) => {
+  .post('/:runId/cancel', async (c) => {
     const runId = c.req.param('runId');
     const runner = getRunnerInstance();
-    runner.cancelRun(runId);
+    await runner.cancelRun(runId);
     return c.json({ ok: true }, 200);
   })
   .delete('/:runId', async (c) => {

@@ -79,6 +79,7 @@ pnpm add -D @ls-stack/agent-eval
    agent-evals list
    agent-evals run
    agent-evals run --eval my-agent --case greeting --json
+   agent-evals run --inspect-brk --eval my-agent --case greeting
    ```
 
    Discovered eval file paths are shown relative to the active workspace root in both the CLI and UI.
@@ -635,7 +636,8 @@ CLI:
 
 UI: every `EvalCard` has a split button next to **Run** with a chevron menu
 containing the same four run modes plus a danger-toned "Clear cache for this
-eval".
+eval". While a run is active, eval cards, folder headers, and the run drawer
+show **Stop** to cancel the whole in-flight run.
 
 Server API (`/api/cache`):
 
@@ -782,6 +784,8 @@ Flags:
   --eval <id[,id]>           Run specific evals only
   --case <id[,id]>           Run specific cases only
   --trials <n>               Override trials per case
+  --inspect[=host:port]      Run with the Node.js inspector enabled
+  --inspect-brk[=host:port]  Enable inspector and pause before startup
   --json                     Emit run summary or cache listing as JSON
   --port <n>                 Server port (app, default: 4100)
   --cache <use|bypass|refresh>  Cache mode for this run (default: use)

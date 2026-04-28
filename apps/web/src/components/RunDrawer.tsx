@@ -3,8 +3,9 @@ import {
   deriveStatusFromCaseRows,
   type CaseRow,
 } from '@agent-evals/shared';
-import { X } from 'lucide-react';
+import { SquareStop, X } from 'lucide-react';
 import { styled } from 'vindur';
+import { Button } from '#src/components/Button';
 import {
   ErrorDetails,
   type ErrorDetailItem,
@@ -20,6 +21,7 @@ import { evalsStore } from '#src/stores/evalsStore';
 import { layoutStore } from '#src/stores/layoutStore';
 import {
   closeRun,
+  cancelRun,
   deleteRun,
   runStore,
   selectCase,
@@ -435,6 +437,16 @@ export function RunDrawer() {
         <HeaderTop>
           <HeaderKicker>Run</HeaderKicker>
           <HeaderActions>
+            {runIsRunning ? (
+              <Button
+                variant="danger"
+                leftIcon={<SquareStop />}
+                onClick={() => void cancelRun(manifest.id)}
+                aria-label="Stop run"
+              >
+                Stop
+              </Button>
+            ) : null}
             <MenuButton
               menu={menuEntries}
               aria-label="Run actions"
