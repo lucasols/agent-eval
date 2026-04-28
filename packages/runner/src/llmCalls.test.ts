@@ -272,3 +272,42 @@ test('extractLlmCalls supports overridden attribute paths', () => {
     totalTokens: 300,
   });
 });
+
+test('extractLlmCalls reads steps as a number count', () => {
+  const calls = extractLlmCalls(
+    [
+      llmSpan({
+        attributes: {
+          model: 'gpt-4o-mini',
+          usage: { inputTokens: 10, outputTokens: 5 },
+          steps: 3,
+        },
+      }),
+    ],
+    DEFAULT_LLM_CALLS_CONFIG,
+  );
+
+  expect(calls[0]).toMatchObject({ stepCount: 3, stepDetails: null });
+});
+
+test('extractLlmCalls reads steps as an array of step details', () => {
+  const stepArray = [
+    { text: 'Plan', toolCalls: [{ id: '1', name: 'lookup' }] },
+    { text: 'Execute', toolCalls: [{ id: '2', name: 'apply' }] },
+  ];
+
+  const calls = extractLlmCalls(
+    [
+      llmSpan({
+        attributes: {
+          model: 'gpt-4o',
+          usage: { inputTokens: 10, outputTokens: 5 },
+          steps: stepArray,
+        },
+      }),
+    ],
+    DEFAULT_LLM_CALLS_CONFIG,
+  );
+
+  expect(calls[0]).toMatchObject({ stepCount: 2, stepDetails: stepArray });
+});

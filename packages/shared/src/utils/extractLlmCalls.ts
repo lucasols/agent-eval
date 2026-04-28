@@ -41,7 +41,10 @@ export type LlmCallEntry = {
   cachedInputCostUsd: number | null;
   cacheCreationInputCostUsd: number | null;
   reasoningCostUsd: number | null;
-  steps: number | null;
+  /** Number of inference rounds. Derived from the array length when `stepDetails` is set. */
+  stepCount: number | null;
+  /** Per-step breakdown when the configured `steps` attribute resolves to an array. */
+  stepDetails: unknown[] | null;
   finishReason: string | null;
   latencyMs: number | null;
   input: unknown;
@@ -97,6 +100,20 @@ function computeTotalTokens({
   return (input ?? 0) + (output ?? 0) + (cached ?? 0) + (cacheCreation ?? 0);
 }
 
+function readSteps(
+  attributes: unknown,
+  path: string,
+): { stepCount: number | null; stepDetails: unknown[] | null } {
+  const raw = getNestedAttribute(attributes, path);
+  if (Array.isArray(raw)) {
+    return { stepCount: raw.length, stepDetails: raw };
+  }
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return { stepCount: raw, stepDetails: null };
+  }
+  return { stepCount: null, stepDetails: null };
+}
+
 function collectWarnings(span: EvalTraceSpan): EvalTraceSpanWarning[] {
   const out: EvalTraceSpanWarning[] = [];
   if (span.warning) out.push(span.warning);
@@ -118,11 +135,14 @@ function pickError(span: EvalTraceSpan): EvalTraceSpanError | null {
  * (`model`, token counts, cost, etc.) are read via `getNestedAttribute` from
  * the configured paths, with safe coercion to `string | null` / `number |
  * null`. `totalTokens` falls back to a sum of input + output + cached when no
- * explicit total attribute is present. `latencyMs` is `null` while the span
- * is still running. User-defined `metrics` whose path resolves to `undefined`
- * are dropped, but `null`, `0`, and `false` are preserved as legitimate
- * values worth displaying. Original span order is preserved so the LLM calls
- * tab matches the ordering in the Trace tab.
+ * explicit total attribute is present. The `steps` attribute path may resolve
+ * to either a number (rendered as the inference-round count) or an array of
+ * per-step detail objects (rendered as a Steps section in the body, with
+ * `stepCount` derived from the array length). `latencyMs` is `null` while the
+ * span is still running. User-defined `metrics` whose path resolves to
+ * `undefined` are dropped, but `null`, `0`, and `false` are preserved as
+ * legitimate values worth displaying. Original span order is preserved so the
+ * LLM calls tab matches the ordering in the Trace tab.
  */
 export function extractLlmCalls(
   spans: EvalTraceSpan[],
@@ -196,7 +216,7 @@ export function extractLlmCalls(
         config.attributes.cacheCreationInputCost,
       ),
       reasoningCostUsd: readNumber(attrs, config.attributes.reasoningCost),
-      steps: readNumber(attrs, config.attributes.steps),
+      ...readSteps(attrs, config.attributes.steps),
       finishReason: readString(attrs, config.attributes.finishReason),
       latencyMs: computeLatencyMs(span),
       input: getNestedAttribute(attrs, config.attributes.input),

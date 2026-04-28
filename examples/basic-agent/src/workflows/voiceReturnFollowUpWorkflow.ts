@@ -104,7 +104,45 @@ export async function runVoiceReturnFollowUpWorkflow(
             usage,
             costUsd,
             cost: { inputUsd: inputCostUsd, outputUsd: outputCostUsd },
-            steps: 3,
+            steps: [
+              {
+                index: 0,
+                text: 'Looking up the localized template catalog for the detected locale.',
+                toolCalls: [
+                  {
+                    id: 'call_lookup_locale',
+                    name: 'lookup-locale-templates',
+                    arguments: { locale: detectedLocale },
+                  },
+                ],
+                usage: { inputTokens: 110, outputTokens: 40 },
+                finishReason: 'tool_use',
+              },
+              {
+                index: 1,
+                text: 'Rendering the follow-up template for the requested channel.',
+                toolCalls: [
+                  {
+                    id: 'call_render_template',
+                    name: 'render-follow-up-template',
+                    arguments: {
+                      channel: input.preferredChannel,
+                      orderId: input.orderId,
+                      locale: detectedLocale,
+                    },
+                  },
+                ],
+                usage: { inputTokens: 130, outputTokens: 90 },
+                finishReason: 'tool_use',
+              },
+              {
+                index: 2,
+                text: 'Composing the final follow-up message and returning it to the caller.',
+                toolCalls: [],
+                usage: { inputTokens: 80, outputTokens: 50 },
+                finishReason: 'stop',
+              },
+            ],
             finishReason: 'tool_use',
             tokensPerSecond: 54.8,
             retryCount: 0,

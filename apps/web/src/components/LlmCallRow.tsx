@@ -198,6 +198,28 @@ const RawLabel = styled.div`
   margin-bottom: 8px;
 `;
 
+const MetricsSection = styled.div`
+  ${stack({ gap: 6 })}
+`;
+
+const StepsWrapper = styled.div`
+  ${stack({ gap: 8 })}
+`;
+
+const StepCard = styled.div`
+  ${stack({ gap: 6 })}
+  border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-sm);
+  background: ${colors.surface.var};
+  padding: 8px 10px;
+`;
+
+const StepHeader = styled.div`
+  ${kicker};
+  color: ${colors.textMuted.var};
+  font-size: 9.5px;
+`;
+
 const ErrorContainer = styled.div`
   color: ${colors.error.var};
 `;
@@ -287,6 +309,28 @@ function RawSection({ label, data }: { label: string; data: unknown }) {
         maxHeight="raw"
         collapsed={6}
       />
+    </RawSectionWrapper>
+  );
+}
+
+function StepsSection({ steps }: { steps: unknown[] }) {
+  if (steps.length === 0) return null;
+  return (
+    <RawSectionWrapper>
+      <RawLabel>Steps</RawLabel>
+      <StepsWrapper>
+        {steps.map((step, index) => (
+          <StepCard key={String(index)}>
+            <StepHeader>Step {index + 1}</StepHeader>
+            <JsonViewer
+              value={step}
+              compact
+              maxHeight="raw"
+              collapsed={4}
+            />
+          </StepCard>
+        ))}
+      </StepsWrapper>
     </RawSectionWrapper>
   );
 }
@@ -484,9 +528,10 @@ function TokenBreakdownTable({ entry }: { entry: LlmCallEntry }) {
  * Collapsed by default. The header shows the call name, status, model chip,
  * latency, total tokens, cost, and any user-defined metric whose
  * `placements` includes `'header'`. Click toggles expansion to reveal token
- * breakdown, steps/finish/provider, Input / Output / Reasoning / Tool-calls
- * sections (only those with values), body-placement metrics, span warnings,
- * and any captured error.
+ * breakdown, steps/finish/provider, body-placement metrics, then the JSON
+ * sections in order: Input / Output / Reasoning / Steps (when the configured
+ * `steps` attribute resolved to an array) / Tool calls. Span warnings and any
+ * captured error render at the bottom.
  */
 export function LlmCallRow({ entry }: { entry: LlmCallEntry }) {
   const [expanded, setExpanded] = useState(false);
@@ -510,7 +555,7 @@ export function LlmCallRow({ entry }: { entry: LlmCallEntry }) {
     entry.totalTokens !== null;
 
   const showStepRow =
-    entry.steps !== null ||
+    entry.stepCount !== null ||
     entry.finishReason !== null ||
     entry.provider !== null;
 
@@ -557,8 +602,8 @@ export function LlmCallRow({ entry }: { entry: LlmCallEntry }) {
 
           {showStepRow ? (
             <MetaRow>
-              {entry.steps !== null ? (
-                <span>Steps {formatNumber(entry.steps)}</span>
+              {entry.stepCount !== null ? (
+                <span>Steps {formatNumber(entry.stepCount)}</span>
               ) : null}
               {entry.finishReason !== null ? (
                 <span>Finish {entry.finishReason}</span>
@@ -567,6 +612,19 @@ export function LlmCallRow({ entry }: { entry: LlmCallEntry }) {
                 <span>Provider {entry.provider}</span>
               ) : null}
             </MetaRow>
+          ) : null}
+
+          {bodyMetrics.length > 0 ? (
+            <MetricsSection>
+              {bodyMetrics.map((metric) => (
+                <MetricRow key={metricKey(metric)}>
+                  <Tooltip content={metric.tooltip}>
+                    <MetricRowLabel>{metric.label}</MetricRowLabel>
+                  </Tooltip>
+                  <MetricRowValue>{formatMetricValue(metric)}</MetricRowValue>
+                </MetricRow>
+              ))}
+            </MetricsSection>
           ) : null}
 
           {entry.input !== undefined ? (
@@ -587,21 +645,15 @@ export function LlmCallRow({ entry }: { entry: LlmCallEntry }) {
               data={entry.reasoning}
             />
           ) : null}
+          {entry.stepDetails !== null ? (
+            <StepsSection steps={entry.stepDetails} />
+          ) : null}
           {entry.toolCalls !== undefined ? (
             <RawSection
               label="Tool calls"
               data={entry.toolCalls}
             />
           ) : null}
-
-          {bodyMetrics.map((metric) => (
-            <MetricRow key={metricKey(metric)}>
-              <Tooltip content={metric.tooltip}>
-                <MetricRowLabel>{metric.label}</MetricRowLabel>
-              </Tooltip>
-              <MetricRowValue>{formatMetricValue(metric)}</MetricRowValue>
-            </MetricRow>
-          ))}
 
           {entry.warnings.map((warning, i) => (
             <WarningContainer key={`${warning.message}-${String(i)}`}>
