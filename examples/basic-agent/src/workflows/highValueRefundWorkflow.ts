@@ -65,8 +65,6 @@ export async function runHighValueRefundWorkflow(
           });
           const reasoningCostUsd =
             (usage.reasoningTokens / 1_000_000) * REASONING_PRICE_PER_MILLION;
-          const inputCostUsd = (usage.inputTokens / 1_000_000) * 2.5;
-          const outputCostUsd = (usage.outputTokens / 1_000_000) * 10;
           const costUsd = baseCost + reasoningCostUsd;
 
           evalSpan.setAttributes({
@@ -78,12 +76,6 @@ export async function runHighValueRefundWorkflow(
             model: 'o1-mini',
             provider: 'openai',
             usage,
-            costUsd,
-            cost: {
-              inputUsd: inputCostUsd,
-              outputUsd: outputCostUsd,
-              reasoningUsd: reasoningCostUsd,
-            },
             steps: 1,
             finishReason: 'stop',
             tokensPerSecond: 22.6,
@@ -118,8 +110,6 @@ export async function runHighValueRefundWorkflow(
 
           const usage = { inputTokens: 540, outputTokens: 256 };
           const costUsd = calculateWorkflowCostUsd(usage);
-          const inputCostUsd = (usage.inputTokens / 1_000_000) * 2.5;
-          const outputCostUsd = (usage.outputTokens / 1_000_000) * 10;
 
           evalSpan.setAttributes({
             input: {
@@ -130,8 +120,6 @@ export async function runHighValueRefundWorkflow(
             model: 'gpt-4o-mini',
             provider: 'openai',
             usage,
-            costUsd,
-            cost: { inputUsd: inputCostUsd, outputUsd: outputCostUsd },
             steps: 1,
             finishReason: 'length',
             tokensPerSecond: 64.4,

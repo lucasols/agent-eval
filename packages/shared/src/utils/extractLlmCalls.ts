@@ -1,6 +1,7 @@
 import type {
   LlmCallMetricFormat,
   LlmCallMetricPlacement,
+  ResolvedLlmCallPricing,
   ResolvedLlmCallsConfig,
 } from '../schemas/config.ts';
 import type { NumberDisplayOptions } from '../schemas/display.ts';
@@ -64,6 +65,87 @@ function readNumber(attributes: unknown, path: string): number | null {
 function readString(attributes: unknown, path: string): string | null {
   const raw = getNestedAttribute(attributes, path);
   return typeof raw === 'string' && raw.length > 0 ? raw : null;
+}
+
+function computeTokenCost(
+  tokens: number | null,
+  usdPerMillion: number | undefined,
+): number | null {
+  if (tokens === null) return null;
+  if (tokens === 0) return 0;
+  if (usdPerMillion === undefined) return null;
+  return (tokens / 1_000_000) * usdPerMillion;
+}
+
+function pickPricingEntry({
+  pricing,
+  model,
+  provider,
+}: {
+  pricing: ResolvedLlmCallPricing[];
+  model: string | null;
+  provider: string | null;
+}): ResolvedLlmCallPricing | null {
+  if (model === null) return null;
+
+  let fallback: ResolvedLlmCallPricing | null = null;
+  for (const entry of pricing) {
+    if (entry.model !== model) continue;
+    if (entry.provider === undefined) {
+      fallback ??= entry;
+      continue;
+    }
+    if (entry.provider === provider) return entry;
+  }
+
+  return fallback;
+}
+
+function computeFallbackTotalCost({
+  inputTokens,
+  inputCostUsd,
+  outputTokens,
+  outputCostUsd,
+  cachedInputTokens,
+  cachedInputCostUsd,
+  cacheCreationInputTokens,
+  cacheCreationInputCostUsd,
+  reasoningTokens,
+  reasoningCostUsd,
+}: {
+  inputTokens: number | null;
+  inputCostUsd: number | null;
+  outputTokens: number | null;
+  outputCostUsd: number | null;
+  cachedInputTokens: number | null;
+  cachedInputCostUsd: number | null;
+  cacheCreationInputTokens: number | null;
+  cacheCreationInputCostUsd: number | null;
+  reasoningTokens: number | null;
+  reasoningCostUsd: number | null;
+}): number | null {
+  const parts = [
+    { tokens: inputTokens, cost: inputCostUsd },
+    { tokens: outputTokens, cost: outputCostUsd },
+    { tokens: cachedInputTokens, cost: cachedInputCostUsd },
+    { tokens: cacheCreationInputTokens, cost: cacheCreationInputCostUsd },
+    { tokens: reasoningTokens, cost: reasoningCostUsd },
+  ];
+
+  let total = 0;
+  let hasCost = false;
+  let hasReportedTokens = false;
+  for (const part of parts) {
+    if (part.tokens === null) continue;
+    hasReportedTokens = true;
+    if (part.tokens === 0) continue;
+    if (part.cost === null) return null;
+    total += part.cost;
+    hasCost = true;
+  }
+
+  if (hasCost) return total;
+  return hasReportedTokens ? 0 : null;
 }
 
 function computeLatencyMs(span: EvalTraceSpan): number | null {
@@ -132,9 +214,11 @@ function pickError(span: EvalTraceSpan): EvalTraceSpanError | null {
  * shape consumed by the LLM calls tab.
  *
  * Spans whose `kind` is not in `config.kinds` are dropped. Structured fields
- * (`model`, token counts, cost, etc.) are read via `getNestedAttribute` from
- * the configured paths, with safe coercion to `string | null` / `number |
- * null`. `totalTokens` falls back to a sum of input + output + cached when no
+ * (`model`, token counts, explicit cost, etc.) are read via
+ * `getNestedAttribute` from the configured paths, with safe coercion to
+ * `string | null` / `number | null`. When explicit USD costs are absent,
+ * configured model pricing derives per-token-type costs from token counts.
+ * `totalTokens` falls back to a sum of input + output + cached when no
  * explicit total attribute is present. The `steps` attribute path may resolve
  * to either a number (rendered as the inference-round count) or an array of
  * per-step detail objects (rendered as a Steps section in the body, with
@@ -155,6 +239,8 @@ export function extractLlmCalls(
     if (!kindSet.has(span.kind)) continue;
 
     const attrs = span.attributes;
+    const model = readString(attrs, config.attributes.model);
+    const provider = readString(attrs, config.attributes.provider);
     const inputTokens = readNumber(attrs, config.attributes.inputTokens);
     const outputTokens = readNumber(attrs, config.attributes.outputTokens);
     const cachedInputTokens = readNumber(
@@ -173,6 +259,43 @@ export function extractLlmCalls(
       attrs,
       config.attributes.totalTokens,
     );
+    const pricing = pickPricingEntry({
+      pricing: config.pricing,
+      model,
+      provider,
+    });
+    const inputCostUsd =
+      readNumber(attrs, config.attributes.inputCost) ??
+      computeTokenCost(inputTokens, pricing?.inputUsdPerMillion);
+    const outputCostUsd =
+      readNumber(attrs, config.attributes.outputCost) ??
+      computeTokenCost(outputTokens, pricing?.outputUsdPerMillion);
+    const cachedInputCostUsd =
+      readNumber(attrs, config.attributes.cachedInputCost) ??
+      computeTokenCost(cachedInputTokens, pricing?.cachedInputUsdPerMillion);
+    const cacheCreationInputCostUsd =
+      readNumber(attrs, config.attributes.cacheCreationInputCost) ??
+      computeTokenCost(
+        cacheCreationInputTokens,
+        pricing?.cacheCreationInputUsdPerMillion,
+      );
+    const reasoningCostUsd =
+      readNumber(attrs, config.attributes.reasoningCost) ??
+      computeTokenCost(reasoningTokens, pricing?.reasoningUsdPerMillion);
+    const costUsd =
+      readNumber(attrs, config.attributes.cost) ??
+      computeFallbackTotalCost({
+        inputTokens,
+        inputCostUsd,
+        outputTokens,
+        outputCostUsd,
+        cachedInputTokens,
+        cachedInputCostUsd,
+        cacheCreationInputTokens,
+        cacheCreationInputCostUsd,
+        reasoningTokens,
+        reasoningCostUsd,
+      });
 
     const metrics: LlmCallMetricValue[] = [];
     for (const metric of config.metrics) {
@@ -193,8 +316,8 @@ export function extractLlmCalls(
       name: span.name,
       kind: span.kind,
       status: span.status,
-      model: readString(attrs, config.attributes.model),
-      provider: readString(attrs, config.attributes.provider),
+      model,
+      provider,
       inputTokens,
       outputTokens,
       cachedInputTokens,
@@ -207,15 +330,12 @@ export function extractLlmCalls(
         cached: cachedInputTokens,
         cacheCreation: cacheCreationInputTokens,
       }),
-      costUsd: readNumber(attrs, config.attributes.cost),
-      inputCostUsd: readNumber(attrs, config.attributes.inputCost),
-      outputCostUsd: readNumber(attrs, config.attributes.outputCost),
-      cachedInputCostUsd: readNumber(attrs, config.attributes.cachedInputCost),
-      cacheCreationInputCostUsd: readNumber(
-        attrs,
-        config.attributes.cacheCreationInputCost,
-      ),
-      reasoningCostUsd: readNumber(attrs, config.attributes.reasoningCost),
+      costUsd,
+      inputCostUsd,
+      outputCostUsd,
+      cachedInputCostUsd,
+      cacheCreationInputCostUsd,
+      reasoningCostUsd,
       ...readSteps(attrs, config.attributes.steps),
       finishReason: readString(attrs, config.attributes.finishReason),
       latencyMs: computeLatencyMs(span),

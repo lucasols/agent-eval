@@ -140,6 +140,7 @@ export {
   apiCallsConfigSchema,
   runLogsConfigSchema,
   llmCallMetricSchema,
+  llmCallPricingSchema,
   llmCallMetricFormatSchema,
   llmCallMetricPlacementSchema,
   apiCallMetricSchema,
@@ -155,6 +156,7 @@ export {
   type ApiCallsConfigInput,
   type RunLogsConfigInput,
   type LlmCallMetric,
+  type LlmCallPricing,
   type ApiCallMetric,
   type LlmCallMetricFormat,
   type ApiCallMetricFormat,
@@ -163,6 +165,7 @@ export {
   type ResolvedLlmCallsConfig,
   type ResolvedApiCallsConfig,
   type ResolvedLlmCallMetric,
+  type ResolvedLlmCallPricing,
   type ResolvedApiCallMetric,
 } from './schemas/config.ts';
 export {

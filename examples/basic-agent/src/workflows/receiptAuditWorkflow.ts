@@ -91,7 +91,6 @@ export async function runReceiptAuditWorkflow(
           },
           model: 'gpt-4o-mini',
           usage,
-          costUsd,
           output: { auditStatus: 'verified', discrepancyCount: 0 },
         });
 

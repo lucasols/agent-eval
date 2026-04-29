@@ -77,6 +77,31 @@ test('resolveLlmCallsConfig passes through tooltip on metrics', () => {
   expect(resolved.metrics[0]?.tooltip).toBe('Tokens per second');
 });
 
+test('resolveLlmCallsConfig resolves pricing registry entries', () => {
+  const resolved = resolveLlmCallsConfig({
+    pricing: [
+      {
+        model: 'gpt-4o-mini',
+        provider: 'openai',
+        inputUsdPerMillion: 0.15,
+        outputUsdPerMillion: 0.6,
+      },
+    ],
+  });
+
+  expect(resolved.pricing).toEqual([
+    {
+      model: 'gpt-4o-mini',
+      provider: 'openai',
+      inputUsdPerMillion: 0.15,
+      outputUsdPerMillion: 0.6,
+      cachedInputUsdPerMillion: undefined,
+      cacheCreationInputUsdPerMillion: undefined,
+      reasoningUsdPerMillion: undefined,
+    },
+  ]);
+});
+
 function llmSpan(overrides: Partial<EvalTraceSpan> = {}): EvalTraceSpan {
   return {
     id: 'span-1',
@@ -166,6 +191,158 @@ test('extractLlmCalls reads per-token-type cost breakdown', () => {
     reasoningCostUsd: null,
     costUsd: 0.0145,
   });
+});
+
+test('extractLlmCalls derives costs from pricing registry when span costs are missing', () => {
+  const config = resolveLlmCallsConfig({
+    pricing: [
+      {
+        model: 'claude-sonnet',
+        provider: 'anthropic',
+        inputUsdPerMillion: 3,
+        outputUsdPerMillion: 15,
+        cachedInputUsdPerMillion: 0.3,
+        cacheCreationInputUsdPerMillion: 3.75,
+        reasoningUsdPerMillion: 60,
+      },
+    ],
+  });
+
+  const spans: EvalTraceSpan[] = [
+    llmSpan({
+      attributes: {
+        model: 'claude-sonnet',
+        provider: 'anthropic',
+        usage: {
+          inputTokens: 100,
+          outputTokens: 200,
+          cachedInputTokens: 50,
+          cacheCreationInputTokens: 80,
+          reasoningTokens: 10,
+        },
+      },
+    }),
+  ];
+
+  const call = extractLlmCalls(spans, config)[0];
+
+  expect(call?.inputCostUsd).toBeCloseTo(0.0003);
+  expect(call?.outputCostUsd).toBeCloseTo(0.003);
+  expect(call?.cachedInputCostUsd).toBeCloseTo(0.000015);
+  expect(call?.cacheCreationInputCostUsd).toBeCloseTo(0.0003);
+  expect(call?.reasoningCostUsd).toBeCloseTo(0.0006);
+  expect(call?.costUsd).toBeCloseTo(0.004215);
+});
+
+test('extractLlmCalls prefers explicit span costs over derived pricing', () => {
+  const config = resolveLlmCallsConfig({
+    pricing: [
+      {
+        model: 'gpt-4o-mini',
+        inputUsdPerMillion: 100,
+        outputUsdPerMillion: 100,
+      },
+    ],
+  });
+
+  const spans: EvalTraceSpan[] = [
+    llmSpan({
+      attributes: {
+        model: 'gpt-4o-mini',
+        usage: { inputTokens: 100, outputTokens: 100 },
+        costUsd: 0.5,
+        cost: { inputUsd: 0.1 },
+      },
+    }),
+  ];
+
+  expect(extractLlmCalls(spans, config)[0]).toMatchObject({
+    inputCostUsd: 0.1,
+    outputCostUsd: 0.01,
+    costUsd: 0.5,
+  });
+});
+
+test('extractLlmCalls uses provider-specific pricing before generic pricing', () => {
+  const config = resolveLlmCallsConfig({
+    pricing: [
+      { model: 'shared-model', inputUsdPerMillion: 1, outputUsdPerMillion: 1 },
+      {
+        model: 'shared-model',
+        provider: 'provider-b',
+        inputUsdPerMillion: 2,
+        outputUsdPerMillion: 3,
+      },
+    ],
+  });
+
+  const calls = extractLlmCalls(
+    [
+      llmSpan({
+        attributes: {
+          model: 'shared-model',
+          provider: 'provider-b',
+          usage: { inputTokens: 100, outputTokens: 100 },
+        },
+      }),
+      llmSpan({
+        id: 'span-2',
+        attributes: {
+          model: 'shared-model',
+          provider: 'provider-c',
+          usage: { inputTokens: 100, outputTokens: 100 },
+        },
+      }),
+    ],
+    config,
+  );
+
+  expect(calls[0]?.costUsd).toBe(0.0005);
+  expect(calls[1]?.costUsd).toBe(0.0002);
+});
+
+test('extractLlmCalls does not derive total cost from incomplete pricing', () => {
+  const config = resolveLlmCallsConfig({
+    pricing: [{ model: 'gpt-4o-mini', inputUsdPerMillion: 1 }],
+  });
+
+  const calls = extractLlmCalls(
+    [
+      llmSpan({
+        attributes: {
+          model: 'gpt-4o-mini',
+          usage: { inputTokens: 100, outputTokens: 100 },
+        },
+      }),
+    ],
+    config,
+  );
+
+  expect(calls[0]).toMatchObject({
+    inputCostUsd: 0.0001,
+    outputCostUsd: null,
+    costUsd: null,
+  });
+});
+
+test('extractLlmCalls derives zero cost for zero-token calls', () => {
+  const config = resolveLlmCallsConfig({
+    pricing: [{ model: 'gpt-4o-mini', inputUsdPerMillion: 1 }],
+  });
+
+  const calls = extractLlmCalls(
+    [
+      llmSpan({
+        attributes: {
+          model: 'gpt-4o-mini',
+          usage: { inputTokens: 0, outputTokens: 0 },
+        },
+      }),
+    ],
+    config,
+  );
+
+  expect(calls[0]).toMatchObject({ costUsd: 0 });
 });
 
 test('extractLlmCalls reads custom metrics and drops undefined values', () => {

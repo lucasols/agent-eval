@@ -55,7 +55,6 @@ export async function runReceiptFraudReviewWorkflow(
             model: 'gpt-4o-vision-preview',
             provider: 'openai',
             usage: { inputTokens: 0, outputTokens: 0 },
-            costUsd: 0,
             steps: 0,
             finishReason: 'error',
             retryCount: 1,
@@ -77,8 +76,6 @@ export async function runReceiptFraudReviewWorkflow(
 
           const usage = { inputTokens: 240, outputTokens: 90 };
           const costUsd = calculateWorkflowCostUsd(usage);
-          const inputCostUsd = (usage.inputTokens / 1_000_000) * 2.5;
-          const outputCostUsd = (usage.outputTokens / 1_000_000) * 10;
 
           evalSpan.setAttributes({
             input: {
@@ -88,8 +85,6 @@ export async function runReceiptFraudReviewWorkflow(
             model: 'claude-3-5-sonnet',
             provider: 'anthropic',
             usage,
-            costUsd,
-            cost: { inputUsd: inputCostUsd, outputUsd: outputCostUsd },
             steps: 1,
             finishReason: 'stop',
             tokensPerSecond: 41.5,

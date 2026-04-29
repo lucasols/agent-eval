@@ -101,7 +101,11 @@ export async function runRefundWorkflow(input: RefundInput) {
               input.message,
             ));
           }
-          evalSpan.setAttributes({ model: 'gpt-4o-mini', usage });
+          evalSpan.setAttributes({
+            model: 'gpt-4o-mini',
+            provider: 'openai',
+            usage,
+          });
           const expectedLocale = getEvalCaseInput('locale');
           if (typeof expectedLocale === 'string') {
             evalSpan.setAttribute('expectedLocale', expectedLocale);
@@ -131,8 +135,9 @@ Span `kind` values are open-ended strings. Use familiar kinds such as
 `agent`, `tool`, `llm`, `api`, `retrieval`, `scorer`, or `checkpoint` when they
 fit, and preserve external tracer kinds such as `mastra.workflow.step` when they
 are more specific. Only the `input` and `output` span attributes are promoted
-automatically; use `traceDisplay` for other span attributes such as `model`,
-`usage`, or `costUsd`.
+automatically; use `traceDisplay` for other span attributes such as `model` or
+`usage`. Prefer `llmCalls.pricing` for LLM-call cost display instead of writing
+`costUsd` on each span.
 
 Use `captureEvalSpanError(error)` for recoverable errors on the active
 `evalTracer.span(...)`, such as optional model/tool failures that fall back and
@@ -256,9 +261,10 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   See the `TraceDisplayInputConfig` type.
 - `llmCalls` (in `agent-evals.config.ts`) configures how LLM-call spans are
   summarized for review. Defaults to `kind: 'llm'` spans with `model`,
-  `usage.*`, `costUsd`, `input`, `output`, etc. read from conventional
+  `usage.*`, `input`, `output`, etc. read from conventional
   attribute paths. Override `kinds` to broaden the filter, override
-  `attributes.<field>` for non-default span shapes, and add entries to
+  `attributes.<field>` for non-default span shapes, configure `pricing` to
+  derive USD costs from token counts by model/provider, and add entries to
   `metrics` to surface arbitrary user metrics (`format: 'string' | 'number' |
 'duration' | 'json' | 'boolean'`, `placements: ['header' | 'body']`).
 - `apiCalls` (in `agent-evals.config.ts`) configures how API-call spans are
@@ -291,7 +297,12 @@ await evalTracer.span(
   },
   async () => {
     const result = await llm.complete(input.message);
-    evalSpan.setAttributes({ model: 'gpt-4o-mini', output: result });
+    evalSpan.setAttributes({
+      model: 'gpt-4o-mini',
+      provider: 'openai',
+      usage: result.usage,
+      output: result,
+    });
     incrementEvalOutput('costUsd', computeCost(result));
     appendToEvalOutput('llmCalls', { model: 'gpt-4o-mini' });
     return result;

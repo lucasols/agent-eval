@@ -39,16 +39,12 @@ export async function runVoiceReturnFollowUpWorkflow(
 
           const usage = { inputTokens: 130, outputTokens: 90 };
           const costUsd = calculateWorkflowCostUsd(usage);
-          const inputCostUsd = (usage.inputTokens / 1_000_000) * 2.5;
-          const outputCostUsd = (usage.outputTokens / 1_000_000) * 10;
 
           evalSpan.setAttributes({
             input: { voiceNote: input.voiceNote },
             model: 'whisper-1',
             provider: 'openai',
             usage,
-            costUsd,
-            cost: { inputUsd: inputCostUsd, outputUsd: outputCostUsd },
             steps: 1,
             finishReason: 'stop',
             tokensPerSecond: 88.4,
@@ -90,8 +86,6 @@ export async function runVoiceReturnFollowUpWorkflow(
 
           const usage = { inputTokens: 320, outputTokens: 180 };
           const costUsd = calculateWorkflowCostUsd(usage);
-          const inputCostUsd = (usage.inputTokens / 1_000_000) * 2.5;
-          const outputCostUsd = (usage.outputTokens / 1_000_000) * 10;
           const finalText = `Prepared a ${input.preferredChannel} follow-up with return steps for order ${input.orderId}.`;
 
           evalSpan.setAttributes({
@@ -102,8 +96,6 @@ export async function runVoiceReturnFollowUpWorkflow(
             model: 'gpt-4o',
             provider: 'openai',
             usage,
-            costUsd,
-            cost: { inputUsd: inputCostUsd, outputUsd: outputCostUsd },
             steps: [
               {
                 index: 0,

@@ -141,7 +141,7 @@ describe('CLI eval features', () => {
         [
           {
             "caseId": "simple-text",
-            "costUsd": 0.0008749999999999999,
+            "costUsd": 0.0011324999999999998,
             "llmTurns": 1,
             "mentionsRefund": 1,
             "response": "Approved refund for: I want a refund for order #123",
@@ -151,7 +151,7 @@ describe('CLI eval features', () => {
           },
           {
             "caseId": "with-image",
-            "costUsd": 0.0008749999999999999,
+            "costUsd": 0.0011324999999999998,
             "llmTurns": 1,
             "mentionsRefund": 1,
             "response": "Approved refund for: Please refund this damaged item",
@@ -161,7 +161,7 @@ describe('CLI eval features', () => {
           },
           {
             "caseId": "with-audio",
-            "costUsd": 0.0008749999999999999,
+            "costUsd": 0.0011324999999999998,
             "llmTurns": 1,
             "mentionsRefund": 1,
             "response": "Approved refund for: I need to return this product",
@@ -174,7 +174,7 @@ describe('CLI eval features', () => {
     });
   });
 
-  test('persists multimodal inputs and trace display transforms in run artifacts', async () => {
+  test('persists multimodal inputs and trace span attributes in run artifacts', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const result = await runExampleCli(workspacePath, [
         'run',
@@ -218,13 +218,15 @@ describe('CLI eval features', () => {
       ).toBe(false);
       expect(withImagePlan.attributes?.model).toBe('gpt-4o-mini');
       expect(withImagePlan.attributes?.usage).toEqual({
+        cacheCreationInputTokens: 80,
+        cachedInputTokens: 30,
         inputTokens: 150,
         outputTokens: 50,
       });
-      expect(withImagePlan.attributes?.costUsd).toBe(0.0008749999999999999);
+      expect(withImagePlan.attributes?.costUsd).toBeUndefined();
       expect(
         readDisplayString(withImagePlan.attributes?.__display, 'costBrl'),
-      ).toBe('R$ 0,00');
+      ).toBeUndefined();
       expect(getDurationMs(simpleTextAgent)).toBeGreaterThanOrEqual(400);
       expect(getDurationMs(withImagePlan)).toBeGreaterThanOrEqual(180);
 
@@ -270,9 +272,7 @@ describe('CLI eval features', () => {
                 "value": undefined,
               },
               {
-                "display": {
-                  "costBrl": "R$ 0,00",
-                },
+                "display": undefined,
                 "input": {
                   "prompt": "I want a refund for order #123",
                 },
@@ -284,6 +284,8 @@ describe('CLI eval features', () => {
                 },
                 "parentId": "<span-id>",
                 "usage": {
+                  "cacheCreationInputTokens": 80,
+                  "cachedInputTokens": 30,
                   "inputTokens": 150,
                   "outputTokens": 50,
                 },
@@ -338,9 +340,7 @@ describe('CLI eval features', () => {
                 "value": undefined,
               },
               {
-                "display": {
-                  "costBrl": "R$ 0,00",
-                },
+                "display": undefined,
                 "input": {
                   "prompt": "I need to return this product",
                 },
@@ -352,6 +352,8 @@ describe('CLI eval features', () => {
                 },
                 "parentId": "<span-id>",
                 "usage": {
+                  "cacheCreationInputTokens": 80,
+                  "cachedInputTokens": 30,
                   "inputTokens": 150,
                   "outputTokens": 50,
                 },
@@ -406,9 +408,7 @@ describe('CLI eval features', () => {
                 "value": undefined,
               },
               {
-                "display": {
-                  "costBrl": "R$ 0,00",
-                },
+                "display": undefined,
                 "input": {
                   "prompt": "Please refund this damaged item",
                 },
@@ -420,6 +420,8 @@ describe('CLI eval features', () => {
                 },
                 "parentId": "<span-id>",
                 "usage": {
+                  "cacheCreationInputTokens": 80,
+                  "cachedInputTokens": 30,
                   "inputTokens": 150,
                   "outputTokens": 50,
                 },

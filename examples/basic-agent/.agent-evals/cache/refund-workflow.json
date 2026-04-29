@@ -27,13 +27,6 @@
             "cacheCreationInputTokens": 80,
             "cachedInputTokens": 30
           },
-          "costUsd": 0.0011324999999999998,
-          "cost": {
-            "inputUsd": 0.00037499999999999995,
-            "outputUsd": 0.0005,
-            "cacheCreationInputUsd": 0.00025,
-            "cachedInputUsd": 0.000007500000000000001
-          },
           "steps": 1,
           "finishReason": "stop",
           "tokensPerSecond": 38.2,
@@ -77,13 +70,6 @@
             "cacheCreationInputTokens": 80,
             "cachedInputTokens": 30
           },
-          "costUsd": 0.0011324999999999998,
-          "cost": {
-            "inputUsd": 0.00037499999999999995,
-            "outputUsd": 0.0005,
-            "cacheCreationInputUsd": 0.00025,
-            "cachedInputUsd": 0.000007500000000000001
-          },
           "steps": 1,
           "finishReason": "stop",
           "tokensPerSecond": 38.2,
@@ -126,13 +112,6 @@
             "outputTokens": 50,
             "cacheCreationInputTokens": 80,
             "cachedInputTokens": 30
-          },
-          "costUsd": 0.0011324999999999998,
-          "cost": {
-            "inputUsd": 0.00037499999999999995,
-            "outputUsd": 0.0005,
-            "cacheCreationInputUsd": 0.00025,
-            "cachedInputUsd": 0.000007500000000000001
           },
           "steps": 1,
           "finishReason": "stop",

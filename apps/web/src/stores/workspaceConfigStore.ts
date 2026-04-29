@@ -52,6 +52,17 @@ const llmCallsConfigSchema: z.ZodType<ResolvedLlmCallsConfig> = z.object({
       placements: z.array(z.enum(['header', 'body'])),
     }),
   ),
+  pricing: z.array(
+    z.object({
+      model: z.string(),
+      provider: z.string().optional(),
+      inputUsdPerMillion: z.number().optional(),
+      outputUsdPerMillion: z.number().optional(),
+      cachedInputUsdPerMillion: z.number().optional(),
+      cacheCreationInputUsdPerMillion: z.number().optional(),
+      reasoningUsdPerMillion: z.number().optional(),
+    }),
+  ),
 });
 
 const apiCallsConfigSchema: z.ZodType<ResolvedApiCallsConfig> = z.object({

@@ -68,13 +68,6 @@ export async function triggerWorkflow(
             model: 'gpt-4o-mini',
             provider: 'openai',
             usage,
-            costUsd,
-            cost: {
-              inputUsd: inputCostUsd,
-              outputUsd: outputCostUsd,
-              cacheCreationInputUsd: cacheCreationInputCostUsd,
-              cachedInputUsd: cachedInputCostUsd,
-            },
             steps: 1,
             finishReason: 'stop',
             tokensPerSecond: 38.2,

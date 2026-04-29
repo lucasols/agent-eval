@@ -23,6 +23,46 @@ export const config: AgentEvalsConfig = {
     ],
   },
   llmCalls: {
+    pricing: [
+      {
+        model: 'gpt-4o-mini',
+        inputUsdPerMillion: 2.5,
+        outputUsdPerMillion: 10,
+        cachedInputUsdPerMillion: 0.25,
+        cacheCreationInputUsdPerMillion: 3.125,
+      },
+      {
+        model: 'gpt-4o',
+        provider: 'openai',
+        inputUsdPerMillion: 2.5,
+        outputUsdPerMillion: 10,
+      },
+      {
+        model: 'whisper-1',
+        provider: 'openai',
+        inputUsdPerMillion: 2.5,
+        outputUsdPerMillion: 10,
+      },
+      {
+        model: 'o1-mini',
+        provider: 'openai',
+        inputUsdPerMillion: 2.5,
+        outputUsdPerMillion: 10,
+        reasoningUsdPerMillion: 60,
+      },
+      {
+        model: 'claude-3-5-sonnet',
+        provider: 'anthropic',
+        inputUsdPerMillion: 2.5,
+        outputUsdPerMillion: 10,
+      },
+      {
+        model: 'gpt-4o-vision-preview',
+        provider: 'openai',
+        inputUsdPerMillion: 2.5,
+        outputUsdPerMillion: 10,
+      },
+    ],
     metrics: [
       {
         label: 't/s',

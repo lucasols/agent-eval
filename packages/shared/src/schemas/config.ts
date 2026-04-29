@@ -106,6 +106,33 @@ export const apiCallMetricSchema = z.object({
 /** User-defined API-call metric authored in `agent-evals.config.ts`. */
 export type ApiCallMetric = z.infer<typeof apiCallMetricSchema>;
 
+/**
+ * Schema for one model/provider pricing entry used to derive LLM-call costs
+ * from token counts when a span does not already record explicit USD costs.
+ */
+export const llmCallPricingSchema = z.object({
+  /** Exact model name read from the configured `attributes.model` path. */
+  model: z.string().min(1),
+  /**
+   * Optional provider discriminator read from `attributes.provider`. When set,
+   * the entry only applies to calls from that provider; provider-specific
+   * entries take precedence over generic entries for the same model.
+   */
+  provider: z.string().min(1).optional(),
+  /** USD per one million non-cached input tokens. */
+  inputUsdPerMillion: z.number().nonnegative().optional(),
+  /** USD per one million output tokens. */
+  outputUsdPerMillion: z.number().nonnegative().optional(),
+  /** USD per one million prompt-cache read tokens. */
+  cachedInputUsdPerMillion: z.number().nonnegative().optional(),
+  /** USD per one million prompt-cache write tokens. */
+  cacheCreationInputUsdPerMillion: z.number().nonnegative().optional(),
+  /** USD per one million reasoning tokens when reported separately. */
+  reasoningUsdPerMillion: z.number().nonnegative().optional(),
+});
+/** Model/provider pricing entry authored in `agent-evals.config.ts`. */
+export type LlmCallPricing = z.infer<typeof llmCallPricingSchema>;
+
 /** Schema for the global LLM calls config block in `agent-evals.config.ts`. */
 export const llmCallsConfigSchema = z.object({
   /** Span kinds treated as LLM calls. Defaults to `['llm']`. */
@@ -116,8 +143,9 @@ export const llmCallsConfigSchema = z.object({
    * built-in defaults (e.g. `usage.inputTokens`, `costUsd`).
    *
    * Per-token-type cost paths (`inputCost`, `outputCost`, `cachedInputCost`,
-   * `reasoningCost`) feed the cost breakdown table in the expanded row.
-   * Record them as USD numbers alongside `costUsd` in your span attributes.
+   * `reasoningCost`) feed the cost breakdown table in the expanded row when
+   * spans provide explicit USD cost overrides. Prefer `pricing` for deriving
+   * costs from token counts globally.
    */
   attributes: z
     .object({
@@ -143,6 +171,12 @@ export const llmCallsConfigSchema = z.object({
       toolCalls: z.string().optional(),
     })
     .optional(),
+  /**
+   * Model/provider pricing registry used to calculate missing LLM-call costs
+   * from token counts. Explicit span attributes (`costUsd`, `cost.inputUsd`,
+   * etc.) take precedence over derived prices.
+   */
+  pricing: z.array(llmCallPricingSchema).optional(),
   /** Custom user-defined metrics surfaced on each LLM call. */
   metrics: z.array(llmCallMetricSchema).optional(),
 });
@@ -216,6 +250,7 @@ export type ResolvedLlmCallsConfig = {
     toolCalls: string;
   };
   metrics: ResolvedLlmCallMetric[];
+  pricing: ResolvedLlmCallPricing[];
 };
 
 /** Resolved API-calls config sent to the UI with all defaults applied. */
@@ -256,6 +291,17 @@ export type ResolvedApiCallMetric = {
   placements: ApiCallMetricPlacement[];
 };
 
+/** Fully-resolved pricing entry used by the LLM calls extractor. */
+export type ResolvedLlmCallPricing = {
+  model: string;
+  provider?: string;
+  inputUsdPerMillion?: number;
+  outputUsdPerMillion?: number;
+  cachedInputUsdPerMillion?: number;
+  cacheCreationInputUsdPerMillion?: number;
+  reasoningUsdPerMillion?: number;
+};
+
 /** Default LLM-calls config the UI uses before the workspace fetch resolves. */
 export const DEFAULT_LLM_CALLS_CONFIG: ResolvedLlmCallsConfig = {
   kinds: ['llm'],
@@ -282,6 +328,7 @@ export const DEFAULT_LLM_CALLS_CONFIG: ResolvedLlmCallsConfig = {
     toolCalls: 'toolCalls',
   },
   metrics: [],
+  pricing: [],
 };
 
 /** Default API-calls config the UI uses before the workspace fetch resolves. */
@@ -311,6 +358,8 @@ export const DEFAULT_API_CALLS_CONFIG: ResolvedApiCallsConfig = {
  *   attribute path.
  * - Missing `metrics[].format` defaults to `'string'`.
  * - Missing `metrics[].placements` defaults to `['body']`.
+ * - Missing `pricing` defaults to an empty registry; explicit span costs still
+ *   take precedence over derived costs.
  */
 export function resolveLlmCallsConfig(
   input: LlmCallsConfigInput | undefined,
@@ -331,6 +380,15 @@ export function resolveLlmCallsConfig(
       format: m.format ?? 'string',
       numberFormat: m.numberFormat,
       placements: m.placements ? [...m.placements] : ['body'],
+    })),
+    pricing: (input?.pricing ?? []).map((p) => ({
+      model: p.model,
+      provider: p.provider,
+      inputUsdPerMillion: p.inputUsdPerMillion,
+      outputUsdPerMillion: p.outputUsdPerMillion,
+      cachedInputUsdPerMillion: p.cachedInputUsdPerMillion,
+      cacheCreationInputUsdPerMillion: p.cacheCreationInputUsdPerMillion,
+      reasoningUsdPerMillion: p.reasoningUsdPerMillion,
     })),
   };
 }
@@ -427,6 +485,10 @@ export type AgentEvalsConfig = {
    *     { label: 'Tokens/sec', path: 'tokensPerSecond', format: 'number',
    *       numberFormat: { decimalPlaces: 1 }, placements: ['header', 'body'] },
    *     { label: 'Retries', path: 'retryCount', format: 'number' },
+   *   ],
+   *   pricing: [
+   *     { model: 'gpt-4o-mini', provider: 'openai',
+   *       inputUsdPerMillion: 0.15, outputUsdPerMillion: 0.6 },
    *   ],
    * }
    * ```
