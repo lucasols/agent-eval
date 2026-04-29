@@ -54,27 +54,24 @@ needed to author evals.
    .agent-evals/cache/*.lock/
    ```
 
-6. Install `skills-npm` and sync the bundled `agent-eval` skill so future
-   authoring work uses the version shipped with the installed package instead
-   of re-reading this install prompt. Do not switch package managers.
-   - pnpm: `pnpm add -D skills-npm`, then `pnpm exec skills-npm --yes`
-   - npm: `npm install -D skills-npm`, then `npx skills-npm --yes`
-   - yarn: `yarn add -D skills-npm`, then `yarn skills-npm --yes`
-   - bun: `bun add -d skills-npm`, then `bunx skills-npm --yes`
+6. Symlink the bundled `agent-eval` skill folder into the project's local
+   `skills/` directory if `skills/agent-eval` does not already exist:
 
-   Add `skills/npm-*` to `.gitignore` if `skills-npm` creates local skill
-   symlinks there. If `package.json` has no `prepare` script, add
-   `"prepare": "skills-npm"` so the skill refreshes after dependency installs.
-   If a `prepare` script already exists, do not overwrite it; tell the user to
-   chain `skills-npm` into their existing prepare workflow when they are ready.
+   ```sh
+   mkdir -p skills
+   ln -s ../node_modules/@ls-stack/agent-eval/skills/agent-eval skills/agent-eval
+   ```
+
+   If `skills/agent-eval` already exists, leave it in place and report that
+   the symlink step was skipped.
 
 7. Verify the install by running `agent-evals list` with the detected package
    manager (for example `pnpm exec agent-evals list`). The placeholder eval
    should appear.
 
-8. Do **not** add production tracing yet. Point the user at the `agent-eval`
-   skill installed by `skills-npm` for authoring real evals and wiring
-   `evalTracer` spans into product source code.
+8. Do **not** add production tracing yet. Point the user at the bundled
+   `agent-eval` skill for authoring real evals and wiring `evalTracer` spans
+   into product source code.
 
 Report which steps ran, which were skipped (because the file already existed),
 and the output of `agent-evals list`.

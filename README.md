@@ -90,18 +90,15 @@ A complete working example lives at [`examples/basic-agent`](./examples/basic-ag
 ## Agent Skill
 
 `@ls-stack/agent-eval` ships an [Agent Skills](https://agentskills.io/home)
-skill using the [`skills-npm`](https://github.com/antfu/skills-npm)
-convention. The published package includes
-[`skills/agent-eval/SKILL.md`](./packages/cli/skills/agent-eval/SKILL.md), so
-projects can install and sync it with `skills-npm`:
+skill. The published package includes
+[`skills/agent-eval/SKILL.md`](./packages/cli/skills/agent-eval/SKILL.md).
+After installation, symlink the bundled skill folder into your project's local
+`skills/` directory:
 
 ```sh
-pnpm add -D skills-npm
-pnpm exec skills-npm
+mkdir -p skills
+ln -s ../node_modules/@ls-stack/agent-eval/skills/agent-eval skills/agent-eval
 ```
-
-Add `skills/npm-*` to `.gitignore` if `skills-npm` is configured to create
-local skill symlinks there.
 
 For first-time installation, use
 [`templates/agent-eval/install-prompt.md`](./templates/agent-eval/install-prompt.md)
