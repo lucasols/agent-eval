@@ -28,6 +28,13 @@ export {
   type RunInEvalScopeOptions,
 } from './runtime.ts';
 export {
+  deserializeCacheRecording,
+  deserializeCacheValue,
+  serializeCacheRecording,
+  serializeCacheValue,
+  type SerializedCacheValue,
+} from './cacheSerialization.ts';
+export {
   captureEvalSpanError,
   evalTracer,
   evalSpan,

@@ -9,6 +9,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { deserializeCacheRecording } from '@agent-evals/sdk';
 import type { CacheAdapter, CacheDebugKeyWrite } from '@agent-evals/sdk';
 import {
   cacheDebugKeyFileSchema,
@@ -97,7 +98,13 @@ export function createFsCacheStore(options: {
       if (entry === null) return null;
       const debugFile = await readDebugKeyFile(debugDir, owner);
       const debugKey = debugFile?.entries[keyHash];
-      return debugKey === undefined ? entry : { ...entry, debugKey };
+      const deserializedEntry: CacheEntry = {
+        ...entry,
+        recording: deserializeCacheRecording(entry.recording),
+      };
+      return debugKey === undefined
+        ? deserializedEntry
+        : { ...deserializedEntry, debugKey };
     },
 
     async write(entry, debugKey) {

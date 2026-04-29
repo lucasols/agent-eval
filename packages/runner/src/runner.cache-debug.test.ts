@@ -100,6 +100,9 @@ defineEval({
       'ui-cache-debug__debuggable-call',
       debugEntry.key,
     );
+    expect(cacheEntry?.recording.returnValue).toEqual({
+      text: 'inspect this cache key',
+    });
     expect(cacheEntry?.debugKey?.rawKey).toEqual({
       prompt: 'inspect this cache key',
       model: 'debug-model',

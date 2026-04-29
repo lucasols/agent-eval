@@ -40,7 +40,8 @@ const serovalWebPlugins = [
   URLSearchParamsPlugin,
 ];
 
-type SerializedCacheValue = {
+/** Seroval-backed persisted representation for one cached value. */
+export type SerializedCacheValue = {
   [serializedCacheValueMarker]: typeof serializedCacheValueVersion;
   value: SerovalJSON;
 };
