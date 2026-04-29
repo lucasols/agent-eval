@@ -62,6 +62,22 @@ defineEval<EnvironmentConfigInput, EnvironmentConfigOutputs>({
         const generatedIds = [nextEvalId(), nextEvalId()];
         const response = `Routed ${orderId} for ${input.customerTier} support via ${queue}.`;
 
+        evalTracer.recordSpan({
+          kind: 'api',
+          name: 'fetch-support-routing-config',
+          attributes: {
+            method: 'GET',
+            url: `https://support-config.local/queues/${input.customerTier}`,
+            statusCode: 200,
+            durationMs: 12,
+            request: { customerTier: input.customerTier },
+            response: { queue },
+            headers: { 'x-config-version': '2026-04' },
+            retryCount: 0,
+            source: 'workspace-env',
+          },
+        });
+
         setOutput('generatedIds', generatedIds);
         setOutput('response', response);
         setOutput('queue', queue);

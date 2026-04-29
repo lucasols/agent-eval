@@ -104,6 +104,11 @@ export {
   type LlmCallMetricValue,
 } from './utils/extractLlmCalls.ts';
 export {
+  extractApiCalls,
+  type ApiCallEntry,
+  type ApiCallMetricValue,
+} from './utils/extractApiCalls.ts';
+export {
   extractCacheHits,
   type CacheHitEntry,
 } from './utils/extractCacheHits.ts';
@@ -122,19 +127,31 @@ export {
   trialSelectionModeSchema,
   agentEvalsConfigSchema,
   llmCallsConfigSchema,
+  apiCallsConfigSchema,
   llmCallMetricSchema,
   llmCallMetricFormatSchema,
   llmCallMetricPlacementSchema,
+  apiCallMetricSchema,
+  apiCallMetricFormatSchema,
+  apiCallMetricPlacementSchema,
   resolveLlmCallsConfig,
+  resolveApiCallsConfig,
   DEFAULT_LLM_CALLS_CONFIG,
+  DEFAULT_API_CALLS_CONFIG,
   type TrialSelectionMode,
   type AgentEvalsConfig,
   type LlmCallsConfigInput,
+  type ApiCallsConfigInput,
   type LlmCallMetric,
+  type ApiCallMetric,
   type LlmCallMetricFormat,
+  type ApiCallMetricFormat,
   type LlmCallMetricPlacement,
+  type ApiCallMetricPlacement,
   type ResolvedLlmCallsConfig,
+  type ResolvedApiCallsConfig,
   type ResolvedLlmCallMetric,
+  type ResolvedApiCallMetric,
 } from './schemas/config.ts';
 export {
   cacheModeSchema,

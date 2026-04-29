@@ -14,10 +14,12 @@ import type {
   CacheEntry,
   CacheListItem,
   CacheMode,
+  ResolvedApiCallsConfig,
   ResolvedLlmCallsConfig,
 } from '@agent-evals/shared';
 import {
   deriveScopedSummaryFromCases,
+  resolveApiCallsConfig,
   resolveLlmCallsConfig,
 } from '@agent-evals/shared';
 import { watch, type FSWatcher } from 'chokidar';
@@ -102,6 +104,13 @@ export type EvalRunner = {
    * `agent-evals.config.ts` with all defaults applied.
    */
   getLlmCallsConfig(): ResolvedLlmCallsConfig;
+  /**
+   * Resolved API-calls config used by the UI to derive the API calls tab.
+   *
+   * Returns the workspace's `apiCalls` config block from
+   * `agent-evals.config.ts` with all defaults applied.
+   */
+  getApiCallsConfig(): ResolvedApiCallsConfig;
   /** Resolve a persisted artifact path when artifact storage is supported. */
   getArtifactPath(artifactId: string): string | undefined;
   /** Return summaries for every persisted cache entry in the workspace. */
@@ -216,6 +225,7 @@ export function createRunner({
   let localStateDir: string;
   let cacheStore: FsCacheStore;
   let llmCallsConfig: ResolvedLlmCallsConfig = resolveLlmCallsConfig(undefined);
+  let apiCallsConfig: ResolvedApiCallsConfig = resolveApiCallsConfig(undefined);
   const evals = new Map<string, EvalMeta>();
   const runs = new Map<string, RunnerRunState>();
   const lastRunStatusMap = new Map<string, EvalSummary['lastRunStatus']>();
@@ -245,6 +255,7 @@ export function createRunner({
       workspaceRoot = config.workspaceRoot ?? process.cwd();
       localStateDir = resolve(workspaceRoot, '.agent-evals');
       llmCallsConfig = resolveLlmCallsConfig(config.llmCalls);
+      apiCallsConfig = resolveApiCallsConfig(config.apiCalls);
 
       await mkdir(localStateDir, { recursive: true });
       await mkdir(join(localStateDir, 'runs'), { recursive: true });
@@ -671,6 +682,10 @@ export function createRunner({
 
     getLlmCallsConfig() {
       return llmCallsConfig;
+    },
+
+    getApiCallsConfig() {
+      return apiCallsConfig;
     },
 
     getArtifactPath(artifactId_) {

@@ -187,6 +187,7 @@ build also bundles the web UI assets used by `agent-evals app`.
 | `staleAfterDays` | `number?`                    | Days before a mismatched-commit latest run is marked outdated (default: `14`)         |
 | `traceDisplay`   | `TraceDisplayConfig?`        | Global trace attribute display config for the UI                                      |
 | `llmCalls`       | `LlmCallsConfig?`            | LLM calls tab config for the case-run drawer (kinds, attribute paths, custom metrics) |
+| `apiCalls`       | `ApiCallsConfig?`            | API calls tab config for the case-run drawer (kinds, attribute paths, custom metrics) |
 
 When `trials > 1`, the runner executes the case repeatedly but persists a
 single winning result per case. `lowestScore` is the default. `median` uses the
@@ -386,6 +387,60 @@ llmCalls: {
 ```
 
 Custom metrics support `'string' | 'number' | 'duration' | 'json' | 'boolean'` formats. Use `tooltip` to add a hover description for compact labels. The tab is hidden automatically for cases with no matching spans.
+
+### API calls tab
+
+The case-run drawer also surfaces an **API calls** tab whenever a case trace
+contains matching API/HTTP spans. By default, spans with `kind: 'api'`,
+`'http'`, `'http.client'`, or `'fetch'` are treated as API calls. The tab reads
+`method`, `url`, `statusCode`, `request`, `response`, `requestBody`,
+`responseBody`, `headers`, `durationMs`, and `error` from span attributes. Each
+row is collapsed by default; clicking expands it to show captured request and
+response payloads, headers, error payloads, warnings, and custom metrics.
+
+Emit API calls as normal trace spans:
+
+```ts
+evalTracer.recordSpan({
+  kind: 'api',
+  name: 'fetch-support-routing-config',
+  attributes: {
+    method: 'GET',
+    url: 'https://support-config.local/queues/gold',
+    statusCode: 200,
+    durationMs: 12,
+    request: { customerTier: 'gold' },
+    response: { queue: 'priority-refunds' },
+    headers: { 'x-config-version': '2026-04' },
+  },
+});
+```
+
+Override the defaults globally from `agent-evals.config.ts`:
+
+```ts
+apiCalls: {
+  // Treat additional span kinds as API calls.
+  kinds: ['api', 'http.client', 'undici.request'],
+  // Read structured fields from non-default attribute paths.
+  attributes: {
+    statusCode: 'http.status_code',
+    durationMs: 'timing.totalMs',
+  },
+  metrics: [
+    {
+      label: 'Retries',
+      path: 'retryCount',
+      format: 'number',
+      placements: ['header', 'body'],
+    },
+  ],
+}
+```
+
+Custom metrics support the same `'string' | 'number' | 'duration' | 'json' |
+'boolean'` formats and `['header' | 'body']` placements as LLM-call metrics.
+The tab is hidden automatically for cases with no matching API spans.
 
 ### Scorers
 

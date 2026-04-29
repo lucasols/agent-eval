@@ -24,11 +24,23 @@ export const llmCallMetricFormatSchema = z.enum([
 /** Render format applied to an LLM-call metric value. */
 export type LlmCallMetricFormat = z.infer<typeof llmCallMetricFormatSchema>;
 
+/** Render formats supported by an API-call metric in the UI. */
+export const apiCallMetricFormatSchema = llmCallMetricFormatSchema;
+/** Render format applied to an API-call metric value. */
+export type ApiCallMetricFormat = z.infer<typeof apiCallMetricFormatSchema>;
+
 /** Where an LLM-call metric is rendered inside the LLM calls tab. */
 export const llmCallMetricPlacementSchema = z.enum(['header', 'body']);
 /** Placement option for an LLM-call metric. */
 export type LlmCallMetricPlacement = z.infer<
   typeof llmCallMetricPlacementSchema
+>;
+
+/** Where an API-call metric is rendered inside the API calls tab. */
+export const apiCallMetricPlacementSchema = llmCallMetricPlacementSchema;
+/** Placement option for an API-call metric. */
+export type ApiCallMetricPlacement = z.infer<
+  typeof apiCallMetricPlacementSchema
 >;
 
 /**
@@ -62,6 +74,37 @@ export const llmCallMetricSchema = z.object({
 });
 /** User-defined metric authored in `agent-evals.config.ts`. */
 export type LlmCallMetric = z.infer<typeof llmCallMetricSchema>;
+
+/**
+ * Schema for a single user-defined metric attached to API call rows.
+ *
+ * Each metric reads `path` from the span's `attributes` and renders the value
+ * with the configured `format` and `numberFormat`. `placements` controls
+ * whether the metric appears as a chip on the collapsed row header, as a row
+ * inside the expanded body, or both. Defaults to `['body']` when omitted.
+ */
+export const apiCallMetricSchema = z.object({
+  /** Display label for the metric row or header chip. */
+  label: z.string().min(1),
+  /**
+   * Optional hover tooltip shown on the metric. Useful when `label` is a
+   * compact abbreviation and the full meaning needs to be surfaced on hover.
+   */
+  tooltip: z.string().min(1).optional(),
+  /** Dot-path inside `span.attributes` used to read the value. */
+  path: z.string().min(1),
+  /** Render hint applied to the resolved value. Defaults to `'string'`. */
+  format: apiCallMetricFormatSchema.optional(),
+  /** Number presentation options applied when `format: 'number'`. */
+  numberFormat: numberDisplayOptionsSchema.optional(),
+  /**
+   * Where the metric should appear in the API calls tab. Defaults to
+   * `['body']` so metrics surface inside the expanded detail view only.
+   */
+  placements: z.array(apiCallMetricPlacementSchema).nonempty().optional(),
+});
+/** User-defined API-call metric authored in `agent-evals.config.ts`. */
+export type ApiCallMetric = z.infer<typeof apiCallMetricSchema>;
 
 /** Schema for the global LLM calls config block in `agent-evals.config.ts`. */
 export const llmCallsConfigSchema = z.object({
@@ -106,6 +149,35 @@ export const llmCallsConfigSchema = z.object({
 /** Authored LLM calls config accepted from `agent-evals.config.ts`. */
 export type LlmCallsConfigInput = z.infer<typeof llmCallsConfigSchema>;
 
+/** Schema for the global API calls config block in `agent-evals.config.ts`. */
+export const apiCallsConfigSchema = z.object({
+  /** Span kinds treated as API calls. Defaults to common API/HTTP kinds. */
+  kinds: z.array(z.string().min(1)).optional(),
+  /**
+   * Attribute paths used to extract structured per-call fields. Each entry is
+   * a dot-path inside `span.attributes`. Missing paths fall back to the
+   * built-in defaults such as `method`, `url`, and `statusCode`.
+   */
+  attributes: z
+    .object({
+      method: z.string().optional(),
+      url: z.string().optional(),
+      statusCode: z.string().optional(),
+      request: z.string().optional(),
+      response: z.string().optional(),
+      requestBody: z.string().optional(),
+      responseBody: z.string().optional(),
+      headers: z.string().optional(),
+      durationMs: z.string().optional(),
+      error: z.string().optional(),
+    })
+    .optional(),
+  /** Custom user-defined metrics surfaced on each API call. */
+  metrics: z.array(apiCallMetricSchema).optional(),
+});
+/** Authored API calls config accepted from `agent-evals.config.ts`. */
+export type ApiCallsConfigInput = z.infer<typeof apiCallsConfigSchema>;
+
 /** Resolved LLM-calls config sent to the UI with all defaults applied. */
 export type ResolvedLlmCallsConfig = {
   kinds: string[];
@@ -134,6 +206,24 @@ export type ResolvedLlmCallsConfig = {
   metrics: ResolvedLlmCallMetric[];
 };
 
+/** Resolved API-calls config sent to the UI with all defaults applied. */
+export type ResolvedApiCallsConfig = {
+  kinds: string[];
+  attributes: {
+    method: string;
+    url: string;
+    statusCode: string;
+    request: string;
+    response: string;
+    requestBody: string;
+    responseBody: string;
+    headers: string;
+    durationMs: string;
+    error: string;
+  };
+  metrics: ResolvedApiCallMetric[];
+};
+
 /** Fully-resolved LLM-call metric used by the runner and UI. */
 export type ResolvedLlmCallMetric = {
   label: string;
@@ -142,6 +232,16 @@ export type ResolvedLlmCallMetric = {
   format: LlmCallMetricFormat;
   numberFormat?: NumberDisplayOptions;
   placements: LlmCallMetricPlacement[];
+};
+
+/** Fully-resolved API-call metric used by the runner and UI. */
+export type ResolvedApiCallMetric = {
+  label: string;
+  tooltip?: string;
+  path: string;
+  format: ApiCallMetricFormat;
+  numberFormat?: NumberDisplayOptions;
+  placements: ApiCallMetricPlacement[];
 };
 
 /** Default LLM-calls config the UI uses before the workspace fetch resolves. */
@@ -172,6 +272,24 @@ export const DEFAULT_LLM_CALLS_CONFIG: ResolvedLlmCallsConfig = {
   metrics: [],
 };
 
+/** Default API-calls config the UI uses before the workspace fetch resolves. */
+export const DEFAULT_API_CALLS_CONFIG: ResolvedApiCallsConfig = {
+  kinds: ['api', 'http', 'http.client', 'fetch'],
+  attributes: {
+    method: 'method',
+    url: 'url',
+    statusCode: 'statusCode',
+    request: 'request',
+    response: 'response',
+    requestBody: 'requestBody',
+    responseBody: 'responseBody',
+    headers: 'headers',
+    durationMs: 'durationMs',
+    error: 'error',
+  },
+  metrics: [],
+};
+
 /**
  * Resolve the user-authored LLM-calls config to a fully-defaulted shape used
  * by the UI to derive the LLM calls tab.
@@ -192,6 +310,39 @@ export function resolveLlmCallsConfig(
         : [...DEFAULT_LLM_CALLS_CONFIG.kinds],
     attributes: {
       ...DEFAULT_LLM_CALLS_CONFIG.attributes,
+      ...input?.attributes,
+    },
+    metrics: (input?.metrics ?? []).map((m) => ({
+      label: m.label,
+      tooltip: m.tooltip,
+      path: m.path,
+      format: m.format ?? 'string',
+      numberFormat: m.numberFormat,
+      placements: m.placements ? [...m.placements] : ['body'],
+    })),
+  };
+}
+
+/**
+ * Resolve the user-authored API-calls config to a fully-defaulted shape used
+ * by the UI to derive the API calls tab.
+ *
+ * - Missing or empty `kinds` falls back to common API/HTTP span kinds.
+ * - Missing `attributes.<field>` falls back to the corresponding default
+ *   attribute path.
+ * - Missing `metrics[].format` defaults to `'string'`.
+ * - Missing `metrics[].placements` defaults to `['body']`.
+ */
+export function resolveApiCallsConfig(
+  input: ApiCallsConfigInput | undefined,
+): ResolvedApiCallsConfig {
+  return {
+    kinds:
+      input?.kinds && input.kinds.length > 0
+        ? [...input.kinds]
+        : [...DEFAULT_API_CALLS_CONFIG.kinds],
+    attributes: {
+      ...DEFAULT_API_CALLS_CONFIG.attributes,
       ...input?.attributes,
     },
     metrics: (input?.metrics ?? []).map((m) => ({
@@ -264,6 +415,30 @@ export type AgentEvalsConfig = {
    */
   llmCalls?: LlmCallsConfigInput;
   /**
+   * Configuration for the "API calls" tab in the case-run drawer.
+   *
+   * Determines which trace spans are treated as API calls (`kinds`), how
+   * structured fields like `method`, `url`, and `statusCode` are read from
+   * span attributes, and which custom user-defined metrics are surfaced on
+   * each call. All fields are optional and fall back to the documented
+   * defaults; the API calls tab is shown automatically when at least one
+   * matching span exists in a case run.
+   *
+   * @example
+   * ```ts
+   * apiCalls: {
+   *   kinds: ['api', 'http.client', 'undici.request'],
+   *   attributes: {
+   *     statusCode: 'http.status_code',
+   *   },
+   *   metrics: [
+   *     { label: 'Retries', path: 'retryCount', format: 'number' },
+   *   ],
+   * }
+   * ```
+   */
+  apiCalls?: ApiCallsConfigInput;
+  /**
    * Optional controls for the operation cache. When omitted, the cache is
    * enabled and stored under `<workspaceRoot>/.agent-evals/cache`.
    */
@@ -297,6 +472,7 @@ export const agentEvalsConfigSchema = z.object({
   staleAfterDays: z.number().optional(),
   traceDisplay: traceDisplayInputConfigSchema.optional(),
   llmCalls: llmCallsConfigSchema.optional(),
+  apiCalls: apiCallsConfigSchema.optional(),
   cache: z
     .object({
       enabled: z.boolean().optional(),

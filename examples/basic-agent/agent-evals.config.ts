@@ -53,4 +53,15 @@ export const config: AgentEvalsConfig = {
       },
     ],
   },
+  apiCalls: {
+    metrics: [
+      {
+        label: 'Retries',
+        path: 'retryCount',
+        format: 'number',
+        placements: ['header', 'body'],
+      },
+      { label: 'Source', path: 'source', placements: ['body'] },
+    ],
+  },
 };

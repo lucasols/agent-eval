@@ -115,9 +115,9 @@ export async function runRefundWorkflow(input: RefundInput) {
 
 Span `kind` values are open-ended strings and are color-coded automatically in
 the UI for every kind used during the app session. Use familiar kinds such as
-`agent`, `tool`, `llm`, `retrieval`, `scorer`, or `checkpoint` when they fit,
-and preserve external tracer kinds such as `mastra.workflow.step` when they are
-more specific. The UI automatically promotes only the `input` and `output` span
+`agent`, `tool`, `llm`, `api`, `retrieval`, `scorer`, or `checkpoint` when they
+fit, and preserve external tracer kinds such as `mastra.workflow.step` when they
+are more specific. The UI automatically promotes only the `input` and `output` span
 attributes. Use `traceDisplay` for other span attributes such as `model`,
 `usage`, or `costUsd`.
 
@@ -240,6 +240,14 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   non-default span shapes, and add entries to `metrics` to surface arbitrary
   user metrics (`format: 'string' | 'number' | 'duration' | 'json' |
 'boolean'`, `placements: ['header' | 'body']`). The tab auto-hides when no
+  matching spans exist.
+- `apiCalls` (in `agent-evals.config.ts`) configures the API calls tab in the
+  case-run drawer. Defaults to `kind: 'api'`, `'http'`, `'http.client'`, and
+  `'fetch'` spans with `method`, `url`, `statusCode`, `request`, `response`,
+  `requestBody`, `responseBody`, `headers`, `durationMs`, and `error` read
+  from conventional attribute paths. Override `kinds` or
+  `attributes.<field>` for external tracers, and add `metrics` with the same
+  formats and placements as LLM-call metrics. The tab auto-hides when no
   matching spans exist.
 
 Stats rows and history charts on the eval card are opt-in via `stats` /

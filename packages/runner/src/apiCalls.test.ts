@@ -1,0 +1,221 @@
+import {
+  DEFAULT_API_CALLS_CONFIG,
+  extractApiCalls,
+  resolveApiCallsConfig,
+  type EvalTraceSpan,
+} from '@agent-evals/shared';
+import { expect, test } from 'vitest';
+
+test('resolveApiCallsConfig fills defaults for empty input', () => {
+  expect(resolveApiCallsConfig(undefined)).toEqual(DEFAULT_API_CALLS_CONFIG);
+  expect(resolveApiCallsConfig({})).toEqual(DEFAULT_API_CALLS_CONFIG);
+  expect(resolveApiCallsConfig({ kinds: [] })).toEqual(
+    DEFAULT_API_CALLS_CONFIG,
+  );
+});
+
+test('resolveApiCallsConfig overrides kinds and merges attributes', () => {
+  const resolved = resolveApiCallsConfig({
+    kinds: ['undici.request'],
+    attributes: { statusCode: 'http.status_code' },
+  });
+
+  expect(resolved.kinds).toEqual(['undici.request']);
+  expect(resolved.attributes.statusCode).toBe('http.status_code');
+  expect(resolved.attributes.method).toBe(
+    DEFAULT_API_CALLS_CONFIG.attributes.method,
+  );
+});
+
+test('resolveApiCallsConfig defaults metric format and placements', () => {
+  const resolved = resolveApiCallsConfig({
+    metrics: [
+      { label: 'Retries', path: 'retryCount' },
+      {
+        label: 'Payload',
+        path: 'payloadBytes',
+        format: 'number',
+        placements: ['header', 'body'],
+      },
+    ],
+  });
+
+  expect(resolved.metrics).toEqual([
+    {
+      label: 'Retries',
+      tooltip: undefined,
+      path: 'retryCount',
+      format: 'string',
+      numberFormat: undefined,
+      placements: ['body'],
+    },
+    {
+      label: 'Payload',
+      tooltip: undefined,
+      path: 'payloadBytes',
+      format: 'number',
+      numberFormat: undefined,
+      placements: ['header', 'body'],
+    },
+  ]);
+});
+
+function apiSpan(overrides: Partial<EvalTraceSpan> = {}): EvalTraceSpan {
+  return {
+    id: 'span-1',
+    parentId: null,
+    caseId: 'case-1',
+    kind: 'api',
+    name: 'fetch-account',
+    startedAt: '2026-04-21T12:00:00.000Z',
+    endedAt: '2026-04-21T12:00:00.142Z',
+    status: 'ok',
+    attributes: {
+      method: 'GET',
+      url: 'https://api.example.test/accounts/123?expand=plan',
+      statusCode: 200,
+      request: { headers: { accept: 'application/json' } },
+      response: { ok: true },
+      requestBody: { accountId: '123' },
+      responseBody: { plan: 'pro' },
+      headers: { 'x-request-id': 'req_123' },
+      durationMs: 37,
+    },
+    ...overrides,
+  };
+}
+
+test('extractApiCalls filters by configured kinds and projects defaults', () => {
+  const spans: EvalTraceSpan[] = [
+    apiSpan(),
+    apiSpan({ id: 'span-2', kind: 'tool', name: 'search' }),
+  ];
+
+  const calls = extractApiCalls(spans, DEFAULT_API_CALLS_CONFIG);
+
+  expect(calls).toHaveLength(1);
+  expect(calls[0]).toMatchObject({
+    id: 'span-1',
+    name: 'fetch-account',
+    kind: 'api',
+    status: 'ok',
+    method: 'GET',
+    url: 'https://api.example.test/accounts/123?expand=plan',
+    statusCode: 200,
+    latencyMs: 37,
+    request: { headers: { accept: 'application/json' } },
+    response: { ok: true },
+    requestBody: { accountId: '123' },
+    responseBody: { plan: 'pro' },
+    headers: { 'x-request-id': 'req_123' },
+    errorPayload: undefined,
+    error: null,
+    warnings: [],
+  });
+});
+
+test('extractApiCalls reads custom attributes and metrics', () => {
+  const config = resolveApiCallsConfig({
+    kinds: ['http.client'],
+    attributes: {
+      method: 'http.method',
+      url: 'http.url',
+      statusCode: 'http.status_code',
+      durationMs: 'timing.totalMs',
+      error: 'http.error',
+    },
+    metrics: [
+      {
+        label: 'Retries',
+        path: 'retryCount',
+        format: 'number',
+        placements: ['header', 'body'],
+      },
+      { label: 'Cached', path: 'cached', format: 'boolean' },
+      { label: 'Missing', path: 'never.set' },
+    ],
+  });
+
+  const spans = [
+    apiSpan({
+      kind: 'http.client',
+      attributes: {
+        http: {
+          method: 'POST',
+          url: 'https://api.example.test/orders',
+          status_code: '201',
+          error: { code: 'none' },
+        },
+        timing: { totalMs: 88 },
+        retryCount: 0,
+        cached: false,
+      },
+    }),
+  ];
+
+  const [call] = extractApiCalls(spans, config);
+
+  expect(call).toMatchObject({
+    method: 'POST',
+    url: 'https://api.example.test/orders',
+    statusCode: 201,
+    latencyMs: 88,
+    errorPayload: { code: 'none' },
+  });
+  expect(call?.metrics).toEqual([
+    {
+      label: 'Retries',
+      tooltip: undefined,
+      rawValue: 0,
+      format: 'number',
+      numberFormat: undefined,
+      placements: ['header', 'body'],
+    },
+    {
+      label: 'Cached',
+      tooltip: undefined,
+      rawValue: false,
+      format: 'boolean',
+      numberFormat: undefined,
+      placements: ['body'],
+    },
+  ]);
+});
+
+test('extractApiCalls keeps rows with missing optional attributes', () => {
+  const [call] = extractApiCalls(
+    [apiSpan({ attributes: {} })],
+    DEFAULT_API_CALLS_CONFIG,
+  );
+
+  expect(call).toMatchObject({
+    method: null,
+    url: null,
+    statusCode: null,
+    latencyMs: 142,
+    request: undefined,
+    response: undefined,
+    requestBody: undefined,
+    responseBody: undefined,
+    headers: undefined,
+  });
+});
+
+test('extractApiCalls carries warnings and captured errors', () => {
+  const [call] = extractApiCalls(
+    [
+      apiSpan({
+        status: 'error',
+        error: { name: 'ApiError', message: 'Request failed' },
+        warnings: [{ message: 'Retry budget exhausted' }],
+      }),
+    ],
+    DEFAULT_API_CALLS_CONFIG,
+  );
+
+  expect(call).toMatchObject({
+    status: 'error',
+    error: { name: 'ApiError', message: 'Request failed' },
+    warnings: [{ message: 'Retry budget exhausted' }],
+  });
+});

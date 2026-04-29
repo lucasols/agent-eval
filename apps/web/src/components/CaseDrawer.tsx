@@ -1,4 +1,5 @@
 import {
+  extractApiCalls,
   extractCacheHits,
   extractLlmCalls,
   type CellValue,
@@ -7,6 +8,7 @@ import {
 import { Maximize2, Minimize2, X } from 'lucide-react';
 import { useRef } from 'react';
 import { styled } from 'vindur';
+import { ApiCallRow } from '#src/components/ApiCallRow';
 import { CacheHitRow } from '#src/components/CacheHitRow';
 import { EmptyState } from '#src/components/EmptyState';
 import {
@@ -40,6 +42,7 @@ type Tab =
   | 'scores'
   | 'trace'
   | 'llmCalls'
+  | 'apiCalls'
   | 'cacheHits'
   | 'scoring'
   | 'raw'
@@ -52,6 +55,7 @@ const TAB_LABELS: Record<Tab, string> = {
   scores: 'Scores',
   trace: 'Trace',
   llmCalls: 'LLM calls',
+  apiCalls: 'API calls',
   cacheHits: 'Cache hits',
   scoring: 'Scoring',
   raw: 'Raw',
@@ -351,6 +355,10 @@ const LlmCallsList = styled.div`
   ${stack({ gap: 8 })}
 `;
 
+const ApiCallsList = styled.div`
+  ${stack({ gap: 8 })}
+`;
+
 const CacheHitsList = styled.div`
   ${stack({ gap: 8 })}
 `;
@@ -372,6 +380,7 @@ function parseTab(value: string): Tab | null {
     case 'scores':
     case 'trace':
     case 'llmCalls':
+    case 'apiCalls':
     case 'cacheHits':
     case 'scoring':
     case 'raw':
@@ -392,9 +401,9 @@ export function CaseDrawer() {
   const { sidebarWidth } = layoutStore.useSelectorRC((s) => ({
     sidebarWidth: s.sidebarWidth,
   }));
-  const { llmCallsConfig } = workspaceConfigStore.useSelectorRC((s) => ({
-    llmCallsConfig: s.llmCalls,
-  }));
+  const { llmCallsConfig, apiCallsConfig } = workspaceConfigStore.useSelectorRC(
+    (s) => ({ llmCallsConfig: s.llmCalls, apiCallsConfig: s.apiCalls }),
+  );
   const windowWidth = useWindowWidth();
   const minWidth = 360;
   const maxWidth = Math.max(minWidth, windowWidth - sidebarWidth);
@@ -446,11 +455,13 @@ export function CaseDrawer() {
   const scoringTraces = d.scoringTraces ?? {};
   const scoringTraceEntries = Object.entries(scoringTraces);
   const llmCallEntries = extractLlmCalls(d.trace, llmCallsConfig);
+  const apiCallEntries = extractApiCalls(d.trace, apiCallsConfig);
   const cacheHitEntries = extractCacheHits(d.trace, d.cacheRefs);
   const tabs: Tab[] = ['input', 'output'];
   if (scoreColumns.length > 0) tabs.push('scores');
   tabs.push('trace');
   if (llmCallEntries.length > 0) tabs.push('llmCalls');
+  if (apiCallEntries.length > 0) tabs.push('apiCalls');
   if (cacheHitEntries.length > 0) tabs.push('cacheHits');
   if (scoringTraceEntries.length > 0) tabs.push('scoring');
   tabs.push('raw');
@@ -617,6 +628,24 @@ export function CaseDrawer() {
             <EmptyState
               title="No LLM calls"
               description="No spans matched the configured LLM call kinds in this case run."
+            />
+          )
+        ) : null}
+
+        {activeTab === 'apiCalls' ? (
+          apiCallEntries.length > 0 ? (
+            <ApiCallsList>
+              {apiCallEntries.map((entry) => (
+                <ApiCallRow
+                  key={entry.id}
+                  entry={entry}
+                />
+              ))}
+            </ApiCallsList>
+          ) : (
+            <EmptyState
+              title="No API calls"
+              description="No spans matched the configured API call kinds in this case run."
             />
           )
         ) : null}

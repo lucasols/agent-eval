@@ -1,5 +1,7 @@
 import {
+  DEFAULT_API_CALLS_CONFIG,
   DEFAULT_LLM_CALLS_CONFIG,
+  type ResolvedApiCallsConfig,
   type ResolvedLlmCallsConfig,
 } from '@agent-evals/shared';
 import { resultify } from 't-result';
@@ -52,14 +54,50 @@ const llmCallsConfigSchema: z.ZodType<ResolvedLlmCallsConfig> = z.object({
   ),
 });
 
+const apiCallsConfigSchema: z.ZodType<ResolvedApiCallsConfig> = z.object({
+  kinds: z.array(z.string()),
+  attributes: z.object({
+    method: z.string(),
+    url: z.string(),
+    statusCode: z.string(),
+    request: z.string(),
+    response: z.string(),
+    requestBody: z.string(),
+    responseBody: z.string(),
+    headers: z.string(),
+    durationMs: z.string(),
+    error: z.string(),
+  }),
+  metrics: z.array(
+    z.object({
+      label: z.string(),
+      tooltip: z.string().optional(),
+      path: z.string(),
+      format: z.enum(['string', 'number', 'duration', 'json', 'boolean']),
+      numberFormat: z
+        .object({
+          notation: z.enum(['standard', 'compact']).optional(),
+          compactDisplay: z.enum(['short', 'long']).optional(),
+          prefix: z.string().optional(),
+          suffix: z.string().optional(),
+          decimalPlaces: z.number().int().min(0).optional(),
+        })
+        .optional(),
+      placements: z.array(z.enum(['header', 'body'])),
+    }),
+  ),
+});
+
 const workspaceInfoSchema = z.object({
   packageManager: z.enum(['npm', 'pnpm', 'yarn', 'bun']),
   llmCalls: llmCallsConfigSchema,
+  apiCalls: apiCallsConfigSchema,
 });
 
 type WorkspaceConfigState = {
   packageManager: PackageManager;
   llmCalls: ResolvedLlmCallsConfig;
+  apiCalls: ResolvedApiCallsConfig;
   hasLoaded: boolean;
 };
 
@@ -68,14 +106,15 @@ const DEFAULT_PACKAGE_MANAGER: PackageManager = 'pnpm';
 /**
  * Holds workspace-level configuration the UI fetches once on app boot from
  * `/api/workspace`: the detected package manager (used to render CLI command
- * snippets) and the resolved LLM-calls config used by the LLM calls tab in the
- * case-run drawer. Falls back to defaults until the fetch completes so the UI
- * can render before the network round-trip resolves.
+ * snippets), plus the resolved LLM/API-call configs used by the case-run
+ * drawer. Falls back to defaults until the fetch completes so the UI can
+ * render before the network round-trip resolves.
  */
 export const workspaceConfigStore = new Store<WorkspaceConfigState>({
   state: {
     packageManager: DEFAULT_PACKAGE_MANAGER,
     llmCalls: DEFAULT_LLM_CALLS_CONFIG,
+    apiCalls: DEFAULT_API_CALLS_CONFIG,
     hasLoaded: false,
   },
 });
@@ -109,6 +148,7 @@ export async function fetchWorkspaceConfig(): Promise<void> {
   workspaceConfigStore.setState({
     packageManager: parseResult.value.packageManager,
     llmCalls: parseResult.value.llmCalls,
+    apiCalls: parseResult.value.apiCalls,
     hasLoaded: true,
   });
 }
