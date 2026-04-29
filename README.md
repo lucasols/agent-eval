@@ -163,13 +163,13 @@ Notes:
 
 From `examples/basic-agent`, run `pnpm eval app` for the same single-command flow a library user gets.
 
-From the repo root, `pnpm dev` starts the example-backed Hono server on `http://localhost:4100` together with the Vite web dev server on `http://localhost:4200` by default, so frontend changes get full HMR while `/api` stays pointed at the example workspace.
+From the repo root, `pnpm dev` starts the example-backed Hono server on `http://localhost:5100` together with the Vite web dev server on `http://localhost:5200` by default, so frontend changes get full HMR while `/api` stays pointed at the example workspace. These repo-local defaults intentionally differ from the packaged `agent-evals app` default of `http://localhost:4100`, so you can run this checkout alongside an app in another project.
 
 If you want different local dev ports, add a repo-root `.env` file with one or both of these variables:
 
 ```sh
-AGENT_EVALS_DEV_SERVER_PORT=5100
-AGENT_EVALS_DEV_WEB_PORT=5200
+AGENT_EVALS_DEV_SERVER_PORT=5300
+AGENT_EVALS_DEV_WEB_PORT=5400
 ```
 
 `pnpm dev`, `pnpm dev:server`, and `pnpm dev:app` read `AGENT_EVALS_DEV_SERVER_PORT`, and the Vite dev server reads `AGENT_EVALS_DEV_WEB_PORT` while proxying `/api` to the configured backend port.

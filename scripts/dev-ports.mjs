@@ -3,8 +3,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const defaultServerPort = 4100;
-const defaultWebPort = 4200;
+const defaultServerPort = 5100;
+const defaultWebPort = 5200;
 
 /**
  * @returns {{

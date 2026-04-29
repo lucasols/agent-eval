@@ -33,7 +33,7 @@ Each workspace exposes `tsc`, `eslint`, `lint`.
 - Typecheck/build uses **`tsgo`**, not `tsc`. Per-workspace: `tsgo --noEmit`. Do not replace `tsgo`.
 - Server dev uses `node --watch src/index.ts` directly on TS sources — no transpile step.
 - Web build is `tsgo && vite build`.
-- Default server port is `4100` (`PORT` env var).
+- Default packaged app server port is `4100` (`PORT` env var). Repo-root dev scripts default to `5100` for the server and `5200` for the web dev server.
 
 # Testing the app
 
@@ -43,7 +43,7 @@ The runner resolves the workspace from `process.cwd()` (via `agent-evals.config.
   - `pnpm eval list` — discover evals
   - `pnpm eval run` — run all (add `--eval <id>` / `--case <id>` as needed)
 - **CLI end-to-end tests** — prefer adding or updating automated CLI tests around `examples/basic-agent` whenever the changed behavior can be covered that way. Cover both the CLI commands and the eval data reachable through the CLI flow (run summaries, outputs, columns, traces, persisted artifacts), and pair narrow assertions with inline snapshots of the full output/artifact payload so reviewers can inspect the result quickly.
-- **End-to-end UI check** — only when the user asks. Run `pnpm dev` from the repo root, then open the web UI in a browser and exercise the changed flow there. `pnpm dev` starts the server against `examples/basic-agent` and the web UI; ports default to `4100` (server) and `4200` (web), but check the repo root `.env` for `AGENT_EVALS_DEV_SERVER_PORT` / `AGENT_EVALS_DEV_WEB_PORT` overrides. If you can't actually load the UI, say so instead of claiming it works. Otherwise, rely on `pnpm lint` and the CLI smoke test.
+- **End-to-end UI check** — only when the user asks. Run `pnpm dev` from the repo root, then open the web UI in a browser and exercise the changed flow there. `pnpm dev` starts the server against `examples/basic-agent` and the web UI; ports default to `5100` (server) and `5200` (web), but check the repo root `.env` for `AGENT_EVALS_DEV_SERVER_PORT` / `AGENT_EVALS_DEV_WEB_PORT` overrides. If you can't actually load the UI, say so instead of claiming it works. Otherwise, rely on `pnpm lint` and the CLI smoke test.
 - **Server + web together** — use `pnpm dev` from the repo root. Do not use `pnpm eval app` for UI testing.
 
 # After implementing a feature or adjustment
