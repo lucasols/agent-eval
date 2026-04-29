@@ -15,7 +15,7 @@ import {
   serializeCacheRecording,
 } from './cacheSerialization.ts';
 import type { CacheRecordingFrame, EvalCaseScope } from './runtime.ts';
-import { getCurrentScope } from './runtime.ts';
+import { getCurrentScope, startEvalBackgroundJob } from './runtime.ts';
 import {
   appendSpanErrors,
   appendSpanWarnings,
@@ -527,6 +527,11 @@ type TraceSpanInfoBase = {
   kind: string;
   name: string;
   attributes?: Record<string, unknown>;
+  /**
+   * Whether this span should delay eval finalization when the returned promise
+   * is not awaited by user code. Defaults to `true`.
+   */
+  waitForBackgroundJob?: boolean;
 };
 
 /** Info accepted by `evalTracer.span(info, fn)` when creating an uncached span. */
@@ -562,7 +567,17 @@ function traceSpan(
   info: TraceSpanInfoCached,
   fn: (span: TraceActiveSpan) => unknown,
 ): Promise<unknown>;
-async function traceSpan(
+function traceSpan(
+  info: TraceSpanInfo,
+  fn: (span: TraceActiveSpan) => unknown,
+): Promise<unknown> {
+  const promise = traceSpanInternal(info, fn);
+  const scope = getCurrentScope();
+  if (!scope || info.waitForBackgroundJob === false) return promise;
+  return startEvalBackgroundJob(promise);
+}
+
+async function traceSpanInternal(
   info: TraceSpanInfo,
   fn: (span: TraceActiveSpan) => unknown,
 ): Promise<unknown> {

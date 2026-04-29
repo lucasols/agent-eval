@@ -61,6 +61,7 @@ import {
   mergeEvalOutput,
   nextEvalId,
   setEvalOutput,
+  startEvalBackgroundJob,
 } from '@ls-stack/agent-eval';
 
 export async function runRefundWorkflow(input: RefundInput) {
@@ -133,6 +134,14 @@ If a span callback throws, the SDK automatically marks that span as `error`,
 stores the thrown error on it, and rethrows so the case errors. Use that for
 terminal failures; use `captureEvalSpanError(...)` for recoverable failures that
 continue through fallback logic.
+
+Fire-and-forget spans started during `execute` are awaited before outputs,
+`deriveFromTracing`, scores, and trace data are finalized, so `void
+evalTracer.span(...)` is safe when the span result is not needed. Register
+non-span promises with `startEvalBackgroundJob(promise)`. The runner only waits
+for settlement; promise and span errors keep their normal behavior. Use
+`waitForBackgroundJob: false` on a span, or `waitForBackgroundJobs: false` on an
+eval definition, when background work should not delay finalization.
 
 For libraries or observability exporters that already emit span lifecycle
 events, use `evalTracer.startSpan(...)`, `evalTracer.updateSpan(...)`,

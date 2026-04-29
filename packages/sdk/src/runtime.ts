@@ -74,6 +74,8 @@ export type EvalCaseScope = {
    * `cache.refs` attribute instead.
    */
   caseCacheRefs: TraceCacheRef[];
+  /** Background promises that should settle before the case scope finalizes. */
+  pendingBackgroundJobs: Set<Promise<unknown>>;
 };
 
 const scopeStorage = new AsyncLocalStorage<EvalCaseScope>();
@@ -101,6 +103,41 @@ export function getCurrentScope(): EvalCaseScope | undefined {
  */
 export function isInEvalScope(): boolean {
   return getCurrentScope() !== undefined;
+}
+
+function registerBackgroundJobInScope<T>(
+  scope: EvalCaseScope,
+  promise: Promise<T>,
+): Promise<T> {
+  const trackedPromise = promise.then(
+    () => {
+      scope.pendingBackgroundJobs.delete(trackedPromise);
+    },
+    () => {
+      scope.pendingBackgroundJobs.delete(trackedPromise);
+    },
+  );
+  scope.pendingBackgroundJobs.add(trackedPromise);
+  return promise;
+}
+
+async function drainBackgroundJobs(scope: EvalCaseScope): Promise<void> {
+  while (scope.pendingBackgroundJobs.size > 0) {
+    await Promise.allSettled([...scope.pendingBackgroundJobs]);
+  }
+}
+
+/**
+ * Register background work that should settle before eval finalization.
+ *
+ * The original promise is returned unchanged, and its fulfillment or rejection
+ * behavior remains normal for callers. The eval runtime only waits for
+ * settlement; it does not convert background rejections into case errors.
+ */
+export function startEvalBackgroundJob<T>(promise: Promise<T>): Promise<T> {
+  const scope = getCurrentScope();
+  if (!scope) return promise;
+  return registerBackgroundJobInScope(scope, promise);
 }
 
 function isObjectLike(value: unknown): value is Record<string, unknown> {
@@ -163,6 +200,8 @@ export type RunInEvalScopeOptions = {
   idPrefix?: string;
   /** Cache adapter + mode attached to the scope before `fn` runs. */
   cacheContext?: CacheScopeContext;
+  /** Whether registered background jobs should settle before scope finalizes. */
+  waitForBackgroundJobs?: boolean;
 };
 
 /**
@@ -193,14 +232,21 @@ export async function runInEvalScope<T>(
     replayingDepth: 0,
     cacheContext: options.cacheContext,
     caseCacheRefs: [],
+    pendingBackgroundJobs: new Set(),
   };
   activeEvalScopeCount++;
   try {
     return await scopeStorage.run(scope, async () => {
       try {
         const result = await fn();
+        if (options.waitForBackgroundJobs !== false) {
+          await drainBackgroundJobs(scope);
+        }
         return { result, scope, error: undefined };
       } catch (error) {
+        if (options.waitForBackgroundJobs !== false) {
+          await drainBackgroundJobs(scope);
+        }
         const err = error instanceof Error ? error : new Error(String(error));
         return { result: undefined, scope, error: err };
       }

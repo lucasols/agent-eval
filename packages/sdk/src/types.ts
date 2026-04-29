@@ -230,6 +230,14 @@ type EvalDefinitionBase<
    * `key` is provided.
    */
   traceDisplay?: TraceDisplayInputConfig;
+  /**
+   * Whether registered background jobs should finish before outputs, tracing,
+   * and scores are finalized. Defaults to `true`.
+   *
+   * Set to `false` for evals that intentionally fire work that should not
+   * delay case finalization; late mutations are not guaranteed to persist.
+   */
+  waitForBackgroundJobs?: boolean;
   execute: (ctx: EvalExecuteContext<TInput, TOutputs>) => Promise<void> | void;
   deriveFromTracing?: (
     ctx: EvalDeriveContext<TInput>,

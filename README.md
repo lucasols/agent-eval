@@ -197,19 +197,20 @@ lower median when the number of trials is even.
 
 `defineEval` takes a single definition object:
 
-| Field               | Required   | Purpose                                                                         |
-| ------------------- | ---------- | ------------------------------------------------------------------------------- |
-| `id`                | yes        | Unique eval id                                                                  |
-| `title`             |            | Display title (defaults to a humanized version of `id`)                         |
-| `cases`             | yes        | `EvalCase[]` or `() => Promise<EvalCase[]>` (async loader for dynamic datasets) |
-| `execute`           | yes        | `async ({ input }) => { ... }`                                                  |
-| `outputsSchema`     | `TOutputs` | Zod schema that validates and types collected outputs before scoring            |
-| `traceDisplay`      |            | Per-eval trace attribute display overrides for the UI                           |
-| `deriveFromTracing` |            | Derive output columns from the finished trace tree                              |
-| `scores`            |            | Record of scoring functions returning `0..1`                                    |
-| `columns`           |            | Custom columns shown in the results table                                       |
-| `stats`             |            | Opt-in stats row on the eval page (see [Stats row](#stats-row))                 |
-| `charts`            |            | Opt-in history charts on the eval page (see [History charts](#history-charts))  |
+| Field                   | Required   | Purpose                                                                         |
+| ----------------------- | ---------- | ------------------------------------------------------------------------------- |
+| `id`                    | yes        | Unique eval id                                                                  |
+| `title`                 |            | Display title (defaults to a humanized version of `id`)                         |
+| `cases`                 | yes        | `EvalCase[]` or `() => Promise<EvalCase[]>` (async loader for dynamic datasets) |
+| `execute`               | yes        | `async ({ input }) => { ... }`                                                  |
+| `outputsSchema`         | `TOutputs` | Zod schema that validates and types collected outputs before scoring            |
+| `traceDisplay`          |            | Per-eval trace attribute display overrides for the UI                           |
+| `waitForBackgroundJobs` |            | Set `false` to skip waiting for registered background work before finalization  |
+| `deriveFromTracing`     |            | Derive output columns from the finished trace tree                              |
+| `scores`                |            | Record of scoring functions returning `0..1`                                    |
+| `columns`               |            | Custom columns shown in the results table                                       |
+| `stats`                 |            | Opt-in stats row on the eval page (see [Stats row](#stats-row))                 |
+| `charts`                |            | Opt-in history charts on the eval page (see [History charts](#history-charts))  |
 
 ### Cases
 
@@ -280,6 +281,34 @@ await evalTracer.span({ kind: 'tool', name: 'submit-refund' }, async () => {
   return result;
 });
 ```
+
+Fire-and-forget spans started during `execute` are awaited before outputs,
+`deriveFromTracing`, scores, and trace data are finalized. This makes started
+background spans safe to launch without awaiting when the span result itself is
+not needed:
+
+```ts
+execute: () => {
+  void evalTracer.span(
+    { kind: 'tool', name: 'warm-related-context' },
+    async () => {
+      await warmRelatedContext();
+    },
+  );
+};
+```
+
+For non-span work, register the promise explicitly. The runner only waits for
+settlement; any rejection behavior remains normal for the promise or the spans
+inside it:
+
+```ts
+startEvalBackgroundJob(refreshSearchIndex());
+```
+
+Set `waitForBackgroundJob: false` on a span when it should not delay case
+finalization, or `waitForBackgroundJobs: false` on an eval when none of its
+registered background work should delay finalization.
 
 Span `kind` values are open-ended strings. The UI assigns colors
 automatically to every kind used during the app session, so external tracing

@@ -10,6 +10,7 @@ export {
   mergeEvalOutput,
   evalAssert,
   getEvalCaseInput,
+  startEvalBackgroundJob,
   nextEvalId,
   EvalAssertionError,
   runInEvalScope,

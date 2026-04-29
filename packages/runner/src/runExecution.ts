@@ -147,6 +147,7 @@ export async function runCase<
     {
       input: evalCase.input,
       idPrefix: scopedIdPrefix,
+      waitForBackgroundJobs: evalDef.waitForBackgroundJobs !== false,
       cacheContext: cacheAdapter
         ? { adapter: cacheAdapter, mode: cacheMode, evalId, codeFingerprint }
         : undefined,
