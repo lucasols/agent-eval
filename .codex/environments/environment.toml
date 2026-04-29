@@ -9,3 +9,8 @@ script = ""
 name = "Pull"
 icon = "tool"
 command = "git pull"
+
+[[actions]]
+name = "publish"
+icon = "debug"
+command = "pm p"
