@@ -5,8 +5,6 @@ import {
 } from '@agent-evals/shared';
 import {
   ChevronDown,
-  ChevronsDownUp,
-  ChevronsUpDown,
   Play,
   SquareArrowOutUpRight,
   SquareStop,
@@ -16,7 +14,7 @@ import { resultify } from 't-result';
 import { styled } from 'vindur';
 import { Button } from '#src/components/Button';
 import { EvalRunsChart } from '#src/components/EvalRunsChart';
-import { EvalRunsTable } from '#src/components/EvalRunsTable';
+import { EvalRunsSection } from '#src/components/EvalRunsSection';
 import { IconButton } from '#src/components/IconButton';
 import { MenuButton } from '#src/components/MenuButton';
 import { PathBreadcrumb } from '#src/components/PathBreadcrumb';
@@ -289,10 +287,6 @@ const SectionMeta = styled.span`
   ${monoFont};
   font-size: 10.5px;
   color: ${colors.textMuted.var};
-`;
-
-const SectionActions = styled.div`
-  ${inline({ gap: 4, align: 'center' })}
 `;
 
 const SCORE_HISTORY_COLLAPSED_STORAGE_KEY =
@@ -708,7 +702,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
           ) : null}
 
           <Section fill={isSingle}>
-            <RunsSection
+            <EvalRunsSection
               key={visibleRunRows.map((run) => run.manifest.id).join(':')}
               runs={visibleRunRows}
               columnDefs={evalSummary.columnDefs}
@@ -731,83 +725,4 @@ function runTargetsEvalLocal(
     return target.evalIds?.includes(evalId) ?? false;
   }
   return false;
-}
-
-function RunsSection({
-  runs,
-  columnDefs,
-  evalId,
-  fillHeight,
-}: {
-  runs: Parameters<typeof EvalRunsTable>[0]['runs'];
-  columnDefs: Parameters<typeof EvalRunsTable>[0]['columnDefs'];
-  evalId: string;
-  fillHeight: boolean;
-}) {
-  const [expandedRunIds, setExpandedRunIds] = useState<Set<string>>(() => {
-    const latestRun = runs[0];
-    return latestRun ? new Set([latestRun.manifest.id]) : new Set();
-  });
-
-  const allRunsExpanded =
-    runs.length > 0 && runs.every((run) => expandedRunIds.has(run.manifest.id));
-
-  function toggleExpandedRun(runId: string) {
-    setExpandedRunIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(runId)) next.delete(runId);
-      else next.add(runId);
-      return next;
-    });
-  }
-
-  function toggleAllRuns() {
-    setExpandedRunIds(() => {
-      if (allRunsExpanded) return new Set<string>();
-      return new Set(runs.map((run) => run.manifest.id));
-    });
-  }
-
-  return (
-    <>
-      <SectionLabel collapsed={false}>
-        <SectionLabelText>Runs</SectionLabelText>
-        <SectionActions>
-          {runs.length > 0 ? (
-            <Tooltip
-              content={
-                allRunsExpanded
-                  ? 'Collapse all run cases'
-                  : 'Expand all run cases'
-              }
-            >
-              <IconButton
-                aria-label={
-                  allRunsExpanded
-                    ? 'Collapse all run cases'
-                    : 'Expand all run cases'
-                }
-                onClick={toggleAllRuns}
-              >
-                {allRunsExpanded ? <ChevronsDownUp /> : <ChevronsUpDown />}
-              </IconButton>
-            </Tooltip>
-          ) : null}
-          <SectionMeta>
-            {runs.length > 0
-              ? `${runs.length} ${runs.length === 1 ? 'run' : 'runs'}`
-              : 'no runs'}
-          </SectionMeta>
-        </SectionActions>
-      </SectionLabel>
-      <EvalRunsTable
-        runs={runs}
-        columnDefs={columnDefs}
-        expandedRunIds={expandedRunIds}
-        onToggleExpandedRun={toggleExpandedRun}
-        fillHeight={fillHeight}
-        runScope={{ kind: 'eval', id: evalId }}
-      />
-    </>
-  );
 }

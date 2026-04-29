@@ -43,6 +43,7 @@ type EvalRunsTableProps = {
   onToggleExpandedRun: (runId: string) => void;
   fillHeight: boolean;
   runScope: RunScope | null;
+  emptyMessage?: string;
 };
 
 const Empty = styled.div`
@@ -346,6 +347,7 @@ export function EvalRunsTable({
   onToggleExpandedRun,
   fillHeight,
   runScope,
+  emptyMessage = 'Run this eval to see results',
 }: EvalRunsTableProps) {
   const { selectedRunId, selectedCaseRunId, selectedCaseId } =
     runStore.useSelectorRC((s) => ({
@@ -355,7 +357,7 @@ export function EvalRunsTable({
     }));
 
   if (runs.length === 0) {
-    return <Empty>Run this eval to see results</Empty>;
+    return <Empty>{emptyMessage}</Empty>;
   }
 
   const scoreColumns = columnDefs.filter((c) => c.isScore === true);

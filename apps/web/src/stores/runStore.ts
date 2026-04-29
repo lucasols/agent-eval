@@ -660,3 +660,44 @@ export async function deleteRun(runId: string): Promise<void> {
   await refetchHistory();
   await fetchEvals();
 }
+
+/**
+ * Delete multiple persisted runs from disk and refresh run-derived UI state once.
+ *
+ * Server-side deletion still refuses in-flight runs; failed individual deletes
+ * are ignored so the rest of the requested cleanup can proceed.
+ */
+export async function deleteRuns(runIds: string[]): Promise<void> {
+  const runIdSet = new Set(runIds);
+  if (runIdSet.size === 0) return;
+
+  await Promise.all(
+    Array.from(runIdSet, (runId) =>
+      resultify(() =>
+        fetch(`/api/runs/${encodeURIComponent(runId)}`, { method: 'DELETE' }),
+      ),
+    ),
+  );
+
+  if (
+    runStore.state.currentRun &&
+    runIdSet.has(runStore.state.currentRun.manifest.id)
+  ) {
+    runStore.setPartialState({ currentRun: null });
+  }
+  if (
+    runStore.state.selectedRunId &&
+    runIdSet.has(runStore.state.selectedRunId)
+  ) {
+    closeRun();
+  }
+  if (
+    runStore.state.selectedCaseRunId &&
+    runIdSet.has(runStore.state.selectedCaseRunId)
+  ) {
+    closeCase();
+  }
+
+  await refetchHistory();
+  await fetchEvals();
+}

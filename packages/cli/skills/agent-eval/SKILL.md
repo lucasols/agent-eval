@@ -117,21 +117,19 @@ export async function runRefundWorkflow(input: RefundInput) {
 }
 ```
 
-Span `kind` values are open-ended strings and are color-coded automatically in
-the UI for every kind used during the app session. Use familiar kinds such as
+Span `kind` values are open-ended strings. Use familiar kinds such as
 `agent`, `tool`, `llm`, `api`, `retrieval`, `scorer`, or `checkpoint` when they
 fit, and preserve external tracer kinds such as `mastra.workflow.step` when they
-are more specific. The UI automatically promotes only the `input` and `output` span
-attributes. Use `traceDisplay` for other span attributes such as `model`,
+are more specific. Only the `input` and `output` span attributes are promoted
+automatically; use `traceDisplay` for other span attributes such as `model`,
 `usage`, or `costUsd`.
 
 Use `captureEvalSpanError(error)` for recoverable errors on the active
 `evalTracer.span(...)`, such as optional model/tool failures that fall back and
 continue. You can pass one error, multiple error arguments, or an array. The
-span is still marked `error`, and the UI renders captured errors in a dedicated
-span detail block with timing relative to the span. Pass `'warning'` or
-`{ level: 'warning' }` as the final argument for diagnostics that should be
-visible in span detail without changing an otherwise successful span's status.
+span is still marked `error`. Pass `'warning'` or `{ level: 'warning' }` as the
+final argument for diagnostics that should not change an otherwise successful
+span's status.
 
 If a span callback throws, the SDK automatically marks that span as `error`,
 stores the thrown error on it, and rethrows so the case errors. Use that for
@@ -208,12 +206,11 @@ or if the case errors. Scores without `passThreshold` are informational.
 
 Score functions run in their own trace scope, separate from the execution
 trace, so LLM-as-judge scorers can use `evalTracer.span(...)` and cached spans
-without polluting the agent trajectory. The case detail UI shows execution
-spans on **Trace** and scorer spans on **Scoring**. Outputs set inside a scorer
-stay private to that score.
+without polluting the agent trajectory. Outputs set inside a scorer stay
+private to that score.
 
-`manualScores` declares score columns that reviewers fill in the web UI after
-a run. Pending values keep the eval in an `unscored` state instead of failing.
+`manualScores` declares score columns that reviewers fill in after a run.
+Pending values keep the eval in an `unscored` state instead of failing.
 
 See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
 (format, threshold, column overrides).
@@ -245,22 +242,20 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   detail pane; it supports aggregation across subtrees (`scope`, `mode`) and
   user-defined `transform(...)` for derived views (e.g. currency conversion).
   See the `TraceDisplayInputConfig` type.
-- `llmCalls` (in `agent-evals.config.ts`) configures the LLM calls tab in the
-  case-run drawer. Defaults to `kind: 'llm'` spans with `model`, `usage.*`,
-  `costUsd`, `input`, `output`, etc. read from conventional attribute paths.
-  Override `kinds` to broaden the filter, override `attributes.<field>` for
-  non-default span shapes, and add entries to `metrics` to surface arbitrary
-  user metrics (`format: 'string' | 'number' | 'duration' | 'json' |
-'boolean'`, `placements: ['header' | 'body']`). The tab auto-hides when no
-  matching spans exist.
-- `apiCalls` (in `agent-evals.config.ts`) configures the API calls tab in the
-  case-run drawer. Defaults to `kind: 'api'`, `'http'`, `'http.client'`, and
-  `'fetch'` spans with `method`, `url`, `statusCode`, `request`, `response`,
-  `requestBody`, `responseBody`, `headers`, `durationMs`, and `error` read
-  from conventional attribute paths. Override `kinds` or
+- `llmCalls` (in `agent-evals.config.ts`) configures how LLM-call spans are
+  summarized for review. Defaults to `kind: 'llm'` spans with `model`,
+  `usage.*`, `costUsd`, `input`, `output`, etc. read from conventional
+  attribute paths. Override `kinds` to broaden the filter, override
+  `attributes.<field>` for non-default span shapes, and add entries to
+  `metrics` to surface arbitrary user metrics (`format: 'string' | 'number' |
+'duration' | 'json' | 'boolean'`, `placements: ['header' | 'body']`).
+- `apiCalls` (in `agent-evals.config.ts`) configures how API-call spans are
+  summarized for review. Defaults to `kind: 'api'`, `'http'`, `'http.client'`,
+  and `'fetch'` spans with `method`, `url`, `statusCode`, `request`,
+  `response`, `requestBody`, `responseBody`, `headers`, `durationMs`, and
+  `error` read from conventional attribute paths. Override `kinds` or
   `attributes.<field>` for external tracers, and add `metrics` with the same
-  formats and placements as LLM-call metrics. The tab auto-hides when no
-  matching spans exist.
+  formats and placements as LLM-call metrics.
 
 Stats rows and history charts on the eval card are opt-in via `stats` /
 `charts` on the eval definition. Their shapes live in the types; no need to
@@ -313,8 +308,7 @@ Mental model:
   span, that span gets a `cache.refs` entry with the value cache name, key,
   namespace, and hit/miss status. When called directly from the case body
   (no surrounding span), the ref is recorded on the case detail's `cacheRefs`
-  array so spanless caches still appear in the UI's **Cache hits** tab, where
-  each hit can be expanded for inspection or deleted by namespace/key.
+  array.
 - The cache key folds in a source-file fingerprint, so editing the eval busts
   the cache automatically.
 - `cache.namespace` on spans or `namespace` on value caches can share entries
@@ -335,10 +329,7 @@ Mental model:
   recorded SDK effects preserve richer built-ins such as `Date`, `Map`, `Set`,
   typed arrays, `URL`, `Headers`, `Blob`, and `File` on hits. Cache keys still
   use the deterministic key-hashing rules above.
-- Cache mode per run is controlled by CLI flags (see `agent-evals run --help`)
-  and by a chevron menu on each eval card in the UI.
-- The UI Stop action cancels the whole active run by terminating that run's
-  isolated execution process.
+- Cache mode per run is controlled by CLI flags (see `agent-evals run --help`).
 
 ## Artifacts
 
@@ -386,15 +377,13 @@ When adding or changing evals:
 4. Surface reviewable values through execute-context `setOutput` or ambient
    `setEvalOutput` in shared workflow code, and shape them with `columns`
    formats from the `ColumnFormat` type.
-5. Promote high-signal span attributes with `traceDisplay` so the UI
-   highlights them in the trace tree and detail pane.
+5. Promote high-signal span attributes with `traceDisplay` so they surface in
+   the trace tree and detail pane.
 6. Cache costly pure spans with `cache: { key }` and pure spanless values with
    `evalTracer.cache(...)`; never cache operations whose external side effects
    you depend on.
 7. Sanity-check after changes: `agent-evals list`, then
-   `agent-evals run --eval <id>`. Open the UI only when you need to inspect
-   traces, trends, or fill manual scores. From an eval page, the eval actions
-   menu can copy package-manager-specific CLI run and debug commands.
+   `agent-evals run --eval <id>`.
 8. To debug a focused run, use
    `agent-evals run --inspect-brk --eval <id> --case <case-id>` and attach a
    Node.js debugger before continuing execution.
