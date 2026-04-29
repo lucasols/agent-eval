@@ -9,6 +9,7 @@ import {
   incrementEvalOutput,
   isInEvalScope,
   mergeEvalOutput,
+  nextEvalId,
   runInEvalScope,
   setEvalOutput,
   type TraceActiveSpan,
@@ -20,6 +21,9 @@ test('evalAssert is a no-op outside an active eval scope', () => {
   expect(isInEvalScope()).toBe(false);
   expect(getEvalCaseInput()).toBeUndefined();
   expect(getEvalCaseInput('customer.tier')).toBeUndefined();
+  expect(() => nextEvalId()).toThrow(
+    'nextEvalId() must be called inside an active eval case',
+  );
   expect(() => {
     evalAssert(false, 'shared workflow assertion should be ignored');
   }).not.toThrow();
@@ -42,6 +46,26 @@ test('evalAssert still records and throws inside an active eval scope', async ()
   expect(scope.assertionFailures[0]?.stack).toContain(
     'EvalAssertionError: expected failure',
   );
+});
+
+test('nextEvalId returns sequential IDs in the active eval scope', async () => {
+  const first = await runInEvalScope(
+    'first-case',
+    () => [nextEvalId(), nextEvalId(), nextEvalId()],
+    { idPrefix: 'refund-workflow-evals-refund-workflow-eval-ts-simple-text' },
+  );
+  const second = await runInEvalScope('second-case', () => [nextEvalId()], {
+    idPrefix: 'refund-workflow-evals-refund-workflow-eval-ts-simple-text',
+  });
+
+  expect(first.result).toEqual([
+    'refund-workflow-evals-refund-workflow-eval-ts-simple-text-1',
+    'refund-workflow-evals-refund-workflow-eval-ts-simple-text-2',
+    'refund-workflow-evals-refund-workflow-eval-ts-simple-text-3',
+  ]);
+  expect(second.result).toEqual([
+    'refund-workflow-evals-refund-workflow-eval-ts-simple-text-1',
+  ]);
 });
 
 test('getEvalCaseInput reads the active case input', async () => {

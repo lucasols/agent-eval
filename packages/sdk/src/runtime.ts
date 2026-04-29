@@ -43,6 +43,10 @@ export type CacheRecordingFrame = {
 /** Mutable per-case runtime state stored in async local storage. */
 export type EvalCaseScope = {
   caseId: string;
+  /** Stable prefix used by `nextEvalId()` for this eval case scope. */
+  idPrefix: string | undefined;
+  /** Monotonic per-scope counter used by `nextEvalId()`. */
+  nextEvalIdCounter: number;
   /** Authored input for the current case, when provided by the runner. */
   input?: unknown;
   outputs: Record<string, unknown>;
@@ -155,6 +159,8 @@ export function setScopeCacheContext(
 export type RunInEvalScopeOptions = {
   /** Authored input for the active eval case. */
   input?: unknown;
+  /** Stable prefix used when generating scoped IDs with `nextEvalId()`. */
+  idPrefix?: string;
   /** Cache adapter + mode attached to the scope before `fn` runs. */
   cacheContext?: CacheScopeContext;
 };
@@ -174,6 +180,8 @@ export async function runInEvalScope<T>(
 }> {
   const scope: EvalCaseScope = {
     caseId,
+    idPrefix: options.idPrefix,
+    nextEvalIdCounter: 0,
     input: options.input,
     outputs: {},
     assertionFailures: [],
@@ -200,6 +208,26 @@ export async function runInEvalScope<T>(
   } finally {
     activeEvalScopeCount--;
   }
+}
+
+/**
+ * Return the next deterministic ID for the active eval case execution.
+ *
+ * The runner derives the ID prefix from the eval file, eval id, and case id,
+ * then this helper appends a per-scope sequence number. Calls outside an
+ * active eval case scope throw so accidental product-code usage is caught
+ * immediately.
+ */
+export function nextEvalId(): string {
+  const scope = getCurrentScope();
+  if (!scope) {
+    throw new Error('nextEvalId() must be called inside an active eval case');
+  }
+  if (scope.idPrefix === undefined) {
+    throw new Error('nextEvalId() requires a runner-provided eval id prefix');
+  }
+  scope.nextEvalIdCounter++;
+  return `${scope.idPrefix}-${scope.nextEvalIdCounter}`;
 }
 
 function recordOpIfActive(scope: EvalCaseScope, op: CacheRecordingOp): void {

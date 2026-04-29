@@ -42,7 +42,9 @@ safe — they only record anything when the product code runs inside an eval's
 (e.g. skip a real network side effect). Use `getEvalCaseInput()` to read the
 current case input, or
 `getEvalCaseInput('customer.tier')` for nested dot-path access; outside an eval
-run it returns `undefined`.
+run it returns `undefined`. Use `nextEvalId()` inside eval-scoped code when a
+stable generated id is needed; it includes the eval file, eval id, case id, and
+a per-case sequence number, and throws outside an eval run.
 
 ### Product code (instrumented once, reused everywhere)
 
@@ -57,6 +59,7 @@ import {
   getEvalCaseInput,
   incrementEvalOutput,
   mergeEvalOutput,
+  nextEvalId,
   setEvalOutput,
 } from '@ls-stack/agent-eval';
 
@@ -98,10 +101,12 @@ export async function runRefundWorkflow(input: RefundInput) {
       );
 
       const result = await applyRefund(plan);
+      const reviewId = nextEvalId();
       setEvalOutput('response', result.finalText);
+      setEvalOutput('reviewId', reviewId);
       mergeEvalOutput('metadata', { approved: result.approved });
       evalAssert(result.approved, 'refund workflow should approve the case');
-      evalSpan.setAttribute('output', result);
+      evalSpan.setAttribute('output', { result, reviewId });
       return result;
     },
   );

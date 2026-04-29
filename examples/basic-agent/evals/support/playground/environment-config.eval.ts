@@ -3,6 +3,7 @@ import {
   evalSpan,
   evalTracer,
   getEvalCaseInput,
+  nextEvalId,
   setEvalOutput,
 } from '@ls-stack/agent-eval';
 
@@ -29,6 +30,7 @@ defineEval<{ customerTier: string; message: string; order: { id: string } }>({
     },
   ],
   columns: {
+    generatedIds: { label: 'Generated IDs', format: 'json' },
     response: { label: 'Response', format: 'markdown' },
     queue: { label: 'Queue' },
   },
@@ -42,11 +44,13 @@ defineEval<{ customerTier: string; message: string; order: { id: string } }>({
         const scopedOrderId = getEvalCaseInput('order.id');
         const orderId =
           typeof scopedOrderId === 'string' ? scopedOrderId : input.order.id;
+        const generatedIds = [nextEvalId(), nextEvalId()];
         const response = `Routed ${orderId} for ${input.customerTier} support via ${queue}.`;
 
+        setEvalOutput('generatedIds', generatedIds);
         setEvalOutput('response', response);
         setEvalOutput('queue', queue);
-        evalSpan.setAttribute('output', { queue, response });
+        evalSpan.setAttribute('output', { generatedIds, queue, response });
       },
     );
   },

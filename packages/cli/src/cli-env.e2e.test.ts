@@ -33,6 +33,10 @@ describe('CLI env loading', () => {
             {
               "caseId": "route-refund-by-env",
               "columns": {
+                "generatedIds": [
+                  "environment-config-demo-evals-support-playground-environment-config-eval-ts-route-refund-by-env-1",
+                  "environment-config-demo-evals-support-playground-environment-config-eval-ts-route-refund-by-env-2",
+                ],
                 "queue": "standard-refund-queue",
                 "response": "Routed R-2048 for gold support via standard-refund-queue.",
                 "routedToQueue": 1,
@@ -71,6 +75,10 @@ describe('CLI env loading', () => {
             {
               "caseId": "route-refund-by-env",
               "columns": {
+                "generatedIds": [
+                  "environment-config-demo-evals-support-playground-environment-config-eval-ts-route-refund-by-env-1",
+                  "environment-config-demo-evals-support-playground-environment-config-eval-ts-route-refund-by-env-2",
+                ],
                 "queue": "priority-refunds",
                 "response": "Routed R-2048 for gold support via priority-refunds.",
                 "routedToQueue": 1,
@@ -109,6 +117,10 @@ describe('CLI env loading', () => {
             {
               "caseId": "route-refund-by-env",
               "columns": {
+                "generatedIds": [
+                  "environment-config-demo-evals-support-playground-environment-config-eval-ts-route-refund-by-env-1",
+                  "environment-config-demo-evals-support-playground-environment-config-eval-ts-route-refund-by-env-2",
+                ],
                 "queue": "priority-escalations",
                 "response": "Routed R-2048 for gold support via priority-escalations.",
                 "routedToQueue": 1,

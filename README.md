@@ -143,6 +143,7 @@ Notes:
 
 - `isInEvalScope()` returns `true` only while the current async execution is inside an eval case, which is useful when shared workflow code needs to branch on eval-only behavior.
 - `getEvalCaseInput()` returns the current case input while an eval case is executing, and `getEvalCaseInput('customer.tier')` reads nested values with dot-path access. Outside an eval run, both return `undefined`.
+- `nextEvalId()` returns a stable sequential id for the active eval file, eval id, and case id, such as `refund-workflow-evals-refund-workflow-eval-ts-simple-text-1`. It throws outside an eval run so accidental production-only usage is visible.
 - `evalAssert(...)` records a failed assertion only while an eval case is executing. Outside an eval run, it is a no-op so shared workflow code can be reused safely.
 - `mock.module(...)` only affects modules imported after the mock is registered.
 - Use dynamic `import(...)` inside `execute`; static imports happen too early.

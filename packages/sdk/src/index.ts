@@ -8,6 +8,7 @@ export {
   mergeEvalOutput,
   evalAssert,
   getEvalCaseInput,
+  nextEvalId,
   EvalAssertionError,
   runInEvalScope,
   getCurrentScope,

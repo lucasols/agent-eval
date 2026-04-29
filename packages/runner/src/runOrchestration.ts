@@ -388,6 +388,8 @@ export async function executeRun({
                       cacheMode,
                       codeFingerprint,
                       moduleIsolation,
+                      evalFilePath,
+                      workspaceRoot,
                       artifactDir: join(runDir, 'artifacts'),
                       runId: runState.manifest.id,
                     });

@@ -1,3 +1,4 @@
+import { relative } from 'node:path';
 import {
   buildTraceTree,
   EvalAssertionError,
@@ -53,6 +54,31 @@ export function resolveRunnableEvalCases(params: {
   return [{ id: `${evalId}-no-output`, input: {} }];
 }
 
+function toStableIdSegment(value: string): string {
+  const segment = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return segment.length > 0 ? segment : 'id';
+}
+
+export function buildScopedEvalIdPrefix(params: {
+  evalId: string;
+  evalFilePath: string;
+  caseId: string;
+  workspaceRoot: string;
+}): string {
+  const fileIdentity = relative(
+    params.workspaceRoot,
+    params.evalFilePath,
+  ).replaceAll('\\', '/');
+  return [
+    toStableIdSegment(params.evalId),
+    toStableIdSegment(fileIdentity),
+    toStableIdSegment(params.caseId),
+  ].join('-');
+}
+
 async function callWithUnknownResult(
   fn: CallableFunction,
   args: unknown[],
@@ -75,6 +101,8 @@ export async function runCase<
   cacheMode: CacheMode;
   codeFingerprint: string;
   moduleIsolation: { key: string; workspaceRoot: string } | undefined;
+  evalFilePath: string;
+  workspaceRoot: string;
   artifactDir: string;
   runId: string;
 }): Promise<{ caseDetail: CaseDetail; caseRowUpdate: Partial<CaseRow> }> {
@@ -89,9 +117,17 @@ export async function runCase<
     cacheMode,
     codeFingerprint,
     moduleIsolation,
+    evalFilePath,
+    workspaceRoot,
     artifactDir,
     runId,
   } = params;
+  const scopedIdPrefix = buildScopedEvalIdPrefix({
+    evalId,
+    evalFilePath,
+    caseId: evalCase.id,
+    workspaceRoot,
+  });
 
   const { scope, error: executeError } = await runInEvalScope(
     evalCase.id,
@@ -109,6 +145,7 @@ export async function runCase<
     },
     {
       input: evalCase.input,
+      idPrefix: scopedIdPrefix,
       cacheContext: cacheAdapter
         ? { adapter: cacheAdapter, mode: cacheMode, evalId, codeFingerprint }
         : undefined,
@@ -200,6 +237,7 @@ export async function runCase<
         },
         {
           input: evalCase.input,
+          idPrefix: `${scopedIdPrefix}-score-${toStableIdSegment(key)}`,
           cacheContext: cacheAdapter
             ? {
                 adapter: cacheAdapter,
