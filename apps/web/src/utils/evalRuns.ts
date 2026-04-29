@@ -56,6 +56,27 @@ export function buildEvalScopedRunRows(
   });
 }
 
+export function getEvalIdsForFolderPath(params: {
+  evals: Array<Pick<EvalSummary, 'id' | 'filePath'>>;
+  selectedFolderPath: string;
+}): Set<string> {
+  const prefixLength = getCommonPrefixLength(
+    params.evals.map((ev) => getDirSegments(ev.filePath)),
+  );
+
+  return new Set(
+    params.evals
+      .filter((ev) => {
+        const dir = getDirSegments(ev.filePath).slice(prefixLength).join('/');
+        return (
+          dir === params.selectedFolderPath ||
+          dir.startsWith(`${params.selectedFolderPath}/`)
+        );
+      })
+      .map((ev) => ev.id),
+  );
+}
+
 export function scopeRunCases(params: {
   cases: CaseRow[];
   evals: Array<Pick<EvalSummary, 'id' | 'filePath'>>;
@@ -75,19 +96,10 @@ export function scopeRunCases(params: {
     return { cases, label: null };
   }
 
-  const prefixLength = getCommonPrefixLength(
-    evals.map((ev) => getDirSegments(ev.filePath)),
-  );
-  const evalIdsInFolder = new Set(
-    evals
-      .filter((ev) => {
-        const dir = getDirSegments(ev.filePath).slice(prefixLength).join('/');
-        return (
-          dir === selectedFolderPath || dir.startsWith(`${selectedFolderPath}/`)
-        );
-      })
-      .map((ev) => ev.id),
-  );
+  const evalIdsInFolder = getEvalIdsForFolderPath({
+    evals,
+    selectedFolderPath,
+  });
 
   return {
     cases: cases.filter((caseRow) => evalIdsInFolder.has(caseRow.evalId)),

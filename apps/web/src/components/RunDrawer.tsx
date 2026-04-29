@@ -37,7 +37,7 @@ import {
   tabularNums,
   transition,
 } from '#src/style/helpers';
-import { scopeRunCases } from '#src/utils/evalRuns';
+import { getEvalIdsForFolderPath, scopeRunCases } from '#src/utils/evalRuns';
 import { formatDuration, formatTimestamp } from '#src/utils/formatters';
 
 const DrawerLoading = styled.div`
@@ -278,6 +278,12 @@ function parseRunErrorLine(
   return { evalId, message };
 }
 
+function isParsedRunErrorLine(
+  line: { evalId: string; message: string } | null,
+): line is { evalId: string; message: string } {
+  return line !== null;
+}
+
 function formatStandaloneRunError(errorMessage: string): ErrorDetailItem {
   const lines = errorMessage.split('\n');
   const messageLineIndex = lines.findIndex((line) => line.trim().length > 0);
@@ -325,6 +331,49 @@ function formatRunErrorItems(errorMessage: string): ErrorDetailItem[] {
     stack: undefined,
     attributes: undefined,
   }));
+}
+
+function getScopedRunErrorMessage(params: {
+  errorMessage: string | null;
+  evals: Array<{ id: string; filePath: string }>;
+  selectedEvalId: string | null;
+  selectedFolderPath: string | null;
+}): string | null {
+  if (params.errorMessage === null || params.errorMessage.length === 0) {
+    return null;
+  }
+
+  if (params.selectedEvalId === null && params.selectedFolderPath === null) {
+    return params.errorMessage;
+  }
+
+  const lines = params.errorMessage
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  const parsedLines = lines.map((line) => parseRunErrorLine(line));
+
+  if (parsedLines.some((line) => line === null)) {
+    return params.errorMessage;
+  }
+
+  const selectedEvalIds =
+    params.selectedEvalId !== null
+      ? new Set([params.selectedEvalId])
+      : params.selectedFolderPath !== null
+        ? getEvalIdsForFolderPath({
+            evals: params.evals,
+            selectedFolderPath: params.selectedFolderPath,
+          })
+        : new Set<string>();
+  const scopedLines = parsedLines
+    .filter(isParsedRunErrorLine)
+    .filter((line) => selectedEvalIds.has(line.evalId));
+
+  if (scopedLines.length === 0) return null;
+  return scopedLines
+    .map((line) => `[${line.evalId}] ${line.message}`)
+    .join('\n');
 }
 
 export function RunDrawer() {
@@ -392,15 +441,18 @@ export function RunDrawer() {
     lifecycleStatus: manifest.status,
   });
   const failed = scopedSummary.failedCases + scopedSummary.errorCases;
-  const showError =
-    scopedRunCases.label === null &&
-    summary.status === 'error' &&
-    summary.errorMessage !== null &&
-    summary.errorMessage.length > 0;
+  const scopedErrorMessage =
+    summary.status === 'error'
+      ? getScopedRunErrorMessage({
+          errorMessage: summary.errorMessage,
+          evals,
+          selectedEvalId: scopedEvalId,
+          selectedFolderPath: scopedFolderPath,
+        })
+      : null;
+  const showError = scopedErrorMessage !== null;
   const runErrorItems =
-    showError && summary.errorMessage !== null
-      ? formatRunErrorItems(summary.errorMessage)
-      : [];
+    scopedErrorMessage !== null ? formatRunErrorItems(scopedErrorMessage) : [];
 
   const scopedCases = scopedRunCases.cases;
   const showEvalIdInCase = new Set(scopedCases.map((c) => c.evalId)).size > 1;
@@ -547,7 +599,7 @@ export function RunDrawer() {
           )}
         </Section>
 
-        {showError && summary.errorMessage !== null ? (
+        {showError ? (
           <Section>
             <ErrorDetails
               label={runErrorItems.length === 1 ? 'Run error' : 'Run errors'}

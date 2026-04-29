@@ -149,7 +149,10 @@ export const runsRoutes = new Hono()
             timestamp: now,
             payload:
               terminalType === 'run.error'
-                ? { message: 'Run ended with error' }
+                ? {
+                    message:
+                      initial.summary.errorMessage ?? 'Run ended with error',
+                  }
                 : initial.summary,
           });
           return;

@@ -375,7 +375,30 @@ function subscribeToRunEvents(runId: string): void {
         currentRun: {
           ...prev.currentRun,
           manifest: { ...prev.currentRun.manifest, status: 'error' },
+          summary: {
+            ...prev.currentRun.summary,
+            status: 'error',
+            errorMessage:
+              envelope?.payload.message ?? prev.currentRun.summary.errorMessage,
+          },
         },
+        selectedRunDetail:
+          prev.selectedRunDetail?.manifest.id === prev.currentRun.manifest.id
+            ? {
+                ...prev.selectedRunDetail,
+                manifest: {
+                  ...prev.selectedRunDetail.manifest,
+                  status: 'error',
+                },
+                summary: {
+                  ...prev.selectedRunDetail.summary,
+                  status: 'error',
+                  errorMessage:
+                    envelope?.payload.message ??
+                    prev.selectedRunDetail.summary.errorMessage,
+                },
+              }
+            : prev.selectedRunDetail,
         eventSource: null,
       };
     });
