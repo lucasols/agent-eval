@@ -77,6 +77,8 @@ type PreparedEvalRun = {
   mergeColumns: (columns: CaseDetail['columns']) => void;
 };
 
+type EvalRunError = { evalId: string; details: string };
+
 type ExecuteRunParams = {
   runState: RunState;
   request: CreateRunRequest;
@@ -161,6 +163,24 @@ function pickWinningTrial(params: {
     throw new Error('Expected at least one trial attempt');
   }
   return medianAttempt;
+}
+
+function formatUnknownErrorDetails(error: unknown): string {
+  if (error instanceof Error) return error.stack ?? error.message;
+  if (typeof error === 'string') return error;
+  return String(error);
+}
+
+function buildRunErrorMessage(errors: EvalRunError[]): string {
+  return errors
+    .map((entry) => {
+      const [firstLine, ...detailLines] = entry.details.split('\n');
+      const messageLine = firstLine?.trim() ?? 'Unknown error';
+      const details = detailLines.join('\n').trim();
+      if (details.length === 0) return `[${entry.evalId}] ${messageLine}`;
+      return `[${entry.evalId}] ${messageLine}\n${details}`;
+    })
+    .join('\n');
 }
 
 async function finalizePreparedCase(params: {
@@ -279,7 +299,7 @@ export async function executeRun({
       payload: runState.manifest,
     });
 
-    const evalErrors: { evalId: string; message: string }[] = [];
+    const evalErrors: EvalRunError[] = [];
     const queuedCases: QueuedCaseRun[] = [];
     const preparedEvals: PreparedEvalRun[] = [];
     const cacheMode: CacheMode = runState.manifest.cacheMode ?? 'use';
@@ -311,7 +331,7 @@ export async function executeRun({
         if (!entry) {
           evalErrors.push({
             evalId: evalMeta.id,
-            message: `Eval "${evalMeta.id}" was not registered after importing ${evalFilePath}`,
+            details: `Eval "${evalMeta.id}" was not registered after importing ${evalFilePath}`,
           });
           continue;
         }
@@ -431,7 +451,7 @@ export async function executeRun({
         console.error(`Error running eval ${evalMeta.id}:`, error);
         evalErrors.push({
           evalId: evalMeta.id,
-          message: error instanceof Error ? error.message : String(error),
+          details: formatUnknownErrorDetails(error),
         });
         lastRunStatusMap.set(evalMeta.id, 'error');
         latestRunInfoMap.set(evalMeta.id, {
@@ -499,11 +519,7 @@ export async function executeRun({
     const completedRunAt = endTime.toISOString();
     runState.manifest.endedAt = completedRunAt;
     runState.summary.errorMessage =
-      evalErrors.length > 0
-        ? evalErrors
-            .map((entry) => `[${entry.evalId}] ${entry.message}`)
-            .join('\n')
-        : null;
+      evalErrors.length > 0 ? buildRunErrorMessage(evalErrors) : null;
 
     for (const evalId of getTargetEvalIds({
       request,
@@ -541,11 +557,7 @@ export async function executeRun({
         type: 'run.error',
         runId: runState.manifest.id,
         timestamp: new Date().toISOString(),
-        payload: {
-          message: evalErrors
-            .map((entry) => `[${entry.evalId}] ${entry.message}`)
-            .join('\n'),
-        },
+        payload: { message: buildRunErrorMessage(evalErrors) },
       });
     } else {
       emitEvent(runState, {
@@ -558,7 +570,7 @@ export async function executeRun({
 
     emitDiscoveryEvent();
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = formatUnknownErrorDetails(error);
     runState.manifest.status = 'error';
     runState.manifest.endedAt = new Date().toISOString();
     runState.summary.status = 'error';

@@ -265,9 +265,11 @@ function formatTarget(target: {
   return ids.length > 0 ? ids.join(', ') : 'caseIds';
 }
 
-function parseRunErrorLine(
-  line: string,
-): { evalId: string; message: string } | null {
+type ParsedRunErrorLine = { evalId: string; message: string };
+
+type ParsedRunErrorBlock = ParsedRunErrorLine & { stack: string | undefined };
+
+function parseRunErrorLine(line: string): ParsedRunErrorLine | null {
   const trimmed = line.trim();
   if (!trimmed.startsWith('[')) return null;
   const closeIndex = trimmed.indexOf('] ');
@@ -278,10 +280,51 @@ function parseRunErrorLine(
   return { evalId, message };
 }
 
-function isParsedRunErrorLine(
-  line: { evalId: string; message: string } | null,
-): line is { evalId: string; message: string } {
-  return line !== null;
+function parseRunErrorBlocks(
+  errorMessage: string,
+): ParsedRunErrorBlock[] | null {
+  const lines = errorMessage.split('\n');
+  const blocks: ParsedRunErrorBlock[] = [];
+  let currentBlock: {
+    evalId: string;
+    message: string;
+    detailLines: string[];
+  } | null = null;
+
+  for (const line of lines) {
+    const parsedLine = parseRunErrorLine(line);
+    if (parsedLine !== null) {
+      if (currentBlock !== null) {
+        blocks.push({
+          evalId: currentBlock.evalId,
+          message: currentBlock.message,
+          stack:
+            currentBlock.detailLines.length > 0
+              ? currentBlock.detailLines.join('\n').trim()
+              : undefined,
+        });
+      }
+      currentBlock = { ...parsedLine, detailLines: [] };
+      continue;
+    }
+
+    if (line.trim().length === 0) continue;
+    if (currentBlock === null) return null;
+    currentBlock.detailLines.push(line);
+  }
+
+  if (currentBlock !== null) {
+    blocks.push({
+      evalId: currentBlock.evalId,
+      message: currentBlock.message,
+      stack:
+        currentBlock.detailLines.length > 0
+          ? currentBlock.detailLines.join('\n').trim()
+          : undefined,
+    });
+  }
+
+  return blocks.length > 0 ? blocks : null;
 }
 
 function formatStandaloneRunError(errorMessage: string): ErrorDetailItem {
@@ -305,30 +348,15 @@ function formatStandaloneRunError(errorMessage: string): ErrorDetailItem {
 }
 
 function formatRunErrorItems(errorMessage: string): ErrorDetailItem[] {
-  const lines = errorMessage
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-  if (lines.length === 0) {
-    return [formatStandaloneRunError(errorMessage)];
-  }
+  const parsedBlocks = parseRunErrorBlocks(errorMessage);
+  if (parsedBlocks === null) return [formatStandaloneRunError(errorMessage)];
 
-  const parsedLines: { evalId: string; message: string }[] = [];
-
-  for (const line of lines) {
-    const parsedLine = parseRunErrorLine(line);
-    if (parsedLine === null) {
-      return [formatStandaloneRunError(errorMessage)];
-    }
-    parsedLines.push(parsedLine);
-  }
-
-  return parsedLines.map((line, index) => ({
+  return parsedBlocks.map((line, index) => ({
     id: `${String(index)}-${line.evalId}`,
     name: 'Error',
     message: line.message,
     meta: `Eval ${line.evalId}`,
-    stack: undefined,
+    stack: line.stack,
     attributes: undefined,
   }));
 }
@@ -347,13 +375,8 @@ function getScopedRunErrorMessage(params: {
     return params.errorMessage;
   }
 
-  const lines = params.errorMessage
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-  const parsedLines = lines.map((line) => parseRunErrorLine(line));
-
-  if (parsedLines.some((line) => line === null)) {
+  const parsedBlocks = parseRunErrorBlocks(params.errorMessage);
+  if (parsedBlocks === null) {
     return params.errorMessage;
   }
 
@@ -366,13 +389,16 @@ function getScopedRunErrorMessage(params: {
             selectedFolderPath: params.selectedFolderPath,
           })
         : new Set<string>();
-  const scopedLines = parsedLines
-    .filter(isParsedRunErrorLine)
-    .filter((line) => selectedEvalIds.has(line.evalId));
+  const scopedLines = parsedBlocks.filter((line) =>
+    selectedEvalIds.has(line.evalId),
+  );
 
   if (scopedLines.length === 0) return null;
   return scopedLines
-    .map((line) => `[${line.evalId}] ${line.message}`)
+    .map((line) => {
+      const heading = `[${line.evalId}] ${line.message}`;
+      return line.stack === undefined ? heading : `${heading}\n${line.stack}`;
+    })
     .join('\n');
 }
 
