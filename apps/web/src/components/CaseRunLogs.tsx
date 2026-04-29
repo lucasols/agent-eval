@@ -1,8 +1,11 @@
 import type { RunLogEntry, RunLogPhase } from '@agent-evals/shared';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, SquareArrowOutUpRight } from 'lucide-react';
 import { useState } from 'react';
+import { resultify } from 't-result';
 import { styled } from 'vindur';
+import { IconButton } from '#src/components/IconButton';
 import { JsonViewer } from '#src/components/JsonViewer';
+import { Tooltip } from '#src/components/Tooltip';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
 
@@ -51,9 +54,15 @@ const Card = styled.div`
   overflow: hidden;
 `;
 
+const HeaderRow = styled.div`
+  ${inline({ gap: 4, align: 'center' })}
+  width: 100%;
+  min-width: 0;
+`;
+
 const HeaderButton = styled.button`
   ${inline({ gap: 10, align: 'center' })}
-  width: 100%;
+  flex: 1;
   min-width: 0;
   background: transparent;
   border: none;
@@ -65,6 +74,12 @@ const HeaderButton = styled.button`
   &:hover {
     background: ${colors.surface.var};
   }
+`;
+
+const HeaderAction = styled.div`
+  ${inline({ align: 'center' })}
+  padding-right: 8px;
+  flex-shrink: 0;
 `;
 
 const Caret = styled.span`
@@ -114,6 +129,13 @@ const LogLevel = styled.span<{ info: boolean; warn: boolean; error: boolean }>`
 const LogPhaseTag = styled.span`
   ${kicker};
   font-size: 9.5px;
+  color: ${colors.textMuted.var};
+  flex-shrink: 0;
+`;
+
+const LocationTag = styled.span`
+  ${monoFont};
+  font-size: 10.5px;
   color: ${colors.textMuted.var};
   flex-shrink: 0;
 `;
@@ -245,30 +267,50 @@ export function CaseRunLogs({
 
 function LogEntry({ entry }: { entry: RunLogEntry }) {
   const [expanded, setExpanded] = useState(false);
+  const location = entry.location;
   return (
     <Card>
-      <HeaderButton
-        onClick={() => setExpanded((value) => !value)}
-        aria-expanded={expanded}
-      >
-        <Caret>{expanded ? <ChevronDown /> : <ChevronRight />}</Caret>
-        <LogLevel
-          info={entry.level === 'info'}
-          warn={entry.level === 'warn'}
-          error={entry.level === 'error'}
+      <HeaderRow>
+        <HeaderButton
+          onClick={() => setExpanded((value) => !value)}
+          aria-expanded={expanded}
         >
-          {entry.level}
-        </LogLevel>
-        <LogPreview>{summarizeLogMessage(entry.message)}</LogPreview>
-        <LogMeta>
-          <LogTime>{formatLogTimestamp(entry.timestamp)}</LogTime>
-          <LogPhaseTag>
-            {LOG_PHASE_LABELS[entry.phase]}
-            {entry.source ? ` / ${entry.source}` : ''}
-          </LogPhaseTag>
-          {entry.truncated ? <TruncatedTag>truncated</TruncatedTag> : null}
-        </LogMeta>
-      </HeaderButton>
+          <Caret>{expanded ? <ChevronDown /> : <ChevronRight />}</Caret>
+          <LogLevel
+            info={entry.level === 'info'}
+            warn={entry.level === 'warn'}
+            error={entry.level === 'error'}
+          >
+            {entry.level}
+          </LogLevel>
+          <LogPreview>{summarizeLogMessage(entry.message)}</LogPreview>
+          <LogMeta>
+            <LogTime>{formatLogTimestamp(entry.timestamp)}</LogTime>
+            <LogPhaseTag>
+              {LOG_PHASE_LABELS[entry.phase]}
+              {entry.source ? ` / ${entry.source}` : ''}
+            </LogPhaseTag>
+            {location ? (
+              <LocationTag>{formatShortLocation(location)}</LocationTag>
+            ) : null}
+            {entry.truncated ? <TruncatedTag>truncated</TruncatedTag> : null}
+          </LogMeta>
+        </HeaderButton>
+        {location ? (
+          <HeaderAction>
+            <Tooltip content="Open in editor">
+              <IconButton
+                aria-label="Open log location in editor"
+                onClick={() => {
+                  void openLogLocationInEditor(location);
+                }}
+              >
+                <SquareArrowOutUpRight />
+              </IconButton>
+            </Tooltip>
+          </HeaderAction>
+        ) : null}
+      </HeaderRow>
       {expanded ? (
         <Body>
           <DetailRow>
@@ -286,6 +328,12 @@ function LogEntry({ entry }: { entry: RunLogEntry }) {
               <DetailLabel>time</DetailLabel>
               <DetailValue>{entry.timestamp}</DetailValue>
             </DetailItem>
+            {location ? (
+              <DetailItem>
+                <DetailLabel>location</DetailLabel>
+                <DetailValue>{formatFullLocation(location)}</DetailValue>
+              </DetailItem>
+            ) : null}
           </DetailRow>
           {entry.args.length > 0 ? (
             <LogJsonSection>
@@ -304,6 +352,29 @@ function LogEntry({ entry }: { entry: RunLogEntry }) {
       ) : null}
     </Card>
   );
+}
+
+async function openLogLocationInEditor(
+  location: NonNullable<RunLogEntry['location']>,
+): Promise<void> {
+  await resultify(() =>
+    fetch('/api/runs/actions/open-location', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(location),
+    }),
+  );
+}
+
+function formatShortLocation(location: RunLogEntry['location']): string {
+  if (location === undefined) return '';
+  const fileName = location.file.split('/').at(-1) ?? location.file;
+  return `${fileName}:${String(location.line)}`;
+}
+
+function formatFullLocation(location: RunLogEntry['location']): string {
+  if (location === undefined) return '';
+  return `${location.file}:${String(location.line)}:${String(location.column)}`;
 }
 
 function summarizeLogMessage(message: string): string {

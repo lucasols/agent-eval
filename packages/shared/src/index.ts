@@ -52,6 +52,7 @@ export {
   caseRowSchema,
   caseDetailSchema,
   runLogEntrySchema,
+  runLogLocationSchema,
   runLogLevelSchema,
   runLogPhaseSchema,
   scoreTraceSchema,
@@ -64,6 +65,7 @@ export {
   type CaseRow,
   type CaseDetail,
   type RunLogEntry,
+  type RunLogLocation,
   type RunLogLevel,
   type RunLogPhase,
   type ScoreTrace,
@@ -115,7 +117,9 @@ export {
   type ApiCallMetricValue,
 } from './utils/extractApiCalls.ts';
 export {
+  extractCacheEntries,
   extractCacheHits,
+  type CacheActivityEntry,
   type CacheHitEntry,
 } from './utils/extractCacheHits.ts';
 export {

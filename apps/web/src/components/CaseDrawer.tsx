@@ -1,7 +1,8 @@
 import {
   extractApiCalls,
-  extractCacheHits,
+  extractCacheEntries,
   extractLlmCalls,
+  type CacheActivityEntry,
   type CellValue,
   type ColumnDef,
   type RunLogPhase,
@@ -47,7 +48,7 @@ type Tab =
   | 'logs'
   | 'llmCalls'
   | 'apiCalls'
-  | 'cacheHits'
+  | 'cache'
   | 'scoring'
   | 'raw'
   | 'failures'
@@ -61,7 +62,7 @@ const TAB_LABELS: Record<Tab, string> = {
   logs: 'Logs',
   llmCalls: 'LLM calls',
   apiCalls: 'API calls',
-  cacheHits: 'Cache hits',
+  cache: 'Cache',
   scoring: 'Scoring',
   raw: 'Raw',
   failures: 'Failures',
@@ -284,7 +285,40 @@ const ApiCallsList = styled.div`
   ${stack({ gap: 8 })}
 `;
 
-const CacheHitsList = styled.div`
+const CacheToolbar = styled.div`
+  ${inline({ justify: 'space-between', align: 'center', gap: 10 })}
+  margin-bottom: 12px;
+`;
+
+const CacheCount = styled.span`
+  ${kicker};
+  color: ${colors.textMuted.var};
+`;
+
+const CacheFilterSelect = styled.select`
+  height: 28px;
+  min-width: 150px;
+  border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-sm);
+  background: ${colors.bg.var};
+  color: ${colors.text.var};
+  padding: 0 26px 0 9px;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1;
+
+  &:hover {
+    border-color: ${colors.borderStrong.var};
+  }
+
+  &:focus {
+    outline: 2px solid ${colors.accent.alpha(0.25)};
+    outline-offset: 1px;
+    border-color: ${colors.accent.alpha(0.65)};
+  }
+`;
+
+const CacheEntriesList = styled.div`
   ${stack({ gap: 8 })}
 `;
 
@@ -307,22 +341,27 @@ function parseTab(value: string): Tab | null {
     case 'logs':
     case 'llmCalls':
     case 'apiCalls':
-    case 'cacheHits':
+    case 'cache':
     case 'scoring':
     case 'raw':
     case 'failures':
     case 'error':
       return value;
+    case 'cacheHits':
+      return 'cache';
     default:
       return null;
   }
 }
+
+type CacheFilter = 'all' | 'hits' | 'added';
 
 export function CaseDrawer() {
   const searchParams = useSearchParams();
   const [logPhaseFilter, setLogPhaseFilter] = useState<RunLogPhase | 'all'>(
     'all',
   );
+  const [cacheFilter, setCacheFilter] = useState<CacheFilter>('all');
   const { selectedCaseDetail } = runStore.useSelectorRC((s) => ({
     selectedCaseDetail: s.selectedCaseDetail,
   }));
@@ -385,7 +424,8 @@ export function CaseDrawer() {
   const scoringTraceEntries = Object.entries(scoringTraces);
   const llmCallEntries = extractLlmCalls(d.trace, llmCallsConfig);
   const apiCallEntries = extractApiCalls(d.trace, apiCallsConfig);
-  const cacheHitEntries = extractCacheHits(d.trace, d.cacheRefs);
+  const cacheEntries = extractCacheEntries(d.trace, d.cacheRefs);
+  const filteredCacheEntries = filterCacheEntries(cacheEntries, cacheFilter);
   const logPhases = getLogPhases(d.logs);
   const selectedLogPhase =
     logPhaseFilter === 'all' || logPhases.includes(logPhaseFilter)
@@ -401,7 +441,7 @@ export function CaseDrawer() {
   if (d.logs.length > 0) tabs.push('logs');
   if (llmCallEntries.length > 0) tabs.push('llmCalls');
   if (apiCallEntries.length > 0) tabs.push('apiCalls');
-  if (cacheHitEntries.length > 0) tabs.push('cacheHits');
+  if (cacheEntries.length > 0) tabs.push('cache');
   if (scoringTraceEntries.length > 0) tabs.push('scoring');
   tabs.push('raw');
   if (d.assertionFailures.length > 0) tabs.push('failures');
@@ -545,15 +585,40 @@ export function CaseDrawer() {
           )
         ) : null}
 
-        {activeTab === 'cacheHits' ? (
-          <CacheHitsList>
-            {cacheHitEntries.map((entry) => (
-              <CacheHitRow
-                key={entry.id}
-                entry={entry}
+        {activeTab === 'cache' ? (
+          <>
+            <CacheToolbar>
+              <CacheCount>
+                {String(filteredCacheEntries.length)} entries
+              </CacheCount>
+              <CacheFilterSelect
+                value={cacheFilter}
+                onChange={(event) => {
+                  setCacheFilter(parseCacheFilter(event.currentTarget.value));
+                }}
+                aria-label="Filter cache entries"
+              >
+                <option value="all">All cache</option>
+                <option value="hits">Hits</option>
+                <option value="added">New entries</option>
+              </CacheFilterSelect>
+            </CacheToolbar>
+            {filteredCacheEntries.length > 0 ? (
+              <CacheEntriesList>
+                {filteredCacheEntries.map((entry) => (
+                  <CacheHitRow
+                    key={entry.id}
+                    entry={entry}
+                  />
+                ))}
+              </CacheEntriesList>
+            ) : (
+              <EmptyState
+                title="No cache entries"
+                description="No cache activity matched this filter for the case run."
               />
-            ))}
-          </CacheHitsList>
+            )}
+          </>
         ) : null}
 
         {activeTab === 'scoring' ? (
@@ -631,6 +696,25 @@ export function CaseDrawer() {
 function hasRenderableOutputValue(value: CellValue | undefined): boolean {
   if (value === undefined || value === null) return false;
   return true;
+}
+
+function filterCacheEntries(
+  entries: CacheActivityEntry[],
+  filter: CacheFilter,
+): CacheActivityEntry[] {
+  switch (filter) {
+    case 'hits':
+      return entries.filter((entry) => entry.action === 'hit');
+    case 'added':
+      return entries.filter((entry) => entry.action === 'added');
+    case 'all':
+      return entries;
+  }
+}
+
+function parseCacheFilter(value: string): CacheFilter {
+  if (value === 'hits' || value === 'added') return value;
+  return 'all';
 }
 
 function ColumnCell({

@@ -1,7 +1,7 @@
 import {
   cacheEntryWithDebugKeySchema,
+  type CacheActivityEntry,
   type CacheEntryWithDebugKey,
-  type CacheHitEntry,
 } from '@agent-evals/shared';
 import { useActionFn } from '@ls-stack/react-utils/useActionFn';
 import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
@@ -47,12 +47,34 @@ const TypeChip = styled.span`
   ${kicker};
   padding: 2px 6px;
   border-radius: var(--radius-sm);
-  background: ${colors.success.alpha(0.15)};
-  color: ${colors.success.var};
+  background: ${colors.surface.var};
+  color: ${colors.textMuted.var};
   font-size: 9.5px;
   letter-spacing: 0.04em;
   line-height: 1.2;
   flex-shrink: 0;
+`;
+
+const StatusChip = styled.span<{ hit: boolean; added: boolean }>`
+  ${kicker};
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: ${colors.surface.var};
+  color: ${colors.textMuted.var};
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  flex-shrink: 0;
+
+  &.hit {
+    background: ${colors.success.alpha(0.15)};
+    color: ${colors.success.var};
+  }
+
+  &.added {
+    background: ${colors.accent.alpha(0.12)};
+    color: ${colors.accentDim.var};
+  }
 `;
 
 const HeaderName = styled.span`
@@ -148,21 +170,22 @@ type FetchState =
   | { status: 'deleted' }
   | { status: 'error'; message: string };
 
-function cacheEntryUrl(entry: CacheHitEntry): string {
+function cacheEntryUrl(entry: CacheActivityEntry): string {
   return `/api/cache/${encodeURIComponent(entry.namespace)}/${encodeURIComponent(entry.key)}`;
 }
 
 /**
- * Render one cache-hit card inside the case-drawer Cache hits tab.
+ * Render one cache activity card inside the case-drawer Cache tab.
  *
- * Collapsed by default. The header shows the source (SPAN/VALUE), operation
- * name, an optional `(case root)` tag for spanless value caches, age, and a
+ * Collapsed by default. The header shows whether the row reused an entry or
+ * wrote a new one, the source (SPAN/VALUE), operation name, an optional
+ * `(case root)` tag for spanless value caches, age when available, and a
  * truncated key. Click toggles expansion and triggers a one-time fetch of the
  * persisted cache entry from `/api/cache/:namespace/:key` so the cached
  * `returnValue` and `finalAttributes` (when present) can be inspected via a
  * `JsonViewer`.
  */
-export function CacheHitRow({ entry }: { entry: CacheHitEntry }) {
+export function CacheHitRow({ entry }: { entry: CacheActivityEntry }) {
   const [expanded, setExpanded] = useState(false);
   const [fetchState, setFetchState] = useState<FetchState>({ status: 'idle' });
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -233,6 +256,9 @@ export function CacheHitRow({ entry }: { entry: CacheHitEntry }) {
   }
 
   const ageLabel = entry.age !== undefined ? formatDuration(entry.age) : null;
+  const storedAt =
+    entry.storedAt ??
+    (fetchState.status === 'loaded' ? fetchState.entry.storedAt : undefined);
   const finalAttributes =
     fetchState.status === 'loaded'
       ? fetchState.entry.recording.finalAttributes
@@ -248,6 +274,12 @@ export function CacheHitRow({ entry }: { entry: CacheHitEntry }) {
         aria-expanded={expanded}
       >
         <Caret>{expanded ? <ChevronDown /> : <ChevronRight />}</Caret>
+        <StatusChip
+          hit={entry.action === 'hit'}
+          added={entry.action === 'added'}
+        >
+          {getStatusLabel(entry)}
+        </StatusChip>
         <TypeChip>{entry.source === 'span' ? 'SPAN' : 'VALUE'}</TypeChip>
         <HeaderName>{entry.name}</HeaderName>
         {entry.origin === 'caseRoot' ? (
@@ -256,6 +288,10 @@ export function CacheHitRow({ entry }: { entry: CacheHitEntry }) {
         <HeaderMeta>
           {fetchState.status === 'deleted' ? <span>deleted</span> : null}
           {ageLabel !== null ? <span>{ageLabel} old</span> : null}
+          {entry.action === 'added' && entry.status === 'miss' ? (
+            <span>created</span>
+          ) : null}
+          {entry.status === 'refresh' ? <span>refreshed</span> : null}
           <span>{truncateKey(entry.key)}</span>
         </HeaderMeta>
       </HeaderButton>
@@ -267,12 +303,16 @@ export function CacheHitRow({ entry }: { entry: CacheHitEntry }) {
               <MetaLabel>NS</MetaLabel>
               <MetaValue>{entry.namespace}</MetaValue>
             </MetaItem>
-            {entry.storedAt !== undefined ? (
+            {storedAt !== undefined ? (
               <MetaItem>
                 <MetaLabel>STORED</MetaLabel>
-                <MetaValue>{formatTimestamp(entry.storedAt)}</MetaValue>
+                <MetaValue>{formatTimestamp(storedAt)}</MetaValue>
               </MetaItem>
             ) : null}
+            <MetaItem>
+              <MetaLabel>STATUS</MetaLabel>
+              <MetaValue>{entry.status}</MetaValue>
+            </MetaItem>
             <MetaItem>
               <MetaLabel>KEY</MetaLabel>
               <MetaValue>{entry.key}</MetaValue>
@@ -354,4 +394,10 @@ export function CacheHitRow({ entry }: { entry: CacheHitEntry }) {
       ) : null}
     </Card>
   );
+}
+
+function getStatusLabel(entry: CacheActivityEntry): string {
+  if (entry.status === 'hit') return 'HIT';
+  if (entry.status === 'refresh') return 'REFRESHED';
+  return 'ADDED';
 }

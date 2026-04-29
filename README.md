@@ -154,7 +154,7 @@ Notes:
 - `getEvalCaseInput()` returns the current case input while an eval case is executing, and `getEvalCaseInput('customer.tier')` reads nested values with dot-path access. Outside a case scope, both return `undefined`.
 - `nextEvalId()` returns a stable sequential id for the active eval file, eval id, and case id, such as `refund-workflow-evals-refund-workflow-eval-ts-simple-text-1`. It throws outside an eval case scope so accidental production-only usage is visible.
 - `evalAssert(...)` records a failed assertion only while an eval case scope is active. Outside a case scope, it is a no-op so shared workflow code can be reused safely.
-- `evalLog(level, ...args)` records manual per-case logs shown in the case drawer's **Logs** tab. The runner also captures `console.log`, `console.info`, `console.warn`, and `console.error` during case-owned phases by default. Log arguments are stored as JSON-safe values and rendered with the JSON viewer, with a capped text preview for collapsed rows; logs emitted inside cached operations are not replayed from cache hits.
+- `evalLog(level, ...args)` records manual per-case logs shown in the case drawer's **Logs** tab. The runner also captures `console.log`, `console.info`, `console.warn`, and `console.error` during case-owned phases by default. Log arguments are stored as JSON-safe values and rendered with the JSON viewer, with a capped text preview and best-effort code location for collapsed rows; logs emitted inside cached operations are not replayed from cache hits.
 - `mock.module(...)` only affects modules imported after the mock is registered.
 - Use dynamic `import(...)` inside `execute`; static imports happen too early.
 - The full working example is in [`examples/basic-agent/evals/support/playground/module-mock.eval.ts`](./examples/basic-agent/evals/support/playground/module-mock.eval.ts).
@@ -215,7 +215,8 @@ Case run logs are stored on each case detail and rendered as a **Logs** tab
 with a phase filter for execute, derive, output schema validation, and scorer
 logs. Use `evalLog('info', 'message %s', id)` for intentional eval notes. Each
 entry stores the original arguments as JSON-safe values so objects and arrays
-remain inspectable when the row is expanded.
+remain inspectable when the row is expanded. When Node provides stack frame
+data, entries also include the source file, line, and column for the log call.
 Console capture can be disabled globally:
 
 ```ts
@@ -779,15 +780,17 @@ span. SDK-mediated effects inside the callback still replay on hits, including
 nested spans, checkpoints, output helper calls, and active span attributes
 changed by the callback.
 
-The case-run drawer adds a **Cache hits** tab whenever a case run produced at
-least one cache hit. It lists every span- and value-cache hit (including
-spanless ones tagged "case root") with namespace, age, stored-at timestamp, and
+The case-run drawer adds a **Cache** tab whenever a case run produced cache
+hits or wrote new cache entries. Use the selector to show all cache activity,
+only hits, or only new entries added by misses/refreshes. It lists every span-
+and value-cache entry (including spanless ones tagged "case root") with
+namespace, status, age when available, stored-at timestamp when known, and
 truncated key. Each row expands to fetch the persisted entry from
 `GET /api/cache/:namespace/:key` and render its cached `returnValue` (and any
 replayed span attributes) inline. When raw-key debug metadata is available, the
 expanded row also shows the authored cache key. Use the row's delete action to
-remove that single persisted cache entry. Misses, refreshes, and bypasses
-remain visible inline as per-span badges in the **Trace** tab.
+remove that single persisted cache entry. Bypasses remain visible inline as
+per-span badges in the **Trace** tab because they do not write cache entries.
 
 ### Cache controls
 

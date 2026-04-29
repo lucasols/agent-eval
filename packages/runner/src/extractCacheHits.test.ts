@@ -1,4 +1,5 @@
 import {
+  extractCacheEntries,
   extractCacheHits,
   type EvalTraceSpan,
   type TraceCacheRef,
@@ -46,12 +47,78 @@ test('collects span-level cache hits', () => {
       id: 'a',
       source: 'span',
       origin: 'span',
+      action: 'hit',
+      status: 'hit',
       name: 'fetch-user',
       namespace: 'eval__fetch-user',
       key: 'k-abc',
       storedAt: '2026-04-27T00:00:00.000Z',
       age: 60_000,
       spanId: 'a',
+    },
+  ]);
+});
+
+test('collects span-level cache entries added by misses and refreshes', () => {
+  const entries = extractCacheEntries(
+    [
+      span({
+        id: 'missed',
+        name: 'fetch-user',
+        attributes: {
+          'cache.status': 'miss',
+          'cache.key': 'k-miss',
+          'cache.namespace': 'eval__fetch-user',
+        },
+      }),
+      span({
+        id: 'refreshed',
+        name: 'fetch-plan',
+        attributes: {
+          'cache.status': 'refresh',
+          'cache.key': 'k-refresh',
+          'cache.namespace': 'eval__fetch-plan',
+        },
+      }),
+      span({
+        id: 'bypassed',
+        name: 'fetch-bypass',
+        attributes: {
+          'cache.status': 'bypass',
+          'cache.key': 'k-bypass',
+          'cache.namespace': 'eval__fetch-bypass',
+        },
+      }),
+    ],
+    [],
+  );
+
+  expect(entries).toEqual([
+    {
+      id: 'missed',
+      source: 'span',
+      origin: 'span',
+      action: 'added',
+      status: 'miss',
+      name: 'fetch-user',
+      namespace: 'eval__fetch-user',
+      key: 'k-miss',
+      storedAt: undefined,
+      age: undefined,
+      spanId: 'missed',
+    },
+    {
+      id: 'refreshed',
+      source: 'span',
+      origin: 'span',
+      action: 'added',
+      status: 'refresh',
+      name: 'fetch-plan',
+      namespace: 'eval__fetch-plan',
+      key: 'k-refresh',
+      storedAt: undefined,
+      age: undefined,
+      spanId: 'refreshed',
     },
   ]);
 });
@@ -107,6 +174,8 @@ test('emits one entry per value cache.refs hit and skips other statuses', () => 
       id: 'parent:value:0',
       source: 'value',
       origin: 'span',
+      action: 'hit',
+      status: 'hit',
       name: 'lookup',
       namespace: 'n',
       key: 'k1',
@@ -118,12 +187,101 @@ test('emits one entry per value cache.refs hit and skips other statuses', () => 
       id: 'parent:value:2',
       source: 'value',
       origin: 'span',
+      action: 'hit',
+      status: 'hit',
       name: 'lookup',
       namespace: 'n',
       key: 'k3',
       storedAt: '2026-04-27T00:00:00.000Z',
       age: 1000,
       spanId: 'parent',
+    },
+  ]);
+});
+
+test('collects value cache entries added by misses and refreshes', () => {
+  const refs: TraceCacheRef[] = [
+    {
+      type: 'value',
+      name: 'lookup',
+      namespace: 'n',
+      key: 'k1',
+      status: 'miss',
+    },
+    {
+      type: 'value',
+      name: 'lookup',
+      namespace: 'n',
+      key: 'k2',
+      status: 'refresh',
+    },
+    {
+      type: 'value',
+      name: 'lookup',
+      namespace: 'n',
+      key: 'k3',
+      status: 'bypass',
+    },
+  ];
+
+  const entries = extractCacheEntries(
+    [
+      span({
+        id: 'parent',
+        name: 'workflow',
+        attributes: { 'cache.refs': refs },
+      }),
+    ],
+    [
+      {
+        type: 'value',
+        name: 'top-level',
+        namespace: 'eval__top',
+        key: 'k-top',
+        status: 'miss',
+      },
+    ],
+  );
+
+  expect(entries).toEqual([
+    {
+      id: 'parent:value:0',
+      source: 'value',
+      origin: 'span',
+      action: 'added',
+      status: 'miss',
+      name: 'lookup',
+      namespace: 'n',
+      key: 'k1',
+      storedAt: undefined,
+      age: undefined,
+      spanId: 'parent',
+    },
+    {
+      id: 'parent:value:1',
+      source: 'value',
+      origin: 'span',
+      action: 'added',
+      status: 'refresh',
+      name: 'lookup',
+      namespace: 'n',
+      key: 'k2',
+      storedAt: undefined,
+      age: undefined,
+      spanId: 'parent',
+    },
+    {
+      id: 'case:value:0',
+      source: 'value',
+      origin: 'caseRoot',
+      action: 'added',
+      status: 'miss',
+      name: 'top-level',
+      namespace: 'eval__top',
+      key: 'k-top',
+      storedAt: undefined,
+      age: undefined,
+      spanId: undefined,
     },
   ]);
 });
@@ -156,6 +314,8 @@ test('emits spanless caseCacheRefs hits with origin=caseRoot', () => {
       id: 'case:value:0',
       source: 'value',
       origin: 'caseRoot',
+      action: 'hit',
+      status: 'hit',
       name: 'top-level',
       namespace: 'eval__top',
       key: 'k-top',

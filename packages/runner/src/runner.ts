@@ -126,8 +126,8 @@ export type EvalRunner = {
   /**
    * Return the full persisted cache entry for `namespace` + `key`, including
    * its recording and optional raw-key debug metadata. Returns `null` when no
-   * entry matches. Used by the case drawer's Cache hits tab to lazily fetch
-   * the cached return value when a row is expanded.
+   * entry matches. Used by the case drawer's Cache tab to lazily fetch the
+   * cached return value when a row is expanded.
    */
   getCacheEntry(
     namespace: string,

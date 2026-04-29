@@ -130,6 +130,18 @@ export const runLogPhaseSchema = z.enum([
 export type RunLogPhase = z.infer<typeof runLogPhaseSchema>;
 
 /** Schema for one persisted log entry captured during a case run. */
+export const runLogLocationSchema = z.object({
+  /** File path reported by the JavaScript stack frame. */
+  file: z.string(),
+  /** 1-based source line reported by the JavaScript stack frame. */
+  line: z.number(),
+  /** 1-based source column reported by the JavaScript stack frame. */
+  column: z.number(),
+});
+/** Best-effort source location for one captured case log. */
+export type RunLogLocation = z.infer<typeof runLogLocationSchema>;
+
+/** Schema for one persisted log entry captured during a case run. */
 export const runLogEntrySchema = z.object({
   /** ISO timestamp for when the log was captured. */
   timestamp: z.string(),
@@ -143,6 +155,8 @@ export const runLogEntrySchema = z.object({
   args: z.array(z.unknown()).default([]),
   /** Whether `message` was capped before persistence. */
   truncated: z.boolean().default(false),
+  /** Best-effort code location for the log call, when Node stack data is available. */
+  location: runLogLocationSchema.optional(),
   /**
    * Optional source label for logs emitted from a nested case-owned activity,
    * such as a score key.

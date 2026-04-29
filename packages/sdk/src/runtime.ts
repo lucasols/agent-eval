@@ -9,6 +9,7 @@ import type {
   EvalTraceSpan,
   RunLogEntry,
   RunLogLevel,
+  RunLogLocation,
   RunLogPhase,
   TraceCacheRef,
 } from '@agent-evals/shared';
@@ -136,6 +137,9 @@ type ConsoleCaptureMethod = (typeof consoleCaptureMethods)[number];
 type EvalLogLevelInput = RunLogLevel | 'warning';
 const runtimeConsole = globalThis.console;
 type LogValueContext = { seen: WeakSet<object>; truncated: boolean };
+const stackFrameLocationPattern =
+  /(?:\((?<parenFile>.+):(?<parenLine>\d+):(?<parenColumn>\d+)\)|at (?<bareFile>.+):(?<bareLine>\d+):(?<bareColumn>\d+))$/;
+const fileUrlPrefixPattern = /^file:\/\//;
 
 const originalConsoleMethods: Record<
   ConsoleCaptureMethod,
@@ -318,12 +322,53 @@ function toLogJsonArgs(args: unknown[]): {
   };
 }
 
+function normalizeStackFile(value: string): string {
+  if (!value.startsWith('file://')) return value;
+  return decodeURIComponent(value.replace(fileUrlPrefixPattern, ''));
+}
+
+function isInternalLogFrame(file: string): boolean {
+  return (
+    file.includes('/packages/sdk/src/runtime.ts') ||
+    file.includes('/node:internal/') ||
+    file.startsWith('node:internal/')
+  );
+}
+
+function parseStackFrameLocation(line: string): RunLogLocation | null {
+  const match = stackFrameLocationPattern.exec(line.trim());
+  if (!match?.groups) return null;
+  const file = match.groups.parenFile ?? match.groups.bareFile;
+  const lineNumber = Number(match.groups.parenLine ?? match.groups.bareLine);
+  const column = Number(match.groups.parenColumn ?? match.groups.bareColumn);
+  if (
+    file === undefined ||
+    !Number.isFinite(lineNumber) ||
+    !Number.isFinite(column)
+  ) {
+    return null;
+  }
+  return { file: normalizeStackFile(file), line: lineNumber, column };
+}
+
+function getLogLocation(): RunLogLocation | undefined {
+  const stack = new Error().stack;
+  if (stack === undefined) return undefined;
+  for (const line of stack.split('\n').slice(1)) {
+    const location = parseStackFrameLocation(line);
+    if (location === null || isInternalLogFrame(location.file)) continue;
+    return location;
+  }
+  return undefined;
+}
+
 function recordEvalLog(level: EvalLogLevelInput, args: unknown[]): void {
   const scope = getCurrentScope();
   const phase = getCurrentLogPhase();
   if (!scope || !phase) return;
   const preview = formatLogArgs(args);
   const jsonArgs = toLogJsonArgs(args);
+  const location = getLogLocation();
   scope.logs.push({
     timestamp: new Date().toISOString(),
     level: normalizeLogLevel(level),
@@ -331,6 +376,7 @@ function recordEvalLog(level: EvalLogLevelInput, args: unknown[]): void {
     message: preview.message,
     args: jsonArgs.args,
     truncated: preview.truncated || jsonArgs.truncated,
+    location,
   });
 }
 

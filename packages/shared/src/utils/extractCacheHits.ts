@@ -1,25 +1,38 @@
-import { traceCacheRefSchema, type TraceCacheRef } from '../schemas/cache.ts';
+import {
+  cacheStatusSchema,
+  traceCacheRefSchema,
+  type TraceCacheRef,
+} from '../schemas/cache.ts';
 import type { EvalTraceSpan } from '../schemas/trace.ts';
 
 /**
- * Single cache-hit entry rendered as one row in the case drawer's
- * "Cache hits" tab.
+ * Single cache activity entry rendered as one row in the case drawer's Cache
+ * tab.
  *
- * `origin === 'span'` rows came from a span's `cache.status` attribute or from
- * a `cache.refs` ref attached to a span body. `origin === 'caseRoot'` rows
- * came from `evalTracer.cache(...)` calls made directly from the case body
- * (no surrounding `traceSpan`), which would otherwise be invisible.
+ * `action === 'hit'` rows reused an existing persisted cache entry.
+ * `action === 'added'` rows came from a miss or refresh that wrote a persisted
+ * cache entry during the run. `origin === 'caseRoot'` rows came from
+ * `evalTracer.cache(...)` calls made directly from the case body (no
+ * surrounding `traceSpan`), which would otherwise be invisible.
  */
-export type CacheHitEntry = {
+export type CacheActivityEntry = {
   id: string;
   source: 'span' | 'value';
   origin: 'span' | 'caseRoot';
+  action: 'hit' | 'added';
+  status: 'hit' | 'miss' | 'refresh';
   name: string;
   namespace: string;
   key: string;
   storedAt: string | undefined;
   age: number | undefined;
   spanId: string | undefined;
+};
+
+/** Cache activity row narrowed to cache hits for compatibility helpers. */
+export type CacheHitEntry = CacheActivityEntry & {
+  action: 'hit';
+  status: 'hit';
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -46,36 +59,49 @@ function readArray(attributes: unknown, key: string): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
+function readCacheStatus(
+  attributes: unknown,
+): CacheActivityEntry['status'] | undefined {
+  if (!isRecord(attributes)) return undefined;
+  const parsed = cacheStatusSchema.safeParse(attributes['cache.status']);
+  if (!parsed.success || parsed.data === 'bypass') return undefined;
+  return parsed.data;
+}
+
 /**
- * Collect every `status === 'hit'` cache event recorded for a case run.
+ * Collect every cache hit or cache write recorded for a case run.
  *
- * Walks `spans` for span-level cache hits (`attributes['cache.status'] ===
- * 'hit'`) and per-span value-cache refs (`attributes['cache.refs']`), then
- * appends spanless value-cache refs persisted on the case scope. Non-hit
- * statuses (`miss`/`refresh`/`bypass`) are skipped — they remain visible
- * inline in the Trace tab.
+ * Walks `spans` for span-level cache activity (`attributes['cache.status']`)
+ * and per-span value-cache refs (`attributes['cache.refs']`), then appends
+ * spanless value-cache refs persisted on the case scope. Bypasses are skipped
+ * because they do not read or write a persisted cache entry.
  */
-export function extractCacheHits(
+export function extractCacheEntries(
   spans: EvalTraceSpan[],
   caseCacheRefs: TraceCacheRef[],
-): CacheHitEntry[] {
-  const entries: CacheHitEntry[] = [];
+): CacheActivityEntry[] {
+  const entries: CacheActivityEntry[] = [];
 
   for (const span of spans) {
-    const status = readString(span.attributes, 'cache.status');
-    if (status === 'hit') {
+    const status = readCacheStatus(span.attributes);
+    if (status !== undefined) {
       const key = readString(span.attributes, 'cache.key');
       const namespace = readString(span.attributes, 'cache.namespace');
       if (key !== undefined && namespace !== undefined) {
+        const isHit = status === 'hit';
         entries.push({
           id: span.id,
           source: 'span',
           origin: 'span',
+          action: isHit ? 'hit' : 'added',
+          status,
           name: span.name,
           namespace,
           key,
-          storedAt: readString(span.attributes, 'cache.storedAt'),
-          age: readNumber(span.attributes, 'cache.age'),
+          storedAt: isHit
+            ? readString(span.attributes, 'cache.storedAt')
+            : undefined,
+          age: isHit ? readNumber(span.attributes, 'cache.age') : undefined,
           spanId: span.id,
         });
       }
@@ -86,35 +112,59 @@ export function extractCacheHits(
       const parsed = traceCacheRefSchema.safeParse(rawRef);
       if (!parsed.success) continue;
       const ref = parsed.data;
-      if (ref.status !== 'hit') continue;
+      if (ref.status === 'bypass') continue;
+      const isHit = ref.status === 'hit';
       entries.push({
         id: `${span.id}:value:${String(index)}`,
         source: 'value',
         origin: 'span',
+        action: isHit ? 'hit' : 'added',
+        status: ref.status,
         name: ref.name,
         namespace: ref.namespace,
         key: ref.key,
-        storedAt: ref.storedAt,
-        age: ref.age,
+        storedAt: isHit ? ref.storedAt : undefined,
+        age: isHit ? ref.age : undefined,
         spanId: span.id,
       });
     }
   }
 
   for (const [index, ref] of caseCacheRefs.entries()) {
-    if (ref.status !== 'hit') continue;
+    if (ref.status === 'bypass') continue;
+    const isHit = ref.status === 'hit';
     entries.push({
       id: `case:value:${String(index)}`,
       source: 'value',
       origin: 'caseRoot',
+      action: isHit ? 'hit' : 'added',
+      status: ref.status,
       name: ref.name,
       namespace: ref.namespace,
       key: ref.key,
-      storedAt: ref.storedAt,
-      age: ref.age,
+      storedAt: isHit ? ref.storedAt : undefined,
+      age: isHit ? ref.age : undefined,
       spanId: undefined,
     });
   }
 
   return entries;
+}
+
+/**
+ * Collect every `status === 'hit'` cache event recorded for a case run.
+ *
+ * This compatibility helper returns only rows that reused an existing
+ * persisted cache entry. Use `extractCacheEntries(...)` when the UI should
+ * include cache misses and refreshes that wrote entries during the run.
+ */
+export function extractCacheHits(
+  spans: EvalTraceSpan[],
+  caseCacheRefs: TraceCacheRef[],
+): CacheHitEntry[] {
+  return extractCacheEntries(spans, caseCacheRefs).filter(isCacheHitEntry);
+}
+
+function isCacheHitEntry(entry: CacheActivityEntry): entry is CacheHitEntry {
+  return entry.status === 'hit';
 }

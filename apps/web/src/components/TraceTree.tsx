@@ -4,6 +4,15 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { styled } from 'vindur';
 import { SpanDetail } from '#src/components/SpanDetail';
 import {
+  buildRulerTicks,
+  computeSpanBar,
+  computeTraceMetrics,
+  flattenVisibleRows,
+  formatSpanDuration,
+  type SpanBar,
+} from '#src/components/TraceTree.helpers';
+import { TraceCacheBadge } from '#src/components/TraceTreeCacheBadge';
+import {
   updateSearchParams,
   useSearchParams,
 } from '#src/hooks/useSearchParams';
@@ -393,41 +402,6 @@ const SpanName = styled.span`
   min-width: 0;
 `;
 
-const CacheBadge = styled.span<{
-  hit: boolean;
-  miss: boolean;
-  refresh: boolean;
-  bypass: boolean;
-}>`
-  ${monoFont};
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-size: 9.5px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  flex-shrink: 0;
-  background: ${colors.borderStrong.var};
-  color: ${colors.textMuted.var};
-
-  &.hit {
-    background: ${colors.success.alpha(0.15)};
-    color: ${colors.success.var};
-  }
-  &.miss {
-    background: ${colors.warning.alpha(0.15)};
-    color: ${colors.warning.var};
-  }
-  &.refresh {
-    background: ${colors.accent.alpha(0.15)};
-    color: ${colors.accent.var};
-  }
-  &.bypass {
-    background: ${colors.borderStrong.var};
-    color: ${colors.textMuted.var};
-  }
-`;
-
 const ErrorLabel = styled.span`
   ${monoFont};
   color: ${colors.error.var};
@@ -477,22 +451,6 @@ const Empty = styled.div`
 type TraceTreeProps = {
   spans: EvalTraceSpan[];
   traceDisplay: TraceDisplayConfig;
-};
-
-type VisibleRow = { span: EvalTraceSpan; depth: number; hasChildren: boolean };
-
-type TraceMetrics = {
-  startMs: number;
-  totalMs: number;
-  endMs: number;
-  nowMs: number;
-};
-
-type SpanBar = {
-  leftPct: number;
-  widthPct: number;
-  durationMs: number;
-  isRunning: boolean;
 };
 
 const TIMELINE_COLLAPSED_STORAGE_KEY = 'agent-evals.trace-timeline-collapsed';
@@ -704,7 +662,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
                           {checkpointPreview}
                         </CheckpointPreview>
                       ) : null}
-                      {renderCacheBadge(span)}
+                      <TraceCacheBadge span={span} />
                       {span.status === 'error' ? (
                         <ErrorLabel>err</ErrorLabel>
                       ) : null}
@@ -795,94 +753,4 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
       if (id) nextSearchParams.set(SPAN_SEARCH_PARAM_KEY, id);
     });
   }
-}
-
-function computeTraceMetrics(spans: EvalTraceSpan[]): TraceMetrics {
-  const nowMs = Date.now();
-  if (spans.length === 0) {
-    return { startMs: nowMs, endMs: nowMs, totalMs: 1, nowMs };
-  }
-  let startMs = Number.POSITIVE_INFINITY;
-  let endMs = Number.NEGATIVE_INFINITY;
-  for (const span of spans) {
-    const spanStart = Date.parse(span.startedAt);
-    if (Number.isFinite(spanStart) && spanStart < startMs) startMs = spanStart;
-    const spanEnd = span.endedAt ? Date.parse(span.endedAt) : nowMs;
-    if (Number.isFinite(spanEnd) && spanEnd > endMs) endMs = spanEnd;
-  }
-  if (!Number.isFinite(startMs)) startMs = nowMs;
-  if (!Number.isFinite(endMs)) endMs = nowMs;
-  const totalMs = Math.max(1, endMs - startMs);
-  return { startMs, endMs, totalMs, nowMs };
-}
-
-function computeSpanBar(span: EvalTraceSpan, metrics: TraceMetrics): SpanBar {
-  const spanStart = Date.parse(span.startedAt);
-  const isRunning = span.endedAt === null;
-  const spanEnd = span.endedAt ? Date.parse(span.endedAt) : metrics.nowMs;
-  const safeStart = Number.isFinite(spanStart) ? spanStart : metrics.startMs;
-  const safeEnd = Number.isFinite(spanEnd) ? spanEnd : metrics.endMs;
-  const durationMs = Math.max(0, safeEnd - safeStart);
-  const leftPctRaw = ((safeStart - metrics.startMs) / metrics.totalMs) * 100;
-  const widthPctRaw = (durationMs / metrics.totalMs) * 100;
-  const leftPct = clamp(leftPctRaw, 0, 100);
-  const widthPct = clamp(widthPctRaw, 0, Math.max(0, 100 - leftPct));
-  return { leftPct, widthPct, durationMs, isRunning };
-}
-
-function clamp(value: number, min: number, max: number): number {
-  if (!Number.isFinite(value)) return min;
-  return Math.min(max, Math.max(min, value));
-}
-
-function flattenVisibleRows(
-  childrenByParent: Map<string | null, EvalTraceSpan[]>,
-  collapsed: Set<string>,
-): VisibleRow[] {
-  const rows: VisibleRow[] = [];
-  const roots = childrenByParent.get(null) ?? [];
-
-  function walk(span: EvalTraceSpan, depth: number) {
-    const children = childrenByParent.get(span.id) ?? [];
-    rows.push({ span, depth, hasChildren: children.length > 0 });
-    if (collapsed.has(span.id)) return;
-    for (const child of children) walk(child, depth + 1);
-  }
-
-  for (const root of roots) walk(root, 0);
-  return rows;
-}
-
-function buildRulerTicks(totalMs: number): { pct: number; label: string }[] {
-  return [0, 25, 50, 75, 100].map((pct) => ({
-    pct,
-    label: formatSpanDuration(Math.round((totalMs * pct) / 100)),
-  }));
-}
-
-function formatSpanDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
-  return `${(ms / 1000).toFixed(2)}s`;
-}
-
-function renderCacheBadge(span: EvalTraceSpan) {
-  const status = span.attributes?.['cache.status'];
-  if (
-    status !== 'hit' &&
-    status !== 'miss' &&
-    status !== 'refresh' &&
-    status !== 'bypass'
-  ) {
-    return null;
-  }
-  return (
-    <CacheBadge
-      hit={status === 'hit'}
-      miss={status === 'miss'}
-      refresh={status === 'refresh'}
-      bypass={status === 'bypass'}
-    >
-      cache {status}
-    </CacheBadge>
-  );
 }

@@ -24,6 +24,8 @@ import {
 import { resultify } from 't-result';
 
 const defaultMaxEntriesPerNamespace = 100;
+const cacheSerializationMarker = '__agentEvalsCacheSerialization';
+const supportedCacheSerializationVersion = 'json-safe-v1';
 
 /** Filter accepted by `FsCacheStore.clear` to narrow the set of entries removed. */
 export type CacheClearFilter = { namespace?: string; key?: string };
@@ -350,7 +352,28 @@ async function readCacheFilePath(filePath: string): Promise<CacheFile | null> {
   if (json === null) return null;
   const parsed = cacheFileSchema.safeParse(json);
   if (!parsed.success) return null;
-  return parsed.data;
+  return {
+    ...parsed.data,
+    entries: Object.fromEntries(
+      Object.entries(parsed.data.entries).filter(([, entry]) =>
+        usesSupportedCacheSerialization(entry.recording),
+      ),
+    ),
+  };
+}
+
+function usesSupportedCacheSerialization(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    return value.every(usesSupportedCacheSerialization);
+  }
+  if (!isRecordLike(value)) return true;
+  if (
+    Object.hasOwn(value, cacheSerializationMarker) &&
+    value[cacheSerializationMarker] !== supportedCacheSerializationVersion
+  ) {
+    return false;
+  }
+  return Object.values(value).every(usesSupportedCacheSerialization);
 }
 
 async function writeOrRemoveCacheFile(
@@ -371,7 +394,7 @@ async function writeCacheFile(
   await mkdir(cacheDir, { recursive: true });
   const filePath = ownerPath(cacheDir, cacheFile.owner);
   const tmpPath = `${filePath}.${process.pid.toString()}.tmp`;
-  await writeFile(tmpPath, JSON.stringify(cacheFile, null, 2));
+  await writeFile(tmpPath, JSON.stringify(cacheFile));
   await rename(tmpPath, filePath);
 }
 
@@ -496,7 +519,7 @@ async function writeDebugKeyFile(
   await mkdir(debugDir, { recursive: true });
   const filePath = ownerPath(debugDir, debugFile.owner);
   const tmpPath = `${filePath}.${process.pid.toString()}.tmp`;
-  await writeFile(tmpPath, JSON.stringify(debugFile, null, 2));
+  await writeFile(tmpPath, JSON.stringify(debugFile));
   await rename(tmpPath, filePath);
 }
 
@@ -590,4 +613,8 @@ function safeJsonParse(text: string): unknown {
   const parsed = resultify((): unknown => JSON.parse(text));
   if (parsed.error) return null;
   return parsed.value;
+}
+
+function isRecordLike(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

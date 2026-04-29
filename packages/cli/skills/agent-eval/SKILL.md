@@ -55,8 +55,9 @@ a per-case sequence number, and throws outside an eval case scope.
 Use `evalLog(level, ...args)` for intentional per-case logs. The runner also
 captures `console.log`, `console.info`, `console.warn`, and `console.error`
 during case-owned phases by default; log arguments are stored as JSON-safe
-values and rendered with the JSON viewer, collapsed previews are capped, and
-logs inside cached operations are not replayed from cache hits.
+values and rendered with the JSON viewer, collapsed previews include best-effort
+code locations when stack data is available, previews are capped, and logs
+inside cached operations are not replayed from cache hits.
 
 ### Product code (instrumented once, reused everywhere)
 
@@ -341,7 +342,8 @@ Mental model:
 - Authored raw cache keys are stored for debugging under
   `.agent-evals/cache-debug/<owner>.json`. This folder may include prompts,
   user inputs, or other sensitive data, should be gitignored, and is not needed
-  for cache reuse. The UI Cache hits tab shows the raw key when it is available.
+  for cache reuse. The UI Cache tab shows the raw key when it is available and
+  can be filtered to hits or new entries added by cache misses/refreshes.
 - Cached payloads use advance serialization/deserialization with the Web API plugin set, so return values and
   recorded SDK effects preserve richer built-ins such as `Date`, `Map`, `Set`,
   typed arrays, `URL`, `Headers`, `Blob`, and `File` on hits. Cache keys still

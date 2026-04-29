@@ -235,6 +235,11 @@ test('runCase stores manual and console logs with phase metadata', async () => {
     },
   ]);
   for (const entry of result.caseDetail.logs) {
+    expect(entry.location?.file).toContain('runExecution.test.ts');
+    expect(typeof entry.location?.line).toBe('number');
+    expect(typeof entry.location?.column).toBe('number');
+  }
+  for (const entry of result.caseDetail.logs) {
     expect(entry.timestamp).toEqual(expect.any(String));
   }
 });

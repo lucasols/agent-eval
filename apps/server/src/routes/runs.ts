@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { isAbsolute, resolve as resolvePath, sep } from 'node:path';
 import { zValidator } from '@hono/zod-validator';
 import {
   createRunRequestSchema,
@@ -5,7 +7,19 @@ import {
 } from '@ls-stack/agent-eval';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
+import launch from 'launch-editor';
+import { z } from 'zod/v4';
 import { getRunnerInstance } from '../runner.ts';
+
+const openRunLocationRequestSchema = z.object({
+  file: z.string().min(1),
+  line: z.number().int().min(1),
+  column: z.number().int().min(1),
+});
+
+function isInsideWorkspace(path: string, workspaceRoot: string): boolean {
+  return path === workspaceRoot || path.startsWith(workspaceRoot + sep);
+}
 
 export const runsRoutes = new Hono()
   .get('/', (c) => {
@@ -31,6 +45,33 @@ export const runsRoutes = new Hono()
     const run = await runner.startRun(body);
     return c.json(run, 201);
   })
+  .post(
+    '/actions/open-location',
+    zValidator('json', openRunLocationRequestSchema),
+    (c) => {
+      const body = c.req.valid('json');
+      const runner = getRunnerInstance();
+      const workspaceRoot = runner.getWorkspaceRoot();
+      const absolutePath = isAbsolute(body.file)
+        ? resolvePath(body.file)
+        : resolvePath(workspaceRoot, body.file);
+      if (!isInsideWorkspace(absolutePath, workspaceRoot)) {
+        return c.json({ error: 'Resolved path escapes workspace' }, 400);
+      }
+      if (!existsSync(absolutePath)) {
+        return c.json({ error: 'Source file not found on disk' }, 404);
+      }
+      const target = `${absolutePath}:${String(body.line)}:${String(body.column)}`;
+      launch(target, (_fileName, errorMessage) => {
+        if (errorMessage) {
+          console.error(
+            `[open-in-editor] failed for ${target}: ${errorMessage}`,
+          );
+        }
+      });
+      return c.json({ ok: true }, 200);
+    },
+  )
   .get('/:runId', (c) => {
     const runId = c.req.param('runId');
     const runner = getRunnerInstance();

@@ -130,6 +130,23 @@ describe('filesystem cache store raw-key debug storage', () => {
     ).resolves.not.toHaveProperty('debugKey');
   });
 
+  test('ignores entries written with an unsupported value serialization format', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
+    const entry = cacheEntry({ key: 'unsupported-key' });
+    entry.recording.returnValue = {
+      __agentEvalsCacheSerialization: 'unsupported-v1',
+      value: { ok: true },
+    };
+
+    await store.write(entry);
+
+    await expect(
+      store.lookup('debug-eval__expensive-op', 'unsupported-key'),
+    ).resolves.toBeNull();
+    await expect(store.list()).resolves.toEqual([]);
+  });
+
   test('raw-key debug write failures leave the usable cache entry intact', async () => {
     const workspacePath = await createWorkspace();
     const store = createFsCacheStore({ workspaceRoot: workspacePath });

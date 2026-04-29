@@ -10,147 +10,37 @@
       "operationName": "plan-refund",
       "spanName": "plan-refund",
       "spanKind": "llm",
-      "storedAt": "2026-04-29T20:50:11.038Z",
+      "storedAt": "2026-04-29T21:55:41.798Z",
       "codeFingerprint": "4945be42a8b999658d4e64510946dea138ca8f0a3e246bd60eafb9a29bf3fa60",
       "recording": {
         "returnValue": {
-          "__agentEvalsCacheSerialization": "seroval-web-v1",
-          "value": { "t": { "t": 2, "s": 1 }, "f": 63, "m": [] }
+          "__agentEvalsCacheSerialization": "json-safe-v1",
+          "type": "Undefined"
         },
         "finalAttributes": {
-          "input": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": {
-              "t": {
-                "t": 10,
-                "i": 0,
-                "p": {
-                  "k": ["prompt"],
-                  "v": [{ "t": 1, "s": "Please refund this damaged item" }]
-                },
-                "o": 0
-              },
-              "f": 63,
-              "m": []
-            }
-          },
-          "model": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": { "t": { "t": 1, "s": "gpt-4o-mini" }, "f": 63, "m": [] }
-          },
-          "provider": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": { "t": { "t": 1, "s": "openai" }, "f": 63, "m": [] }
-          },
+          "input": { "prompt": "Please refund this damaged item" },
+          "model": "gpt-4o-mini",
+          "provider": "openai",
           "usage": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": {
-              "t": {
-                "t": 10,
-                "i": 0,
-                "p": {
-                  "k": [
-                    "inputTokens",
-                    "outputTokens",
-                    "cacheCreationInputTokens",
-                    "cachedInputTokens"
-                  ],
-                  "v": [
-                    { "t": 0, "s": 150 },
-                    { "t": 0, "s": 50 },
-                    { "t": 0, "s": 80 },
-                    { "t": 0, "s": 30 }
-                  ]
-                },
-                "o": 0
-              },
-              "f": 63,
-              "m": []
-            }
+            "inputTokens": 150,
+            "outputTokens": 50,
+            "cacheCreationInputTokens": 80,
+            "cachedInputTokens": 30
           },
-          "costUsd": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": {
-              "t": { "t": 0, "s": 0.0011324999999999998 },
-              "f": 63,
-              "m": []
-            }
-          },
+          "costUsd": 0.0011324999999999998,
           "cost": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": {
-              "t": {
-                "t": 10,
-                "i": 0,
-                "p": {
-                  "k": [
-                    "inputUsd",
-                    "outputUsd",
-                    "cacheCreationInputUsd",
-                    "cachedInputUsd"
-                  ],
-                  "v": [
-                    { "t": 0, "s": 0.00037499999999999995 },
-                    { "t": 0, "s": 0.0005 },
-                    { "t": 0, "s": 0.00025 },
-                    { "t": 0, "s": 0.000007500000000000001 }
-                  ]
-                },
-                "o": 0
-              },
-              "f": 63,
-              "m": []
-            }
+            "inputUsd": 0.00037499999999999995,
+            "outputUsd": 0.0005,
+            "cacheCreationInputUsd": 0.00025,
+            "cachedInputUsd": 0.000007500000000000001
           },
-          "steps": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": { "t": { "t": 0, "s": 1 }, "f": 63, "m": [] }
-          },
-          "finishReason": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": { "t": { "t": 1, "s": "stop" }, "f": 63, "m": [] }
-          },
-          "tokensPerSecond": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": { "t": { "t": 0, "s": 38.2 }, "f": 63, "m": [] }
-          },
-          "retryCount": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": { "t": { "t": 0, "s": 0 }, "f": 63, "m": [] }
-          },
-          "streamed": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": { "t": { "t": 2, "s": 2 }, "f": 63, "m": [] }
-          },
-          "params": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": {
-              "t": {
-                "t": 10,
-                "i": 0,
-                "p": { "k": ["temperature"], "v": [{ "t": 0, "s": 0.2 }] },
-                "o": 0
-              },
-              "f": 63,
-              "m": []
-            }
-          },
-          "output": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": {
-              "t": {
-                "t": 10,
-                "i": 0,
-                "p": {
-                  "k": ["plan"],
-                  "v": [{ "t": 1, "s": "approve refund" }]
-                },
-                "o": 0
-              },
-              "f": 63,
-              "m": []
-            }
-          }
+          "steps": 1,
+          "finishReason": "stop",
+          "tokensPerSecond": 38.2,
+          "retryCount": 0,
+          "streamed": true,
+          "params": { "temperature": 0.2 },
+          "output": { "plan": "approve refund" }
         },
         "finalStatus": "ok",
         "ops": [
@@ -170,147 +60,37 @@
       "operationName": "plan-refund",
       "spanName": "plan-refund",
       "spanKind": "llm",
-      "storedAt": "2026-04-29T20:50:11.454Z",
+      "storedAt": "2026-04-29T21:55:42.330Z",
       "codeFingerprint": "4945be42a8b999658d4e64510946dea138ca8f0a3e246bd60eafb9a29bf3fa60",
       "recording": {
         "returnValue": {
-          "__agentEvalsCacheSerialization": "seroval-web-v1",
-          "value": { "t": { "t": 2, "s": 1 }, "f": 63, "m": [] }
+          "__agentEvalsCacheSerialization": "json-safe-v1",
+          "type": "Undefined"
         },
         "finalAttributes": {
-          "input": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": {
-              "t": {
-                "t": 10,
-                "i": 0,
-                "p": {
-                  "k": ["prompt"],
-                  "v": [{ "t": 1, "s": "I need to return this product" }]
-                },
-                "o": 0
-              },
-              "f": 63,
-              "m": []
-            }
-          },
-          "model": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": { "t": { "t": 1, "s": "gpt-4o-mini" }, "f": 63, "m": [] }
-          },
-          "provider": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": { "t": { "t": 1, "s": "openai" }, "f": 63, "m": [] }
-          },
+          "input": { "prompt": "I need to return this product" },
+          "model": "gpt-4o-mini",
+          "provider": "openai",
           "usage": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": {
-              "t": {
-                "t": 10,
-                "i": 0,
-                "p": {
-                  "k": [
-                    "inputTokens",
-                    "outputTokens",
-                    "cacheCreationInputTokens",
-                    "cachedInputTokens"
-                  ],
-                  "v": [
-                    { "t": 0, "s": 150 },
-                    { "t": 0, "s": 50 },
-                    { "t": 0, "s": 80 },
-                    { "t": 0, "s": 30 }
-                  ]
-                },
-                "o": 0
-              },
-              "f": 63,
-              "m": []
-            }
+            "inputTokens": 150,
+            "outputTokens": 50,
+            "cacheCreationInputTokens": 80,
+            "cachedInputTokens": 30
           },
-          "costUsd": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": {
-              "t": { "t": 0, "s": 0.0011324999999999998 },
-              "f": 63,
-              "m": []
-            }
-          },
+          "costUsd": 0.0011324999999999998,
           "cost": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": {
-              "t": {
-                "t": 10,
-                "i": 0,
-                "p": {
-                  "k": [
-                    "inputUsd",
-                    "outputUsd",
-                    "cacheCreationInputUsd",
-                    "cachedInputUsd"
-                  ],
-                  "v": [
-                    { "t": 0, "s": 0.00037499999999999995 },
-                    { "t": 0, "s": 0.0005 },
-                    { "t": 0, "s": 0.00025 },
-                    { "t": 0, "s": 0.000007500000000000001 }
-                  ]
-                },
-                "o": 0
-              },
-              "f": 63,
-              "m": []
-            }
+            "inputUsd": 0.00037499999999999995,
+            "outputUsd": 0.0005,
+            "cacheCreationInputUsd": 0.00025,
+            "cachedInputUsd": 0.000007500000000000001
           },
-          "steps": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": { "t": { "t": 0, "s": 1 }, "f": 63, "m": [] }
-          },
-          "finishReason": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": { "t": { "t": 1, "s": "stop" }, "f": 63, "m": [] }
-          },
-          "tokensPerSecond": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": { "t": { "t": 0, "s": 38.2 }, "f": 63, "m": [] }
-          },
-          "retryCount": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": { "t": { "t": 0, "s": 0 }, "f": 63, "m": [] }
-          },
-          "streamed": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": { "t": { "t": 2, "s": 2 }, "f": 63, "m": [] }
-          },
-          "params": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": {
-              "t": {
-                "t": 10,
-                "i": 0,
-                "p": { "k": ["temperature"], "v": [{ "t": 0, "s": 0.2 }] },
-                "o": 0
-              },
-              "f": 63,
-              "m": []
-            }
-          },
-          "output": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": {
-              "t": {
-                "t": 10,
-                "i": 0,
-                "p": {
-                  "k": ["plan"],
-                  "v": [{ "t": 1, "s": "approve refund" }]
-                },
-                "o": 0
-              },
-              "f": 63,
-              "m": []
-            }
-          }
+          "steps": 1,
+          "finishReason": "stop",
+          "tokensPerSecond": 38.2,
+          "retryCount": 0,
+          "streamed": true,
+          "params": { "temperature": 0.2 },
+          "output": { "plan": "approve refund" }
         },
         "finalStatus": "ok",
         "ops": [
@@ -330,147 +110,37 @@
       "operationName": "plan-refund",
       "spanName": "plan-refund",
       "spanKind": "llm",
-      "storedAt": "2026-04-29T20:50:11.029Z",
+      "storedAt": "2026-04-29T21:55:41.879Z",
       "codeFingerprint": "4945be42a8b999658d4e64510946dea138ca8f0a3e246bd60eafb9a29bf3fa60",
       "recording": {
         "returnValue": {
-          "__agentEvalsCacheSerialization": "seroval-web-v1",
-          "value": { "t": { "t": 2, "s": 1 }, "f": 63, "m": [] }
+          "__agentEvalsCacheSerialization": "json-safe-v1",
+          "type": "Undefined"
         },
         "finalAttributes": {
-          "input": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": {
-              "t": {
-                "t": 10,
-                "i": 0,
-                "p": {
-                  "k": ["prompt"],
-                  "v": [{ "t": 1, "s": "I want a refund for order #123" }]
-                },
-                "o": 0
-              },
-              "f": 63,
-              "m": []
-            }
-          },
-          "model": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": { "t": { "t": 1, "s": "gpt-4o-mini" }, "f": 63, "m": [] }
-          },
-          "provider": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": { "t": { "t": 1, "s": "openai" }, "f": 63, "m": [] }
-          },
+          "input": { "prompt": "I want a refund for order #123" },
+          "model": "gpt-4o-mini",
+          "provider": "openai",
           "usage": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": {
-              "t": {
-                "t": 10,
-                "i": 0,
-                "p": {
-                  "k": [
-                    "inputTokens",
-                    "outputTokens",
-                    "cacheCreationInputTokens",
-                    "cachedInputTokens"
-                  ],
-                  "v": [
-                    { "t": 0, "s": 150 },
-                    { "t": 0, "s": 50 },
-                    { "t": 0, "s": 80 },
-                    { "t": 0, "s": 30 }
-                  ]
-                },
-                "o": 0
-              },
-              "f": 63,
-              "m": []
-            }
+            "inputTokens": 150,
+            "outputTokens": 50,
+            "cacheCreationInputTokens": 80,
+            "cachedInputTokens": 30
           },
-          "costUsd": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": {
-              "t": { "t": 0, "s": 0.0011324999999999998 },
-              "f": 63,
-              "m": []
-            }
-          },
+          "costUsd": 0.0011324999999999998,
           "cost": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": {
-              "t": {
-                "t": 10,
-                "i": 0,
-                "p": {
-                  "k": [
-                    "inputUsd",
-                    "outputUsd",
-                    "cacheCreationInputUsd",
-                    "cachedInputUsd"
-                  ],
-                  "v": [
-                    { "t": 0, "s": 0.00037499999999999995 },
-                    { "t": 0, "s": 0.0005 },
-                    { "t": 0, "s": 0.00025 },
-                    { "t": 0, "s": 0.000007500000000000001 }
-                  ]
-                },
-                "o": 0
-              },
-              "f": 63,
-              "m": []
-            }
+            "inputUsd": 0.00037499999999999995,
+            "outputUsd": 0.0005,
+            "cacheCreationInputUsd": 0.00025,
+            "cachedInputUsd": 0.000007500000000000001
           },
-          "steps": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": { "t": { "t": 0, "s": 1 }, "f": 63, "m": [] }
-          },
-          "finishReason": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": { "t": { "t": 1, "s": "stop" }, "f": 63, "m": [] }
-          },
-          "tokensPerSecond": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": { "t": { "t": 0, "s": 38.2 }, "f": 63, "m": [] }
-          },
-          "retryCount": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": { "t": { "t": 0, "s": 0 }, "f": 63, "m": [] }
-          },
-          "streamed": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": { "t": { "t": 2, "s": 2 }, "f": 63, "m": [] }
-          },
-          "params": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": {
-              "t": {
-                "t": 10,
-                "i": 0,
-                "p": { "k": ["temperature"], "v": [{ "t": 0, "s": 0.2 }] },
-                "o": 0
-              },
-              "f": 63,
-              "m": []
-            }
-          },
-          "output": {
-            "__agentEvalsCacheSerialization": "seroval-web-v1",
-            "value": {
-              "t": {
-                "t": 10,
-                "i": 0,
-                "p": {
-                  "k": ["plan"],
-                  "v": [{ "t": 1, "s": "approve refund" }]
-                },
-                "o": 0
-              },
-              "f": 63,
-              "m": []
-            }
-          }
+          "steps": 1,
+          "finishReason": "stop",
+          "tokensPerSecond": 38.2,
+          "retryCount": 0,
+          "streamed": true,
+          "params": { "temperature": 0.2 },
+          "output": { "plan": "approve refund" }
         },
         "finalStatus": "ok",
         "ops": [
