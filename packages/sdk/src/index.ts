@@ -56,6 +56,7 @@ export type {
   EvalColumns,
   EvalTraceTree,
   EvalExecuteContext,
+  EvalSetOutput,
   EvalOutputs,
   EvalOutputsSchema,
   EvalDeriveContext,

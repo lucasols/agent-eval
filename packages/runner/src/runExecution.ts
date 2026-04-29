@@ -3,6 +3,7 @@ import {
   buildTraceTree,
   EvalAssertionError,
   runInEvalScope,
+  setEvalOutput,
 } from '@agent-evals/sdk';
 import type {
   CacheAdapter,
@@ -134,7 +135,7 @@ export async function runCase<
     async () => {
       const execute = async () => {
         await Reflect.apply(evalDef.execute, evalDef, [
-          { input: evalCase.input },
+          { input: evalCase.input, setOutput: setEvalOutput },
         ]);
       };
       if (moduleIsolation === undefined) {

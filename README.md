@@ -38,7 +38,6 @@ pnpm add -D @ls-stack/agent-eval
      appendToEvalOutput,
      defineEval,
      mergeEvalOutput,
-     setEvalOutput,
      evalSpan,
      evalTracer,
      z,
@@ -53,12 +52,12 @@ pnpm add -D @ls-stack/agent-eval
        { id: 'farewell', input: { message: 'bye' } },
      ],
      outputsSchema: z.object({ output: z.string() }),
-     execute: async ({ input }) => {
+     execute: async ({ input, setOutput }) => {
        await evalTracer.span({ kind: 'agent', name: 'my-agent' }, async () => {
          evalSpan.setAttribute('input', input);
          const output = await myAgent(input);
          evalSpan.setAttribute('output', output);
-         setEvalOutput('output', output);
+         setOutput('output', output);
          appendToEvalOutput('events', 'completed');
          mergeEvalOutput('metadata', { model: 'my-agent-v1' });
        });
@@ -118,12 +117,12 @@ Example:
 
 ```ts
 import { mock } from 'node:test';
-import { defineEval, evalAssert, setEvalOutput } from '@ls-stack/agent-eval';
+import { defineEval, evalAssert } from '@ls-stack/agent-eval';
 
 defineEval({
   id: 'module-mock-demo',
   cases: [{ id: 'mocked-dependency', input: { customerId: 'vip-100' } }],
-  execute: async ({ input }) => {
+  execute: async ({ input, setOutput }) => {
     mock.module('../src/customerLookup.ts', {
       namedExports: {
         lookupCustomer: async () => ({ segment: 'vip' as const }),
@@ -133,7 +132,7 @@ defineEval({
     const { runWorkflow } = await );
     const result = await runWorkflow(input);
 
-    setEvalOutput('segment', result.segment);
+    setOutput('segment', result.segment);
     evalAssert(result.segment === 'vip', 'expected the mocked dependency');
   },
 });
@@ -197,19 +196,19 @@ lower median when the number of trials is even.
 
 `defineEval` takes a single definition object:
 
-| Field               | Required | Purpose                                                                         |
-| ------------------- | -------- | ------------------------------------------------------------------------------- |
-| `id`                | yes      | Unique eval id                                                                  |
-| `title`             |          | Display title (defaults to a humanized version of `id`)                         |
-| `cases`             | yes      | `EvalCase[]` or `() => Promise<EvalCase[]>` (async loader for dynamic datasets) |
-| `execute`           | yes      | `async ({ input }) => { ... }`                                                  |
-| `outputsSchema`     |          | Zod schema that validates and types collected outputs before scoring            |
-| `traceDisplay`      |          | Per-eval trace attribute display overrides for the UI                           |
-| `deriveFromTracing` |          | Derive output columns from the finished trace tree                              |
-| `scores`            |          | Record of scoring functions returning `0..1`                                    |
-| `columns`           |          | Custom columns shown in the results table                                       |
-| `stats`             |          | Opt-in stats row on the eval page (see [Stats row](#stats-row))                 |
-| `charts`            |          | Opt-in history charts on the eval page (see [History charts](#history-charts))  |
+| Field               | Required   | Purpose                                                                         |
+| ------------------- | ---------- | ------------------------------------------------------------------------------- |
+| `id`                | yes        | Unique eval id                                                                  |
+| `title`             |            | Display title (defaults to a humanized version of `id`)                         |
+| `cases`             | yes        | `EvalCase[]` or `() => Promise<EvalCase[]>` (async loader for dynamic datasets) |
+| `execute`           | yes        | `async ({ input }) => { ... }`                                                  |
+| `outputsSchema`     | `TOutputs` | Zod schema that validates and types collected outputs before scoring            |
+| `traceDisplay`      |            | Per-eval trace attribute display overrides for the UI                           |
+| `deriveFromTracing` |            | Derive output columns from the finished trace tree                              |
+| `scores`            |            | Record of scoring functions returning `0..1`                                    |
+| `columns`           |            | Custom columns shown in the results table                                       |
+| `stats`             |            | Opt-in stats row on the eval page (see [Stats row](#stats-row))                 |
+| `charts`            |            | Opt-in history charts on the eval page (see [History charts](#history-charts))  |
 
 ### Cases
 
@@ -229,14 +228,14 @@ the eval once with a synthetic empty-object input and a generated case id.
 Wrap work in `evalTracer.span(...)` to get a trajectory tree in the UI. Span mutation is ambient, so helpers deeper in your call stack can write to the current span without threading a callback-local handle through your code:
 
 ```ts
-execute: async ({ input }) => {
+execute: async ({ input, setOutput }) => {
   await evalTracer.span({ kind: 'agent', name: 'refund-agent' }, async () => {
     evalSpan.setAttribute('input', input);
     const result = await agent(input);
     evalSpan.appendToAttribute('events', 'agent-finished');
     evalSpan.mergeAttribute('summary', { status: result.status });
     evalSpan.setAttributes({ model: 'gpt-4.1', output: result });
-    setEvalOutput('output', result);
+    setOutput('output', result);
   });
   evalTracer.checkpoint('final-state', { approved: true });
 };
@@ -759,12 +758,15 @@ export const config: AgentEvalsConfig = {
 
 ## Output formatting
 
-Store output values with `setEvalOutput(...)` as plain data: strings, numbers,
-booleans, `null`, JSON-safe objects/arrays for `format: 'json'`, explicit file
-refs, or native `Blob`/`File` values for `format: 'image' | 'audio' | 'video' |
-'file'`. Use `incrementEvalOutput(...)` for numeric totals,
-`appendToEvalOutput(...)` for arrays that preserve existing scalar values, and
-`mergeEvalOutput(...)` for shallow object updates.
+Store output values with the `setOutput(...)` helper passed to `execute` as
+plain data: strings, numbers, booleans, `null`, JSON-safe objects/arrays for
+`format: 'json'`, explicit file refs, or native `Blob`/`File` values for
+`format: 'image' | 'audio' | 'video' | 'file'`. When the eval has a typed
+outputs generic, `setOutput(...)` keys and values are typed from that output
+map. Use the global `setEvalOutput(...)` from shared workflow code that does
+not receive the execute context. Use `incrementEvalOutput(...)` for numeric
+totals, `appendToEvalOutput(...)` for arrays that preserve existing scalar
+values, and `mergeEvalOutput(...)` for shallow object updates.
 
 Add `outputsSchema` when you want runtime validation and typed scorer inputs.
 The runner validates configured output fields after `execute` and
@@ -772,9 +774,9 @@ The runner validates configured output fields after `execute` and
 declared keys are passed to the schema; parsed schema fields are merged back
 into the raw output map, so Zod defaults/transforms apply to configured fields
 while unconfigured outputs are kept and displayed as before. Validation failures
-mark the case as failed and skip computed scores.
-When you pass an explicit input generic, pass the output type as the second
-generic: `defineEval<Input, z.infer<typeof outputsSchema>>({ ... })`.
+mark the case as failed and skip computed scores. When you pass a narrowed
+output type as the second generic, `outputsSchema` is required:
+`defineEval<Input, z.infer<typeof outputsSchema>>({ outputsSchema, ... })`.
 
 Use the eval `columns` option to control labels, authored column order,
 alignment, visibility, and rendering format. Supported `columns.format` values
@@ -804,7 +806,7 @@ requestCount: {
 This uses the runtime locale's compact number formatting, for example `1.2K`.
 
 ```ts
-import { defineEval, setEvalOutput } from '@ls-stack/agent-eval';
+import { defineEval } from '@ls-stack/agent-eval';
 
 defineEval({
   id: 'receipt-preview',
@@ -813,13 +815,13 @@ defineEval({
     receipt: { label: 'Receipt', format: 'image', hideInTable: true },
     toolResult: { label: 'Tool Result', format: 'json' },
   },
-  execute: () => {
-    setEvalOutput('response', 'Refund prepared for **order #123**.');
-    setEvalOutput(
+  execute: ({ setOutput }) => {
+    setOutput('response', 'Refund prepared for **order #123**.');
+    setOutput(
       'receipt',
       new File([imageBytes], 'receipt-1.png', { type: 'image/png' }),
     );
-    setEvalOutput('toolResult', { matched: true, confidence: 0.93 });
+    setOutput('toolResult', { matched: true, confidence: 0.93 });
   },
 });
 ```

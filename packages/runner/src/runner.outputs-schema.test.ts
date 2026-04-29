@@ -32,7 +32,7 @@ describe('runner output schemas', () => {
     );
     await writeFile(
       join(workspacePath, 'evals', 'output-schema.eval.ts'),
-      `import { defineEval, setEvalOutput, z } from '@agent-evals/sdk';
+      `import { defineEval, z } from '@agent-evals/sdk';
 
 const outputsSchema = z.object({
   response: z.string(),
@@ -47,9 +47,9 @@ defineEval({
     { id: 'invalid-output', input: { response: 42, latencyMs: 456 } },
   ],
   outputsSchema,
-  execute: ({ input }) => {
-    setEvalOutput('response', input.response);
-    setEvalOutput('latencyMs', input.latencyMs);
+  execute: ({ input, setOutput }) => {
+    setOutput('response', input.response);
+    setOutput('latencyMs', input.latencyMs);
   },
   scores: {
     mentionsRefund: {

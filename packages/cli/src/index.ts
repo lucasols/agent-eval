@@ -34,6 +34,7 @@ export {
   type EvalColumns,
   type EvalTraceTree,
   type EvalExecuteContext,
+  type EvalSetOutput,
   type EvalOutputs,
   type EvalOutputsSchema,
   type EvalDeriveContext,

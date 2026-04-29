@@ -16,7 +16,7 @@ describe('CLI output schemas', () => {
           workspacePath,
           'evals/support/playground/output-schema.eval.ts',
         ),
-        `import { defineEval, setEvalOutput, z } from '@ls-stack/agent-eval';
+        `import { defineEval, z } from '@ls-stack/agent-eval';
 
 const outputsSchema = z.object({
   response: z.string(),
@@ -27,9 +27,9 @@ defineEval({
   title: 'Output Schema Validation',
   cases: [{ id: 'invalid-output', input: { response: 42 } }],
   outputsSchema,
-  execute: ({ input }) => {
-    setEvalOutput('response', input.response);
-    setEvalOutput('unconfiguredNote', 'kept as-is');
+  execute: ({ input, setOutput }) => {
+    setOutput('response', input.response);
+    setOutput('unconfiguredNote', 'kept as-is');
   },
   scores: {
     mentionsRefund: {

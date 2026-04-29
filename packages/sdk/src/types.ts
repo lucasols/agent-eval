@@ -36,7 +36,7 @@ export type {
 /** Single authored eval case with its stable identifier and input payload. */
 export type EvalCase<TInput> = { id: string; input: TInput; tags?: string[] };
 
-/** Runtime output values collected from `setEvalOutput` and `deriveFromTracing`. */
+/** Runtime output values collected from output helpers and `deriveFromTracing`. */
 export type EvalOutputs = Record<string, unknown>;
 
 /**
@@ -98,8 +98,38 @@ export type EvalTraceTree = {
   checkpoints: Map<string, unknown>;
 };
 
+/** Type-safe output writer passed to an eval's `execute` function. */
+export type EvalSetOutput<TOutputs extends EvalOutputs = EvalOutputs> = <
+  TKey extends Extract<keyof TOutputs, string>,
+>(
+  /**
+   * Output field to record. For narrowed output maps, this must be one of the
+   * known output keys.
+   */
+  key: TKey,
+  /**
+   * Value for the output field. For narrowed output maps, this must match the
+   * field's declared output type.
+   */
+  value: TOutputs[TKey],
+) => void;
+
 /** Context passed to an eval's `execute` function for a single case run. */
-export type EvalExecuteContext<TInput> = { input: TInput };
+export type EvalExecuteContext<
+  TInput,
+  TOutputs extends EvalOutputs = EvalOutputs,
+> = {
+  /** Authored input for the active eval case. */
+  input: TInput;
+  /**
+   * Record or replace an output value for the current case scope.
+   *
+   * When the eval has a narrowed outputs generic, keys and values are typed
+   * from that output map. The recorded values are still validated by
+   * `outputsSchema` before computed scores run.
+   */
+  setOutput: EvalSetOutput<TOutputs>;
+};
 
 /** Context passed to `deriveFromTracing` after execution has completed. */
 export type EvalDeriveContext<TInput> = {
@@ -149,8 +179,36 @@ export type EvalManualScoreDef = EvalColumnOverride & {
   passThreshold?: number;
 };
 
-/** Complete authored eval definition consumed by `defineEval`. */
-export type EvalDefinition<
+type EvalDefinitionOutputSchemaConfig<TOutputs extends EvalOutputs> = [
+  EvalOutputs,
+] extends [TOutputs]
+  ? {
+      /**
+       * Optional schema for runtime outputs collected through output helpers
+       * and `deriveFromTracing`.
+       *
+       * The runner validates configured output fields before scoring. For
+       * Zod object schemas, only declared keys are passed to the schema;
+       * parsed fields are merged back into the raw output map, so schema
+       * defaults and transforms apply to configured fields while
+       * unconfigured outputs are kept unchanged. Validation failures mark
+       * the case as failed and skip computed scores.
+       */
+      outputsSchema?: EvalOutputsSchema<TOutputs>;
+    }
+  : {
+      /**
+       * Required schema for typed runtime outputs collected through output
+       * helpers and `deriveFromTracing`.
+       *
+       * When `EvalDefinition` or `defineEval` receives an explicit narrowed
+       * outputs generic, this schema is required so scorer inputs are backed
+       * by runtime validation before computed scores run.
+       */
+      outputsSchema: EvalOutputsSchema<TOutputs>;
+    };
+
+type EvalDefinitionBase<
   TInput = unknown,
   TOutputs extends EvalOutputs = EvalOutputs,
 > = {
@@ -163,17 +221,6 @@ export type EvalDefinition<
    * eval once using a synthetic case with empty object input.
    */
   cases?: EvalCase<TInput>[] | (() => Promise<EvalCase<TInput>[]>);
-  /**
-   * Optional schema for runtime outputs collected through `setEvalOutput` and
-   * `deriveFromTracing`.
-   *
-   * The runner validates configured output fields before scoring. For Zod
-   * object schemas, only declared keys are passed to the schema; parsed fields
-   * are merged back into the raw output map, so schema defaults and transforms
-   * apply to configured fields while unconfigured outputs are kept unchanged.
-   * Validation failures mark the case as failed and skip computed scores.
-   */
-  outputsSchema?: EvalOutputsSchema<TOutputs>;
   columns?: EvalColumns;
   /**
    * Per-eval trace attribute display rules for the UI.
@@ -183,7 +230,7 @@ export type EvalDefinition<
    * `key` is provided.
    */
   traceDisplay?: TraceDisplayInputConfig;
-  execute: (ctx: EvalExecuteContext<TInput>) => Promise<void> | void;
+  execute: (ctx: EvalExecuteContext<TInput, TOutputs>) => Promise<void> | void;
   deriveFromTracing?: (
     ctx: EvalDeriveContext<TInput>,
   ) => Partial<TOutputs> | Promise<Partial<TOutputs>>;
@@ -220,10 +267,23 @@ export type EvalDefinition<
    *
    * Each chart declares its `type` (`area | line | bar`) and one or more
    * `metrics`. Built-in metrics (`passRate`, `durationMs`) aggregate
-   * the run summary. Column metrics aggregate a score or numeric `setEvalOutput`
-   * column across the run using an `aggregate` reducer (`avg`, `sum`, `min`,
-   * `max`, `latest`, `passThresholdRate`). `passThresholdRate` requires a
-   * score column with `passThreshold`.
+   * the run summary. Column metrics aggregate a score or numeric output column
+   * across the run using an `aggregate` reducer (`avg`, `sum`, `min`, `max`,
+   * `latest`, `passThresholdRate`). `passThresholdRate` requires a score column
+   * with `passThreshold`.
    */
   charts?: EvalChartsConfig;
 };
+
+/**
+ * Complete authored eval definition consumed by `defineEval`.
+ *
+ * `outputsSchema` is optional for the default loose output map. When the
+ * `TOutputs` generic is narrowed, `outputsSchema` is required so the runtime
+ * validates collected outputs before exposing them as typed scorer inputs.
+ */
+export type EvalDefinition<
+  TInput = unknown,
+  TOutputs extends EvalOutputs = EvalOutputs,
+> = EvalDefinitionBase<TInput, TOutputs> &
+  EvalDefinitionOutputSchemaConfig<TOutputs>;

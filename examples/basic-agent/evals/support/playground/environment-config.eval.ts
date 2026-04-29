@@ -4,10 +4,24 @@ import {
   evalTracer,
   getEvalCaseInput,
   nextEvalId,
-  setEvalOutput,
+  z,
 } from '@ls-stack/agent-eval';
 
 const defaultSupportQueue = 'standard-refund-queue';
+
+type EnvironmentConfigInput = {
+  customerTier: string;
+  message: string;
+  order: { id: string };
+};
+
+const environmentConfigOutputsSchema = z.object({
+  generatedIds: z.array(z.string()),
+  response: z.string(),
+  queue: z.string(),
+});
+
+type EnvironmentConfigOutputs = z.infer<typeof environmentConfigOutputsSchema>;
 
 function resolveSupportQueue(): string {
   const configuredQueue = process.env.AGENT_EVALS_SUPPORT_QUEUE;
@@ -16,7 +30,7 @@ function resolveSupportQueue(): string {
     : defaultSupportQueue;
 }
 
-defineEval<{ customerTier: string; message: string; order: { id: string } }>({
+defineEval<EnvironmentConfigInput, EnvironmentConfigOutputs>({
   id: 'environment-config-demo',
   title: 'Environment Config Demo',
   cases: [
@@ -34,7 +48,8 @@ defineEval<{ customerTier: string; message: string; order: { id: string } }>({
     response: { label: 'Response', format: 'markdown' },
     queue: { label: 'Queue' },
   },
-  execute: async ({ input }) => {
+  outputsSchema: environmentConfigOutputsSchema,
+  execute: async ({ input, setOutput }) => {
     await evalTracer.span(
       { kind: 'agent', name: 'environment-config-router' },
       () => {
@@ -47,9 +62,9 @@ defineEval<{ customerTier: string; message: string; order: { id: string } }>({
         const generatedIds = [nextEvalId(), nextEvalId()];
         const response = `Routed ${orderId} for ${input.customerTier} support via ${queue}.`;
 
-        setEvalOutput('generatedIds', generatedIds);
-        setEvalOutput('response', response);
-        setEvalOutput('queue', queue);
+        setOutput('generatedIds', generatedIds);
+        setOutput('response', response);
+        setOutput('queue', queue);
         evalSpan.setAttribute('output', { generatedIds, queue, response });
       },
     );
@@ -58,7 +73,7 @@ defineEval<{ customerTier: string; message: string; order: { id: string } }>({
     routedToQueue: {
       label: 'Routed to Queue',
       passThreshold: 1,
-      compute: ({ outputs }) => (typeof outputs.queue === 'string' ? 1 : 0),
+      compute: ({ outputs }) => (outputs.queue.length > 0 ? 1 : 0),
     },
   },
 });

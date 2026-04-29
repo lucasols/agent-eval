@@ -210,7 +210,10 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
 
 - `setEvalOutput(key, value)` writes reviewable data for the case. Values are
   plain data (strings, numbers, booleans, JSON-safe objects) plus native
-  `Blob`/`File` or `FileRef` variants for media columns.
+  `Blob`/`File` or `FileRef` variants for media columns. Inside `execute`,
+  prefer the context `setOutput(key, value)` helper when writing schema-backed
+  outputs; it is typed from the eval's outputs generic. Keep `setEvalOutput`
+  for shared workflow code that does not receive the execute context.
 - Use `incrementEvalOutput(key, delta)` for numeric totals,
   `appendToEvalOutput(key, value)` for arrays that preserve existing scalar
   values, and `mergeEvalOutput(key, patch)` for shallow object updates.
@@ -221,7 +224,8 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   declared keys are passed to the schema; parsed fields merge back into the raw
   output map, so defaults/transforms apply to configured fields and
   unconfigured outputs stay visible as before. Validation failures fail the case
-  and skip computed scores.
+  and skip computed scores. When you pass a narrowed outputs type as the second
+  `defineEval` generic, `outputsSchema` is required.
 - `columns` overrides the display for output and score keys (label, format,
   alignment, visibility). The set of supported formats is declared by the
   `ColumnFormat` union and `EvalColumnOverride` in the types.
@@ -333,18 +337,18 @@ Node's `--experimental-test-module-mocks` flag automatically. Use dynamic
 
 ```ts
 import { mock } from 'node:test';
-import { defineEval, setEvalOutput } from '@ls-stack/agent-eval';
+import { defineEval } from '@ls-stack/agent-eval';
 
 defineEval({
   id: 'module-mock-demo',
   cases: [{ id: 'mocked-dependency', input: { customerId: 'vip-100' } }],
-  execute: async ({ input }) => {
+  execute: async ({ input, setOutput }) => {
     mock.module('../src/customerLookup.ts', {
       namedExports: { lookupCustomer: async () => ({ segment: 'vip' }) },
     });
     const { runWorkflow } = await import('../src/workflow.ts');
     const result = await runWorkflow(input);
-    setEvalOutput('segment', result.segment);
+    setOutput('segment', result.segment);
   },
 });
 ```
@@ -358,8 +362,9 @@ When adding or changing evals:
 2. Use realistic cases drawn from real product flows; avoid placeholder inputs.
 3. `evalAssert` for hard invariants, `scores` for graded signals,
    `passThreshold` only on scores that should gate pass/fail.
-4. Surface reviewable values through `setEvalOutput` and shape them with
-   `columns` formats from the `ColumnFormat` type.
+4. Surface reviewable values through execute-context `setOutput` or ambient
+   `setEvalOutput` in shared workflow code, and shape them with `columns`
+   formats from the `ColumnFormat` type.
 5. Promote high-signal span attributes with `traceDisplay` so the UI
    highlights them in the trace tree and detail pane.
 6. Cache costly pure spans with `cache: { key }` and pure spanless values with
