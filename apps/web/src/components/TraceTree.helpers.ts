@@ -2,6 +2,8 @@ import type { EvalTraceSpan } from '@agent-evals/shared';
 
 type VisibleRow = { span: EvalTraceSpan; depth: number; hasChildren: boolean };
 
+export type TraceNestingMode = 'parent' | 'timeline';
+
 type TraceMetrics = {
   startMs: number;
   totalMs: number;
@@ -50,6 +52,142 @@ export function computeSpanBar(
   const leftPct = clamp(leftPctRaw, 0, 100);
   const widthPct = clamp(widthPctRaw, 0, Math.max(0, 100 - leftPct));
   return { leftPct, widthPct, durationMs, isRunning };
+}
+
+type SpanTiming = {
+  span: EvalTraceSpan;
+  startMs: number | null;
+  endMs: number | null;
+  index: number;
+  durationMs: number;
+};
+
+function getTimestampMs(value: string | null): number | null {
+  if (value === null) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getSpanTimings(spans: EvalTraceSpan[]): SpanTiming[] {
+  return spans.map((span, index): SpanTiming => {
+    const startMs = getTimestampMs(span.startedAt);
+    const endMs = getTimestampMs(span.endedAt);
+    const durationMs =
+      startMs === null || endMs === null
+        ? Number.POSITIVE_INFINITY
+        : endMs - startMs;
+
+    return { span, startMs, endMs, index, durationMs };
+  });
+}
+
+function hasOriginalAncestor(
+  span: EvalTraceSpan,
+  ancestorId: string,
+  spansById: Map<string, EvalTraceSpan>,
+): boolean {
+  let nextParentId = span.parentId;
+  const visited = new Set<string>();
+
+  while (nextParentId !== null) {
+    if (nextParentId === ancestorId) return true;
+    if (visited.has(nextParentId)) return false;
+    visited.add(nextParentId);
+
+    const parent = spansById.get(nextParentId);
+    if (!parent) return false;
+    nextParentId = parent.parentId;
+  }
+
+  return false;
+}
+
+function canNestByTimeline(child: SpanTiming, parent: SpanTiming): boolean {
+  if (child.span.id === parent.span.id) return false;
+  if (child.startMs === null || parent.startMs === null) return false;
+  if (parent.startMs > child.startMs) return false;
+  if (parent.startMs === child.startMs && parent.index > child.index) {
+    return false;
+  }
+  if (parent.endMs !== null && parent.endMs <= child.startMs) return false;
+  if (
+    parent.span.kind === child.span.kind &&
+    parent.startMs === child.startMs &&
+    parent.durationMs <= child.durationMs
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function isBetterTimelineParent(
+  candidate: SpanTiming,
+  current: SpanTiming,
+): boolean {
+  const candidateStart = candidate.startMs ?? Number.NEGATIVE_INFINITY;
+  const currentStart = current.startMs ?? Number.NEGATIVE_INFINITY;
+  if (candidateStart !== currentStart) return candidateStart > currentStart;
+  if (candidate.durationMs !== current.durationMs) {
+    return candidate.durationMs < current.durationMs;
+  }
+  return candidate.index > current.index;
+}
+
+function getTimelineParentIds(
+  spans: EvalTraceSpan[],
+): Map<string, string | null> {
+  const spansById = new Map(spans.map((span) => [span.id, span]));
+  const timings = getSpanTimings(spans);
+  const timingsById = new Map(
+    timings.map((timing) => [timing.span.id, timing]),
+  );
+  const parentIds = new Map<string, string | null>();
+
+  for (const timing of timings) {
+    let parentTiming =
+      timing.span.parentId === null
+        ? undefined
+        : timingsById.get(timing.span.parentId);
+
+    for (const candidate of timings) {
+      if (!canNestByTimeline(timing, candidate)) continue;
+      if (hasOriginalAncestor(candidate.span, timing.span.id, spansById)) {
+        continue;
+      }
+      if (
+        parentTiming === undefined ||
+        isBetterTimelineParent(candidate, parentTiming)
+      ) {
+        parentTiming = candidate;
+      }
+    }
+
+    parentIds.set(timing.span.id, parentTiming?.span.id ?? null);
+  }
+
+  return parentIds;
+}
+
+export function buildTraceChildrenByParent(
+  spans: EvalTraceSpan[],
+  nestingMode: TraceNestingMode,
+): Map<string | null, EvalTraceSpan[]> {
+  const parentIds =
+    nestingMode === 'timeline' ? getTimelineParentIds(spans) : undefined;
+  const map = new Map<string | null, EvalTraceSpan[]>();
+
+  for (const span of spans) {
+    const parentId = parentIds?.get(span.id) ?? span.parentId;
+    const list = map.get(parentId);
+    if (list) list.push(span);
+    else map.set(parentId, [span]);
+  }
+
+  const sortByStart = (a: EvalTraceSpan, b: EvalTraceSpan) =>
+    Date.parse(a.startedAt) - Date.parse(b.startedAt);
+  for (const list of map.values()) list.sort(sortByStart);
+
+  return map;
 }
 
 export function flattenVisibleRows(

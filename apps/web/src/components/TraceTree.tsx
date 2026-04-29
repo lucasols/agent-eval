@@ -1,15 +1,24 @@
 import type { EvalTraceSpan, TraceDisplayConfig } from '@agent-evals/shared';
-import { ChevronRight, PanelRightClose, PanelRightOpen, X } from 'lucide-react';
+import {
+  ChevronRight,
+  Clock3,
+  GitFork,
+  PanelRightClose,
+  PanelRightOpen,
+  X,
+} from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { styled } from 'vindur';
 import { SpanDetail } from '#src/components/SpanDetail';
 import {
+  buildTraceChildrenByParent,
   buildRulerTicks,
   computeSpanBar,
   computeTraceMetrics,
   flattenVisibleRows,
   formatSpanDuration,
   type SpanBar,
+  type TraceNestingMode,
 } from '#src/components/TraceTree.helpers';
 import { TraceCacheBadge } from '#src/components/TraceTreeCacheBadge';
 import {
@@ -174,6 +183,53 @@ const RulerLabelInline = styled.div`
   ${inline({ justify: 'space-between', align: 'center', gap: 8 })}
   padding: 0 6px 0 10px;
   height: 100%;
+`;
+
+const RulerControls = styled.div`
+  ${inline({ align: 'center', gap: 5 })}
+  flex-shrink: 0;
+`;
+
+const NestingModeControl = styled.div`
+  ${inline({ align: 'center' })}
+  border: 1px solid ${colors.border.var};
+  border-radius: 5px;
+  overflow: hidden;
+  background: ${colors.bg.var};
+`;
+
+const NestingModeButton = styled.button<{ active: boolean }>`
+  ${transition({ property: 'background, color' })}
+  width: 20px;
+  height: 18px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-right: 1px solid ${colors.border.var};
+  background: transparent;
+  color: ${colors.textDim.var};
+  cursor: pointer;
+
+  &:last-child {
+    border-right: none;
+  }
+
+  &:hover {
+    background: ${colors.surface.var};
+    color: ${colors.text.var};
+  }
+
+  &.active {
+    background: ${colors.surfaceActive.var};
+    color: ${colors.text.var};
+  }
+
+  & > svg {
+    width: 12px;
+    height: 12px;
+  }
 `;
 
 const TimelineToggle = styled.button`
@@ -454,11 +510,18 @@ type TraceTreeProps = {
 };
 
 const TIMELINE_COLLAPSED_STORAGE_KEY = 'agent-evals.trace-timeline-collapsed';
+const TRACE_NESTING_MODE_STORAGE_KEY = 'agent-evals.trace-nesting-mode';
 const SPAN_SEARCH_PARAM_KEY = 'span';
 
 function readTimelineCollapsed(): boolean {
   if (typeof window === 'undefined') return false;
   return window.localStorage.getItem(TIMELINE_COLLAPSED_STORAGE_KEY) === '1';
+}
+
+function readTraceNestingMode(): TraceNestingMode {
+  if (typeof window === 'undefined') return 'timeline';
+  const value = window.localStorage.getItem(TRACE_NESTING_MODE_STORAGE_KEY);
+  return value === 'parent' || value === 'timeline' ? value : 'timeline';
 }
 
 export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
@@ -467,6 +530,8 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
   const [timelineCollapsed, setTimelineCollapsed] = useState<boolean>(
     readTimelineCollapsed,
   );
+  const [traceNestingMode, setTraceNestingMode] =
+    useState<TraceNestingMode>(readTraceNestingMode);
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const detailRef = useRef<HTMLDivElement>(null);
@@ -479,6 +544,14 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
       timelineCollapsed ? '1' : '0',
     );
   }, [timelineCollapsed]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(
+      TRACE_NESTING_MODE_STORAGE_KEY,
+      traceNestingMode,
+    );
+  }, [traceNestingMode]);
 
   useEffect(() => {
     const element = rootRef.current;
@@ -496,18 +569,10 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
 
   const metrics = useMemo(() => computeTraceMetrics(spans), [spans]);
 
-  const childrenByParent = useMemo(() => {
-    const map = new Map<string | null, EvalTraceSpan[]>();
-    for (const span of spans) {
-      const list = map.get(span.parentId);
-      if (list) list.push(span);
-      else map.set(span.parentId, [span]);
-    }
-    const sortByStart = (a: EvalTraceSpan, b: EvalTraceSpan) =>
-      Date.parse(a.startedAt) - Date.parse(b.startedAt);
-    for (const list of map.values()) list.sort(sortByStart);
-    return map;
-  }, [spans]);
+  const childrenByParent = useMemo(
+    () => buildTraceChildrenByParent(spans, traceNestingMode),
+    [spans, traceNestingMode],
+  );
 
   const visibleRows = useMemo(
     () => flattenVisibleRows(childrenByParent, collapsed),
@@ -573,16 +638,44 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
             <RulerRow timelineCollapsed={timelineCollapsed}>
               <RulerLabelInline>
                 <RulerLabelText>Span</RulerLabelText>
-                <TimelineToggle
-                  type="button"
-                  onClick={() => setTimelineCollapsed((v) => !v)}
-                  aria-label={
-                    timelineCollapsed ? 'Show timeline' : 'Hide timeline'
-                  }
-                  title={timelineCollapsed ? 'Show timeline' : 'Hide timeline'}
-                >
-                  {timelineCollapsed ? <PanelRightOpen /> : <PanelRightClose />}
-                </TimelineToggle>
+                <RulerControls>
+                  <NestingModeControl>
+                    <NestingModeButton
+                      type="button"
+                      active={traceNestingMode === 'parent'}
+                      onClick={() => setTraceNestingMode('parent')}
+                      aria-label="Use recorded parent hierarchy"
+                      title="Recorded parent hierarchy"
+                    >
+                      <GitFork />
+                    </NestingModeButton>
+                    <NestingModeButton
+                      type="button"
+                      active={traceNestingMode === 'timeline'}
+                      onClick={() => setTraceNestingMode('timeline')}
+                      aria-label="Use timeline nesting"
+                      title="Timeline nesting"
+                    >
+                      <Clock3 />
+                    </NestingModeButton>
+                  </NestingModeControl>
+                  <TimelineToggle
+                    type="button"
+                    onClick={() => setTimelineCollapsed((v) => !v)}
+                    aria-label={
+                      timelineCollapsed ? 'Show timeline' : 'Hide timeline'
+                    }
+                    title={
+                      timelineCollapsed ? 'Show timeline' : 'Hide timeline'
+                    }
+                  >
+                    {timelineCollapsed ? (
+                      <PanelRightOpen />
+                    ) : (
+                      <PanelRightClose />
+                    )}
+                  </TimelineToggle>
+                </RulerControls>
               </RulerLabelInline>
               {!timelineCollapsed ? (
                 <RulerTimelineCell>

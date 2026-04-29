@@ -349,6 +349,11 @@ adapters can preserve native categories like `mastra.workflow.step` instead of
 collapsing everything into the built-in `agent`, `llm`, `tool`, `retrieval`,
 `scorer`, `checkpoint`, or `custom` kinds.
 
+The Trace tab can switch between the recorded parent hierarchy and timeline
+nesting. Timeline nesting is UI-only: it visually nests spans by start/end
+containment for flat exported traces without changing saved trace JSON or the
+parent ids available to `deriveFromTracing`.
+
 For observability systems that already emit span lifecycle events, use the
 external span API. This lets an adapter translate start/update/end events into
 the same eval trace tree without wrapping work in a callback:

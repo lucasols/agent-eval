@@ -159,7 +159,9 @@ events, use `evalTracer.startSpan(...)`, `evalTracer.updateSpan(...)`,
 `evalTracer.endSpan(...)`, or `evalTracer.recordSpan(...)` to translate those
 events into the eval trace tree without wrapping the upstream work in a
 callback. Pass the upstream span id and parent id when available so the UI keeps
-the original hierarchy.
+the original hierarchy. The Trace tab can switch between that recorded hierarchy
+and UI-only timeline nesting for flat exported traces; saved trace JSON and
+`deriveFromTracing` continue to use the recorded parent ids.
 
 ### Eval file (thin)
 
