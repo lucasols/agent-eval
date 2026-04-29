@@ -511,6 +511,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
   );
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const rootRef = useRef<HTMLDivElement>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
   const selectedSpanId = searchParams.get(SPAN_SEARCH_PARAM_KEY);
 
   useEffect(() => {
@@ -569,8 +570,26 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
     function onKey(event: KeyboardEvent) {
       if (event.key === 'Escape') updateSelectedSpanId(null);
     }
+    function onClickAway(event: MouseEvent) {
+      const detailElement = detailRef.current;
+      const clickedSpanRow =
+        event.target instanceof Element &&
+        event.target.closest('[data-span-row]') !== null;
+      if (
+        detailElement &&
+        event.target instanceof Node &&
+        !clickedSpanRow &&
+        !detailElement.contains(event.target)
+      ) {
+        updateSelectedSpanId(null);
+      }
+    }
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onClickAway);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onClickAway);
+    };
   }, [selectedSpanId]);
 
   function toggleCollapse(id: string) {
@@ -657,6 +676,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
                 return (
                   <Row
                     key={span.id}
+                    data-span-row="true"
                     active={selectedSpanId === span.id}
                     timelineCollapsed={timelineCollapsed}
                     onClick={() => handleSelect(span.id)}
@@ -736,7 +756,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
       </TimelinePane>
 
       {!isNarrow && selectedSpan ? (
-        <DetailPane>
+        <DetailPane ref={detailRef}>
           <SpanDetail
             span={selectedSpan}
             spans={spans}
@@ -746,7 +766,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
       ) : null}
 
       {isNarrow && selectedSpan ? (
-        <DetailOverlay>
+        <DetailOverlay ref={detailRef}>
           <OverlayHeader>
             <OverlayLabel>Span detail</OverlayLabel>
             <CloseButton

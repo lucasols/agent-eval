@@ -78,12 +78,16 @@ pnpm add -D @ls-stack/agent-eval
    agent-evals list
    agent-evals run
    agent-evals run --eval my-agent --case greeting --json
+   agent-evals show-runs
+   agent-evals show-runs latest --json
    agent-evals run --inspect-brk --eval my-agent --case greeting
    ```
 
    Discovered eval file paths are shown relative to the active workspace root in both the CLI and UI.
 
-   Run artifacts are persisted under `.agent-evals/runs/<run-id>/` with `run.json`, `summary.json`, per-case `cases.jsonl`, and trace JSON files for the executed cases.
+   Use `agent-evals show-runs` to print saved run directories and stable artifact file paths. Run ids can be full timestamp ids, short ids such as `r0`, or `latest`.
+
+   Run artifacts are persisted under `.agent-evals/runs/<run-id>/` with `run.json`, `summary.json`, per-case `cases.jsonl`, case detail JSON files, and trace JSON files for the executed cases.
 
 A complete working example lives at [`examples/basic-agent`](./examples/basic-agent).
 
@@ -929,6 +933,7 @@ Commands:
   app                        Start server with the UI (http://localhost:4100)
   list                       List discovered evals
   run                        Run evals (all by default)
+  show-runs [id|latest]      Show saved run artifact file paths
   cache list                 List cached operation entries
   cache clear --eval <id>    Clear cache entries for one eval
   cache clear --all          Clear every cached entry
@@ -939,7 +944,7 @@ Flags:
   --trials <n>               Override trials per case
   --inspect[=host:port]      Run with the Node.js inspector enabled
   --inspect-brk[=host:port]  Enable inspector and pause before startup
-  --json                     Emit run summary or cache listing as JSON
+  --json                     Emit run summary, run file index, or cache listing as JSON
   --port <n>                 Server port (app, default: 4100)
   --cache <use|bypass|refresh>  Cache mode for this run (default: use)
   --no-cache                 Shortcut for --cache bypass

@@ -1,21 +1,25 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRunner } from '@agent-evals/runner';
 import {
   getEvalDisplayStatus,
   getEvalTitle,
+  type CaseRow,
   type CacheMode,
+  type RunManifest,
+  type RunSummary,
 } from '@agent-evals/shared';
 import { resultify } from 't-result';
 
-type CliCommand = 'app' | 'list' | 'run' | 'cache' | 'help';
+type CliCommand = 'app' | 'list' | 'run' | 'show-runs' | 'cache' | 'help';
 type HelpTopic =
   | 'global'
   | 'app'
   | 'list'
   | 'run'
+  | 'show-runs'
   | 'cache'
   | 'cache list'
   | 'cache clear';
@@ -23,6 +27,7 @@ type HelpTopic =
 type CliArgs = {
   command: CliCommand;
   subcommand: string | undefined;
+  positionals: string[];
   showHelp: boolean;
   helpTopic: HelpTopic;
   unknownHelpTarget: string | undefined;
@@ -42,6 +47,7 @@ function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = {
     command: 'help',
     subcommand: undefined,
+    positionals: [],
     showHelp: false,
     helpTopic: 'global',
     unknownHelpTarget: undefined,
@@ -83,6 +89,7 @@ function parseArgs(argv: string[]): CliArgs {
 
   for (let i = cursor; i < normalizedArgv.length; i++) {
     const arg = normalizedArgv[i];
+    if (arg === undefined) continue;
     const next = normalizedArgv[i + 1];
 
     if (arg === '--help' || arg === '-h') {
@@ -114,6 +121,8 @@ function parseArgs(argv: string[]): CliArgs {
       args.clearCache = true;
     } else if (arg === '--all') {
       args.all = true;
+    } else if (!arg.startsWith('-')) {
+      args.positionals.push(arg);
     }
   }
 
@@ -153,6 +162,9 @@ export async function runCli(argv: string[]): Promise<void> {
     case 'run':
       await commandRun(args);
       break;
+    case 'show-runs':
+      await commandShowRuns(args);
+      break;
     case 'cache':
       await commandCache(args);
       break;
@@ -168,6 +180,7 @@ function isCliCommand(command: string | undefined): command is CliCommand {
     command === 'app' ||
     command === 'list' ||
     command === 'run' ||
+    command === 'show-runs' ||
     command === 'cache' ||
     command === 'help'
   );
@@ -392,6 +405,67 @@ async function commandRun(args: CliArgs): Promise<void> {
   }
 }
 
+type RunSnapshot = {
+  manifest: RunManifest;
+  summary: RunSummary;
+  cases: CaseRow[];
+};
+
+type RunFileIndex = {
+  id: string;
+  shortId: string;
+  status: RunManifest['status'];
+  startedAt: string;
+  endedAt: string | null;
+  target: RunManifest['target'];
+  summary: RunSummary;
+  files: {
+    dir: string;
+    run: string;
+    summary: string;
+    cases: string;
+    caseDetailsDir: string;
+    tracesDir: string;
+  };
+  cases: Array<{
+    caseId: string;
+    evalId: string;
+    status: CaseRow['status'];
+    files: { caseDetail: string; trace: string };
+  }>;
+};
+
+async function commandShowRuns(args: CliArgs): Promise<void> {
+  const runner = createRunner({ watchForChanges: false });
+  await runner.init();
+
+  const runRef = args.positionals[0];
+  if (runRef !== undefined) {
+    const run = resolveRunSnapshot(runner, runRef);
+    if (!run) {
+      printMissingRun(runRef);
+      process.exit(1);
+      return;
+    }
+    const index = buildRunFileIndex(runner.getWorkspaceRoot(), run);
+    if (args.json) {
+      printJson(index);
+      return;
+    }
+    printRunFileIndex(index);
+    return;
+  }
+
+  const indexes = getSortedRunSnapshots(runner).map((run) =>
+    buildRunFileIndex(runner.getWorkspaceRoot(), run),
+  );
+  if (args.json) {
+    printJson(indexes);
+    return;
+  }
+  printRunFileIndexes(indexes);
+}
+
 async function commandCache(args: CliArgs): Promise<void> {
   const runner = createRunner({ watchForChanges: false });
   await runner.init();
@@ -453,6 +527,130 @@ async function commandCache(args: CliArgs): Promise<void> {
   }
 
   printHelp(args.helpTopic);
+}
+
+function getSortedRunSnapshots(
+  runner: ReturnType<typeof createRunner>,
+): RunSnapshot[] {
+  return runner
+    .getRuns()
+    .toSorted((a, b) => getRunStartTime(a) - getRunStartTime(b))
+    .map((manifest) => runner.getRun(manifest.id))
+    .filter((run): run is RunSnapshot => run !== undefined);
+}
+
+function buildRunFileIndex(
+  workspaceRoot: string,
+  run: RunSnapshot,
+): RunFileIndex {
+  const runDir = join(workspaceRoot, '.agent-evals', 'runs', run.manifest.id);
+  return {
+    id: run.manifest.id,
+    shortId: run.manifest.shortId,
+    status: run.manifest.status,
+    startedAt: run.manifest.startedAt,
+    endedAt: run.manifest.endedAt,
+    target: run.manifest.target,
+    summary: run.summary,
+    files: {
+      dir: runDir,
+      run: join(runDir, 'run.json'),
+      summary: join(runDir, 'summary.json'),
+      cases: join(runDir, 'cases.jsonl'),
+      caseDetailsDir: join(runDir, 'case-details'),
+      tracesDir: join(runDir, 'traces'),
+    },
+    cases: run.cases.map((caseRow) => {
+      const fileName = `${encodeURIComponent(caseRow.caseId)}.json`;
+      return {
+        caseId: caseRow.caseId,
+        evalId: caseRow.evalId,
+        status: caseRow.status,
+        files: {
+          caseDetail: join(runDir, 'case-details', fileName),
+          trace: join(runDir, 'traces', fileName),
+        },
+      };
+    }),
+  };
+}
+
+function resolveRunSnapshot(
+  runner: ReturnType<typeof createRunner>,
+  runRef: string | undefined,
+): RunSnapshot | undefined {
+  const runs = getSortedRunSnapshots(runner);
+  if (runs.length === 0) return undefined;
+
+  if (runRef === undefined || runRef === 'latest') {
+    return runs[runs.length - 1];
+  }
+
+  return runs.find(
+    (run) => run.manifest.id === runRef || run.manifest.shortId === runRef,
+  );
+}
+
+function printMissingRun(runRef: string | undefined): void {
+  console.error(
+    runRef === undefined
+      ? 'No saved runs found.'
+      : `No saved run found for "${runRef}".`,
+  );
+}
+
+function getRunStartTime(manifest: RunManifest): number {
+  const parsed = new Date(manifest.startedAt).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function printJson(value: unknown): void {
+  console.info(JSON.stringify(value, null, 2));
+}
+
+function printRunFileIndexes(indexes: RunFileIndex[]): void {
+  if (indexes.length === 0) {
+    console.info('No saved runs.');
+    return;
+  }
+
+  console.info(`Saved runs (${String(indexes.length)}):\n`);
+  for (const index of indexes) {
+    printRunFileIndex(index);
+    console.info('');
+  }
+}
+
+function printRunFileIndex(index: RunFileIndex): void {
+  console.info(
+    `${index.shortId} (${index.id})  ${index.status}  ${formatCaseCounts(index.summary)}`,
+  );
+  console.info(`  dir: ${index.files.dir}`);
+  console.info(`  run: ${index.files.run}`);
+  console.info(`  summary: ${index.files.summary}`);
+  console.info(`  cases: ${index.files.cases}`);
+  console.info(`  case details: ${index.files.caseDetailsDir}`);
+  console.info(`  traces: ${index.files.tracesDir}`);
+  if (index.cases.length === 0) return;
+
+  console.info('  case files:');
+  for (const caseEntry of index.cases) {
+    console.info(
+      `    ${caseEntry.caseId} [${caseEntry.evalId}] ${caseEntry.status}`,
+    );
+    console.info(`      detail: ${caseEntry.files.caseDetail}`);
+    console.info(`      trace: ${caseEntry.files.trace}`);
+  }
+}
+
+function formatCaseCounts(summary: RunSummary): string {
+  return [
+    `${String(summary.totalCases)} total`,
+    `${String(summary.passedCases)} passed`,
+    `${String(summary.failedCases)} failed`,
+    `${String(summary.errorCases)} errors`,
+    `${String(summary.cancelledCases)} cancelled`,
+  ].join(', ');
 }
 
 async function waitForRunCompletion(
@@ -531,6 +729,25 @@ Flags:
     return;
   }
 
+  if (topic === 'show-runs') {
+    console.info(`
+agent-evals show-runs - Show saved run artifact file paths
+
+Usage:
+  agent-evals show-runs [<run-id>|latest] [--json]
+
+Prints the run directory and stable artifact paths for run.json, summary.json,
+cases.jsonl, case detail JSON, and trace JSON files. Run ids can be full
+timestamp ids, short ids such as r0, or latest.
+
+Flags:
+  --json                     Output the file index as JSON
+  --no-env                   Disable automatic .env loading
+  --help, -h                 Show this help
+  `);
+    return;
+  }
+
   if (topic === 'cache' || topic === 'cache list' || topic === 'cache clear') {
     console.info(`
 agent-evals cache - Manage cached operation entries
@@ -557,6 +774,7 @@ Commands:
   app                        Start server with UI
   list                       List discovered evals
   run                        Run evals
+  show-runs [id|latest]      Show saved run artifact file paths
   cache list                 List cached operation entries
   cache clear --eval <id>    Clear cache entries for one eval
   cache clear --all          Clear every cached entry

@@ -336,9 +336,24 @@ Mental model:
 Run output lives under `.agent-evals/runs/<run-id>/` and cache entries under
 `.agent-evals/cache/<eval-id>.json`. Files in a run directory include run
 metadata, a run summary, per-case results, and per-case trace JSON. Inspect
-these when debugging persisted output, costs, columns, traces, or failures —
-the filenames are stable even when their internal schema evolves, so pick the
-one whose name matches what you are debugging and read it directly.
+these when debugging persisted output, costs, columns, traces, or failures.
+
+Use `agent-evals show-runs` when you need stable file
+paths before reading saved output:
+
+```sh
+agent-evals show-runs
+agent-evals show-runs latest --json
+jq . .agent-evals/runs/<run-id>/summary.json
+jq -s . .agent-evals/runs/<run-id>/cases.jsonl
+jq . .agent-evals/runs/<run-id>/case-details/<case-id>.json
+jq . .agent-evals/runs/<run-id>/traces/<case-id>.json
+```
+
+Run ids can be full timestamp ids, short ids such as `r0` from
+`agent-evals show-runs`, or `latest`. `show-runs` is only an artifact index;
+the files themselves remain the source of truth for detailed results and
+traces.
 
 ## Module mocking
 
@@ -384,6 +399,6 @@ When adding or changing evals:
    you depend on.
 7. Sanity-check after changes: `agent-evals list`, then
    `agent-evals run --eval <id>`.
-8. To debug a focused run, use
-   `agent-evals run --inspect-brk --eval <id> --case <case-id>` and attach a
-   Node.js debugger before continuing execution.
+8. Locate saved artifacts with `agent-evals show-runs latest --json`, then read
+   the relevant `summary.json`, `cases.jsonl`, `case-details/<case-id>.json`,
+   or `traces/<case-id>.json` file directly.

@@ -70,11 +70,11 @@ export async function runExampleCli(
   Object.assign(childEnv, options.env);
 
   return new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn(process.execPath, [...(options.nodeArgs ?? []), cliBinPath, ...args], {
-      cwd: workspacePath,
-      env: childEnv,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    const child = spawn(
+      process.execPath,
+      [...(options.nodeArgs ?? []), cliBinPath, ...args],
+      { cwd: workspacePath, env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] },
+    );
 
     let stdout = '';
     let stderr = '';
@@ -204,10 +204,9 @@ export function normalizeTextSnapshot(
   workspacePath: string,
   text: string,
 ): string {
-  return normalizeDynamicString(workspacePath, text).replace(
-    /Duration: \d+\.\d+s/g,
-    'Duration: <duration>',
-  );
+  return normalizeDynamicString(workspacePath, text)
+    .replace(/Duration: (?:\d+ms|\d+\.\d+s)/g, 'Duration: <duration>')
+    .replace(/duration: (?:\d+ms|\d+\.\d+s)/g, 'duration: <duration>');
 }
 
 export function normalizeSnapshotValue(

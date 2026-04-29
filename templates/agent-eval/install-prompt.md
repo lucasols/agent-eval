@@ -65,13 +65,15 @@ needed to author evals.
    If `skills/agent-eval` already exists, leave it in place and report that
    the symlink step was skipped.
 
-7. Verify the install by running `agent-evals list` with the detected package
-   manager (for example `pnpm exec agent-evals list`). The placeholder eval
-   should appear.
+7. Verify the install by running `agent-evals list` and `agent-evals show-runs`
+   with the detected package manager (for example
+   `pnpm exec agent-evals list`). The placeholder eval should appear, and
+   `agent-evals show-runs` should either list saved runs or report that there
+   are no saved runs yet.
 
 8. Do **not** add production tracing yet. Point the user at the bundled
    `agent-eval` skill for authoring real evals and wiring `evalTracer` spans
    into product source code.
 
 Report which steps ran, which were skipped (because the file already existed),
-and the output of `agent-evals list`.
+and the output of `agent-evals list` plus `agent-evals show-runs`.
