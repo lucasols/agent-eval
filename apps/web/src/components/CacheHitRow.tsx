@@ -3,10 +3,12 @@ import {
   type CacheEntry,
   type CacheHitEntry,
 } from '@agent-evals/shared';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { useActionFn } from '@ls-stack/react-utils/useActionFn';
+import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { resultify } from 't-result';
 import { styled } from 'vindur';
+import { Button } from '#src/components/Button';
 import { JsonViewer } from '#src/components/JsonViewer';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
@@ -129,6 +131,11 @@ const ErrorMessage = styled.div`
   color: ${colors.error.var};
 `;
 
+const BodyActions = styled.div`
+  ${inline({ gap: 8, align: 'center' })}
+  justify-content: flex-end;
+`;
+
 function truncateKey(key: string): string {
   if (key.length <= 14) return key;
   return `${key.slice(0, 12)}…`;
@@ -138,7 +145,12 @@ type FetchState =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'loaded'; entry: CacheEntry }
+  | { status: 'deleted' }
   | { status: 'error'; message: string };
+
+function cacheEntryUrl(entry: CacheHitEntry): string {
+  return `/api/cache/${encodeURIComponent(entry.namespace)}/${encodeURIComponent(entry.key)}`;
+}
 
 /**
  * Render one cache-hit card inside the case-drawer Cache hits tab.
@@ -153,14 +165,18 @@ type FetchState =
 export function CacheHitRow({ entry }: { entry: CacheHitEntry }) {
   const [expanded, setExpanded] = useState(false);
   const [fetchState, setFetchState] = useState<FetchState>({ status: 'idle' });
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function loadEntry() {
-    if (fetchState.status === 'loading' || fetchState.status === 'loaded') {
+    if (
+      fetchState.status === 'loading' ||
+      fetchState.status === 'loaded' ||
+      fetchState.status === 'deleted'
+    ) {
       return;
     }
     setFetchState({ status: 'loading' });
-    const url = `/api/cache/${encodeURIComponent(entry.namespace)}/${encodeURIComponent(entry.key)}`;
-    const fetchResult = await resultify(() => fetch(url));
+    const fetchResult = await resultify(() => fetch(cacheEntryUrl(entry)));
     if (fetchResult.error) {
       setFetchState({ status: 'error', message: fetchResult.error.message });
       return;
@@ -187,6 +203,25 @@ export function CacheHitRow({ entry }: { entry: CacheHitEntry }) {
     }
     setFetchState({ status: 'loaded', entry: parseResult.value });
   }
+
+  const deleteAction = useActionFn(async () => {
+    if (!window.confirm('Delete this cached entry?')) return;
+    setDeleteError(null);
+    const deleteResult = await resultify(() =>
+      fetch(cacheEntryUrl(entry), { method: 'DELETE' }),
+    );
+    if (deleteResult.error) {
+      setDeleteError(deleteResult.error.message);
+      return;
+    }
+    if (!deleteResult.value.ok && deleteResult.value.status !== 404) {
+      setDeleteError(
+        `cache entry could not be deleted (${String(deleteResult.value.status)})`,
+      );
+      return;
+    }
+    setFetchState({ status: 'deleted' });
+  });
 
   function handleToggle() {
     if (expanded) {
@@ -219,6 +254,7 @@ export function CacheHitRow({ entry }: { entry: CacheHitEntry }) {
           <OriginTag>(case root)</OriginTag>
         ) : null}
         <HeaderMeta>
+          {fetchState.status === 'deleted' ? <span>deleted</span> : null}
           {ageLabel !== null ? <span>{ageLabel} old</span> : null}
           <span>{truncateKey(entry.key)}</span>
         </HeaderMeta>
@@ -253,6 +289,16 @@ export function CacheHitRow({ entry }: { entry: CacheHitEntry }) {
             </ErrorMessage>
           ) : null}
 
+          {deleteError !== null ? (
+            <ErrorMessage>
+              Could not delete cached value: {deleteError}
+            </ErrorMessage>
+          ) : null}
+
+          {fetchState.status === 'deleted' ? (
+            <StatusMessage>Cached entry deleted.</StatusMessage>
+          ) : null}
+
           {fetchState.status === 'loaded' ? (
             <>
               <SectionWrapper>
@@ -277,6 +323,22 @@ export function CacheHitRow({ entry }: { entry: CacheHitEntry }) {
               ) : null}
             </>
           ) : null}
+          <BodyActions>
+            <Button
+              variant="danger"
+              leftIcon={<Trash2 />}
+              disabled={
+                fetchState.status === 'deleted' || deleteAction.isInProgress
+              }
+              onClick={() => {
+                void deleteAction.call();
+              }}
+            >
+              {fetchState.status === 'deleted'
+                ? 'Deleted'
+                : 'Delete cache entry'}
+            </Button>
+          </BodyActions>
         </Body>
       ) : null}
     </Card>

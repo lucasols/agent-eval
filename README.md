@@ -723,8 +723,9 @@ least one cache hit. It lists every span- and value-cache hit (including
 spanless ones tagged "case root") with namespace, age, stored-at timestamp, and
 truncated key. Each row expands to fetch the persisted entry from
 `GET /api/cache/:namespace/:key` and render its cached `returnValue` (and any
-replayed span attributes) inline. Misses, refreshes, and bypasses remain
-visible inline as per-span badges in the **Trace** tab.
+replayed span attributes) inline. Use the row's delete action to remove that
+single persisted cache entry. Misses, refreshes, and bypasses remain visible
+inline as per-span badges in the **Trace** tab.
 
 ### Cache controls
 

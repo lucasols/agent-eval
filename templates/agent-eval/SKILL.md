@@ -301,7 +301,8 @@ Mental model:
   span, that span gets a `cache.refs` entry with the value cache name, key,
   namespace, and hit/miss status. When called directly from the case body
   (no surrounding span), the ref is recorded on the case detail's `cacheRefs`
-  array so spanless caches still appear in the UI's **Cache hits** tab.
+  array so spanless caches still appear in the UI's **Cache hits** tab, where
+  each hit can be expanded for inspection or deleted by namespace/key.
 - The cache key folds in a source-file fingerprint, so editing the eval busts
   the cache automatically.
 - `cache.namespace` on spans or `namespace` on value caches can share entries
