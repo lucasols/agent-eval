@@ -14,7 +14,15 @@ import { resultify } from 't-result';
 import { styled } from 'vindur';
 import { Button } from '#src/components/Button';
 import { EvalRunsChart } from '#src/components/EvalRunsChart';
-import { EvalRunsSection } from '#src/components/EvalRunsSection';
+import {
+  EvalRunsSection,
+  getApplicableRunFilterOptions,
+  getFilterLabel,
+  parseRunFilter,
+  RUN_FILTER_SEARCH_PARAM,
+  runMatchesFilter,
+  setRunFilterSearchParam,
+} from '#src/components/EvalRunsSection';
 import { IconButton } from '#src/components/IconButton';
 import { MenuButton } from '#src/components/MenuButton';
 import { PathBreadcrumb } from '#src/components/PathBreadcrumb';
@@ -24,12 +32,14 @@ import {
 } from '#src/components/SplitButton';
 import { StatusBadge } from '#src/components/StatusBadge';
 import { Tooltip } from '#src/components/Tooltip';
+import { useSearchParams } from '#src/hooks/useSearchParams';
 import { evalsStore, openEvalInEditor } from '#src/stores/evalsStore';
 import { getRunsForEval, historyStore } from '#src/stores/historyStore';
 import {
   cleanRunsForEval,
   clearCacheForEval,
   cancelRun,
+  deleteRuns,
   recomputeStatusesForEval,
   runStore,
   startRun,
@@ -334,9 +344,11 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const { currentRun } = runStore.useSelectorRC((s) => ({
     currentRun: s.currentRun,
   }));
+  const searchParams = useSearchParams();
 
   const charts = evalSummary.charts ?? [];
   const {
+    allRunRows,
     visibleRunRows,
     perChartData,
     completedRunCount,
@@ -376,6 +388,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     );
 
     return {
+      allRunRows: rows,
       visibleRunRows: isStacked ? rows.slice(0, 1) : rows,
       perChartData: perChart,
       completedRunCount: Math.min(completed.length, 20),
@@ -489,6 +502,40 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     }
   }
 
+  const runFilterOptions = getApplicableRunFilterOptions(allRunRows);
+  const runFilter = parseRunFilter(
+    searchParams.get(RUN_FILTER_SEARCH_PARAM),
+    runFilterOptions,
+  );
+  const filteredRunRows = allRunRows.filter((run) =>
+    runMatchesFilter(run, runFilter),
+  );
+  const clearableFilteredRunRows = filteredRunRows.filter(
+    (run) => run.manifest.status !== 'running',
+  );
+  const showClearFilteredRunsAction =
+    isSingle && runFilter !== 'all' && clearableFilteredRunRows.length > 0;
+  const runFilterLabel = getFilterLabel(runFilter, runFilterOptions);
+
+  async function handleClearFilteredRuns() {
+    const runCount = clearableFilteredRunRows.length;
+    if (runCount === 0) return;
+    const filterLabel = runFilterLabel.toLowerCase();
+    const noun = runCount === 1 ? 'run' : 'runs';
+    const confirmed = window.confirm(
+      `Delete ${String(runCount)} ${filterLabel} ${noun} for this eval? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    setMaintenanceAction('clean');
+    try {
+      await deleteRuns(clearableFilteredRunRows.map((run) => run.manifest.id));
+      setRunFilterSearchParam('all');
+    } finally {
+      setMaintenanceAction(null);
+    }
+  }
+
   async function handleCopyCliRunCommand() {
     const { packageManager } = workspaceConfigStore.state;
     await copyTextToClipboard(
@@ -523,6 +570,19 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
       },
     },
     { kind: 'separator' },
+    ...(showClearFilteredRunsAction
+      ? [
+          {
+            id: 'clear-filtered-runs',
+            label: 'Clear filtered runs',
+            description: `Delete ${runFilterLabel.toLowerCase()} saved runs for this eval.`,
+            tone: 'danger',
+            onSelect: () => {
+              void handleClearFilteredRuns();
+            },
+          } satisfies SplitButtonMenuEntry,
+        ]
+      : []),
     {
       id: 'recompute-status',
       label: 'Recompute status',

@@ -1,9 +1,7 @@
 import type { ColumnDef } from '@agent-evals/shared';
-import { useActionFn } from '@ls-stack/react-utils/useActionFn';
-import { ChevronsDownUp, ChevronsUpDown, Trash2 } from 'lucide-react';
+import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { useState } from 'react';
 import { styled } from 'vindur';
-import { Button } from '#src/components/Button';
 import { EvalRunsTable } from '#src/components/EvalRunsTable';
 import { IconButton } from '#src/components/IconButton';
 import { Tooltip } from '#src/components/Tooltip';
@@ -11,12 +9,11 @@ import {
   updateSearchParams,
   useSearchParams,
 } from '#src/hooks/useSearchParams';
-import { deleteRuns } from '#src/stores/runStore';
 import { colors } from '#src/style/colors';
 import { inline, monoFont } from '#src/style/helpers';
 import type { ScopedRunRow } from '#src/utils/evalRuns';
 
-type RunFilter =
+export type RunFilter =
   | 'all'
   | 'successful'
   | 'unsuccessful'
@@ -39,7 +36,7 @@ const RUN_FILTER_OPTIONS: Array<{ value: RunFilter; label: string }> = [
   { value: 'pending', label: 'Pending' },
 ];
 
-const RUN_FILTER_SEARCH_PARAM = 'runFilter';
+export const RUN_FILTER_SEARCH_PARAM = 'runFilter';
 const LAST_24H_MS = 24 * 60 * 60 * 1000;
 
 const SectionLabel = styled.div`
@@ -87,7 +84,10 @@ const RunFilterSelect = styled.select`
   }
 `;
 
-function runMatchesFilter(run: ScopedRunRow, filter: RunFilter): boolean {
+export function runMatchesFilter(
+  run: ScopedRunRow,
+  filter: RunFilter,
+): boolean {
   if (filter === 'all') return true;
   if (filter === 'last24h') return runStartedWithinLast24h(run);
   if (filter === 'successful') return run.summary.status === 'pass';
@@ -112,7 +112,7 @@ function runStartedWithinLast24h(run: ScopedRunRow): boolean {
   return ageMs >= 0 && ageMs <= LAST_24H_MS;
 }
 
-function getApplicableRunFilterOptions(
+export function getApplicableRunFilterOptions(
   runs: ScopedRunRow[],
 ): Array<{ value: RunFilter; label: string }> {
   return RUN_FILTER_OPTIONS.filter(
@@ -122,14 +122,14 @@ function getApplicableRunFilterOptions(
   );
 }
 
-function parseRunFilter(
+export function parseRunFilter(
   value: string | null,
   options: Array<{ value: RunFilter }>,
 ): RunFilter {
   return options.find((option) => option.value === value)?.value ?? 'all';
 }
 
-function getFilterLabel(
+export function getFilterLabel(
   filter: RunFilter,
   options: Array<{ value: RunFilter; label: string }>,
 ): string {
@@ -137,7 +137,7 @@ function getFilterLabel(
   return options.find((option) => option.value === filter)?.label ?? 'Filtered';
 }
 
-function setRunFilterSearchParam(filter: RunFilter): void {
+export function setRunFilterSearchParam(filter: RunFilter): void {
   updateSearchParams((searchParams) => {
     if (filter === 'all') searchParams.delete(RUN_FILTER_SEARCH_PARAM);
     else searchParams.set(RUN_FILTER_SEARCH_PARAM, filter);
@@ -168,30 +168,10 @@ export function EvalRunsSection({
     runFilterOptions,
   );
   const filteredRuns = runs.filter((run) => runMatchesFilter(run, runFilter));
-  const clearableFilteredRuns = filteredRuns.filter(
-    (run) => run.manifest.status !== 'running',
-  );
 
   const allRunsExpanded =
     filteredRuns.length > 0 &&
     filteredRuns.every((run) => expandedRunIds.has(run.manifest.id));
-
-  const clearFilteredRunsAction = useActionFn(async () => {
-    const runCount = clearableFilteredRuns.length;
-    if (runCount === 0) return;
-    const filterLabel = getFilterLabel(
-      runFilter,
-      runFilterOptions,
-    ).toLowerCase();
-    const noun = runCount === 1 ? 'run' : 'runs';
-    const confirmed = window.confirm(
-      `Delete ${String(runCount)} ${filterLabel} ${noun} for this eval? This cannot be undone.`,
-    );
-    if (!confirmed) return;
-
-    await deleteRuns(clearableFilteredRuns.map((run) => run.manifest.id));
-    setRunFilterSearchParam('all');
-  });
 
   function toggleExpandedRun(runId: string) {
     setExpandedRunIds((prev) => {
@@ -242,16 +222,6 @@ export function EvalRunsSection({
                 </option>
               ))}
             </RunFilterSelect>
-          ) : null}
-          {clearableFilteredRuns.length > 0 ? (
-            <Button
-              variant="danger"
-              leftIcon={<Trash2 />}
-              disabled={clearFilteredRunsAction.isInProgress}
-              onClick={() => clearFilteredRunsAction.call()}
-            >
-              Clear
-            </Button>
           ) : null}
           {filteredRuns.length > 0 ? (
             <Tooltip
