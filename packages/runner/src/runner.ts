@@ -98,6 +98,13 @@ export type EvalRunner = {
   /** Resolve the workspace root backing this runner instance. */
   getWorkspaceRoot(): string;
   /**
+   * Return whether the current workspace allows an unfiltered CLI run.
+   *
+   * `false` means `agent-evals run` must include `--eval` or `--case`.
+   * Programmatic/server runs are intentionally unaffected.
+   */
+  getAllowCliRunAll(): boolean;
+  /**
    * Resolved LLM-calls config used by the UI to derive the LLM calls tab.
    *
    * Returns the workspace's `llmCalls` config block from
@@ -677,6 +684,10 @@ export function createRunner({
 
     getWorkspaceRoot() {
       return workspaceRoot;
+    },
+
+    getAllowCliRunAll() {
+      return config.allowCliRunAll === true;
     },
 
     getLlmCallsConfig() {

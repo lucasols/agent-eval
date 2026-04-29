@@ -195,6 +195,7 @@ build also bundles the web UI assets used by `agent-evals app`.
 | `trialSelection` | `'lowestScore' \| 'median'?` | Winner selection strategy for persisted multi-trial case results                      |
 | `concurrency`    | `number?`                    | Max parallel case executions per run, including trials (default: `2`)                 |
 | `staleAfterDays` | `number?`                    | Days before a mismatched-commit latest run is marked outdated (default: `14`)         |
+| `allowCliRunAll` | `boolean?`                   | Allow unfiltered `agent-evals run` to run every eval (default: `false`)               |
 | `traceDisplay`   | `TraceDisplayConfig?`        | Global trace attribute display config for the UI                                      |
 | `llmCalls`       | `LlmCallsConfig?`            | LLM calls tab config for the case-run drawer (kinds, attribute paths, custom metrics) |
 | `apiCalls`       | `ApiCallsConfig?`            | API calls tab config for the case-run drawer (kinds, attribute paths, custom metrics) |
@@ -202,6 +203,11 @@ build also bundles the web UI assets used by `agent-evals app`.
 When `trials > 1`, the runner executes the case repeatedly but persists a
 single winning result per case. `lowestScore` is the default. `median` uses the
 lower median when the number of trials is even.
+
+By default, CLI runs require explicit targeting with `--eval` or `--case`. Set
+`allowCliRunAll: true` to permit unfiltered `agent-evals run`. The web UI can
+still start grouped runs; when a UI action would run more than five evals, it
+asks for confirmation first.
 
 ## Writing evals
 
@@ -932,7 +938,7 @@ agent-evals <command> [flags]
 Commands:
   app                        Start server with the UI (http://localhost:4100)
   list                       List discovered evals
-  run                        Run evals (all by default)
+  run                        Run targeted evals
   show-runs [id|latest]      Show saved run artifact file paths
   cache list                 List cached operation entries
   cache clear --eval <id>    Clear cache entries for one eval
@@ -958,7 +964,8 @@ The CLI automatically loads `.env` from the current workspace before running a
 command. Variables already set in the shell take precedence over `.env` values;
 use `--no-env` to disable this loading for a single invocation.
 
-`run` exits non-zero if any case fails or errors, making it CI-friendly.
+`run` requires `--eval` or `--case` unless `allowCliRunAll: true` is set in
+`agent-evals.config.ts`. It exits non-zero if any case fails or errors, making it CI-friendly.
 Use `agent-evals <command> --help` to inspect command-specific flags without
 starting work. Unknown help targets exit non-zero instead of falling back to
 global help.

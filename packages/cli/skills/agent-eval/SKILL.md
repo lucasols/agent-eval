@@ -24,6 +24,10 @@ display rules), read the TypeScript declarations shipped with the package:
   Unknown help targets exit non-zero instead of falling back to global help.
 - The CLI automatically loads `.env` from the current workspace. Shell-provided
   environment variables win; pass `--no-env` to disable `.env` loading once.
+- Unfiltered `agent-evals run` is disabled by default; use `--eval` or `--case`
+  for targeted CLI runs. Set `allowCliRunAll: true` in
+  `agent-evals.config.ts` to opt into run-all CLI behavior. The web UI can
+  still run grouped evals and confirms before starting more than five.
 
 Assume that enumerated tables in this document may lag behind the types —
 treat the types as source of truth when they disagree.

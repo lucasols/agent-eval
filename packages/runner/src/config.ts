@@ -18,6 +18,7 @@ const defaultConfig: AgentEvalsConfig = {
   trialSelection: 'lowestScore',
   concurrency: 2,
   staleAfterDays: 14,
+  allowCliRunAll: false,
   traceDisplay: {
     attributes: [
       {

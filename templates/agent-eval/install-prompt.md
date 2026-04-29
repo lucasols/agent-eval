@@ -43,6 +43,10 @@ needed to author evals.
    }
    ```
 
+   `agent-evals run` requires `--eval` or `--case` by default. Keep that
+   safety default unless the user explicitly wants unfiltered CLI runs; in that
+   case set `allowCliRunAll: true` in `agent-evals.config.ts`.
+
 5. Ignore persisted run output. Cache files under `.agent-evals/cache/*.json`
    are bounded and may be committed when a project wants to share them. Append
    to `.gitignore` if the entries are not already there:

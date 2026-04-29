@@ -16,7 +16,7 @@ import {
   getCurrentSearchParams,
   updateSearchParams,
 } from '#src/hooks/useSearchParams';
-import { fetchEvals } from '#src/stores/evalsStore';
+import { evalsStore, fetchEvals } from '#src/stores/evalsStore';
 import { refetchHistory } from '#src/stores/historyStore';
 
 const createRunResponseSchema = z.object({
@@ -220,10 +220,27 @@ export type RunTarget =
 /** Optional run-start options, notably the cache mode. */
 export type StartRunOptions = { cacheMode?: CacheMode };
 
+const LARGE_APP_RUN_CONFIRM_EVAL_COUNT = 5;
+
+function getRunTargetEvalCount(target: RunTarget): number {
+  if (target.mode === 'evalIds') return new Set(target.evalIds).size;
+  return evalsStore.state.evals.length;
+}
+
+function confirmLargeAppRun(target: RunTarget): boolean {
+  const evalCount = getRunTargetEvalCount(target);
+  if (evalCount <= LARGE_APP_RUN_CONFIRM_EVAL_COUNT) return true;
+  return window.confirm(
+    `Run ${String(evalCount)} evals? This may take a while and can spend tokens or call external services.`,
+  );
+}
+
 export async function startRun(
   target: RunTarget,
   options: StartRunOptions = {},
 ): Promise<void> {
+  if (!confirmLargeAppRun(target)) return;
+
   const { trials } = runStore.state;
   const cacheMode = options.cacheMode ?? 'use';
 

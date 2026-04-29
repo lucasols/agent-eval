@@ -335,6 +335,16 @@ async function commandRun(args: CliArgs): Promise<void> {
   const runner = createRunner({ watchForChanges: false });
   await runner.init();
 
+  const runTargetsAllEvals =
+    args.evalIds.length === 0 && args.caseIds.length === 0;
+  if (runTargetsAllEvals && !runner.getAllowCliRunAll()) {
+    console.error(
+      'This workspace disables running all evals from the CLI. Pass --eval <id> or --case <id> to run a targeted subset.',
+    );
+    process.exit(1);
+    return;
+  }
+
   if (args.clearCache) {
     await runner.clearCache();
     if (!args.json) {

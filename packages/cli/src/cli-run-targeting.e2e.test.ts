@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { runSummarySchema } from '@agent-evals/shared';
 import { describe, expect, test } from 'vitest';
@@ -116,6 +116,46 @@ describe('CLI run targeting', () => {
       expect(existsSync(resolve(workspacePath, '.agent-evals/runs'))).toBe(
         false,
       );
+    });
+  });
+
+  test('refuses unfiltered CLI runs by default', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const result = await runExampleCli(workspacePath, ['run']);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toBe(
+        'This workspace disables running all evals from the CLI. Pass --eval <id> or --case <id> to run a targeted subset.',
+      );
+      expect(
+        await readdir(resolve(workspacePath, '.agent-evals/runs')),
+      ).toEqual([]);
+    });
+  });
+
+  test('allows unfiltered CLI runs when explicitly enabled in config', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const configPath = join(workspacePath, 'agent-evals.config.ts');
+      const configSource = await readFile(configPath, 'utf8');
+      await writeFile(
+        configPath,
+        configSource.replace(
+          "include: ['evals/**/*.eval.ts'],",
+          "include: ['evals/support/playground/environment-config.eval.ts'],\n  allowCliRunAll: true,",
+        ),
+      );
+
+      const result = await runExampleCli(workspacePath, ['run']);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe('');
+      expect(result.stdout).toContain('Total: 1');
+
+      const artifacts = await readSingleRunArtifacts(workspacePath);
+      expect(artifacts.manifest.target.mode).toBe('all');
+      expect(artifacts.summary.totalCases).toBe(1);
+      expect(artifacts.summary.passedCases).toBe(1);
     });
   });
 

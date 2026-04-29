@@ -382,6 +382,12 @@ export type AgentEvalsConfig = {
    */
   staleAfterDays?: number;
   /**
+   * Whether `agent-evals run` may run every discovered eval when no `--eval`
+   * or `--case` filter is provided. Defaults to `false`; set to `true` to
+   * opt into unfiltered CLI runs. Grouped runs in the UI are still allowed.
+   */
+  allowCliRunAll?: boolean;
+  /**
    * Global trace attribute display config for the UI.
    *
    * These rules are merged with per-eval `traceDisplay` rules, with the eval
@@ -470,6 +476,7 @@ export const agentEvalsConfigSchema = z.object({
   trialSelection: trialSelectionModeSchema.optional(),
   concurrency: z.number().optional(),
   staleAfterDays: z.number().optional(),
+  allowCliRunAll: z.boolean().optional(),
   traceDisplay: traceDisplayInputConfigSchema.optional(),
   llmCalls: llmCallsConfigSchema.optional(),
   apiCalls: apiCallsConfigSchema.optional(),
