@@ -247,6 +247,10 @@ describe('CLI run targeting', () => {
 
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toContain('Debugger listening on');
+      expect(result.stderr.match(/Debugger listening on/g) ?? []).toHaveLength(
+        1,
+      );
+      expect(result.stderr).not.toContain('address already in use');
 
       const summary = runSummarySchema.parse(JSON.parse(result.stdout));
       const artifacts = await readSingleRunArtifacts(workspacePath);

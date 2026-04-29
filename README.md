@@ -70,7 +70,7 @@ pnpm add -D @ls-stack/agent-eval
    });
    ```
 
-3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). Use the sidebar status counts to filter visible evals by one or more states. Each eval's actions menu can copy the matching CLI run command using the workspace package manager.
+3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). Use the sidebar status counts to filter visible evals by one or more states. Each eval's actions menu can copy matching CLI run and debug commands using the workspace package manager.
 
 4. **Or use the CLI**:
 

@@ -50,7 +50,10 @@ import {
 } from '#src/style/helpers';
 import { getDisplayFolderSegments } from '#src/utils/buildEvalTree';
 import { buildChartPoints } from '#src/utils/chartData';
-import { buildEvalRunCliCommand } from '#src/utils/cliCommand';
+import {
+  buildEvalDebugCliCommand,
+  buildEvalRunCliCommand,
+} from '#src/utils/cliCommand';
 import { buildEvalScopedRunRows } from '#src/utils/evalRuns';
 import { computeStatDisplay } from '#src/utils/evalStats';
 import { getFreshnessTooltip } from '#src/utils/freshness';
@@ -302,11 +305,14 @@ function readScoreHistoryCollapsed(): boolean {
   );
 }
 
-async function copyTextToClipboard(text: string): Promise<void> {
+async function copyTextToClipboard(
+  text: string,
+  promptTitle: string,
+): Promise<void> {
   const copyResult = await resultify(() => navigator.clipboard.writeText(text));
   if (!copyResult.error) return;
 
-  window.prompt('Copy CLI run command', text);
+  window.prompt(promptTitle, text);
 }
 
 export function EvalCard({ evalSummary, mode }: EvalCardProps) {
@@ -493,6 +499,15 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     const { packageManager } = workspaceConfigStore.state;
     await copyTextToClipboard(
       buildEvalRunCliCommand({ packageManager, evalId: evalSummary.id }),
+      'Copy CLI run command',
+    );
+  }
+
+  async function handleCopyCliDebugCommand() {
+    const { packageManager } = workspaceConfigStore.state;
+    await copyTextToClipboard(
+      buildEvalDebugCliCommand({ packageManager, evalId: evalSummary.id }),
+      'Copy CLI debug command',
     );
   }
 
@@ -503,6 +518,14 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
       description: 'Copy the package-manager command for this eval.',
       onSelect: () => {
         void handleCopyCliRunCommand();
+      },
+    },
+    {
+      id: 'copy-cli-debug-command',
+      label: 'Copy CLI debug command',
+      description: 'Copy the Node inspector command for this eval.',
+      onSelect: () => {
+        void handleCopyCliDebugCommand();
       },
     },
     { kind: 'separator' },

@@ -391,7 +391,7 @@ When adding or changing evals:
 7. Sanity-check after changes: `agent-evals list`, then
    `agent-evals run --eval <id>`. Open the UI only when you need to inspect
    traces, trends, or fill manual scores. From an eval page, the eval actions
-   menu can copy the package-manager-specific CLI run command.
+   menu can copy package-manager-specific CLI run and debug commands.
 8. To debug a focused run, use
    `agent-evals run --inspect-brk --eval <id> --case <case-id>` and attach a
    Node.js debugger before continuing execution.

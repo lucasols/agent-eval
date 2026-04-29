@@ -6,6 +6,7 @@ import { runCli } from './cli.ts';
 const moduleMocksFlag = '--experimental-test-module-mocks';
 const inspectFlagPrefix = '--inspect';
 const inspectBrkFlagPrefix = '--inspect-brk';
+const runChildInspectArgEnv = 'AGENT_EVALS_RUN_CHILD_INSPECT_ARG';
 
 type DebugFlagParseResult = { argv: string[]; inspectArg: string | undefined };
 
@@ -51,12 +52,15 @@ function buildExecArgv(inspectArg: string | undefined): string[] {
     (arg) => arg !== moduleMocksFlag && !isInspectArg(arg),
   );
   const nextExecArgv = [moduleMocksFlag, ...execArgv];
-  if (inspectArg !== undefined) {
-    nextExecArgv.push(inspectArg);
-  } else {
+  if (inspectArg === undefined) {
     nextExecArgv.push(...process.execArgv.filter(isInspectArg));
   }
   return nextExecArgv;
+}
+
+function setRunChildInspectArg(inspectArg: string | undefined): void {
+  if (inspectArg === undefined) return;
+  process.env[runChildInspectArgEnv] = inspectArg;
 }
 
 function execArgvMatches(nextExecArgv: string[]): boolean {
@@ -100,6 +104,7 @@ async function reexecWithNodeArgs(
 }
 
 const { argv, inspectArg } = parseDebugFlags(process.argv.slice(2));
+setRunChildInspectArg(inspectArg);
 const execArgv = buildExecArgv(inspectArg);
 if (needsModuleMocksFlag() || !execArgvMatches(execArgv)) {
   await reexecWithNodeArgs(argv, execArgv);

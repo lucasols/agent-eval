@@ -20,3 +20,10 @@ export function buildEvalRunCliCommand(params: {
 }): string {
   return `${getAgentEvalsCommandPrefix(params.packageManager)} run --eval ${shellQuote(params.evalId)}`;
 }
+
+export function buildEvalDebugCliCommand(params: {
+  packageManager: PackageManager;
+  evalId: string;
+}): string {
+  return `${getAgentEvalsCommandPrefix(params.packageManager)} run --inspect-brk --eval ${shellQuote(params.evalId)}`;
+}

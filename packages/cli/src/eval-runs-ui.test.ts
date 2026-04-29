@@ -1,6 +1,9 @@
 import type { CaseRow, RunManifest } from '@agent-evals/shared';
 import { describe, expect, test } from 'vitest';
-import { buildEvalRunCliCommand } from '../../../apps/web/src/utils/cliCommand.ts';
+import {
+  buildEvalDebugCliCommand,
+  buildEvalRunCliCommand,
+} from '../../../apps/web/src/utils/cliCommand.ts';
 import {
   buildEvalScopedRunRows,
   scopeRunCases,
@@ -17,6 +20,21 @@ describe('eval run rows ui', () => {
     expect(
       buildEvalRunCliCommand({ packageManager: 'npm', evalId: 'needs quotes' }),
     ).toBe("npm exec agent-evals -- run --eval 'needs quotes'");
+  });
+
+  test('builds package-manager-specific eval debug commands', () => {
+    expect(
+      buildEvalDebugCliCommand({
+        packageManager: 'pnpm',
+        evalId: 'errored-span-demo',
+      }),
+    ).toBe('pnpm exec agent-evals run --inspect-brk --eval errored-span-demo');
+    expect(
+      buildEvalDebugCliCommand({
+        packageManager: 'npm',
+        evalId: 'needs quotes',
+      }),
+    ).toBe("npm exec agent-evals -- run --inspect-brk --eval 'needs quotes'");
   });
 
   test('builds eval-scoped summaries from filtered case rows instead of the whole run', () => {

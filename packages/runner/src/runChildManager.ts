@@ -13,6 +13,10 @@ import { persistRunState } from './runMaintenance.ts';
 import type { EvalMeta, RunState } from './runOrchestration.ts';
 import { loadPersistedRunSnapshot } from './runPersistence.ts';
 
+const runChildInspectArgEnv = 'AGENT_EVALS_RUN_CHILD_INSPECT_ARG';
+const inspectFlagPrefix = '--inspect';
+const inspectBrkFlagPrefix = '--inspect-brk';
+
 export type RunnerRunState = RunState & {
   childProcess: ChildProcess | undefined;
   childTerminalReceived: boolean;
@@ -88,11 +92,26 @@ function getRunChildExecArgv(): string[] {
       if (arg === '--input-type') skipNext = true;
       continue;
     }
+    if (isInspectArg(arg)) continue;
 
     execArgv.push(arg);
   }
 
+  const inspectArg = process.env[runChildInspectArgEnv];
+  if (inspectArg !== undefined && isInspectArg(inspectArg)) {
+    execArgv.push(inspectArg);
+  }
+
   return execArgv;
+}
+
+function isInspectArg(arg: string): boolean {
+  return (
+    arg === inspectFlagPrefix ||
+    arg.startsWith(`${inspectFlagPrefix}=`) ||
+    arg === inspectBrkFlagPrefix ||
+    arg.startsWith(`${inspectBrkFlagPrefix}=`)
+  );
 }
 
 export function killRunChild(runState: RunnerRunState): void {
