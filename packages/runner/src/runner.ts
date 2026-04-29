@@ -591,7 +591,6 @@ export function createRunner({
         runDir,
         manifest,
         summary,
-        evals: getSortedEvalMetas(),
       };
       await writeFile(
         join(runDir, 'run-child-context.json'),

@@ -1,6 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { getEvalRegistry } from '@agent-evals/sdk';
+import { getEvalRegistry, runInEvalRuntimeScope } from '@agent-evals/sdk';
 import type {
   AgentEvalsConfig,
   CacheMode,
@@ -317,14 +317,18 @@ export async function executeRun({
       }
       if (codeFingerprint.length > 0) {
         runState.manifest.evalSourceFingerprints[evalMeta.id] = codeFingerprint;
+        evalMeta.sourceFingerprint = codeFingerprint;
       } else {
         delete runState.manifest.evalSourceFingerprints[evalMeta.id];
+        evalMeta.sourceFingerprint = null;
       }
 
       try {
         const registry = getEvalRegistry();
         await runWithModuleIsolation(moduleIsolation, async () => {
-          await loadEvalModule(evalFilePath, codeFingerprint);
+          await runInEvalRuntimeScope('env', async () => {
+            await loadEvalModule(evalFilePath, codeFingerprint);
+          });
         });
 
         const entry = registry.get(evalMeta.id);
@@ -337,114 +341,118 @@ export async function executeRun({
         }
 
         await runWithModuleIsolation(moduleIsolation, async () => {
-          await entry.use(async (evalDef) => {
-            const cases = filterEvalCases(
-              resolveRunnableEvalCases({
-                cases:
-                  typeof evalDef.cases === 'function'
-                    ? await evalDef.cases()
-                    : (evalDef.cases ?? []),
-                evalId: evalMeta.id,
-              }),
-              request.target.evalIds,
-              request.target.caseIds,
-              evalMeta.id,
-            );
+          await runInEvalRuntimeScope('cases', async () => {
+            await entry.use(async (evalDef) => {
+              const cases = filterEvalCases(
+                resolveRunnableEvalCases({
+                  cases:
+                    typeof evalDef.cases === 'function'
+                      ? await evalDef.cases()
+                      : (evalDef.cases ?? []),
+                  evalId: evalMeta.id,
+                }),
+                request.target.evalIds,
+                request.target.caseIds,
+                evalMeta.id,
+              );
 
-            runState.summary.totalCases += cases.length;
+              runState.summary.totalCases += cases.length;
 
-            const accumulatedColumns = new Map<string, ColumnDef>();
-            const evalCaseRows: CaseRow[] = [];
-            const preparedCases: PreparedEvalCase[] = [];
-            const scoreKeys = Object.freeze(Object.keys(evalDef.scores ?? {}));
-            const manualScoreKeys = Object.freeze(
-              Object.keys(evalDef.manualScores ?? {}),
-            );
-            const preparedEval: PreparedEvalRun = {
-              evalMeta,
-              accumulatedColumns,
-              evalCaseRows,
-              preparedCases,
-              scoreKeys: Object.freeze([...scoreKeys, ...manualScoreKeys]),
-              mergeColumns: (columns) => {
-                mergeColumnDefs(
-                  accumulatedColumns,
-                  columns,
-                  evalDef.columns,
-                  evalDef.scores,
-                  evalDef.manualScores,
-                );
-              },
-            };
-            preparedEvals.push(preparedEval);
-
-            for (const evalCase of cases) {
-              const trialResults: TrialExecutionResult[] = [];
-              const preparedCase: PreparedEvalCase = {
-                caseId: evalCase.id,
-                trialResults,
-                finalized: false,
+              const accumulatedColumns = new Map<string, ColumnDef>();
+              const evalCaseRows: CaseRow[] = [];
+              const preparedCases: PreparedEvalCase[] = [];
+              const scoreKeys = Object.freeze(
+                Object.keys(evalDef.scores ?? {}),
+              );
+              const manualScoreKeys = Object.freeze(
+                Object.keys(evalDef.manualScores ?? {}),
+              );
+              const preparedEval: PreparedEvalRun = {
+                evalMeta,
+                accumulatedColumns,
+                evalCaseRows,
+                preparedCases,
+                scoreKeys: Object.freeze([...scoreKeys, ...manualScoreKeys]),
+                mergeColumns: (columns) => {
+                  mergeColumnDefs(
+                    accumulatedColumns,
+                    columns,
+                    evalDef.columns,
+                    evalDef.scores,
+                    evalDef.manualScores,
+                  );
+                },
               };
-              preparedCases.push(preparedCase);
+              preparedEvals.push(preparedEval);
 
-              for (let trial = 0; trial < request.trials; trial++) {
-                const bufferedCacheStore =
-                  cacheEnabled && cacheMode !== 'bypass'
-                    ? createBufferedCacheStore(cacheStore)
-                    : null;
+              for (const evalCase of cases) {
+                const trialResults: TrialExecutionResult[] = [];
+                const preparedCase: PreparedEvalCase = {
+                  caseId: evalCase.id,
+                  trialResults,
+                  finalized: false,
+                };
+                preparedCases.push(preparedCase);
 
-                queuedCases.push({
-                  execute: async ({ startTime, globalTraceDisplay }) => {
-                    const { caseDetail, caseRowUpdate } = await runCase({
-                      evalDef,
-                      evalId: evalMeta.id,
-                      evalCase,
-                      globalTraceDisplay,
-                      trial,
-                      startTime,
-                      cacheAdapter:
-                        bufferedCacheStore ??
-                        (cacheEnabled ? cacheStore : null),
-                      cacheMode,
-                      codeFingerprint,
-                      moduleIsolation,
-                      evalFilePath,
-                      workspaceRoot,
-                      artifactDir: join(runDir, 'artifacts'),
-                      runId: runState.manifest.id,
-                    });
+                for (let trial = 0; trial < request.trials; trial++) {
+                  const bufferedCacheStore =
+                    cacheEnabled && cacheMode !== 'bypass'
+                      ? createBufferedCacheStore(cacheStore)
+                      : null;
 
-                    return {
-                      caseDetail,
-                      caseRow: {
-                        caseId: evalCase.id,
+                  queuedCases.push({
+                    execute: async ({ startTime, globalTraceDisplay }) => {
+                      const { caseDetail, caseRowUpdate } = await runCase({
+                        evalDef,
                         evalId: evalMeta.id,
-                        status: caseRowUpdate.status ?? 'pending',
-                        latencyMs: caseRowUpdate.latencyMs ?? null,
-                        columns: caseRowUpdate.columns ?? {},
+                        evalCase,
+                        globalTraceDisplay,
                         trial,
-                      },
-                    };
-                  },
-                  onComplete: async ({ caseDetail, caseRow }) => {
-                    trialResults.push({
-                      caseDetail,
-                      caseRow,
-                      bufferedCacheStore,
-                    });
-                    if (trialResults.length !== request.trials) return;
-                    await finalizePreparedCase({
-                      runState,
-                      runDir,
-                      preparedEval,
-                      preparedCase,
-                      onCaseFinished,
-                      emitEvent,
-                    });
-                  },
-                });
+                        startTime,
+                        cacheAdapter:
+                          bufferedCacheStore ??
+                          (cacheEnabled ? cacheStore : null),
+                        cacheMode,
+                        codeFingerprint,
+                        moduleIsolation,
+                        evalFilePath,
+                        workspaceRoot,
+                        artifactDir: join(runDir, 'artifacts'),
+                        runId: runState.manifest.id,
+                      });
+
+                      return {
+                        caseDetail,
+                        caseRow: {
+                          caseId: evalCase.id,
+                          evalId: evalMeta.id,
+                          status: caseRowUpdate.status ?? 'pending',
+                          latencyMs: caseRowUpdate.latencyMs ?? null,
+                          columns: caseRowUpdate.columns ?? {},
+                          trial,
+                        },
+                      };
+                    },
+                    onComplete: async ({ caseDetail, caseRow }) => {
+                      trialResults.push({
+                        caseDetail,
+                        caseRow,
+                        bufferedCacheStore,
+                      });
+                      if (trialResults.length !== request.trials) return;
+                      await finalizePreparedCase({
+                        runState,
+                        runDir,
+                        preparedEval,
+                        preparedCase,
+                        onCaseFinished,
+                        emitEvent,
+                      });
+                    },
+                  });
+                }
               }
-            }
+            });
           });
         });
       } catch (error) {

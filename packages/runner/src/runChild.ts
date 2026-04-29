@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { relative } from 'node:path';
 import {
   columnDefSchema,
   createRunRequestSchema,
@@ -10,9 +11,11 @@ import {
   type CreateRunRequest,
   type EvalSummary,
 } from '@agent-evals/shared';
+import { glob } from 'glob';
 import { z } from 'zod/v4';
 import { createFsCacheStore } from './cacheStore.ts';
 import { loadConfig } from './config.ts';
+import { parseEvalMetas } from './discovery.ts';
 import type { RunChildContext, RunChildMessage } from './runChildProtocol.ts';
 import {
   executeRun,
@@ -39,7 +42,7 @@ const runChildContextSchema = z.object({
   runDir: z.string(),
   manifest: runManifestSchema,
   summary: runSummarySchema,
-  evals: z.array(evalMetaSchema),
+  evals: z.array(evalMetaSchema).optional(),
 });
 
 function sendMessage(message: RunChildMessage): void {
@@ -79,6 +82,54 @@ function getTargetEvals(params: {
   );
 }
 
+function toWorkspaceRelativePath(params: {
+  filePath: string;
+  workspaceRoot: string;
+}): string {
+  return relative(params.workspaceRoot, params.filePath).replaceAll('\\', '/');
+}
+
+async function discoverRunEvals(params: {
+  config: Awaited<ReturnType<typeof loadConfig>>;
+  workspaceRoot: string;
+}): Promise<EvalMeta[]> {
+  const discovered: string[] = [];
+
+  for (const pattern of params.config.include) {
+    const files = await glob(pattern, {
+      cwd: params.workspaceRoot,
+      absolute: true,
+    });
+    discovered.push(...files);
+  }
+
+  const evals = new Map<string, EvalMeta>();
+  for (const filePath of discovered) {
+    const source = await readFile(filePath, 'utf-8');
+    const sourceFingerprint = getSourceFingerprint(source);
+    const metas = parseEvalMetas(filePath, source);
+
+    for (const meta of metas) {
+      evals.set(meta.id, {
+        id: meta.id,
+        title: meta.title,
+        filePath: toWorkspaceRelativePath({
+          filePath: meta.filePath,
+          workspaceRoot: params.workspaceRoot,
+        }),
+        sourceFilePath: meta.filePath,
+        sourceFingerprint,
+        columnDefs: [],
+        caseCount: null,
+      });
+    }
+  }
+
+  return [...evals.values()].toSorted((a, b) =>
+    a.filePath.localeCompare(b.filePath),
+  );
+}
+
 async function readContext(contextPath: string | undefined) {
   if (contextPath === undefined) {
     throw new Error('Missing run child context path');
@@ -104,9 +155,11 @@ async function main(): Promise<void> {
       config.cache?.maxEntriesPerNamespace ?? config.cache?.maxEntriesPerEval,
     maxEntriesByNamespace: config.cache?.maxEntriesByNamespace,
   });
-  const evals = new Map(
-    context.evals.map((evalMeta) => [evalMeta.id, evalMeta]),
-  );
+  const evalMetas = await discoverRunEvals({
+    config,
+    workspaceRoot: context.workspaceRoot,
+  });
+  const evals = new Map(evalMetas.map((evalMeta) => [evalMeta.id, evalMeta]));
   const lastRunStatusMap = new Map<string, EvalSummary['lastRunStatus']>();
   const latestRunInfoMap = new Map<string, EvalLatestRunInfo>();
 

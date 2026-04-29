@@ -184,7 +184,10 @@ function applyChildEvalMetas(
 ): void {
   for (const childMeta of childMetas) {
     const evalMeta = evals.get(childMeta.id);
-    if (evalMeta === undefined) continue;
+    if (evalMeta === undefined) {
+      evals.set(childMeta.id, childMeta);
+      continue;
+    }
     evalMeta.columnDefs = childMeta.columnDefs;
     evalMeta.caseCount = childMeta.caseCount;
     evalMeta.stats = childMeta.stats;

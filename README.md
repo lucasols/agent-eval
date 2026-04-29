@@ -87,12 +87,21 @@ pnpm add -D @ls-stack/agent-eval
 
 A complete working example lives at [`examples/basic-agent`](./examples/basic-agent).
 
-## Agent Skill template
+## Agent Skill
 
-If your coding agent supports [Agent Skills](https://agentskills.io/home), copy
-[`templates/agent-eval/SKILL.md`](./templates/agent-eval/SKILL.md) as
-`agent-eval/SKILL.md` in your project's skills directory so the agent knows how
-to add and maintain evals with `@ls-stack/agent-eval`.
+`@ls-stack/agent-eval` ships an [Agent Skills](https://agentskills.io/home)
+skill using the [`skills-npm`](https://github.com/antfu/skills-npm)
+convention. The published package includes
+[`skills/agent-eval/SKILL.md`](./packages/cli/skills/agent-eval/SKILL.md), so
+projects can install and sync it with `skills-npm`:
+
+```sh
+pnpm add -D skills-npm
+pnpm exec skills-npm
+```
+
+Add `skills/npm-*` to `.gitignore` if `skills-npm` is configured to create
+local skill symlinks there.
 
 For first-time installation, use
 [`templates/agent-eval/install-prompt.md`](./templates/agent-eval/install-prompt.md)
@@ -140,10 +149,10 @@ defineEval({
 
 Notes:
 
-- `isInEvalScope()` returns `true` only while the current async execution is inside an eval case, which is useful when shared workflow code needs to branch on eval-only behavior.
-- `getEvalCaseInput()` returns the current case input while an eval case is executing, and `getEvalCaseInput('customer.tier')` reads nested values with dot-path access. Outside an eval run, both return `undefined`.
-- `nextEvalId()` returns a stable sequential id for the active eval file, eval id, and case id, such as `refund-workflow-evals-refund-workflow-eval-ts-simple-text-1`. It throws outside an eval run so accidental production-only usage is visible.
-- `evalAssert(...)` records a failed assertion only while an eval case is executing. Outside an eval run, it is a no-op so shared workflow code can be reused safely.
+- `isInEvalScope()` returns the current eval runner phase (`'env'`, `'cases'`, `'eval'`, `'derive'`, `'outputsSchema'`, or `'scorer'`) and returns `null` outside eval-owned work. This is useful when shared workflow code needs to branch on eval-only behavior. Top-level modules imported while a run is being prepared see `'env'`; code called from `execute` sees `'eval'`.
+- `getEvalCaseInput()` returns the current case input while an eval case is executing, and `getEvalCaseInput('customer.tier')` reads nested values with dot-path access. Outside a case scope, both return `undefined`.
+- `nextEvalId()` returns a stable sequential id for the active eval file, eval id, and case id, such as `refund-workflow-evals-refund-workflow-eval-ts-simple-text-1`. It throws outside an eval case scope so accidental production-only usage is visible.
+- `evalAssert(...)` records a failed assertion only while an eval case scope is active. Outside a case scope, it is a no-op so shared workflow code can be reused safely.
 - `mock.module(...)` only affects modules imported after the mock is registered.
 - Use dynamic `import(...)` inside `execute`; static imports happen too early.
 - The full working example is in [`examples/basic-agent/evals/support/playground/module-mock.eval.ts`](./examples/basic-agent/evals/support/playground/module-mock.eval.ts).

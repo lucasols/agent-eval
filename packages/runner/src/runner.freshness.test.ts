@@ -27,6 +27,141 @@ function runGit(workspacePath: string, args: string[]): void {
 }
 
 describe('runner freshness', () => {
+  test('discovers eval files inside the run child process', async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), 'agent-evals-runner-child-discovery-'),
+    );
+    createdWorkspaces.push(workspacePath);
+
+    await mkdir(join(workspacePath, 'evals'), { recursive: true });
+    await writeFile(
+      join(workspacePath, 'agent-evals.config.ts'),
+      `export default {
+  include: ['evals/**/*.eval.ts'],
+};
+`,
+    );
+
+    const previousCwd = process.cwd();
+    process.chdir(workspacePath);
+    let runner: ReturnType<typeof createRunner> | undefined;
+
+    try {
+      const activeRunner = createRunner({ watchForChanges: false });
+      runner = activeRunner;
+      await activeRunner.init();
+      expect(activeRunner.getEvals()).toEqual([]);
+
+      await writeFile(
+        join(workspacePath, 'evals', 'created-after-init.eval.ts'),
+        `import { defineEval, setEvalOutput } from '@agent-evals/sdk';
+
+defineEval({
+  id: 'created-after-init',
+  title: 'Created After Init',
+  cases: [{ id: 'case-1', input: {} }],
+  execute: async () => {
+    setEvalOutput('answer', 'fresh');
+  },
+});
+`,
+      );
+
+      const run = await activeRunner.startRun({
+        target: { mode: 'all' },
+        trials: 1,
+      });
+      await expect
+        .poll(() => activeRunner.getRun(run.manifest.id)?.manifest.status, {
+          timeout: 10_000,
+        })
+        .toBe('completed');
+
+      expect(activeRunner.getRun(run.manifest.id)?.summary).toMatchObject({
+        totalCases: 1,
+        passedCases: 1,
+      });
+      expect(activeRunner.getEval('created-after-init')).toMatchObject({
+        id: 'created-after-init',
+        title: 'Created After Init',
+      });
+    } finally {
+      await runner?.close();
+      process.chdir(previousCwd);
+    }
+  }, 10_000);
+
+  test('reports env during run-time module evaluation and eval during execute', async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), 'agent-evals-runner-runtime-scope-'),
+    );
+    createdWorkspaces.push(workspacePath);
+
+    await mkdir(join(workspacePath, 'evals'), { recursive: true });
+    await mkdir(join(workspacePath, 'src'), { recursive: true });
+    await writeFile(
+      join(workspacePath, 'agent-evals.config.ts'),
+      `export default {
+  include: ['evals/**/*.eval.ts'],
+};
+`,
+    );
+    await writeFile(
+      join(workspacePath, 'src', 'runtimeScope.ts'),
+      `import { isInEvalScope } from '@agent-evals/sdk';
+
+export const scopeAtModuleLoad = isInEvalScope();
+
+export function getScopeAtCall() {
+  return isInEvalScope();
+}
+`,
+    );
+    await writeFile(
+      join(workspacePath, 'evals', 'runtime-scope.eval.ts'),
+      `import { defineEval, setEvalOutput } from '@agent-evals/sdk';
+import { getScopeAtCall, scopeAtModuleLoad } from '../src/runtimeScope.ts';
+
+defineEval({
+  id: 'runtime-scope',
+  title: 'Runtime Scope',
+  cases: [{ id: 'case-1', input: {} }],
+  execute: () => {
+    setEvalOutput('scopeAtModuleLoad', scopeAtModuleLoad);
+    setEvalOutput('scopeAtCall', getScopeAtCall());
+  },
+});
+`,
+    );
+
+    const previousCwd = process.cwd();
+    process.chdir(workspacePath);
+    let runner: ReturnType<typeof createRunner> | undefined;
+
+    try {
+      const activeRunner = createRunner({ watchForChanges: false });
+      runner = activeRunner;
+      await activeRunner.init();
+
+      const run = await activeRunner.startRun({
+        target: { mode: 'all' },
+        trials: 1,
+      });
+      await expect
+        .poll(() => activeRunner.getRun(run.manifest.id)?.manifest.status, {
+          timeout: 10_000,
+        })
+        .toBe('completed');
+
+      expect(
+        activeRunner.getCaseDetail(run.manifest.id, 'case-1')?.columns,
+      ).toMatchObject({ scopeAtCall: 'eval', scopeAtModuleLoad: 'env' });
+    } finally {
+      await runner?.close();
+      process.chdir(previousCwd);
+    }
+  }, 10_000);
+
   test('reloads workspace modules between runs in the same runner process', async () => {
     const workspacePath = await mkdtemp(
       join(tmpdir(), 'agent-evals-runner-module-isolation-'),
@@ -54,12 +189,27 @@ export function getDbStatus(): 'ready' | 'missing' {
 }
 `,
     );
+    await writeFile(
+      join(workspacePath, 'src', 'cjsState.cjs'),
+      `const { existsSync } = require('node:fs');
+const { resolve } = require('node:path');
+
+const initialized = existsSync(resolve(process.cwd(), 'cjs-ready.txt'));
+
+module.exports = {
+  getCjsStatus() {
+    return initialized ? 'ready' : 'missing';
+  },
+};
+`,
+    );
     const sdkModuleUrl = pathToFileURL(
       join(dirname(fileURLToPath(import.meta.url)), '../../sdk/src/index.ts'),
     ).href;
     await writeFile(
       join(workspacePath, 'evals', 'db.eval.ts'),
       `import { defineEval, evalAssert, setEvalOutput } from ${JSON.stringify(sdkModuleUrl)};
+import cjsState from '../src/cjsState.cjs';
 import { getDbStatus } from '../src/dbState.ts';
 
 defineEval({
@@ -68,8 +218,11 @@ defineEval({
   cases: [{ id: 'case-1', input: {} }],
   execute: async () => {
     const status = getDbStatus();
+    const cjsStatus = cjsState.getCjsStatus();
     setEvalOutput('dbStatus', status);
+    setEvalOutput('cjsStatus', cjsStatus);
     evalAssert(status === 'ready', 'db should be initialized');
+    evalAssert(cjsStatus === 'ready', 'cjs module should be initialized');
   },
 });
 `,
@@ -109,6 +262,7 @@ const firstRun = await runner.startRun({
 const first = await waitForRun(firstRun.manifest.id);
 
 await writeFile(join(process.cwd(), 'db-ready.txt'), 'ready\\n');
+await writeFile(join(process.cwd(), 'cjs-ready.txt'), 'ready\\n');
 
 const secondRun = await runner.startRun({
   target: { mode: 'evalIds', evalIds: ['db-isolation-eval'] },

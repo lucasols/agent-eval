@@ -11,6 +11,7 @@ type ModuleIsolationContext = { key: string; workspaceRoot: string };
 
 const isolationStorage = new AsyncLocalStorage<ModuleIsolationContext>();
 const activeIsolationRoots = new Map<string, string>();
+const clearedRequireCacheKeys = new Set<string>();
 let hooksRegistered = false;
 const requireFromRunner = createRequire(import.meta.url);
 const agentPackageUrlBySpecifier = new Map(
@@ -55,7 +56,10 @@ function getIsolationKeyFromParent(
 function isWorkspaceFile(url: URL, workspaceRoot: string): boolean {
   if (url.protocol !== 'file:') return false;
 
-  const filePath = fileURLToPath(url);
+  return isWorkspaceFilePath(fileURLToPath(url), workspaceRoot);
+}
+
+function isWorkspaceFilePath(filePath: string, workspaceRoot: string): boolean {
   const relativePath = relative(workspaceRoot, filePath);
   if (
     relativePath === '' ||
@@ -112,18 +116,32 @@ function registerModuleIsolationHooks(): void {
   });
 }
 
+function clearWorkspaceRequireCacheOnce(context: ModuleIsolationContext): void {
+  if (clearedRequireCacheKeys.has(context.key)) return;
+  clearedRequireCacheKeys.add(context.key);
+
+  for (const filePath of Object.keys(requireFromRunner.cache)) {
+    if (isWorkspaceFilePath(filePath, context.workspaceRoot)) {
+      delete requireFromRunner.cache[filePath];
+    }
+  }
+}
+
 /**
  * Execute module loading and eval code with fresh workspace module URLs.
  *
  * Node does not expose an ESM cache reset API, so the runner appends a
- * run-scoped query parameter to workspace file imports. Package imports are
- * left alone so SDK singletons, such as the eval registry, remain shared.
+ * run-scoped query parameter to workspace file imports. CommonJS modules use
+ * `require.cache` behind ESM imports, so workspace entries are cleared once per
+ * run. Package imports are left alone so SDK singletons, such as the eval
+ * registry, remain shared.
  */
 export async function runWithModuleIsolation<T>(
   context: ModuleIsolationContext,
   fn: () => Promise<T>,
 ): Promise<T> {
   registerModuleIsolationHooks();
+  clearWorkspaceRequireCacheOnce(context);
   activeIsolationRoots.set(context.key, context.workspaceRoot);
   return await isolationStorage.run(context, fn);
 }

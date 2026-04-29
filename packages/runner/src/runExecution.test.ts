@@ -1,8 +1,10 @@
 import {
   evalTracer,
+  isInEvalScope,
   nextEvalId,
   setEvalOutput,
   startEvalBackgroundJob,
+  z,
 } from '@agent-evals/sdk';
 import { expect, test } from 'vitest';
 import { buildScopedEvalIdPrefix, runCase } from './runExecution.ts';
@@ -77,6 +79,61 @@ test('runCase gives execute and score scopes distinct deterministic eval IDs', a
   expect(
     result.caseDetail.scoringTraces?.quality?.trace.map((span) => span.name),
   ).toEqual([`${prefix}-score-quality-1`]);
+});
+
+test('runCase reports execute, derive, outputs schema, and scorer phases', async () => {
+  const observedScopes: (string | null)[] = [];
+
+  const result = await runCase({
+    evalDef: {
+      id: 'runtime-scope-eval',
+      cases: [{ id: 'case-one', input: {} }],
+      outputsSchema: z
+        .object({ derivedScope: z.string(), executeScope: z.string() })
+        .superRefine(() => {
+          observedScopes.push(isInEvalScope());
+        }),
+      execute: () => {
+        const scope = isInEvalScope();
+        observedScopes.push(scope);
+        setEvalOutput('executeScope', scope);
+      },
+      deriveFromTracing: () => {
+        const scope = isInEvalScope();
+        observedScopes.push(scope);
+        return { derivedScope: scope ?? 'missing' };
+      },
+      scores: {
+        phase: {
+          compute: () => {
+            const scope = isInEvalScope();
+            observedScopes.push(scope);
+            return scope === 'scorer' ? 1 : 0;
+          },
+        },
+      },
+    },
+    evalId: 'runtime-scope-eval',
+    evalCase: { id: 'case-one', input: {} },
+    globalTraceDisplay: undefined,
+    trial: 0,
+    startTime: Date.now(),
+    cacheAdapter: null,
+    cacheMode: 'use',
+    codeFingerprint: 'fingerprint',
+    moduleIsolation: undefined,
+    evalFilePath: '/repo/evals/support/runtime-scope.eval.ts',
+    workspaceRoot: '/repo',
+    artifactDir: '/repo/.agent-evals/runs/run-id/artifacts',
+    runId: 'run-id',
+  });
+
+  expect(observedScopes).toEqual(['eval', 'derive', 'outputsSchema', 'scorer']);
+  expect(result.caseDetail.columns).toMatchObject({
+    derivedScope: 'derive',
+    executeScope: 'eval',
+    phase: 1,
+  });
 });
 
 test('runCase waits for fire-and-forget spans before finalizing traces', async () => {

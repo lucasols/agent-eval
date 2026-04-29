@@ -14,7 +14,6 @@ export type RunChildContext = {
   runDir: string;
   manifest: RunManifest;
   summary: RunSummary;
-  evals: EvalMeta[];
 };
 
 export type RunChildMessage =

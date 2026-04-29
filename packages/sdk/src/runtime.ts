@@ -78,8 +78,25 @@ export type EvalCaseScope = {
   pendingBackgroundJobs: Set<Promise<unknown>>;
 };
 
+/**
+ * Runtime phase currently owned by the eval runner.
+ *
+ * `null` means the current async execution is outside an eval run. `env`
+ * covers run-time module/environment loading, including top-level code in
+ * modules imported while a run is being prepared.
+ */
+export type EvalRuntimeScope =
+  | 'env'
+  | 'cases'
+  | 'eval'
+  | 'derive'
+  | 'outputsSchema'
+  | 'scorer';
+
 const scopeStorage = new AsyncLocalStorage<EvalCaseScope>();
+const runtimeScopeStorage = new AsyncLocalStorage<EvalRuntimeScope>();
 let activeEvalScopeCount = 0;
+let activeEvalRuntimeScopeCount = 0;
 
 /** Error thrown when an eval assertion fails during case execution. */
 export class EvalAssertionError extends Error {
@@ -96,13 +113,16 @@ export function getCurrentScope(): EvalCaseScope | undefined {
 }
 
 /**
- * Return whether the current async execution is inside an active eval case.
+ * Return the current eval runner phase for this async execution.
  *
- * This is useful for shared workflow code that wants to branch on eval-only
- * behavior without importing or inspecting the full eval scope.
+ * Returns `null` outside eval-owned work, `env` while the runner is loading
+ * eval modules for a run, `cases` while generating cases, `eval` while running
+ * case `execute`, `derive` while deriving outputs from traces, `outputsSchema`
+ * while validating outputs, and `scorer` while computing scores.
  */
-export function isInEvalScope(): boolean {
-  return getCurrentScope() !== undefined;
+export function isInEvalScope(): EvalRuntimeScope | null {
+  if (activeEvalRuntimeScopeCount === 0) return null;
+  return runtimeScopeStorage.getStore() ?? null;
 }
 
 function registerBackgroundJobInScope<T>(
@@ -202,7 +222,43 @@ export type RunInEvalScopeOptions = {
   cacheContext?: CacheScopeContext;
   /** Whether registered background jobs should settle before scope finalizes. */
   waitForBackgroundJobs?: boolean;
+  /** Eval runner phase exposed through `isInEvalScope()`. Defaults to `eval`. */
+  runtimeScope?: EvalRuntimeScope;
 };
+
+/** Execute a callback while `isInEvalScope()` reports a runner phase. */
+export async function runInEvalRuntimeScope<T>(
+  runtimeScope: EvalRuntimeScope,
+  fn: () => Promise<T> | T,
+): Promise<T> {
+  activeEvalRuntimeScopeCount++;
+  try {
+    return await runtimeScopeStorage.run(runtimeScope, fn);
+  } finally {
+    activeEvalRuntimeScopeCount--;
+  }
+}
+
+/**
+ * Execute a callback with an existing case scope and a specific runner phase.
+ *
+ * Runner-internal helper for post-execute phases that still need access to the
+ * completed case scope through output, trace, assertion, and input helpers.
+ */
+export async function runInExistingEvalScope<T>(
+  scope: EvalCaseScope,
+  runtimeScope: EvalRuntimeScope,
+  fn: () => Promise<T> | T,
+): Promise<T> {
+  activeEvalScopeCount++;
+  try {
+    return await scopeStorage.run(scope, async () => {
+      return await runInEvalRuntimeScope(runtimeScope, fn);
+    });
+  } finally {
+    activeEvalScopeCount--;
+  }
+}
 
 /**
  * Execute a callback inside a fresh eval case scope and capture its outputs,
@@ -234,9 +290,10 @@ export async function runInEvalScope<T>(
     caseCacheRefs: [],
     pendingBackgroundJobs: new Set(),
   };
-  activeEvalScopeCount++;
-  try {
-    return await scopeStorage.run(scope, async () => {
+  return await runInExistingEvalScope(
+    scope,
+    options.runtimeScope ?? 'eval',
+    async () => {
       try {
         const result = await fn();
         if (options.waitForBackgroundJobs !== false) {
@@ -250,10 +307,8 @@ export async function runInEvalScope<T>(
         const err = error instanceof Error ? error : new Error(String(error));
         return { result: undefined, scope, error: err };
       }
-    });
-  } finally {
-    activeEvalScopeCount--;
-  }
+    },
+  );
 }
 
 /**

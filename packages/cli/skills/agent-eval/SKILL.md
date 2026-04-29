@@ -1,6 +1,6 @@
 ---
 name: agent-eval
-description: Create, run, and maintain TypeScript evals with @ls-stack/agent-eval. Use when adding eval coverage for an LLM or agent workflow, updating *.eval.ts files, checking eval results, configuring agent-evals.config.ts, inspecting saved .agent-evals run artifacts, or wiring product source code with evalTracer spans. For first-time installation, use the sibling `install-prompt.md` template instead.
+description: Create, run, and maintain TypeScript evals with @ls-stack/agent-eval. Use when adding eval coverage for an LLM or agent workflow, updating *.eval.ts files, checking eval results, configuring agent-evals.config.ts, inspecting saved .agent-evals run artifacts, or wiring product source code with evalTracer spans.
 ---
 
 # Agent Eval
@@ -39,12 +39,15 @@ invoke.
 when called outside an eval case scope, so leaving them in production paths is
 safe — they only record anything when the product code runs inside an eval's
 `execute`. Use `isInEvalScope()` to branch on eval-only behavior in shared code
-(e.g. skip a real network side effect). Use `getEvalCaseInput()` to read the
-current case input, or
-`getEvalCaseInput('customer.tier')` for nested dot-path access; outside an eval
-run it returns `undefined`. Use `nextEvalId()` inside eval-scoped code when a
+(e.g. skip a real network side effect): it returns `null` outside eval-owned
+work and returns `'env'`, `'cases'`, `'eval'`, `'derive'`, `'outputsSchema'`, or
+`'scorer'` during runner phases. Top-level modules imported while a run is being
+prepared see `'env'`; code called from `execute` sees `'eval'`. Use
+`getEvalCaseInput()` to read the current case input, or
+`getEvalCaseInput('customer.tier')` for nested dot-path access; outside a case
+scope it returns `undefined`. Use `nextEvalId()` inside eval-scoped code when a
 stable generated id is needed; it includes the eval file, eval id, case id, and
-a per-case sequence number, and throws outside an eval run.
+a per-case sequence number, and throws outside an eval case scope.
 
 ### Product code (instrumented once, reused everywhere)
 

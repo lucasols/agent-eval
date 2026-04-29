@@ -10,6 +10,7 @@ import {
   isInEvalScope,
   mergeEvalOutput,
   nextEvalId,
+  runInEvalRuntimeScope,
   runInEvalScope,
   setEvalOutput,
   type TraceActiveSpan,
@@ -18,7 +19,7 @@ import { expect, test } from 'vitest';
 
 test('evalAssert is a no-op outside an active eval scope', () => {
   expect(getCurrentScope()).toBeUndefined();
-  expect(isInEvalScope()).toBe(false);
+  expect(isInEvalScope()).toBeNull();
   expect(getEvalCaseInput()).toBeUndefined();
   expect(getEvalCaseInput('customer.tier')).toBeUndefined();
   expect(() => nextEvalId()).toThrow(
@@ -39,13 +40,32 @@ test('evalAssert still records and throws inside an active eval scope', async ()
   });
 
   expect(capturedScope).toBe(scope);
-  expect(capturedIsInEvalScope).toBe(true);
+  expect(capturedIsInEvalScope).toBe('eval');
   expect(error).toBeInstanceOf(EvalAssertionError);
   expect(scope.assertionFailures).toHaveLength(1);
   expect(scope.assertionFailures[0]?.message).toBe('expected failure');
   expect(scope.assertionFailures[0]?.stack).toContain(
     'EvalAssertionError: expected failure',
   );
+});
+
+test('isInEvalScope reports non-case runner phases', async () => {
+  expect(getCurrentScope()).toBeUndefined();
+  expect(isInEvalScope()).toBeNull();
+
+  await runInEvalRuntimeScope('env', async () => {
+    expect(getCurrentScope()).toBeUndefined();
+    expect(isInEvalScope()).toBe('env');
+
+    await runInEvalRuntimeScope('cases', () => {
+      expect(getCurrentScope()).toBeUndefined();
+      expect(isInEvalScope()).toBe('cases');
+    });
+
+    expect(isInEvalScope()).toBe('env');
+  });
+
+  expect(isInEvalScope()).toBeNull();
 });
 
 test('nextEvalId returns sequential IDs in the active eval scope', async () => {

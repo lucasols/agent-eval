@@ -3,7 +3,7 @@
 Copy the prompt below into a coding agent to install and bootstrap
 `@ls-stack/agent-eval` in a project. This is a one-time setup template, not a
 skill. Once the project has `agent-evals.config.ts` plus a first eval, switch
-to the `agent-eval` skill (sibling `SKILL.md`) for day-to-day authoring.
+to the bundled `agent-eval` skill for day-to-day authoring.
 
 ---
 
@@ -54,37 +54,27 @@ needed to author evals.
    .agent-evals/cache/*.lock/
    ```
 
-6. Install the `agent-eval` skill so future authoring work uses the authored
-   SKILL instead of re-reading this install prompt. Detect the project's
-   agent-skills directory in this order and use the first one that exists (do
-   not create a new convention if none are present — ask the user which to
-   use):
-   - `.claude/skills/` (Claude Code)
-   - `.cursor/skills/`
-   - `.agents/skills/`
-   - `skills/`
+6. Install `skills-npm` and sync the bundled `agent-eval` skill so future
+   authoring work uses the version shipped with the installed package instead
+   of re-reading this install prompt. Do not switch package managers.
+   - pnpm: `pnpm add -D skills-npm`, then `pnpm exec skills-npm --yes`
+   - npm: `npm install -D skills-npm`, then `npx skills-npm --yes`
+   - yarn: `yarn add -D skills-npm`, then `yarn skills-npm --yes`
+   - bun: `bun add -d skills-npm`, then `bunx skills-npm --yes`
 
-   Create `<skills-dir>/agent-eval/SKILL.md` by downloading the latest version
-   from the project repo:
-
-   ```sh
-   mkdir -p <skills-dir>/agent-eval
-   curl -fsSL \
-     https://raw.githubusercontent.com/lucasols/agent-eval/main/templates/agent-eval/SKILL.md \
-     -o <skills-dir>/agent-eval/SKILL.md
-   ```
-
-   Skip this step if `<skills-dir>/agent-eval/SKILL.md` already exists; tell
-   the user to re-run the `curl` command themselves if they want to refresh
-   it.
+   Add `skills/npm-*` to `.gitignore` if `skills-npm` creates local skill
+   symlinks there. If `package.json` has no `prepare` script, add
+   `"prepare": "skills-npm"` so the skill refreshes after dependency installs.
+   If a `prepare` script already exists, do not overwrite it; tell the user to
+   chain `skills-npm` into their existing prepare workflow when they are ready.
 
 7. Verify the install by running `agent-evals list` with the detected package
    manager (for example `pnpm exec agent-evals list`). The placeholder eval
    should appear.
 
 8. Do **not** add production tracing yet. Point the user at the `agent-eval`
-   skill (`<skills-dir>/agent-eval/SKILL.md`) for authoring real evals and
-   wiring `evalTracer` spans into product source code.
+   skill installed by `skills-npm` for authoring real evals and wiring
+   `evalTracer` spans into product source code.
 
 Report which steps ran, which were skipped (because the file already existed),
 and the output of `agent-evals list`.

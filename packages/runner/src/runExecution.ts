@@ -2,6 +2,7 @@ import { relative } from 'node:path';
 import {
   buildTraceTree,
   EvalAssertionError,
+  runInExistingEvalScope,
   runInEvalScope,
   setEvalOutput,
 } from '@agent-evals/sdk';
@@ -171,10 +172,17 @@ export async function runCase<
   }
 
   if (!nonAssertError && evalDef.deriveFromTracing) {
+    const { deriveFromTracing } = evalDef;
     try {
-      const derived = await callWithUnknownResult(evalDef.deriveFromTracing, [
-        { trace: traceTree, input: evalCase.input, case: evalCase },
-      ]);
+      const derived = await runInExistingEvalScope(
+        scope,
+        'derive',
+        async () => {
+          return await callWithUnknownResult(deriveFromTracing, [
+            { trace: traceTree, input: evalCase.input, case: evalCase },
+          ]);
+        },
+      );
       if (!isRecord(derived)) {
         throw new Error('deriveFromTracing must return an object');
       }
@@ -192,8 +200,14 @@ export async function runCase<
   }
 
   if (!nonAssertError && evalDef.outputsSchema) {
-    const parsedOutputs = evalDef.outputsSchema.safeParse(
-      getOutputsSchemaInput(evalDef.outputsSchema, scope.outputs),
+    const { outputsSchema } = evalDef;
+    const parsedOutputs = await runInExistingEvalScope(
+      scope,
+      'outputsSchema',
+      () =>
+        outputsSchema.safeParse(
+          getOutputsSchemaInput(outputsSchema, scope.outputs),
+        ),
     );
     if (parsedOutputs.success) {
       scope.outputs = { ...scope.outputs, ...parsedOutputs.data };
@@ -240,6 +254,7 @@ export async function runCase<
         {
           input: evalCase.input,
           idPrefix: `${scopedIdPrefix}-score-${toStableIdSegment(key)}`,
+          runtimeScope: 'scorer',
           cacheContext: cacheAdapter
             ? {
                 adapter: cacheAdapter,

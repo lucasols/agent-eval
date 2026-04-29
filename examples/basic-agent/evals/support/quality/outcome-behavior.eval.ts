@@ -76,7 +76,10 @@ defineEval<{ ticketId: string }>({
 defineEval({
   id: 'silent-pass-demo',
   execute: () => {
-    evalAssert(isInEvalScope(), 'silent pass demo should run inside an eval');
+    evalAssert(
+      isInEvalScope() === 'eval',
+      'silent pass demo should run inside eval execution',
+    );
   },
 });
 
