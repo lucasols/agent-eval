@@ -692,7 +692,12 @@ async function traceSpanInternal(
           codeFingerprint: ctx.codeFingerprint,
           recording: await serializeCacheRecording(recording),
         };
-        await ctx.adapter.write(entry);
+        await ctx.adapter.write(entry, {
+          rawKey: cacheOpts.key,
+          operationType: 'span',
+          operationName: info.name,
+          codeFingerprint: ctx.codeFingerprint,
+        });
       }
 
       return bodyResult;

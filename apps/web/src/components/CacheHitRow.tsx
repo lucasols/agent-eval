@@ -1,6 +1,6 @@
 import {
-  cacheEntrySchema,
-  type CacheEntry,
+  cacheEntryWithDebugKeySchema,
+  type CacheEntryWithDebugKey,
   type CacheHitEntry,
 } from '@agent-evals/shared';
 import { useActionFn } from '@ls-stack/react-utils/useActionFn';
@@ -144,7 +144,7 @@ function truncateKey(key: string): string {
 type FetchState =
   | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'loaded'; entry: CacheEntry }
+  | { status: 'loaded'; entry: CacheEntryWithDebugKey }
   | { status: 'deleted' }
   | { status: 'error'; message: string };
 
@@ -195,7 +195,7 @@ export function CacheHitRow({ entry }: { entry: CacheHitEntry }) {
       return;
     }
     const parseResult = resultify(() =>
-      cacheEntrySchema.parse(jsonResult.value),
+      cacheEntryWithDebugKeySchema.parse(jsonResult.value),
     );
     if (parseResult.error) {
       setFetchState({ status: 'error', message: parseResult.error.message });
@@ -301,6 +301,17 @@ export function CacheHitRow({ entry }: { entry: CacheHitEntry }) {
 
           {fetchState.status === 'loaded' ? (
             <>
+              {fetchState.entry.debugKey !== undefined ? (
+                <SectionWrapper>
+                  <SectionLabel>Raw cache key</SectionLabel>
+                  <JsonViewer
+                    value={fetchState.entry.debugKey.rawKey}
+                    compact
+                    maxHeight="raw"
+                    collapsed={4}
+                  />
+                </SectionWrapper>
+              ) : null}
               <SectionWrapper>
                 <SectionLabel>Cached return value</SectionLabel>
                 <JsonViewer

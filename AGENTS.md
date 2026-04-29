@@ -56,6 +56,7 @@ Once the implementation is in place, complete the following before marking the t
 - Update the root `README.md` whenever user-facing behavior, APIs, CLI flags, config, or commands change.
 - Update `templates/agent-eval/SKILL.md` whenever new features, behavior changes, APIs, CLI flags, config, commands, artifacts, or recommended eval workflows change, so the copy-paste Agent Skill template stays accurate for library users.
 - Add or update JSDoc on every public API touched (exports from `packages/sdk`, `packages/shared`, `packages/runner`, and `packages/cli`). Document intent, parameters, return values, and notable edge cases.
+- Present to the user which evals in app exercise the adjusts so they can test them out.
 
 # Intent over literalism
 

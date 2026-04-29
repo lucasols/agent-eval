@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { relative } from 'node:path';
+import { configureEvalRunLogs } from '@agent-evals/sdk';
 import {
   columnDefSchema,
   createRunRequestSchema,
@@ -148,6 +149,9 @@ async function main(): Promise<void> {
   process.chdir(context.workspaceRoot);
 
   const config = await loadConfig();
+  configureEvalRunLogs({
+    captureConsole: config.runLogs?.captureConsole !== false,
+  });
   const cacheStore = createFsCacheStore({
     workspaceRoot: context.workspaceRoot,
     dir: config.cache?.dir,

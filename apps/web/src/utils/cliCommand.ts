@@ -25,5 +25,5 @@ export function buildEvalDebugCliCommand(params: {
   packageManager: PackageManager;
   evalId: string;
 }): string {
-  return `${getAgentEvalsCommandPrefix(params.packageManager)} run --inspect-brk --eval ${shellQuote(params.evalId)}`;
+  return `${getAgentEvalsCommandPrefix(params.packageManager)} run --inspect --eval ${shellQuote(params.evalId)}`;
 }

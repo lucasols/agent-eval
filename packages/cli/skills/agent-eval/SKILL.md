@@ -39,10 +39,10 @@ file wires up cases and scoring; the real `evalTracer.span(...)` calls sit
 inside the workflow, agent, or tool functions that both production and evals
 invoke.
 
-`evalTracer`, `evalSpan`, output helpers, and `evalAssert` are ambient no-ops
-when called outside an eval case scope, so leaving them in production paths is
-safe — they only record anything when the product code runs inside an eval's
-`execute`. Use `isInEvalScope()` to branch on eval-only behavior in shared code
+`evalTracer`, `evalSpan`, output helpers, `evalLog`, and `evalAssert` are
+ambient no-ops when called outside an eval case scope, so leaving them in
+production paths is safe — they only record anything when the product code runs
+inside an eval's `execute`. Use `isInEvalScope()` to branch on eval-only behavior in shared code
 (e.g. skip a real network side effect): it returns `null` outside eval-owned
 work and returns `'env'`, `'cases'`, `'eval'`, `'derive'`, `'outputsSchema'`, or
 `'scorer'` during runner phases. Top-level modules imported while a run is being
@@ -52,6 +52,11 @@ prepared see `'env'`; code called from `execute` sees `'eval'`. Use
 scope it returns `undefined`. Use `nextEvalId()` inside eval-scoped code when a
 stable generated id is needed; it includes the eval file, eval id, case id, and
 a per-case sequence number, and throws outside an eval case scope.
+Use `evalLog(level, ...args)` for intentional per-case logs. The runner also
+captures `console.log`, `console.info`, `console.warn`, and `console.error`
+during case-owned phases by default; log arguments are stored as JSON-safe
+values and rendered with the JSON viewer, collapsed previews are capped, and
+logs inside cached operations are not replayed from cache hits.
 
 ### Product code (instrumented once, reused everywhere)
 
@@ -260,6 +265,10 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   `error` read from conventional attribute paths. Override `kinds` or
   `attributes.<field>` for external tracers, and add `metrics` with the same
   formats and placements as LLM-call metrics.
+- `runLogs` (in `agent-evals.config.ts`) controls case log capture. Use
+  `runLogs: { captureConsole: false }` to keep console output in the terminal
+  without persisting console calls to case details. Manual `evalLog(...)` calls
+  are still captured.
 
 Stats rows and history charts on the eval card are opt-in via `stats` /
 `charts` on the eval definition. Their shapes live in the types; no need to
@@ -329,6 +338,10 @@ Mental model:
   `.agent-evals/cache/<owner>.json`; each namespace is capped at 100 entries by
   default. Configure `cache.maxEntriesPerNamespace` for the default cap and
   `cache.maxEntriesByNamespace` for exact namespace-specific caps.
+- Authored raw cache keys are stored for debugging under
+  `.agent-evals/cache-debug/<owner>.json`. This folder may include prompts,
+  user inputs, or other sensitive data, should be gitignored, and is not needed
+  for cache reuse. The UI Cache hits tab shows the raw key when it is available.
 - Cached payloads use advance serialization/deserialization with the Web API plugin set, so return values and
   recorded SDK effects preserve richer built-ins such as `Date`, `Map`, `Set`,
   typed arrays, `URL`, `Headers`, `Blob`, and `File` on hits. Cache keys still

@@ -6,6 +6,7 @@ dist/
 !**/.agent-evals/cache/*.json
 **/.agent-evals/cache/*.tmp
 **/.agent-evals/cache/*.lock/
+**/.agent-evals/cache-debug/
 *.tsbuildinfo
 
 # IDE

@@ -28,13 +28,13 @@ describe('eval run rows ui', () => {
         packageManager: 'pnpm',
         evalId: 'errored-span-demo',
       }),
-    ).toBe('pnpm exec agent-evals run --inspect-brk --eval errored-span-demo');
+    ).toBe('pnpm exec agent-evals run --inspect --eval errored-span-demo');
     expect(
       buildEvalDebugCliCommand({
         packageManager: 'npm',
         evalId: 'needs quotes',
       }),
-    ).toBe("npm exec agent-evals -- run --inspect-brk --eval 'needs quotes'");
+    ).toBe("npm exec agent-evals -- run --inspect --eval 'needs quotes'");
   });
 
   test('builds eval-scoped summaries from filtered case rows instead of the whole run', () => {

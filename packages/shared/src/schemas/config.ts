@@ -178,6 +178,18 @@ export const apiCallsConfigSchema = z.object({
 /** Authored API calls config accepted from `agent-evals.config.ts`. */
 export type ApiCallsConfigInput = z.infer<typeof apiCallsConfigSchema>;
 
+/** Schema for workspace-level run log capture options. */
+export const runLogsConfigSchema = z.object({
+  /**
+   * Capture `console.log`, `console.info`, `console.warn`, and
+   * `console.error` calls made inside active eval case scopes. Defaults to
+   * `true`; manual `evalLog(...)` calls are always captured.
+   */
+  captureConsole: z.boolean().optional(),
+});
+/** Workspace-level run log capture options. */
+export type RunLogsConfigInput = z.infer<typeof runLogsConfigSchema>;
+
 /** Resolved LLM-calls config sent to the UI with all defaults applied. */
 export type ResolvedLlmCallsConfig = {
   kinds: string[];
@@ -445,6 +457,16 @@ export type AgentEvalsConfig = {
    */
   apiCalls?: ApiCallsConfigInput;
   /**
+   * Configuration for case run logs.
+   *
+   * Console capture is enabled by default and stores `console.log`,
+   * `console.info`, `console.warn`, and `console.error` calls made during
+   * active case-owned phases. Set `captureConsole: false` to keep console
+   * output visible in the terminal without persisting it to case details.
+   * Manual `evalLog(...)` calls are still persisted.
+   */
+  runLogs?: RunLogsConfigInput;
+  /**
    * Optional controls for the operation cache. When omitted, the cache is
    * enabled and stored under `<workspaceRoot>/.agent-evals/cache`.
    */
@@ -480,6 +502,7 @@ export const agentEvalsConfigSchema = z.object({
   traceDisplay: traceDisplayInputConfigSchema.optional(),
   llmCalls: llmCallsConfigSchema.optional(),
   apiCalls: apiCallsConfigSchema.optional(),
+  runLogs: runLogsConfigSchema.optional(),
   cache: z
     .object({
       enabled: z.boolean().optional(),

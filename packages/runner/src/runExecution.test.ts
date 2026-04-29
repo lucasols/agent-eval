@@ -1,11 +1,15 @@
 import {
+  configureEvalRunLogs,
+  evalLog,
   evalTracer,
   isInEvalScope,
   nextEvalId,
   setEvalOutput,
   startEvalBackgroundJob,
   z,
+  type CacheAdapter,
 } from '@agent-evals/sdk';
+import type { CacheEntry } from '@agent-evals/shared';
 import { expect, test } from 'vitest';
 import { buildScopedEvalIdPrefix, runCase } from './runExecution.ts';
 
@@ -134,6 +138,249 @@ test('runCase reports execute, derive, outputs schema, and scorer phases', async
     executeScope: 'eval',
     phase: 1,
   });
+});
+
+test('runCase stores manual and console logs with phase metadata', async () => {
+  configureEvalRunLogs({ captureConsole: true });
+
+  const result = await runCase({
+    evalDef: {
+      id: 'logs-eval',
+      cases: [{ id: 'case-one', input: {} }],
+      outputsSchema: z.object({ ok: z.boolean() }).superRefine(() => {
+        evalLog('warning', 'schema warning');
+      }),
+      execute: () => {
+        evalLog('info', 'manual %s', 'entry');
+        console.warn('console warning', { id: 123 });
+        setEvalOutput('ok', true);
+      },
+      deriveFromTracing: () => {
+        console.info('derive info');
+        return {};
+      },
+      scores: {
+        quality: {
+          compute: () => {
+            evalLog('error', 'score note');
+            return 1;
+          },
+        },
+      },
+    },
+    evalId: 'logs-eval',
+    evalCase: { id: 'case-one', input: {} },
+    globalTraceDisplay: undefined,
+    trial: 0,
+    startTime: Date.now(),
+    cacheAdapter: null,
+    cacheMode: 'use',
+    codeFingerprint: 'fingerprint',
+    moduleIsolation: undefined,
+    evalFilePath: '/repo/evals/support/logs.eval.ts',
+    workspaceRoot: '/repo',
+    artifactDir: '/repo/.agent-evals/runs/run-id/artifacts',
+    runId: 'run-id',
+  });
+
+  expect(
+    result.caseDetail.logs.map((entry) => ({
+      level: entry.level,
+      phase: entry.phase,
+      message: entry.message,
+      args: entry.args,
+      source: entry.source,
+      truncated: entry.truncated,
+    })),
+  ).toEqual([
+    {
+      level: 'info',
+      phase: 'eval',
+      message: 'manual entry',
+      args: ['manual %s', 'entry'],
+      source: undefined,
+      truncated: false,
+    },
+    {
+      level: 'warn',
+      phase: 'eval',
+      message: 'console warning { id: 123 }',
+      args: ['console warning', { id: 123 }],
+      source: undefined,
+      truncated: false,
+    },
+    {
+      level: 'info',
+      phase: 'derive',
+      message: 'derive info',
+      args: ['derive info'],
+      source: undefined,
+      truncated: false,
+    },
+    {
+      level: 'warn',
+      phase: 'outputsSchema',
+      message: 'schema warning',
+      args: ['schema warning'],
+      source: undefined,
+      truncated: false,
+    },
+    {
+      level: 'error',
+      phase: 'scorer',
+      message: 'score note',
+      args: ['score note'],
+      source: 'quality',
+      truncated: false,
+    },
+  ]);
+  for (const entry of result.caseDetail.logs) {
+    expect(entry.timestamp).toEqual(expect.any(String));
+  }
+});
+
+test('console capture can be disabled without disabling evalLog', async () => {
+  configureEvalRunLogs({ captureConsole: false });
+
+  try {
+    const result = await runCase({
+      evalDef: {
+        id: 'console-disabled-eval',
+        cases: [{ id: 'case-one', input: {} }],
+        execute: () => {
+          console.error('not persisted');
+          evalLog('log', 'persisted manual log');
+        },
+      },
+      evalId: 'console-disabled-eval',
+      evalCase: { id: 'case-one', input: {} },
+      globalTraceDisplay: undefined,
+      trial: 0,
+      startTime: Date.now(),
+      cacheAdapter: null,
+      cacheMode: 'use',
+      codeFingerprint: 'fingerprint',
+      moduleIsolation: undefined,
+      evalFilePath: '/repo/evals/support/console-disabled.eval.ts',
+      workspaceRoot: '/repo',
+      artifactDir: '/repo/.agent-evals/runs/run-id/artifacts',
+      runId: 'run-id',
+    });
+
+    expect(result.caseDetail.logs.map((entry) => entry.message)).toEqual([
+      'persisted manual log',
+    ]);
+  } finally {
+    configureEvalRunLogs({ captureConsole: true });
+  }
+});
+
+test('individual log messages are truncated before persistence', async () => {
+  const longMessage = 'x'.repeat(25_000);
+
+  const result = await runCase({
+    evalDef: {
+      id: 'log-truncation-eval',
+      cases: [{ id: 'case-one', input: {} }],
+      execute: () => {
+        evalLog('log', longMessage);
+      },
+    },
+    evalId: 'log-truncation-eval',
+    evalCase: { id: 'case-one', input: {} },
+    globalTraceDisplay: undefined,
+    trial: 0,
+    startTime: Date.now(),
+    cacheAdapter: null,
+    cacheMode: 'use',
+    codeFingerprint: 'fingerprint',
+    moduleIsolation: undefined,
+    evalFilePath: '/repo/evals/support/log-truncation.eval.ts',
+    workspaceRoot: '/repo',
+    artifactDir: '/repo/.agent-evals/runs/run-id/artifacts',
+    runId: 'run-id',
+  });
+
+  const [entry] = result.caseDetail.logs;
+  expect(entry?.truncated).toBe(true);
+  expect(entry?.message).toHaveLength(20_003);
+  expect(entry?.message.endsWith('...')).toBe(true);
+  expect(entry?.args).toEqual([`${'x'.repeat(10_000)}...`]);
+});
+
+test('cached spans replay outputs but do not replay logs', async () => {
+  const cacheEntries = new Map<string, CacheEntry>();
+  const cacheAdapter: CacheAdapter = {
+    lookup(namespace, keyHash) {
+      return Promise.resolve(
+        cacheEntries.get(`${namespace}:${keyHash}`) ?? null,
+      );
+    },
+    write(entry) {
+      cacheEntries.set(`${entry.namespace}:${entry.key}`, entry);
+      return Promise.resolve();
+    },
+  };
+
+  const evalDef = {
+    id: 'cached-log-eval',
+    cases: [{ id: 'case-one', input: {} }],
+    execute: async () => {
+      await evalTracer.span(
+        {
+          kind: 'tool',
+          name: 'cached-tool',
+          cache: { key: { caseId: 'case-one' } },
+        },
+        () => {
+          evalLog('info', 'inside cached operation');
+          setEvalOutput('value', 'from cached operation');
+          return 'done';
+        },
+      );
+    },
+  };
+
+  const first = await runCase({
+    evalDef,
+    evalId: 'cached-log-eval',
+    evalCase: { id: 'case-one', input: {} },
+    globalTraceDisplay: undefined,
+    trial: 0,
+    startTime: Date.now(),
+    cacheAdapter,
+    cacheMode: 'use',
+    codeFingerprint: 'fingerprint',
+    moduleIsolation: undefined,
+    evalFilePath: '/repo/evals/support/cached-log.eval.ts',
+    workspaceRoot: '/repo',
+    artifactDir: '/repo/.agent-evals/runs/run-id/artifacts',
+    runId: 'run-id',
+  });
+
+  const second = await runCase({
+    evalDef,
+    evalId: 'cached-log-eval',
+    evalCase: { id: 'case-one', input: {} },
+    globalTraceDisplay: undefined,
+    trial: 0,
+    startTime: Date.now(),
+    cacheAdapter,
+    cacheMode: 'use',
+    codeFingerprint: 'fingerprint',
+    moduleIsolation: undefined,
+    evalFilePath: '/repo/evals/support/cached-log.eval.ts',
+    workspaceRoot: '/repo',
+    artifactDir: '/repo/.agent-evals/runs/run-id/artifacts',
+    runId: 'run-id',
+  });
+
+  expect(first.caseDetail.columns.value).toBe('from cached operation');
+  expect(first.caseDetail.logs.map((entry) => entry.message)).toEqual([
+    'inside cached operation',
+  ]);
+  expect(second.caseDetail.columns.value).toBe('from cached operation');
+  expect(second.caseDetail.logs).toEqual([]);
 });
 
 test('runCase waits for fire-and-forget spans before finalizing traces', async () => {

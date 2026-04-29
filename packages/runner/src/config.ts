@@ -35,6 +35,7 @@ const defaultConfig: AgentEvalsConfig = {
       },
     ],
   },
+  runLogs: { captureConsole: true },
 };
 
 export async function loadConfig(): Promise<AgentEvalsConfig> {

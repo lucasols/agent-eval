@@ -47,8 +47,10 @@ needed to author evals.
    safety default unless the user explicitly wants unfiltered CLI runs; in that
    case set `allowCliRunAll: true` in `agent-evals.config.ts`.
 
-5. Ignore persisted run output. Cache files under `.agent-evals/cache/*.json`
-   are bounded and may be committed when a project wants to share them. Append
+5. Ignore persisted run output and raw cache-key debug data. Cache files under
+   `.agent-evals/cache/*.json` are bounded and may be committed when a project
+   wants to share them. Raw keys under `.agent-evals/cache-debug/` may contain
+   prompts, user inputs, or other sensitive data and should stay local. Append
    to `.gitignore` if the entries are not already there:
 
    ```gitignore
@@ -56,6 +58,7 @@ needed to author evals.
    .agent-evals/cache/*/
    .agent-evals/cache/*.tmp
    .agent-evals/cache/*.lock/
+   .agent-evals/cache-debug/
    ```
 
 6. Symlink the bundled `agent-eval` skill folder into the project's local

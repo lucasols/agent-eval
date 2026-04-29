@@ -271,6 +271,9 @@ export async function runCase<
         globalTraceDisplay,
         evalDef.traceDisplay,
       );
+      scope.logs.push(
+        ...scoreRun.scope.logs.map((entry) => ({ ...entry, source: key })),
+      );
       if (trace.length > 0) {
         scoringTraces[key] = { trace, traceDisplay };
       }
@@ -362,6 +365,7 @@ export async function runCase<
     traceDisplay,
     columns,
     assertionFailures: scope.assertionFailures,
+    logs: scope.logs,
     error: errorInfo,
     trial,
     cacheRefs: scope.caseCacheRefs,

@@ -124,16 +124,24 @@ export function createTraceCache(generateSpanId: () => string): {
         finalAttributes,
         ops: frame.ops,
       };
-      await cacheCtx.adapter.write({
-        version: 1,
-        key: keyHash,
-        namespace,
-        operationType: 'value',
-        operationName: info.name,
-        storedAt: new Date().toISOString(),
-        codeFingerprint: cacheCtx.codeFingerprint,
-        recording: await serializeCacheRecording(recording),
-      });
+      await cacheCtx.adapter.write(
+        {
+          version: 1,
+          key: keyHash,
+          namespace,
+          operationType: 'value',
+          operationName: info.name,
+          storedAt: new Date().toISOString(),
+          codeFingerprint: cacheCtx.codeFingerprint,
+          recording: await serializeCacheRecording(recording),
+        },
+        {
+          rawKey: info.key,
+          operationType: 'value',
+          operationName: info.name,
+          codeFingerprint: cacheCtx.codeFingerprint,
+        },
+      );
     }
 
     return bodyResult;

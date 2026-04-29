@@ -1,12 +1,31 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { formatWithOptions } from 'node:util';
 import type {
   AssertionFailure,
   CacheEntry,
+  CacheOperationType,
   CacheMode,
   CacheRecordingOp,
   EvalTraceSpan,
+  RunLogEntry,
+  RunLogLevel,
+  RunLogPhase,
   TraceCacheRef,
 } from '@agent-evals/shared';
+
+/**
+ * Raw-key debug payload passed alongside cache writes.
+ *
+ * `rawKey` may include prompt text, user input, or other sensitive material.
+ * Runners store it outside the reusable cache so projects can gitignore the
+ * debug folder while keeping hash-only cache entries shareable.
+ */
+export type CacheDebugKeyWrite = {
+  rawKey: unknown;
+  operationType: CacheOperationType;
+  operationName: string;
+  codeFingerprint: string;
+};
 
 /**
  * Adapter used by the SDK to read and write cache entries.
@@ -17,8 +36,14 @@ import type {
 export type CacheAdapter = {
   /** Return the stored entry for `keyHash` under `namespace`, or `null`. */
   lookup(namespace: string, keyHash: string): Promise<CacheEntry | null>;
-  /** Persist a cache entry. Must be safe under concurrent calls. */
-  write(entry: CacheEntry): Promise<void>;
+  /**
+   * Persist a cache entry. Must be safe under concurrent calls.
+   *
+   * `debugKey` is optional and contains the authored raw key value for
+   * debugging. It may contain sensitive prompt/input data and should be stored
+   * separately from reusable cache files.
+   */
+  write(entry: CacheEntry, debugKey?: CacheDebugKeyWrite): Promise<void>;
 };
 
 /** Runner-supplied cache context attached to an eval case scope. */
@@ -52,6 +77,8 @@ export type EvalCaseScope = {
   outputs: Record<string, unknown>;
   /** Structured assertion failures recorded for the current case. */
   assertionFailures: AssertionFailure[];
+  /** Logs captured from manual `evalLog(...)` calls and enabled console calls. */
+  logs: RunLogEntry[];
   spans: EvalTraceSpan[];
   checkpoints: Map<string, unknown>;
   spanStack: string[];
@@ -97,6 +124,28 @@ const scopeStorage = new AsyncLocalStorage<EvalCaseScope>();
 const runtimeScopeStorage = new AsyncLocalStorage<EvalRuntimeScope>();
 let activeEvalScopeCount = 0;
 let activeEvalRuntimeScopeCount = 0;
+let consoleCaptureEnabled = true;
+
+const maxLogMessageLength = 20_000;
+const maxLogStringLength = 10_000;
+const maxLogArrayLength = 100;
+const maxLogObjectEntries = 100;
+const maxLogValueDepth = 5;
+const consoleCaptureMethods = ['log', 'info', 'warn', 'error'] as const;
+type ConsoleCaptureMethod = (typeof consoleCaptureMethods)[number];
+type EvalLogLevelInput = RunLogLevel | 'warning';
+const runtimeConsole = globalThis.console;
+type LogValueContext = { seen: WeakSet<object>; truncated: boolean };
+
+const originalConsoleMethods: Record<
+  ConsoleCaptureMethod,
+  (...args: unknown[]) => void
+> = {
+  log: runtimeConsole.log.bind(runtimeConsole),
+  info: runtimeConsole.info.bind(runtimeConsole),
+  warn: runtimeConsole.warn.bind(runtimeConsole),
+  error: runtimeConsole.error.bind(runtimeConsole),
+};
 
 /** Error thrown when an eval assertion fails during case execution. */
 export class EvalAssertionError extends Error {
@@ -123,6 +172,199 @@ export function getCurrentScope(): EvalCaseScope | undefined {
 export function isInEvalScope(): EvalRuntimeScope | null {
   if (activeEvalRuntimeScopeCount === 0) return null;
   return runtimeScopeStorage.getStore() ?? null;
+}
+
+function normalizeLogLevel(level: EvalLogLevelInput): RunLogLevel {
+  return level === 'warning' ? 'warn' : level;
+}
+
+function getCurrentLogPhase(): RunLogPhase | null {
+  const runtimeScope = runtimeScopeStorage.getStore();
+  if (
+    runtimeScope === 'eval' ||
+    runtimeScope === 'derive' ||
+    runtimeScope === 'outputsSchema' ||
+    runtimeScope === 'scorer'
+  ) {
+    return runtimeScope;
+  }
+  return null;
+}
+
+function formatLogArgs(args: unknown[]): {
+  message: string;
+  truncated: boolean;
+} {
+  const formatted = formatWithOptions(
+    {
+      depth: 2,
+      maxArrayLength: 100,
+      maxStringLength: 10_000,
+      breakLength: 80,
+      compact: 3,
+    },
+    ...args,
+  );
+  if (formatted.length <= maxLogMessageLength) {
+    return { message: formatted, truncated: false };
+  }
+  return {
+    message: `${formatted.slice(0, maxLogMessageLength)}...`,
+    truncated: true,
+  };
+}
+
+function truncateLogString(value: string, ctx: LogValueContext): string {
+  if (value.length <= maxLogStringLength) return value;
+  ctx.truncated = true;
+  return `${value.slice(0, maxLogStringLength)}...`;
+}
+
+function primitiveToLogValue(
+  value: unknown,
+  ctx: LogValueContext,
+): { handled: boolean; value: unknown } {
+  if (typeof value === 'string') {
+    return { handled: true, value: truncateLogString(value, ctx) };
+  }
+  if (
+    value === null ||
+    typeof value === 'number' ||
+    typeof value === 'boolean'
+  ) {
+    return { handled: true, value };
+  }
+  if (value === undefined) return { handled: true, value: '[undefined]' };
+  if (typeof value === 'bigint') {
+    return { handled: true, value: `${value.toString()}n` };
+  }
+  if (typeof value === 'symbol') return { handled: true, value: String(value) };
+  if (typeof value === 'function') {
+    return {
+      handled: true,
+      value: `[Function${value.name.length > 0 ? `: ${value.name}` : ''}]`,
+    };
+  }
+  return { handled: false, value: null };
+}
+
+function objectToLogValue(
+  value: object,
+  ctx: LogValueContext,
+  depth: number,
+): unknown {
+  if (value instanceof Date) return value.toISOString();
+  if (value instanceof Error) {
+    return { name: value.name, message: value.message, stack: value.stack };
+  }
+  if (ctx.seen.has(value)) return '[Circular]';
+  if (depth >= maxLogValueDepth) {
+    ctx.truncated = true;
+    return Array.isArray(value) ? '[Array]' : '[Object]';
+  }
+
+  ctx.seen.add(value);
+  try {
+    if (Array.isArray(value)) {
+      const limited = value
+        .slice(0, maxLogArrayLength)
+        .map((item) => toLogJsonValue(item, ctx, depth + 1));
+      if (value.length > maxLogArrayLength) {
+        ctx.truncated = true;
+        limited.push(`[... ${String(value.length - maxLogArrayLength)} more]`);
+      }
+      return limited;
+    }
+
+    const entries = Object.entries(value);
+    const result: Record<string, unknown> = {};
+    for (const [key, entryValue] of entries.slice(0, maxLogObjectEntries)) {
+      result[key] = toLogJsonValue(entryValue, ctx, depth + 1);
+    }
+    if (entries.length > maxLogObjectEntries) {
+      ctx.truncated = true;
+      result.__truncated = `${String(entries.length - maxLogObjectEntries)} more properties`;
+    }
+    return result;
+  } finally {
+    ctx.seen.delete(value);
+  }
+}
+
+function toLogJsonValue(
+  value: unknown,
+  ctx: LogValueContext,
+  depth: number,
+): unknown {
+  const primitive = primitiveToLogValue(value, ctx);
+  if (primitive.handled) return primitive.value;
+  if (typeof value === 'object' && value !== null) {
+    return objectToLogValue(value, ctx, depth);
+  }
+  return String(value);
+}
+
+function toLogJsonArgs(args: unknown[]): {
+  args: unknown[];
+  truncated: boolean;
+} {
+  const ctx: LogValueContext = {
+    seen: new WeakSet<object>(),
+    truncated: false,
+  };
+  return {
+    args: args.map((value) => toLogJsonValue(value, ctx, 0)),
+    truncated: ctx.truncated,
+  };
+}
+
+function recordEvalLog(level: EvalLogLevelInput, args: unknown[]): void {
+  const scope = getCurrentScope();
+  const phase = getCurrentLogPhase();
+  if (!scope || !phase) return;
+  const preview = formatLogArgs(args);
+  const jsonArgs = toLogJsonArgs(args);
+  scope.logs.push({
+    timestamp: new Date().toISOString(),
+    level: normalizeLogLevel(level),
+    phase,
+    message: preview.message,
+    args: jsonArgs.args,
+    truncated: preview.truncated || jsonArgs.truncated,
+  });
+}
+
+for (const method of consoleCaptureMethods) {
+  runtimeConsole[method] = (...args: unknown[]) => {
+    if (consoleCaptureEnabled) {
+      recordEvalLog(method, args);
+    }
+    originalConsoleMethods[method](...args);
+  };
+}
+
+/**
+ * Configure whether console methods are captured as eval case logs.
+ *
+ * Runner-internal helper. When disabled, console output still prints normally;
+ * only automatic persistence to `caseDetail.logs` is skipped. Manual
+ * `evalLog(...)` calls are unaffected.
+ */
+export function configureEvalRunLogs(options: {
+  captureConsole: boolean;
+}): void {
+  consoleCaptureEnabled = options.captureConsole;
+}
+
+/**
+ * Record a manual log entry on the active eval case.
+ *
+ * Values are formatted with Node-style console formatting and capped before
+ * persistence so a single log cannot make run artifacts unbounded. Calls made
+ * outside active case-owned eval phases are ignored.
+ */
+export function evalLog(level: EvalLogLevelInput, ...args: unknown[]): void {
+  recordEvalLog(level, args);
 }
 
 function registerBackgroundJobInScope<T>(
@@ -280,6 +522,7 @@ export async function runInEvalScope<T>(
     input: options.input,
     outputs: {},
     assertionFailures: [],
+    logs: [],
     spans: [],
     checkpoints: new Map(),
     spanStack: [],

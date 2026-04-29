@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import {
   defineEval,
+  evalLog,
   evalSpan,
   evalTracer,
   setEvalOutput,
@@ -88,6 +89,11 @@ defineEval({
     },
   },
   execute: ({ input }) => {
+    evalLog('info', 'Preparing format gallery package for %s', input.orderId);
+    console.info('Loaded refund package assets', {
+      previewBytes: previewCardSvg.byteLength,
+      audioBytes: audioBriefWav.byteLength,
+    });
     setEvalOutput(
       'response',
       `Prepared **refund package** for order \`${input.orderId}\`.\n\nCustomer note: ${input.customerMessage}`,

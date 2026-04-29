@@ -174,6 +174,29 @@ export const cacheEntrySchema = z.object({
 /** Persisted cache file contents. */
 export type CacheEntry = z.infer<typeof cacheEntrySchema>;
 
+/** Debug-only raw key metadata stored outside the reusable cache entry. */
+export const cacheDebugKeyEntrySchema = z.object({
+  version: z.literal(1),
+  key: z.string(),
+  namespace: z.string(),
+  operationType: cacheOperationTypeSchema,
+  operationName: z.string(),
+  storedAt: z.string(),
+  codeFingerprint: z.string(),
+  rawKey: z.unknown(),
+});
+/** Debug-only raw cache key entry. May contain sensitive prompt/input data. */
+export type CacheDebugKeyEntry = z.infer<typeof cacheDebugKeyEntrySchema>;
+
+/** Cache lookup response with optional debug-only raw key data. */
+export const cacheEntryWithDebugKeySchema = cacheEntrySchema.extend({
+  debugKey: cacheDebugKeyEntrySchema.optional(),
+});
+/** Cache lookup response returned by cache APIs when raw-key debug data exists. */
+export type CacheEntryWithDebugKey = z.infer<
+  typeof cacheEntryWithDebugKeySchema
+>;
+
 /** Persisted per-owner cache file containing multiple cache entries. */
 export const cacheFileSchema = z.object({
   version: z.literal(1),
@@ -182,3 +205,12 @@ export const cacheFileSchema = z.object({
 });
 /** Persisted per-owner cache file contents. */
 export type CacheFile = z.infer<typeof cacheFileSchema>;
+
+/** Persisted per-owner debug file containing raw cache key metadata. */
+export const cacheDebugKeyFileSchema = z.object({
+  version: z.literal(1),
+  owner: z.string(),
+  entries: z.record(z.string(), cacheDebugKeyEntrySchema),
+});
+/** Persisted per-owner raw cache key debug file contents. */
+export type CacheDebugKeyFile = z.infer<typeof cacheDebugKeyFileSchema>;

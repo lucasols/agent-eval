@@ -87,6 +87,7 @@ export function AppShell() {
     const eventSource = new EventSource('/api/evals/events');
     eventSource.addEventListener('discovery.updated', () => {
       void fetchEvals();
+      void refetchHistory();
     });
 
     return () => {

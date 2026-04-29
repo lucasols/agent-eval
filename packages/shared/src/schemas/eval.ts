@@ -114,6 +114,44 @@ const legacyAssertionFailureSchema = z
   .string()
   .transform((message): AssertionFailure => ({ message }));
 
+/** Severity level for one log captured during a case run. */
+export const runLogLevelSchema = z.enum(['log', 'info', 'warn', 'error']);
+/** Severity level for one log captured during a case run. */
+export type RunLogLevel = z.infer<typeof runLogLevelSchema>;
+
+/** Eval runner phase that emitted a captured case log. */
+export const runLogPhaseSchema = z.enum([
+  'eval',
+  'derive',
+  'outputsSchema',
+  'scorer',
+]);
+/** Eval runner phase that emitted a captured case log. */
+export type RunLogPhase = z.infer<typeof runLogPhaseSchema>;
+
+/** Schema for one persisted log entry captured during a case run. */
+export const runLogEntrySchema = z.object({
+  /** ISO timestamp for when the log was captured. */
+  timestamp: z.string(),
+  /** Normalized log level. */
+  level: runLogLevelSchema,
+  /** Case-owned runner phase that emitted the log. */
+  phase: runLogPhaseSchema,
+  /** Human-readable preview formatted from the original log arguments. */
+  message: z.string(),
+  /** JSON-safe captured log arguments rendered in the UI. */
+  args: z.array(z.unknown()).default([]),
+  /** Whether `message` was capped before persistence. */
+  truncated: z.boolean().default(false),
+  /**
+   * Optional source label for logs emitted from a nested case-owned activity,
+   * such as a score key.
+   */
+  source: z.string().optional(),
+});
+/** Persisted log entry captured during a case run. */
+export type RunLogEntry = z.infer<typeof runLogEntrySchema>;
+
 /** Trace payload captured while computing one score for a case. */
 export const scoreTraceSchema = z.object({
   trace: z.array(traceSpanSchema),
@@ -140,6 +178,8 @@ export const caseDetailSchema = z.object({
   assertionFailures: z.array(
     z.union([assertionFailureSchema, legacyAssertionFailureSchema]),
   ),
+  /** Logs captured from manual `evalLog(...)` calls and enabled console calls. */
+  logs: z.array(runLogEntrySchema).default([]),
   error: z
     .object({
       name: z.string().optional(),

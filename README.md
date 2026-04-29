@@ -80,7 +80,7 @@ pnpm add -D @ls-stack/agent-eval
    agent-evals run --eval my-agent --case greeting --json
    agent-evals show-runs
    agent-evals show-runs latest --json
-   agent-evals run --inspect-brk --eval my-agent --case greeting
+   agent-evals run --inspect --eval my-agent --case greeting
    ```
 
    Discovered eval file paths are shown relative to the active workspace root in both the CLI and UI.
@@ -154,6 +154,7 @@ Notes:
 - `getEvalCaseInput()` returns the current case input while an eval case is executing, and `getEvalCaseInput('customer.tier')` reads nested values with dot-path access. Outside a case scope, both return `undefined`.
 - `nextEvalId()` returns a stable sequential id for the active eval file, eval id, and case id, such as `refund-workflow-evals-refund-workflow-eval-ts-simple-text-1`. It throws outside an eval case scope so accidental production-only usage is visible.
 - `evalAssert(...)` records a failed assertion only while an eval case scope is active. Outside a case scope, it is a no-op so shared workflow code can be reused safely.
+- `evalLog(level, ...args)` records manual per-case logs shown in the case drawer's **Logs** tab. The runner also captures `console.log`, `console.info`, `console.warn`, and `console.error` during case-owned phases by default. Log arguments are stored as JSON-safe values and rendered with the JSON viewer, with a capped text preview for collapsed rows; logs emitted inside cached operations are not replayed from cache hits.
 - `mock.module(...)` only affects modules imported after the mock is registered.
 - Use dynamic `import(...)` inside `execute`; static imports happen too early.
 - The full working example is in [`examples/basic-agent/evals/support/playground/module-mock.eval.ts`](./examples/basic-agent/evals/support/playground/module-mock.eval.ts).
@@ -187,18 +188,19 @@ build also bundles the web UI assets used by `agent-evals app`.
 
 `agent-evals.config.ts` at your project root defines how evals are discovered and executed.
 
-| Field            | Type                         | Description                                                                           |
-| ---------------- | ---------------------------- | ------------------------------------------------------------------------------------- |
-| `include`        | `string[]`                   | Glob patterns for eval files (e.g. `['evals/**/*.eval.ts']`)                          |
-| `workspaceRoot`  | `string?`                    | Root directory; defaults to `process.cwd()`                                           |
-| `defaultTrials`  | `number?`                    | Trials per case when not overridden (default: `1`)                                    |
-| `trialSelection` | `'lowestScore' \| 'median'?` | Winner selection strategy for persisted multi-trial case results                      |
-| `concurrency`    | `number?`                    | Max parallel case executions per run, including trials (default: `2`)                 |
-| `staleAfterDays` | `number?`                    | Days before a mismatched-commit latest run is marked outdated (default: `14`)         |
-| `allowCliRunAll` | `boolean?`                   | Allow unfiltered `agent-evals run` to run every eval (default: `false`)               |
-| `traceDisplay`   | `TraceDisplayConfig?`        | Global trace attribute display config for the UI                                      |
-| `llmCalls`       | `LlmCallsConfig?`            | LLM calls tab config for the case-run drawer (kinds, attribute paths, custom metrics) |
-| `apiCalls`       | `ApiCallsConfig?`            | API calls tab config for the case-run drawer (kinds, attribute paths, custom metrics) |
+| Field            | Type                            | Description                                                                           |
+| ---------------- | ------------------------------- | ------------------------------------------------------------------------------------- |
+| `include`        | `string[]`                      | Glob patterns for eval files (e.g. `['evals/**/*.eval.ts']`)                          |
+| `workspaceRoot`  | `string?`                       | Root directory; defaults to `process.cwd()`                                           |
+| `defaultTrials`  | `number?`                       | Trials per case when not overridden (default: `1`)                                    |
+| `trialSelection` | `'lowestScore' \| 'median'?`    | Winner selection strategy for persisted multi-trial case results                      |
+| `concurrency`    | `number?`                       | Max parallel case executions per run, including trials (default: `2`)                 |
+| `staleAfterDays` | `number?`                       | Days before a mismatched-commit latest run is marked outdated (default: `14`)         |
+| `allowCliRunAll` | `boolean?`                      | Allow unfiltered `agent-evals run` to run every eval (default: `false`)               |
+| `traceDisplay`   | `TraceDisplayConfig?`           | Global trace attribute display config for the UI                                      |
+| `llmCalls`       | `LlmCallsConfig?`               | LLM calls tab config for the case-run drawer (kinds, attribute paths, custom metrics) |
+| `apiCalls`       | `ApiCallsConfig?`               | API calls tab config for the case-run drawer (kinds, attribute paths, custom metrics) |
+| `runLogs`        | `{ captureConsole?: boolean }?` | Case log capture config; set `captureConsole: false` to stop persisting console calls |
 
 When `trials > 1`, the runner executes the case repeatedly but persists a
 single winning result per case. `lowestScore` is the default. `median` uses the
@@ -208,6 +210,20 @@ By default, CLI runs require explicit targeting with `--eval` or `--case`. Set
 `allowCliRunAll: true` to permit unfiltered `agent-evals run`. The web UI can
 still start grouped runs; when a UI action would run more than five evals, it
 asks for confirmation first.
+
+Case run logs are stored on each case detail and rendered as a **Logs** tab
+with a phase filter for execute, derive, output schema validation, and scorer
+logs. Use `evalLog('info', 'message %s', id)` for intentional eval notes. Each
+entry stores the original arguments as JSON-safe values so objects and arrays
+remain inspectable when the row is expanded.
+Console capture can be disabled globally:
+
+```ts
+export const config: AgentEvalsConfig = {
+  include: ['evals/**/*.eval.ts'],
+  runLogs: { captureConsole: false },
+};
+```
 
 ## Writing evals
 
@@ -768,9 +784,10 @@ least one cache hit. It lists every span- and value-cache hit (including
 spanless ones tagged "case root") with namespace, age, stored-at timestamp, and
 truncated key. Each row expands to fetch the persisted entry from
 `GET /api/cache/:namespace/:key` and render its cached `returnValue` (and any
-replayed span attributes) inline. Use the row's delete action to remove that
-single persisted cache entry. Misses, refreshes, and bypasses remain visible
-inline as per-span badges in the **Trace** tab.
+replayed span attributes) inline. When raw-key debug metadata is available, the
+expanded row also shows the authored cache key. Use the row's delete action to
+remove that single persisted cache entry. Misses, refreshes, and bypasses
+remain visible inline as per-span badges in the **Trace** tab.
 
 ### Cache controls
 
@@ -793,6 +810,8 @@ run process.
 Server API (`/api/cache`):
 
 - `GET /api/cache` — list entries.
+- `GET /api/cache/:namespace/:key` — return one cache entry, plus optional
+  raw-key debug metadata when available.
 - `DELETE /api/cache` — clear everything.
 - `DELETE /api/cache/:namespace` — clear one namespace.
 - `DELETE /api/cache/:namespace/:key` — drop a single entry.
@@ -809,6 +828,10 @@ Server API (`/api/cache`):
 - Entries live in inspectable per-owner files at
   `<workspaceRoot>/.agent-evals/cache/<owner>.json`; for default namespaces,
   the owner is the eval id.
+- Authored raw cache keys are stored for debugging in
+  `<workspaceRoot>/.agent-evals/cache-debug/<owner>.json`. This folder may
+  contain prompts, user inputs, or other sensitive data, is not needed for cache
+  reuse, and should be gitignored. Normal cache files remain hash-only.
 - Each namespace keeps at most `cache.maxEntriesPerNamespace ?? 100` entries,
   pruning the oldest entries in that namespace on write so committed caches do
   not grow forever. Use `cache.maxEntriesByNamespace` for exact namespace

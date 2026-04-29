@@ -39,6 +39,15 @@ describe('CLI output formats', () => {
             columns: caseRow.columns,
             status: caseRow.status,
           })),
+          logs: artifacts.caseDetails['all-column-formats.json']?.logs.map(
+            (entry) => ({
+              level: entry.level,
+              phase: entry.phase,
+              message: entry.message,
+              args: entry.args,
+              truncated: entry.truncated,
+            }),
+          ),
           persistedArtifactFiles,
         }),
       ).toMatchInlineSnapshot(`
@@ -85,6 +94,31 @@ describe('CLI output formats', () => {
         },
       },
       "status": "pass",
+    },
+  ],
+  "logs": [
+    {
+      "args": [
+        "Preparing format gallery package for %s",
+        "A-1024",
+      ],
+      "level": "info",
+      "message": "Preparing format gallery package for A-1024",
+      "phase": "eval",
+      "truncated": false,
+    },
+    {
+      "args": [
+        "Loaded refund package assets",
+        {
+          "audioBytes": 1644,
+          "previewBytes": 1151,
+        },
+      ],
+      "level": "info",
+      "message": "Loaded refund package assets { previewBytes: 1151, audioBytes: 1644 }",
+      "phase": "eval",
+      "truncated": false,
     },
   ],
   "persistedArtifactFiles": [

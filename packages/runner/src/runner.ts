@@ -11,7 +11,7 @@ import type {
   SseEnvelope,
   CreateRunRequest,
   AgentEvalsConfig,
-  CacheEntry,
+  CacheEntryWithDebugKey,
   CacheListItem,
   CacheMode,
   ResolvedApiCallsConfig,
@@ -62,6 +62,7 @@ import {
   nextShortIdFromSnapshots,
   persistCaseDetail,
   type EvalLatestRunInfo,
+  type PersistedRunSnapshot,
 } from './runPersistence.ts';
 
 /** Imperative runner interface used by the server and CLI. */
@@ -124,11 +125,14 @@ export type EvalRunner = {
   listCache(): Promise<CacheListItem[]>;
   /**
    * Return the full persisted cache entry for `namespace` + `key`, including
-   * its recording. Returns `null` when no entry matches. Used by the case
-   * drawer's Cache hits tab to lazily fetch the cached return value when a
-   * row is expanded.
+   * its recording and optional raw-key debug metadata. Returns `null` when no
+   * entry matches. Used by the case drawer's Cache hits tab to lazily fetch
+   * the cached return value when a row is expanded.
    */
-  getCacheEntry(namespace: string, key: string): Promise<CacheEntry | null>;
+  getCacheEntry(
+    namespace: string,
+    key: string,
+  ): Promise<CacheEntryWithDebugKey | null>;
   /**
    * Remove cache entries matching `filter`, or all entries when no filter is
    * supplied.
@@ -240,7 +244,9 @@ export function createRunner({
   const discoveryListeners = new Set<(event: SseEnvelope) => void>();
   let nextShortIdNum = 0;
   let discoveryWatcher: FSWatcher | undefined;
+  let runHistoryWatcher: FSWatcher | undefined;
   let discoveryRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+  let runHistoryRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 
   function toWorkspaceRelativePath(filePath: string): string {
     return relative(workspaceRoot, filePath).replaceAll('\\', '/');
@@ -286,7 +292,7 @@ export function createRunner({
       return cacheStore.list();
     },
     async getCacheEntry(namespace, key) {
-      return cacheStore.lookup(namespace, key);
+      return cacheStore.lookupWithDebug(namespace, key);
     },
     async clearCache(filter) {
       await cacheStore.clear(filter);
@@ -675,11 +681,17 @@ export function createRunner({
         clearTimeout(discoveryRefreshTimer);
         discoveryRefreshTimer = undefined;
       }
+      if (runHistoryRefreshTimer !== undefined) {
+        clearTimeout(runHistoryRefreshTimer);
+        runHistoryRefreshTimer = undefined;
+      }
 
-      const watcher = discoveryWatcher;
-      if (watcher === undefined) return;
+      const watchers = [discoveryWatcher, runHistoryWatcher].filter(
+        (watcher): watcher is FSWatcher => watcher !== undefined,
+      );
       discoveryWatcher = undefined;
-      await watcher.close();
+      runHistoryWatcher = undefined;
+      await Promise.all(watchers.map((watcher) => watcher.close()));
     },
 
     getWorkspaceRoot() {
@@ -722,6 +734,37 @@ export function createRunner({
       discoveryRefreshTimer = setTimeout(() => {
         discoveryRefreshTimer = undefined;
         void runner.refreshDiscovery();
+      }, 50);
+    };
+
+    watcher.on('change', scheduleRefresh);
+    watcher.on('add', scheduleRefresh);
+    watcher.on('unlink', scheduleRefresh);
+    watcher.on('addDir', scheduleRefresh);
+    watcher.on('unlinkDir', scheduleRefresh);
+
+    await setupRunHistoryWatcher();
+
+    await new Promise<void>((ready) => {
+      watcher.once('ready', ready);
+    });
+  }
+
+  async function setupRunHistoryWatcher() {
+    const watcher = watch(join(localStateDir, 'runs'), {
+      ignoreInitial: true,
+      persistent: true,
+    });
+    runHistoryWatcher = watcher;
+
+    const scheduleRefresh = () => {
+      if (runHistoryRefreshTimer !== undefined) {
+        clearTimeout(runHistoryRefreshTimer);
+      }
+
+      runHistoryRefreshTimer = setTimeout(() => {
+        runHistoryRefreshTimer = undefined;
+        void refreshPersistedRunsFromDisk();
       }, 50);
     };
 
@@ -779,13 +822,53 @@ export function createRunner({
     nextShortIdNum = nextShortIdFromSnapshots(persistedRuns);
 
     for (const persistedRun of persistedRuns) {
-      runs.set(persistedRun.manifest.id, {
-        ...persistedRun,
-        listeners: new Set(),
-        childProcess: undefined,
-        childTerminalReceived: false,
-      });
+      runs.set(persistedRun.manifest.id, toRunnerRunState(persistedRun));
     }
+  }
+
+  async function refreshPersistedRunsFromDisk(): Promise<void> {
+    const persistedRuns = await loadPersistedRunSnapshots(localStateDir);
+    const persistedRunIds = new Set(
+      persistedRuns.map((snapshot) => snapshot.manifest.id),
+    );
+    let changed = false;
+
+    for (const persistedRun of persistedRuns) {
+      const existing = runs.get(persistedRun.manifest.id);
+      if (existing?.manifest.status === 'running' && existing.childProcess) {
+        continue;
+      }
+      runs.set(
+        persistedRun.manifest.id,
+        toRunnerRunState(persistedRun, existing),
+      );
+      changed = true;
+    }
+
+    for (const [runId, existing] of [...runs]) {
+      if (persistedRunIds.has(runId)) continue;
+      if (existing.manifest.status === 'running') continue;
+      runs.delete(runId);
+      changed = true;
+    }
+
+    nextShortIdNum = Math.max(
+      nextShortIdNum,
+      nextShortIdFromSnapshots(persistedRuns),
+    );
+    if (changed) emitDiscoveryEvent();
+  }
+
+  function toRunnerRunState(
+    snapshot: PersistedRunSnapshot,
+    existing?: RunnerRunState,
+  ): RunnerRunState {
+    return {
+      ...snapshot,
+      listeners: existing?.listeners ?? new Set(),
+      childProcess: existing?.childProcess,
+      childTerminalReceived: existing?.childTerminalReceived ?? false,
+    };
   }
 
   return runner;

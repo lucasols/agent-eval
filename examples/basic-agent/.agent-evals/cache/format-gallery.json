@@ -2,6 +2,43 @@
   "version": 1,
   "owner": "format-gallery",
   "entries": {
+    "bcf1aa254a824a8b4af6fda029a8dbb151d616d275ee8e7c2dc17ef9271f51e0": {
+      "version": 1,
+      "key": "bcf1aa254a824a8b4af6fda029a8dbb151d616d275ee8e7c2dc17ef9271f51e0",
+      "namespace": "format-gallery__score__automatedQuality__auto-quality-review",
+      "operationType": "span",
+      "operationName": "auto-quality-review",
+      "spanName": "auto-quality-review",
+      "spanKind": "scorer",
+      "storedAt": "2026-04-29T20:47:27.970Z",
+      "codeFingerprint": "ed574787bd0dbda4dfaa7f1b4c24b8f59ec237acc20106149780892773792b84",
+      "recording": {
+        "returnValue": {
+          "__agentEvalsCacheSerialization": "seroval-web-v1",
+          "value": { "t": { "t": 0, "s": 0.8 }, "f": 63, "m": [] }
+        },
+        "finalAttributes": {
+          "rubric": {
+            "__agentEvalsCacheSerialization": "seroval-web-v1",
+            "value": {
+              "t": { "t": 1, "s": "refund-package-completeness" },
+              "f": 63,
+              "m": []
+            }
+          },
+          "decision": {
+            "__agentEvalsCacheSerialization": "seroval-web-v1",
+            "value": {
+              "t": { "t": 1, "s": "ready-for-review" },
+              "f": 63,
+              "m": []
+            }
+          }
+        },
+        "finalStatus": "ok",
+        "ops": []
+      }
+    },
     "d055d13910f61414d465e7e3a78902fe1b50d08c7bfae70b1cd10d2104f0ec80": {
       "version": 1,
       "key": "d055d13910f61414d465e7e3a78902fe1b50d08c7bfae70b1cd10d2104f0ec80",
