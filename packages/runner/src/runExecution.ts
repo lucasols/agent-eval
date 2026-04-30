@@ -35,6 +35,7 @@ import { normalizeScoreDef, toCellValue } from './columnBuilder.ts';
 import { addDefaultOutputs, mergeDefaultColumns } from './defaultConfig.ts';
 import { runWithModuleIsolation } from './moduleIsolation.ts';
 import { persistInlineArtifact } from './outputArtifacts.ts';
+import { stripTerminalControlCodes } from './stackFormatting.ts';
 import { resolveTracePresentation } from './traceDisplay.ts';
 
 export function filterEvalCases<TInput>(
@@ -476,5 +477,7 @@ function toAssertionFailure(
   message: string,
   error: Error | undefined = undefined,
 ): AssertionFailure {
-  return error?.stack ? { message, stack: error.stack } : { message };
+  return error?.stack
+    ? { message, stack: stripTerminalControlCodes(error.stack) }
+    : { message };
 }

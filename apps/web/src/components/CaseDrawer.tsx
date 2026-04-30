@@ -14,6 +14,7 @@ import { ApiCallRow } from '#src/components/ApiCallRow';
 import { CacheHitRow } from '#src/components/CacheHitRow';
 import { CaseRunLogs, getLogPhases } from '#src/components/CaseRunLogs';
 import { CaseScores } from '#src/components/CaseScores';
+import { CollapsibleDetails } from '#src/components/CollapsibleDetails';
 import { EmptyState } from '#src/components/EmptyState';
 import {
   FormattedCellValue,
@@ -677,7 +678,9 @@ export function CaseDrawer() {
               <FailureItem key={`${failure.message}-${String(i)}`}>
                 <FailureMessage>{failure.message}</FailureMessage>
                 {failure.stack ? (
-                  <ErrorStack>{failure.stack}</ErrorStack>
+                  <CollapsibleDetails>
+                    <ErrorStack>{failure.stack}</ErrorStack>
+                  </CollapsibleDetails>
                 ) : null}
               </FailureItem>
             ))}
@@ -689,7 +692,11 @@ export function CaseDrawer() {
             <ErrorTitle>
               {d.error.name ?? 'Error'}: {d.error.message}
             </ErrorTitle>
-            {d.error.stack ? <ErrorStack>{d.error.stack}</ErrorStack> : null}
+            {d.error.stack ? (
+              <CollapsibleDetails>
+                <ErrorStack>{d.error.stack}</ErrorStack>
+              </CollapsibleDetails>
+            ) : null}
           </ErrorContainer>
         ) : null}
       </TabContent>

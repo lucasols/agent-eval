@@ -13,6 +13,7 @@ import type {
   RunLogPhase,
   TraceCacheRef,
 } from '@agent-evals/shared';
+import { stripTerminalControlCodes } from './stackFormatting.ts';
 import type { EvalStartTime } from './types.ts';
 
 declare global {
@@ -862,7 +863,9 @@ function toAssertionFailure(
   message: string,
   error: Error | undefined = undefined,
 ): AssertionFailure {
-  return error?.stack ? { message, stack: error.stack } : { message };
+  return error?.stack
+    ? { message, stack: stripTerminalControlCodes(error.stack) }
+    : { message };
 }
 
 /**

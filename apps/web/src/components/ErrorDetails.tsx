@@ -1,4 +1,5 @@
 import { styled } from 'vindur';
+import { CollapsibleDetails } from '#src/components/CollapsibleDetails';
 import { JsonViewer } from '#src/components/JsonViewer';
 import { colors } from '#src/style/colors';
 import { kicker, monoFont, stack } from '#src/style/helpers';
@@ -117,14 +118,18 @@ export function ErrorDetails({
           {error.meta !== undefined ? (
             <ErrorMeta warning={isWarning}>{error.meta}</ErrorMeta>
           ) : null}
-          {error.stack !== undefined ? (
-            <ErrorStack>{error.stack}</ErrorStack>
-          ) : null}
-          {error.attributes !== undefined ? (
-            <JsonSection
-              label="Attributes"
-              data={error.attributes}
-            />
+          {error.stack !== undefined || error.attributes !== undefined ? (
+            <CollapsibleDetails>
+              {error.stack !== undefined ? (
+                <ErrorStack>{error.stack}</ErrorStack>
+              ) : null}
+              {error.attributes !== undefined ? (
+                <JsonSection
+                  label="Attributes"
+                  data={error.attributes}
+                />
+              ) : null}
+            </CollapsibleDetails>
           ) : null}
         </ErrorItemRoot>
       ))}

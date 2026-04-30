@@ -17,6 +17,7 @@ import {
   type TraceActiveSpan,
 } from '@agent-evals/sdk';
 import { expect, test } from 'vitest';
+import { stripTerminalControlCodes } from './stackFormatting.ts';
 
 const approvedPattern = /approved/;
 
@@ -127,6 +128,51 @@ test('evalExpect supports negated comparison failures', async () => {
   expect(scope.assertionFailures[0]?.message).toBe(
     'Expected refund approved not to match /approved/',
   );
+});
+
+test('assertion failure stacks are stored without terminal styling codes', async () => {
+  const originalPrepareStackTraceDescriptor = Object.getOwnPropertyDescriptor(
+    Error,
+    'prepareStackTrace',
+  );
+  Error.prepareStackTrace = () => {
+    return [
+      'EvalAssertionError: styled failure',
+      '\u001B[2m    at evalAssert (node_modules/pkg/dist/index.mjs:1:1)\u001B[22m',
+      '[31m\u001B[1m    at Object.execute (src/example.eval.ts:4:2)\u001B[22m\u001B[39m',
+    ].join('\n');
+  };
+
+  const { scope } = await runInEvalScope('styled-stack', () => {
+    evalAssert(false, 'styled failure');
+  });
+  if (originalPrepareStackTraceDescriptor) {
+    Object.defineProperty(
+      Error,
+      'prepareStackTrace',
+      originalPrepareStackTraceDescriptor,
+    );
+  } else {
+    Object.defineProperty(Error, 'prepareStackTrace', {
+      configurable: true,
+      value: undefined,
+      writable: true,
+    });
+  }
+
+  expect(scope.assertionFailures[0]?.stack).toBe(
+    [
+      'EvalAssertionError: styled failure',
+      '    at evalAssert (node_modules/pkg/dist/index.mjs:1:1)',
+      '    at Object.execute (src/example.eval.ts:4:2)',
+    ].join('\n'),
+  );
+});
+
+test('stripTerminalControlCodes removes escaped and orphaned styling codes', () => {
+  expect(
+    stripTerminalControlCodes('\u001B[2mfirst\u001B[22m\n[31msecond[39m'),
+  ).toBe('first\nsecond');
 });
 
 test('isInEvalScope reports non-case runner phases', async () => {
