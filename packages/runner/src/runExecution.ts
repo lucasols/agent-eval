@@ -408,7 +408,7 @@ export async function runCase<
 
   const caseRowUpdate: Partial<CaseRow> = {
     status,
-    latencyMs: elapsedMs,
+    durationMs: elapsedMs,
     columns,
   };
 

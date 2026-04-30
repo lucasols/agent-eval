@@ -220,7 +220,7 @@ export function normalizeSnapshotValue(
 
   if (
     typeof value === 'number' &&
-    (key === 'latencyMs' || key === 'totalDurationMs' || key === 'port')
+    (key === 'durationMs' || key === 'totalDurationMs' || key === 'port')
   ) {
     return `<${key}>`;
   }

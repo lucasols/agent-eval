@@ -43,13 +43,13 @@ defineEval({
   id: 'output-schema-eval',
   title: 'Output Schema Eval',
   cases: [
-    { id: 'valid-output', input: { response: 'refund approved', latencyMs: 123 } },
-    { id: 'invalid-output', input: { response: 42, latencyMs: 456 } },
+    { id: 'valid-output', input: { response: 'refund approved', durationMs: 123 } },
+    { id: 'invalid-output', input: { response: 42, durationMs: 456 } },
   ],
   outputsSchema,
   execute: ({ input, setOutput }) => {
     setOutput('response', input.response);
-    setOutput('latencyMs', input.latencyMs);
+    setOutput('durationMs', input.durationMs);
   },
   scores: {
     mentionsRefund: {
@@ -91,7 +91,7 @@ defineEval({
           status: 'pass',
           columns: {
             response: 'refund approved',
-            latencyMs: 123,
+            durationMs: 123,
             confidence: 0.75,
             mentionsRefund: 1,
           },
@@ -99,7 +99,7 @@ defineEval({
         {
           caseId: 'invalid-output',
           status: 'fail',
-          columns: { response: 42, latencyMs: 456 },
+          columns: { response: 42, durationMs: 456 },
         },
       ]);
 

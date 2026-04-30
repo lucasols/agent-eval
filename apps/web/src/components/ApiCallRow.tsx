@@ -310,7 +310,7 @@ function renderStatusCode(statusCode: number | null) {
  * Render one API-call card inside the case-drawer API calls tab.
  *
  * Collapsed by default. The header shows the call name, eval span status,
- * method, URL, HTTP status code, latency, and any user-defined metric whose
+ * method, URL, HTTP status code, duration, and any user-defined metric whose
  * `placements` includes `'header'`. Expanding the row reveals metrics and the
  * request/response payloads captured on the span.
  */
@@ -323,8 +323,8 @@ export function ApiCallRow({ entry }: { entry: ApiCallEntry }) {
   const bodyMetrics = entry.metrics.filter((m) =>
     m.placements.includes('body'),
   );
-  const latencyLabel =
-    entry.latencyMs === null ? null : formatDuration(entry.latencyMs);
+  const durationLabel =
+    entry.durationMs === null ? null : formatDuration(entry.durationMs);
   const methodLabel = entry.method === null ? null : entry.method.toUpperCase();
   const urlLabel = entry.url === null ? null : summarizeUrl(entry.url);
 
@@ -348,7 +348,7 @@ export function ApiCallRow({ entry }: { entry: ApiCallEntry }) {
             </Tooltip>
           ) : null}
           {renderStatusCode(entry.statusCode)}
-          {latencyLabel !== null ? <span>{latencyLabel}</span> : null}
+          {durationLabel !== null ? <span>{durationLabel}</span> : null}
           {headerMetrics.map((metric) => (
             <Tooltip
               key={metricKey(metric)}
@@ -368,7 +368,7 @@ export function ApiCallRow({ entry }: { entry: ApiCallEntry }) {
           {entry.url !== null ||
           methodLabel !== null ||
           entry.statusCode !== null ||
-          latencyLabel !== null ? (
+          durationLabel !== null ? (
             <RequestDetailsSection>
               {methodLabel !== null ? (
                 <DetailRow>
@@ -388,10 +388,10 @@ export function ApiCallRow({ entry }: { entry: ApiCallEntry }) {
                   <DetailRowValue>{entry.statusCode}</DetailRowValue>
                 </DetailRow>
               ) : null}
-              {latencyLabel !== null ? (
+              {durationLabel !== null ? (
                 <DetailRow>
-                  <DetailRowLabel>Latency</DetailRowLabel>
-                  <DetailRowValue>{latencyLabel}</DetailRowValue>
+                  <DetailRowLabel>Duration</DetailRowLabel>
+                  <DetailRowValue>{durationLabel}</DetailRowValue>
                 </DetailRow>
               ) : null}
             </RequestDetailsSection>

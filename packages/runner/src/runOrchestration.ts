@@ -460,7 +460,7 @@ export async function executeRun({
                           caseId: evalCase.id,
                           evalId: evalMeta.id,
                           status: caseRowUpdate.status ?? 'pending',
-                          latencyMs: caseRowUpdate.latencyMs ?? null,
+                          durationMs: caseRowUpdate.durationMs ?? null,
                           columns: caseRowUpdate.columns ?? {},
                           trial,
                         },

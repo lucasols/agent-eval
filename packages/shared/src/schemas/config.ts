@@ -24,7 +24,7 @@ export const defaultConfigKeySchema = z.enum([
   'cachedInputTokens',
   'cacheCreationInputTokens',
   'reasoningTokens',
-  'llmLatencyMs',
+  'llmDurationMs',
 ]);
 /** Built-in eval-level output/column key. */
 export type DefaultConfigKey = z.infer<typeof defaultConfigKeySchema>;
@@ -151,6 +151,8 @@ export const llmCallPricingSchema = z.object({
   cachedInputUsdPerMillion: z.number().nonnegative().optional(),
   /** USD per one million prompt-cache write tokens. */
   cacheCreationInputUsdPerMillion: z.number().nonnegative().optional(),
+  /** USD per one million one-hour prompt-cache write tokens. */
+  cacheCreationInput1hUsdPerMillion: z.number().nonnegative().optional(),
   /** USD per one million reasoning tokens when reported separately. */
   reasoningUsdPerMillion: z.number().nonnegative().optional(),
 });
@@ -179,6 +181,7 @@ export const llmCallsConfigSchema = z.object({
       outputTokens: z.string().optional(),
       cachedInputTokens: z.string().optional(),
       cacheCreationInputTokens: z.string().optional(),
+      cacheCreationInput1hTokens: z.string().optional(),
       reasoningTokens: z.string().optional(),
       totalTokens: z.string().optional(),
       tokensPerSecond: z.string().optional(),
@@ -259,6 +262,7 @@ export type ResolvedLlmCallsConfig = {
     outputTokens: string;
     cachedInputTokens: string;
     cacheCreationInputTokens: string;
+    cacheCreationInput1hTokens: string;
     reasoningTokens: string;
     totalTokens: string;
     tokensPerSecond: string;
@@ -325,6 +329,7 @@ export type ResolvedLlmCallPricing = {
   outputUsdPerMillion?: number;
   cachedInputUsdPerMillion?: number;
   cacheCreationInputUsdPerMillion?: number;
+  cacheCreationInput1hUsdPerMillion?: number;
   reasoningUsdPerMillion?: number;
 };
 
@@ -338,6 +343,7 @@ export const DEFAULT_LLM_CALLS_CONFIG: ResolvedLlmCallsConfig = {
     outputTokens: 'usage.outputTokens',
     cachedInputTokens: 'usage.cachedInputTokens',
     cacheCreationInputTokens: 'usage.cacheCreationInputTokens',
+    cacheCreationInput1hTokens: 'usage.cacheCreationInput1hTokens',
     reasoningTokens: 'usage.reasoningTokens',
     totalTokens: 'usage.totalTokens',
     tokensPerSecond: 'tokensPerSecond',
@@ -415,6 +421,7 @@ export function resolveLlmCallsConfig(
       outputUsdPerMillion: p.outputUsdPerMillion,
       cachedInputUsdPerMillion: p.cachedInputUsdPerMillion,
       cacheCreationInputUsdPerMillion: p.cacheCreationInputUsdPerMillion,
+      cacheCreationInput1hUsdPerMillion: p.cacheCreationInput1hUsdPerMillion,
       reasoningUsdPerMillion: p.reasoningUsdPerMillion,
     })),
   };

@@ -102,7 +102,7 @@ test('extractApiCalls filters by configured kinds and projects defaults', () => 
     method: 'GET',
     url: 'https://api.example.test/accounts/123?expand=plan',
     statusCode: 200,
-    latencyMs: 37,
+    durationMs: 37,
     request: { headers: { accept: 'application/json' } },
     response: { ok: true },
     requestBody: { accountId: '123' },
@@ -159,7 +159,7 @@ test('extractApiCalls reads custom attributes and metrics', () => {
     method: 'POST',
     url: 'https://api.example.test/orders',
     statusCode: 201,
-    latencyMs: 88,
+    durationMs: 88,
     errorPayload: { code: 'none' },
   });
   expect(call?.metrics).toEqual([
@@ -192,7 +192,7 @@ test('extractApiCalls keeps rows with missing optional attributes', () => {
     method: null,
     url: null,
     statusCode: null,
-    latencyMs: 142,
+    durationMs: 142,
     request: undefined,
     response: undefined,
     requestBody: undefined,

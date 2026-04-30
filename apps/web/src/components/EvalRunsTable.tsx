@@ -663,10 +663,10 @@ function RunGroup({
                 mono={true}
                 indent={false}
               >
-                {row.latencyMs === null ? (
+                {row.durationMs === null ? (
                   <Dim>{EM_DASH}</Dim>
                 ) : (
-                  formatDuration(row.latencyMs)
+                  formatDuration(row.durationMs)
                 )}
               </CaseTd>
               {otherCustomColumns.map((c) => {

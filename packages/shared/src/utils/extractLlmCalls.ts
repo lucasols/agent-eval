@@ -48,7 +48,8 @@ export type LlmCallEntry = {
   /** Per-step breakdown when the configured `steps` attribute resolves to an array. */
   stepDetails: unknown[] | null;
   finishReason: string | null;
-  latencyMs: number | null;
+  /** Elapsed LLM call span duration in milliseconds. */
+  durationMs: number | null;
   input: unknown;
   output: unknown;
   reasoning: unknown;
@@ -76,6 +77,49 @@ function computeTokenCost(
   if (tokens === 0) return 0;
   if (usdPerMillion === undefined) return null;
   return (tokens / 1_000_000) * usdPerMillion;
+}
+
+function computeCacheCreationInputCost({
+  cacheCreationInputTokens,
+  cacheCreationInput1hTokens,
+  usdPerMillion,
+  oneHourUsdPerMillion,
+}: {
+  cacheCreationInputTokens: number | null;
+  cacheCreationInput1hTokens: number | null;
+  usdPerMillion: number | undefined;
+  oneHourUsdPerMillion: number | undefined;
+}): number | null {
+  if (cacheCreationInputTokens === null) return null;
+  if (cacheCreationInputTokens === 0) return 0;
+  if (cacheCreationInput1hTokens === null) {
+    return computeTokenCost(cacheCreationInputTokens, usdPerMillion);
+  }
+
+  const oneHourTokens = Math.min(
+    cacheCreationInput1hTokens,
+    cacheCreationInputTokens,
+  );
+  const shortLivedTokens = cacheCreationInputTokens - oneHourTokens;
+  const shortLivedCost = computeTokenCost(shortLivedTokens, usdPerMillion);
+  const oneHourCost = computeTokenCost(oneHourTokens, oneHourUsdPerMillion);
+  if (shortLivedCost === null || oneHourCost === null) return null;
+  return shortLivedCost + oneHourCost;
+}
+
+function computeBaseInputTokens({
+  inputTokens,
+  cachedInputTokens,
+  cacheCreationInputTokens,
+}: {
+  inputTokens: number | null;
+  cachedInputTokens: number | null;
+  cacheCreationInputTokens: number | null;
+}): number | null {
+  if (inputTokens === null) return null;
+  const cachedTokens =
+    (cachedInputTokens ?? 0) + (cacheCreationInputTokens ?? 0);
+  return Math.max(inputTokens - cachedTokens, 0);
 }
 
 function pickPricingEntry({
@@ -149,7 +193,7 @@ function computeFallbackTotalCost({
   return hasReportedTokens ? 0 : null;
 }
 
-function computeLatencyMs(span: EvalTraceSpan): number | null {
+function computeDurationMs(span: EvalTraceSpan): number | null {
   if (span.endedAt === null) return null;
   const started = Date.parse(span.startedAt);
   const ended = Date.parse(span.endedAt);
@@ -162,25 +206,14 @@ function computeTotalTokens({
   declared,
   input,
   output,
-  cached,
-  cacheCreation,
 }: {
   declared: number | null;
   input: number | null;
   output: number | null;
-  cached: number | null;
-  cacheCreation: number | null;
 }): number | null {
   if (declared !== null) return declared;
-  if (
-    input === null &&
-    output === null &&
-    cached === null &&
-    cacheCreation === null
-  ) {
-    return null;
-  }
-  return (input ?? 0) + (output ?? 0) + (cached ?? 0) + (cacheCreation ?? 0);
+  if (input === null && output === null) return null;
+  return (input ?? 0) + (output ?? 0);
 }
 
 function readSteps(
@@ -219,12 +252,19 @@ function pickError(span: EvalTraceSpan): EvalTraceSpanError | null {
  * `getNestedAttribute` from the configured paths, with safe coercion to
  * `string | null` / `number | null`. When explicit USD costs are absent,
  * configured model pricing derives per-token-type costs from token counts.
- * `totalTokens` falls back to a sum of input + output + cached when no
- * explicit total attribute is present. The `steps` attribute path may resolve
- * to either a number (rendered as the inference-round count) or an array of
- * per-step detail objects (rendered as a Steps section in the body, with
- * `stepCount` derived from the array length). `latencyMs` is `null` while the
- * span is still running. User-defined `metrics` whose path resolves to
+ * `totalTokens` falls back to a sum of input + output when no explicit total
+ * attribute is present. Cached input and cache creation tokens are reported
+ * separately because they are subsets of input/output usage. The main cache
+ * creation token field is treated as the total write count; optional one-hour
+ * cache creation tokens only split that total for cost calculation. When
+ * deriving costs from pricing, base input cost uses input minus cache
+ * read/write tokens so cached tokens are not charged twice. Cache read/write
+ * costs still contribute to the total USD cost at their configured rates. The
+ * `steps` attribute path may resolve to either a number (rendered as the
+ * inference-round count) or an array of per-step detail objects (rendered as a
+ * Steps section in the body, with `stepCount` derived from the array length).
+ * `durationMs` is `null` while the span is still running. User-defined `metrics`
+ * whose path resolves to
  * `undefined` are dropped, but `null`, `0`, and `false` are preserved as
  * legitimate values worth displaying. Original span order is preserved so the
  * LLM calls tab matches the ordering in the Trace tab.
@@ -252,6 +292,10 @@ export function extractLlmCalls(
       attrs,
       config.attributes.cacheCreationInputTokens,
     );
+    const cacheCreationInput1hTokens = readNumber(
+      attrs,
+      config.attributes.cacheCreationInput1hTokens,
+    );
     const reasoningTokens = readNumber(
       attrs,
       config.attributes.reasoningTokens,
@@ -265,9 +309,14 @@ export function extractLlmCalls(
       model,
       provider,
     });
+    const baseInputTokens = computeBaseInputTokens({
+      inputTokens,
+      cachedInputTokens,
+      cacheCreationInputTokens,
+    });
     const inputCostUsd =
       readNumber(attrs, config.attributes.inputCost) ??
-      computeTokenCost(inputTokens, pricing?.inputUsdPerMillion);
+      computeTokenCost(baseInputTokens, pricing?.inputUsdPerMillion);
     const outputCostUsd =
       readNumber(attrs, config.attributes.outputCost) ??
       computeTokenCost(outputTokens, pricing?.outputUsdPerMillion);
@@ -276,10 +325,12 @@ export function extractLlmCalls(
       computeTokenCost(cachedInputTokens, pricing?.cachedInputUsdPerMillion);
     const cacheCreationInputCostUsd =
       readNumber(attrs, config.attributes.cacheCreationInputCost) ??
-      computeTokenCost(
+      computeCacheCreationInputCost({
         cacheCreationInputTokens,
-        pricing?.cacheCreationInputUsdPerMillion,
-      );
+        cacheCreationInput1hTokens,
+        usdPerMillion: pricing?.cacheCreationInputUsdPerMillion,
+        oneHourUsdPerMillion: pricing?.cacheCreationInput1hUsdPerMillion,
+      });
     const reasoningCostUsd =
       readNumber(attrs, config.attributes.reasoningCost) ??
       computeTokenCost(reasoningTokens, pricing?.reasoningUsdPerMillion);
@@ -328,8 +379,6 @@ export function extractLlmCalls(
         declared: declaredTotalTokens,
         input: inputTokens,
         output: outputTokens,
-        cached: cachedInputTokens,
-        cacheCreation: cacheCreationInputTokens,
       }),
       tokensPerSecond: readNumber(attrs, config.attributes.tokensPerSecond),
       costUsd,
@@ -340,7 +389,7 @@ export function extractLlmCalls(
       reasoningCostUsd,
       ...readSteps(attrs, config.attributes.steps),
       finishReason: readString(attrs, config.attributes.finishReason),
-      latencyMs: computeLatencyMs(span),
+      durationMs: computeDurationMs(span),
       input: getNestedAttribute(attrs, config.attributes.input),
       output: getNestedAttribute(attrs, config.attributes.output),
       reasoning: getNestedAttribute(attrs, config.attributes.reasoning),

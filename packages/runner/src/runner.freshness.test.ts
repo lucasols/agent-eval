@@ -492,7 +492,7 @@ defineEval({
         caseId: 'saved-case',
         evalId: 'outdated-eval',
         status: 'pass',
-        latencyMs: 234,
+        durationMs: 234,
         costUsd: 0.12,
         columns: {},
         trial: 0,

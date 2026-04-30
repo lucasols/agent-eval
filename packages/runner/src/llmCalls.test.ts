@@ -97,6 +97,7 @@ test('resolveLlmCallsConfig resolves pricing registry entries', () => {
       outputUsdPerMillion: 0.6,
       cachedInputUsdPerMillion: undefined,
       cacheCreationInputUsdPerMillion: undefined,
+      cacheCreationInput1hUsdPerMillion: undefined,
       reasoningUsdPerMillion: undefined,
     },
   ]);
@@ -149,7 +150,7 @@ test('extractLlmCalls filters by configured kinds and projects defaults', () => 
     cacheCreationInputCostUsd: null,
     reasoningCostUsd: null,
     cacheCreationInputTokens: null,
-    latencyMs: 142,
+    durationMs: 142,
     input: { prompt: 'hi' },
     output: { reply: 'hello' },
     error: null,
@@ -184,7 +185,7 @@ test('extractLlmCalls reads per-token-type cost breakdown', () => {
     outputTokens: 200,
     cachedInputTokens: 50,
     cacheCreationInputTokens: 80,
-    totalTokens: 430,
+    totalTokens: 300,
     inputCostUsd: 0.001,
     outputCostUsd: 0.0105,
     cachedInputCostUsd: 0.001,
@@ -204,6 +205,7 @@ test('extractLlmCalls derives costs from pricing registry when span costs are mi
         outputUsdPerMillion: 15,
         cachedInputUsdPerMillion: 0.3,
         cacheCreationInputUsdPerMillion: 3.75,
+        cacheCreationInput1hUsdPerMillion: 6,
         reasoningUsdPerMillion: 60,
       },
     ],
@@ -215,10 +217,11 @@ test('extractLlmCalls derives costs from pricing registry when span costs are mi
         model: 'claude-sonnet',
         provider: 'anthropic',
         usage: {
-          inputTokens: 100,
+          inputTokens: 150,
           outputTokens: 200,
           cachedInputTokens: 50,
           cacheCreationInputTokens: 80,
+          cacheCreationInput1hTokens: 20,
           reasoningTokens: 10,
         },
       },
@@ -227,12 +230,12 @@ test('extractLlmCalls derives costs from pricing registry when span costs are mi
 
   const call = extractLlmCalls(spans, config)[0];
 
-  expect(call?.inputCostUsd).toBeCloseTo(0.0003);
+  expect(call?.inputCostUsd).toBeCloseTo(0.00006);
   expect(call?.outputCostUsd).toBeCloseTo(0.003);
   expect(call?.cachedInputCostUsd).toBeCloseTo(0.000015);
-  expect(call?.cacheCreationInputCostUsd).toBeCloseTo(0.0003);
+  expect(call?.cacheCreationInputCostUsd).toBeCloseTo(0.000345);
   expect(call?.reasoningCostUsd).toBeCloseTo(0.0006);
-  expect(call?.costUsd).toBeCloseTo(0.004215);
+  expect(call?.costUsd).toBeCloseTo(0.00402);
 });
 
 test('extractLlmCalls prefers explicit span costs over derived pricing', () => {
@@ -420,7 +423,7 @@ test('extractLlmCalls reads tokens per second as a built-in field', () => {
   expect(calls[0]).toMatchObject({ tokensPerSecond: 38.2 });
 });
 
-test('extractLlmCalls reports null latency for running spans and computes total fallback', () => {
+test('extractLlmCalls reports null duration for running spans and computes total fallback', () => {
   const calls = extractLlmCalls(
     [
       llmSpan({
@@ -434,7 +437,7 @@ test('extractLlmCalls reports null latency for running spans and computes total 
 
   expect(calls[0]).toMatchObject({
     status: 'running',
-    latencyMs: null,
+    durationMs: null,
     inputTokens: 12,
     outputTokens: null,
     totalTokens: 12,

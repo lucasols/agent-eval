@@ -110,10 +110,10 @@ test('runCase derives default usage outputs from trace spans', async () => {
     cachedInputTokens: 10,
     cacheCreationInputTokens: 20,
     reasoningTokens: 5,
-    totalTokens: 170,
+    totalTokens: 140,
   });
-  expect(result.caseDetail.columns.costUsd).toBeCloseTo(0.000752);
-  expect(typeof result.caseDetail.columns.llmLatencyMs).toBe('number');
+  expect(result.caseDetail.columns.costUsd).toBeCloseTo(0.000692);
+  expect(typeof result.caseDetail.columns.llmDurationMs).toBe('number');
 });
 
 test('runCase does not overwrite authored outputs with default usage', async () => {

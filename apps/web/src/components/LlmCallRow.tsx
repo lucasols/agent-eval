@@ -404,6 +404,13 @@ function formatCostValue(value: number | null): string {
   return value === null ? EM_DASH : formatNumber(value, { prefix: '$' });
 }
 
+function computeBaseInputTokens(entry: LlmCallEntry): number | null {
+  if (entry.inputTokens === null) return null;
+  const cachedTokens =
+    (entry.cachedInputTokens ?? 0) + (entry.cacheCreationInputTokens ?? 0);
+  return Math.max(entry.inputTokens - cachedTokens, 0);
+}
+
 type BreakdownItem = {
   key: string;
   label: string;
@@ -418,7 +425,9 @@ function TokenBreakdownTable({ entry }: { entry: LlmCallEntry }) {
     {
       key: 'input',
       label: 'Input',
-      tokens: entry.inputTokens,
+      tooltip:
+        'Input tokens billed at the base input rate. Cache read/write tokens are subtracted here and shown on their own rows.',
+      tokens: computeBaseInputTokens(entry),
       cost: entry.inputCostUsd,
     },
     {
@@ -516,7 +525,7 @@ function TokenBreakdownTable({ entry }: { entry: LlmCallEntry }) {
  * Render one LLM-call card inside the case-drawer LLM calls tab.
  *
  * Collapsed by default. The header shows the call name, status, model chip,
- * latency, total tokens, cost, and any user-defined metric whose `placements`
+ * duration, total tokens, cost, and any user-defined metric whose `placements`
  * includes `'header'`. Click toggles expansion to reveal token breakdown,
  * built-in and body-placement metrics, then the JSON sections in order: Input
  * / Output / Reasoning / Steps (when the configured `steps` attribute
@@ -534,8 +543,8 @@ export function LlmCallRow({ entry }: { entry: LlmCallEntry }) {
   );
 
   const costLabel = formatCostChip(entry.costUsd);
-  const latencyLabel =
-    entry.latencyMs === null ? null : formatDuration(entry.latencyMs);
+  const durationLabel =
+    entry.durationMs === null ? null : formatDuration(entry.durationMs);
 
   const showTokenBreakdown =
     entry.inputTokens !== null ||
@@ -565,7 +574,7 @@ export function LlmCallRow({ entry }: { entry: LlmCallEntry }) {
         <HeaderMeta>
           <StatusBadge status={entry.status} />
           {entry.model !== null ? <ModelChip>{entry.model}</ModelChip> : null}
-          {latencyLabel !== null ? <span>{latencyLabel}</span> : null}
+          {durationLabel !== null ? <span>{durationLabel}</span> : null}
           <HeaderTokenChip
             inputTokens={entry.inputTokens}
             outputTokens={entry.outputTokens}

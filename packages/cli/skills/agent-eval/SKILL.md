@@ -270,9 +270,18 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
 - Default usage config derives missing eval outputs from matching LLM/API spans
   before `outputsSchema` and scores run: `apiCalls`, `costUsd`, `llmTurns`,
   `inputTokens`, `outputTokens`, `totalTokens`, `cachedInputTokens`,
-  `cacheCreationInputTokens`, `reasoningTokens`, and `llmLatencyMs`. Authored
-  outputs and column overrides win. Remove defaults globally or per eval with
-  `removeDefaultConfig: true` or a key list such as
+  `cacheCreationInputTokens`, `reasoningTokens`, and `llmDurationMs`. Authored
+  outputs and column overrides win. When no explicit `usage.totalTokens` is
+  present, default `totalTokens` is input + output only; cache read/write tokens
+  stay separate and affect `costUsd` at their own rates. Derived base input
+  cost uses `inputTokens - cachedInputTokens - cacheCreationInputTokens` so
+  cache details are not double-counted. `cacheCreationInputTokens` is the total
+  cache-write count; optional `cacheCreationInput1hTokens` only splits that
+  total for 1-hour write pricing via `cacheCreationInput1hUsdPerMillion`.
+  `llmDurationMs` sums elapsed matched LLM span durations; it is not
+  time-to-first-token latency.
+  Remove defaults globally or per eval with `removeDefaultConfig: true` or a
+  key list such as
   `removeDefaultConfig: ['apiCalls', 'reasoningTokens']`.
 - `apiCalls` (in `agent-evals.config.ts`) configures how API-call spans are
   summarized for review. Defaults to `kind: 'api'`, `'http'`, `'http.client'`,

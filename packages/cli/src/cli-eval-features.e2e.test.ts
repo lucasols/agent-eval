@@ -77,13 +77,13 @@ describe('CLI eval features', () => {
         return;
       }
 
-      let totalCaseLatencyMs = 0;
+      let totalCaseDurationMs = 0;
       for (const caseRow of artifacts.cases) {
-        expect(typeof caseRow.latencyMs).toBe('number');
-        totalCaseLatencyMs += caseRow.latencyMs ?? 0;
+        expect(typeof caseRow.durationMs).toBe('number');
+        totalCaseDurationMs += caseRow.durationMs ?? 0;
       }
 
-      expect(totalCaseLatencyMs - runDurationMs).toBeGreaterThan(250);
+      expect(totalCaseDurationMs - runDurationMs).toBeGreaterThan(250);
     });
   });
 
@@ -117,8 +117,8 @@ describe('CLI eval features', () => {
         expect(caseRow.columns.outputTokens).toBe(50);
         expect(caseRow.columns.cachedInputTokens).toBe(30);
         expect(caseRow.columns.cacheCreationInputTokens).toBe(80);
-        expect(caseRow.columns.totalTokens).toBe(310);
-        expect(typeof caseRow.columns.llmLatencyMs).toBe('number');
+        expect(caseRow.columns.totalTokens).toBe(200);
+        expect(typeof caseRow.columns.llmDurationMs).toBe('number');
         expect(typeof caseRow.columns.response).toBe('string');
       }
 
@@ -154,7 +154,7 @@ describe('CLI eval features', () => {
             "cacheCreationInputTokens": 80,
             "cachedInputTokens": 30,
             "caseId": "simple-text",
-            "costUsd": 0.0011324999999999998,
+            "costUsd": 0.0008575000000000001,
             "inputTokens": 150,
             "llmTurns": 1,
             "mentionsRefund": 1,
@@ -163,13 +163,13 @@ describe('CLI eval features', () => {
             "reviewConfidence": 0.64,
             "status": "pass",
             "toolCalls": 1,
-            "totalTokens": 310,
+            "totalTokens": 200,
           },
           {
             "cacheCreationInputTokens": 80,
             "cachedInputTokens": 30,
             "caseId": "with-image",
-            "costUsd": 0.0011324999999999998,
+            "costUsd": 0.0008575000000000001,
             "inputTokens": 150,
             "llmTurns": 1,
             "mentionsRefund": 1,
@@ -178,13 +178,13 @@ describe('CLI eval features', () => {
             "reviewConfidence": 0.84,
             "status": "pass",
             "toolCalls": 2,
-            "totalTokens": 310,
+            "totalTokens": 200,
           },
           {
             "cacheCreationInputTokens": 80,
             "cachedInputTokens": 30,
             "caseId": "with-audio",
-            "costUsd": 0.0011324999999999998,
+            "costUsd": 0.0008575000000000001,
             "inputTokens": 150,
             "llmTurns": 1,
             "mentionsRefund": 1,
@@ -193,7 +193,7 @@ describe('CLI eval features', () => {
             "reviewConfidence": 0.96,
             "status": "pass",
             "toolCalls": 1,
-            "totalTokens": 310,
+            "totalTokens": 200,
           },
         ]
       `);

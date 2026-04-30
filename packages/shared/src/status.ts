@@ -127,8 +127,8 @@ export function deriveScopedSummaryFromCases(params: {
     else if (caseRow.status === 'running') runningCases += 1;
     else pendingCases += 1;
 
-    if (caseRow.latencyMs !== null) {
-      totalDurationMs += caseRow.latencyMs;
+    if (caseRow.durationMs !== null) {
+      totalDurationMs += caseRow.durationMs;
       hasDuration = true;
     }
   }

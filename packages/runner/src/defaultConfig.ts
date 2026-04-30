@@ -24,7 +24,8 @@ export const DEFAULT_CONFIG_KEYS: readonly DefaultConfigKey[] = [
   'totalTokens',
   'cachedInputTokens',
   'cacheCreationInputTokens',
-  'llmLatencyMs',
+  'reasoningTokens',
+  'llmDurationMs',
 ];
 
 type RemoveDefaultConfig = true | DefaultConfigKey[] | undefined;
@@ -98,7 +99,7 @@ export const DEFAULT_COLUMNS: Record<DefaultConfigKey, EvalColumnOverride> = {
     numberFormat: tokenNumberFormat,
     align: 'right',
   },
-  llmLatencyMs: { label: 'LLM Latency', format: 'duration', align: 'right' },
+  llmDurationMs: { label: 'LLM Duration', format: 'duration', align: 'right' },
 };
 
 function resolveRemovedKeys(
@@ -388,8 +389,14 @@ export function addDefaultOutputs(params: {
   });
   assignIfMissing({
     outputs: params.outputs,
-    key: 'llmLatencyMs',
-    value: sumNullable(calls.map((call) => call.latencyMs)),
+    key: 'reasoningTokens',
+    value: sumNullable(calls.map((call) => call.reasoningTokens)),
+    activeKeys,
+  });
+  assignIfMissing({
+    outputs: params.outputs,
+    key: 'llmDurationMs',
+    value: sumNullable(calls.map((call) => call.durationMs)),
     activeKeys,
   });
 }

@@ -422,9 +422,9 @@ Use `key` when you want to display the same source attribute more than once, suc
 
 ### LLM calls tab
 
-The case-run drawer surfaces a dedicated **LLM calls** tab that derives a focused list from the trace whenever a case run produced at least one matching span. By default, every span with `kind: 'llm'` is treated as an LLM call and the tab reads `model`, `usage.inputTokens`, `usage.outputTokens`, `usage.cachedInputTokens`, `usage.reasoningTokens`, `tokensPerSecond`, `steps`, `finishReason`, `provider`, `input`, `output`, `reasoning`, and `toolCalls` from the span's attributes. Each row is collapsed by default; clicking expands it to show a per-token-type tokens + cost breakdown table, tokens/sec, finish reason, input/output JSON, reasoning text, tool calls, and any custom metrics.
+The case-run drawer surfaces a dedicated **LLM calls** tab that derives a focused list from the trace whenever a case run produced at least one matching span. By default, every span with `kind: 'llm'` is treated as an LLM call and the tab reads `model`, `usage.inputTokens`, `usage.outputTokens`, `usage.cachedInputTokens`, `usage.cacheCreationInputTokens`, `usage.cacheCreationInput1hTokens`, `usage.reasoningTokens`, `tokensPerSecond`, `steps`, `finishReason`, `provider`, `input`, `output`, `reasoning`, and `toolCalls` from the span's attributes. Each row is collapsed by default; clicking expands it to show a per-token-type tokens + cost breakdown table, tokens/sec, finish reason, input/output JSON, reasoning text, tool calls, and any custom metrics.
 
-The expanded breakdown table includes separate **Cache write** and **Cache read** rows so providers like Anthropic — which charge a premium for cache creation (1.25× / 2× the base input rate) and a deep discount on cache reads (0.1×) — show up correctly. Configure `llmCalls.pricing` once in `agent-evals.config.ts` and the UI derives USD costs from token counts using exact `model` matches, with optional `provider` matches taking precedence. Existing explicit span cost attributes still work as overrides (`costUsd`, `cost.inputUsd`, `cost.outputUsd`, `cost.cacheCreationInputUsd`, `cost.cachedInputUsd`, and `cost.reasoningUsd`), but new spans should only need model/provider plus token counts.
+The expanded breakdown table includes separate **Cache write** and **Cache read** rows so providers like Anthropic — which charge a premium for cache creation (1.25× / 2× the base input rate) and a deep discount on cache reads (0.1×) — show up correctly. Configure `llmCalls.pricing` once in `agent-evals.config.ts` and the UI derives USD costs from token counts using exact `model` matches, with optional `provider` matches taking precedence. Cache read/write tokens are reported separately and contribute to USD cost; when deriving the base input cost, the runner subtracts cache read/write tokens from `inputTokens` so those tokens are not billed twice. `cacheCreationInputTokens` is treated as the total cache-write count; optional `cacheCreationInput1hTokens` only splits that total so 1-hour cache writes can use `cacheCreationInput1hUsdPerMillion` while the remaining write tokens use `cacheCreationInputUsdPerMillion`. The default `totalTokens` calculation still sums input + output tokens because cache read/write counts are subsets of those categories. Existing explicit span cost attributes still work as overrides (`costUsd`, `cost.inputUsd`, `cost.outputUsd`, `cost.cacheCreationInputUsd`, `cost.cachedInputUsd`, and `cost.reasoningUsd`), but new spans should only need model/provider plus token counts.
 
 Override the defaults globally from `agent-evals.config.ts`:
 
@@ -435,6 +435,9 @@ llmCalls: {
   // Read structured fields from non-default attribute paths.
   attributes: {
     cachedInputTokens: 'usage.cache_read_input_tokens',
+    cacheCreationInputTokens: 'usage.cache_creation_input_tokens',
+    cacheCreationInput1hTokens:
+      'usage.cache_creation.ephemeral_1h_input_tokens',
     reasoningTokens: 'usage.completion_tokens_details.reasoning_tokens',
   },
   // Derive costs from usage tokens instead of writing costUsd on every span.
@@ -447,6 +450,7 @@ llmCalls: {
       outputUsdPerMillion: 0.6,
       cachedInputUsdPerMillion: 0.015,
       cacheCreationInputUsdPerMillion: 0.1875,
+      cacheCreationInput1hUsdPerMillion: 0.3,
     },
     {
       model: 'o1-mini',
@@ -484,16 +488,17 @@ run:
 - `cachedInputTokens`
 - `cacheCreationInputTokens`
 - `reasoningTokens`
-- `llmLatencyMs`
+- `llmDurationMs`
 
 Authored outputs with the same key are never overwritten. Authored `columns`,
 `stats`, and `charts` also remain authoritative; default columns use compact
 token formatting, dollar formatting for `costUsd`, and duration formatting for
-`llmLatencyMs`, while default stats and LLM usage charts are appended after
+`llmDurationMs`, while default stats and LLM usage charts are appended after
 authored config.
 `apiCalls` is counted from spans matched by `apiCalls.kinds`. Cost defaults use
 explicit span cost attributes or `llmCalls.pricing`, exactly like the LLM calls
-tab.
+tab. `llmDurationMs` sums the elapsed durations of matched LLM call spans; it is
+not time-to-first-token latency.
 
 Remove all defaults globally:
 
@@ -514,7 +519,7 @@ export const config: AgentEvalsConfig = {
 
 defineEval({
   id: 'support-agent',
-  removeDefaultConfig: ['apiCalls', 'costUsd', 'llmLatencyMs'],
+  removeDefaultConfig: ['apiCalls', 'costUsd', 'llmDurationMs'],
   execute: async ({ input }) => {
     await runSupportAgent(input);
   },

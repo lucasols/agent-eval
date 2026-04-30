@@ -30,7 +30,8 @@ export type ApiCallEntry = {
   method: string | null;
   url: string | null;
   statusCode: number | null;
-  latencyMs: number | null;
+  /** Elapsed API call duration in milliseconds. */
+  durationMs: number | null;
   request: unknown;
   response: unknown;
   requestBody: unknown;
@@ -56,7 +57,7 @@ function readString(attributes: unknown, path: string): string | null {
   return typeof raw === 'string' && raw.length > 0 ? raw : null;
 }
 
-function computeLatencyMs(span: EvalTraceSpan): number | null {
+function computeDurationMs(span: EvalTraceSpan): number | null {
   if (span.endedAt === null) return null;
   const started = Date.parse(span.startedAt);
   const ended = Date.parse(span.endedAt);
@@ -84,10 +85,10 @@ function pickError(span: EvalTraceSpan): EvalTraceSpanError | null {
  *
  * Spans whose `kind` is not in `config.kinds` are dropped. Structured fields
  * (`method`, `url`, `statusCode`, etc.) are read via `getNestedAttribute` from
- * the configured paths. `durationMs` takes precedence for latency, with a
- * fallback to the span start/end timestamps. User-defined `metrics` whose path
- * resolves to `undefined` are dropped, but `null`, `0`, and `false` are
- * preserved as legitimate values worth displaying. Original span order is
+ * the configured paths. An explicit `durationMs` attribute takes precedence,
+ * with a fallback to the span start/end timestamps. User-defined `metrics`
+ * whose path resolves to `undefined` are dropped, but `null`, `0`, and `false`
+ * are preserved as legitimate values worth displaying. Original span order is
  * preserved so the API calls tab matches the ordering in the Trace tab.
  */
 export function extractApiCalls(
@@ -123,9 +124,9 @@ export function extractApiCalls(
       method: readString(attrs, config.attributes.method),
       url: readString(attrs, config.attributes.url),
       statusCode: readNumber(attrs, config.attributes.statusCode),
-      latencyMs:
+      durationMs:
         readNumber(attrs, config.attributes.durationMs) ??
-        computeLatencyMs(span),
+        computeDurationMs(span),
       request: getNestedAttribute(attrs, config.attributes.request),
       response: getNestedAttribute(attrs, config.attributes.response),
       requestBody: getNestedAttribute(attrs, config.attributes.requestBody),

@@ -122,7 +122,7 @@ describe('CLI discovery', () => {
           caseId: 'alpha-case',
           evalId: 'alpha-eval',
           status: 'pass',
-          latencyMs: 120,
+          durationMs: 120,
           costUsd: 0.01,
           columns: {},
           trial: 0,

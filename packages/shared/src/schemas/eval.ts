@@ -94,7 +94,8 @@ export const caseRowSchema = z.object({
   caseId: z.string(),
   evalId: z.string(),
   status: z.enum(['pending', 'running', 'pass', 'fail', 'error', 'cancelled']),
-  latencyMs: z.number().nullable(),
+  /** Elapsed case execution duration in milliseconds, or null before completion. */
+  durationMs: z.number().nullable(),
   costUsd: z.number().nullable().optional(),
   columns: z.record(z.string(), cellValueSchema),
   /** Winning trial index for the persisted case result. */

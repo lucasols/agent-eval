@@ -394,7 +394,7 @@ async function writeCacheFile(
   await mkdir(cacheDir, { recursive: true });
   const filePath = ownerPath(cacheDir, cacheFile.owner);
   const tmpPath = `${filePath}.${process.pid.toString()}.tmp`;
-  await writeFile(tmpPath, JSON.stringify(cacheFile));
+  await writeFile(tmpPath, JSON.stringify(cacheFile, null, 2));
   await rename(tmpPath, filePath);
 }
 

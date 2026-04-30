@@ -247,8 +247,8 @@ const EmptyCases = styled.div`
 `;
 
 function formatCaseDuration(caseRow: CaseRow): string {
-  if (caseRow.latencyMs === null || caseRow.latencyMs <= 0) return '—';
-  return formatDuration(caseRow.latencyMs);
+  if (caseRow.durationMs === null || caseRow.durationMs <= 0) return '—';
+  return formatDuration(caseRow.durationMs);
 }
 
 function formatTarget(target: {

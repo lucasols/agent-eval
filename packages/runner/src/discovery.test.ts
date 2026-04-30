@@ -326,7 +326,7 @@ defineEval({
         'totalTokens',
         'cachedInputTokens',
         'cacheCreationInputTokens',
-        'llmLatencyMs',
+        'llmDurationMs',
       ]);
       expect(summary?.columnDefs[1]).toMatchObject({
         key: 'costUsd',

@@ -116,6 +116,21 @@ describe('filesystem cache store raw-key debug storage', () => {
     });
   });
 
+  test('writes cache files with two-space indentation', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
+
+    await store.write(cacheEntry({ key: 'hashed-key' }));
+
+    const rawCacheFile = await readFile(
+      resolve(workspacePath, '.agent-evals/cache/debug-eval.json'),
+      'utf8',
+    );
+    expect(rawCacheFile).toContain('\n  "version": 1,');
+    expect(rawCacheFile).toContain('\n    "hashed-key": {');
+    expect(rawCacheFile).toContain('\n      "key": "hashed-key"');
+  });
+
   test('lookup succeeds when raw-key debug data is unavailable', async () => {
     const workspacePath = await createWorkspace();
     const store = createFsCacheStore({ workspaceRoot: workspacePath });
