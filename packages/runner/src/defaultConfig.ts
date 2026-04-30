@@ -5,15 +5,18 @@ import type {
   EvalOutputs,
 } from '@agent-evals/sdk';
 import {
+  extractApiCalls,
   extractLlmCalls,
-  type DefaultLLMConfigKey,
+  type DefaultConfigKey,
   type EvalChartsConfig,
   type EvalStatsConfig,
   type EvalTraceSpan,
+  type ResolvedApiCallsConfig,
   type ResolvedLlmCallsConfig,
 } from '@agent-evals/shared';
 
-export const DEFAULT_LLM_CONFIG_KEYS: readonly DefaultLLMConfigKey[] = [
+export const DEFAULT_CONFIG_KEYS: readonly DefaultConfigKey[] = [
+  'apiCalls',
   'costUsd',
   'llmTurns',
   'inputTokens',
@@ -25,7 +28,7 @@ export const DEFAULT_LLM_CONFIG_KEYS: readonly DefaultLLMConfigKey[] = [
   'llmLatencyMs',
 ];
 
-type RemoveDefaultLlmConfig = true | DefaultLLMConfigKey[] | undefined;
+type RemoveDefaultConfig = true | DefaultConfigKey[] | undefined;
 
 const tokenNumberFormat = {
   notation: 'compact',
@@ -36,10 +39,17 @@ const countNumberFormat = { decimalPlaces: 0 } satisfies NonNullable<
   EvalColumnOverride['numberFormat']
 >;
 
-export const DEFAULT_LLM_COLUMNS: Record<
-  DefaultLLMConfigKey,
+export const DEFAULT_COLUMNS: Record<
+  DefaultConfigKey,
   EvalColumnOverride
 > = {
+  apiCalls: {
+    label: 'API Calls',
+    format: 'number',
+    numberFormat: countNumberFormat,
+    align: 'right',
+    sortable: true,
+  },
   costUsd: {
     label: 'Cost',
     format: 'number',
@@ -105,45 +115,53 @@ export const DEFAULT_LLM_COLUMNS: Record<
 };
 
 function resolveRemovedKeys(
-  globalRemove: RemoveDefaultLlmConfig,
-  evalRemove: RemoveDefaultLlmConfig,
-): Set<DefaultLLMConfigKey> {
+  globalRemove: RemoveDefaultConfig,
+  evalRemove: RemoveDefaultConfig,
+): Set<DefaultConfigKey> {
   if (globalRemove === true || evalRemove === true) {
-    return new Set(DEFAULT_LLM_CONFIG_KEYS);
+    return new Set(DEFAULT_CONFIG_KEYS);
   }
   return new Set([...(globalRemove ?? []), ...(evalRemove ?? [])]);
 }
 
-export function getActiveDefaultLlmConfigKeys(params: {
-  globalRemove: RemoveDefaultLlmConfig;
-  evalRemove: RemoveDefaultLlmConfig;
-}): DefaultLLMConfigKey[] {
+export function getActiveDefaultConfigKeys(params: {
+  globalRemove: RemoveDefaultConfig;
+  evalRemove: RemoveDefaultConfig;
+}): DefaultConfigKey[] {
   const removed = resolveRemovedKeys(params.globalRemove, params.evalRemove);
-  return DEFAULT_LLM_CONFIG_KEYS.filter((key) => !removed.has(key));
+  return DEFAULT_CONFIG_KEYS.filter((key) => !removed.has(key));
 }
 
-export function mergeDefaultLlmColumns(params: {
+export function mergeDefaultColumns(params: {
   columns: EvalColumns | undefined;
-  globalRemove: RemoveDefaultLlmConfig;
-  evalRemove: RemoveDefaultLlmConfig;
+  globalRemove: RemoveDefaultConfig;
+  evalRemove: RemoveDefaultConfig;
 }): EvalColumns | undefined {
-  const activeKeys = getActiveDefaultLlmConfigKeys(params);
+  const activeKeys = getActiveDefaultConfigKeys(params);
   if (activeKeys.length === 0) return params.columns;
 
   const defaults = Object.fromEntries(
-    activeKeys.map((key) => [key, DEFAULT_LLM_COLUMNS[key]]),
+    activeKeys.map((key) => [key, DEFAULT_COLUMNS[key]]),
   ) satisfies EvalColumns;
   return { ...defaults, ...params.columns };
 }
 
-export function appendDefaultLlmStats(params: {
+export function appendDefaultStats(params: {
   stats: EvalStatsConfig | undefined;
-  globalRemove: RemoveDefaultLlmConfig;
-  evalRemove: RemoveDefaultLlmConfig;
+  globalRemove: RemoveDefaultConfig;
+  evalRemove: RemoveDefaultConfig;
 }): EvalStatsConfig | undefined {
-  const activeKeys = new Set(getActiveDefaultLlmConfigKeys(params));
+  const activeKeys = new Set(getActiveDefaultConfigKeys(params));
   const defaults: EvalStatsConfig = [];
 
+  if (activeKeys.has('apiCalls')) {
+    defaults.push({
+      kind: 'column',
+      key: 'apiCalls',
+      label: 'API Calls',
+      aggregate: 'avg',
+    });
+  }
   if (activeKeys.has('costUsd')) {
     defaults.push({
       kind: 'column',
@@ -181,13 +199,29 @@ export function appendDefaultLlmStats(params: {
   return merged.length > 0 ? merged : undefined;
 }
 
-export function appendDefaultLlmCharts(params: {
+export function appendDefaultCharts(params: {
   charts: EvalChartsConfig | undefined;
-  globalRemove: RemoveDefaultLlmConfig;
-  evalRemove: RemoveDefaultLlmConfig;
+  globalRemove: RemoveDefaultConfig;
+  evalRemove: RemoveDefaultConfig;
 }): EvalChartsConfig | undefined {
-  const activeKeys = new Set(getActiveDefaultLlmConfigKeys(params));
+  const activeKeys = new Set(getActiveDefaultConfigKeys(params));
   const defaults: EvalChartsConfig = [];
+
+  if (activeKeys.has('apiCalls')) {
+    defaults.push({
+      heading: 'API Calls',
+      type: 'bar',
+      metrics: [
+        {
+          source: 'column',
+          key: 'apiCalls',
+          aggregate: 'sum',
+          label: 'API Calls',
+          color: 'accentDim',
+        },
+      ],
+    });
+  }
 
   if (activeKeys.has('costUsd')) {
     defaults.push({
@@ -257,30 +291,30 @@ export function appendDefaultLlmCharts(params: {
   return merged.length > 0 ? merged : undefined;
 }
 
-export function resolveEvalDefaultLlmConfig<
+export function resolveEvalDefaultConfig<
   TInput,
   TOutputs extends EvalOutputs,
 >(params: {
   evalDef: EvalDefinition<TInput, TOutputs>;
-  globalRemove: RemoveDefaultLlmConfig;
+  globalRemove: RemoveDefaultConfig;
 }): {
   columns: EvalColumns | undefined;
   stats: EvalStatsConfig | undefined;
   charts: EvalChartsConfig | undefined;
 } {
-  const evalRemove = params.evalDef.removeDefaultLLMConfig;
+  const evalRemove = params.evalDef.removeDefaultConfig;
   return {
-    columns: mergeDefaultLlmColumns({
+    columns: mergeDefaultColumns({
       columns: params.evalDef.columns,
       globalRemove: params.globalRemove,
       evalRemove,
     }),
-    stats: appendDefaultLlmStats({
+    stats: appendDefaultStats({
       stats: params.evalDef.stats,
       globalRemove: params.globalRemove,
       evalRemove,
     }),
-    charts: appendDefaultLlmCharts({
+    charts: appendDefaultCharts({
       charts: params.evalDef.charts,
       globalRemove: params.globalRemove,
       evalRemove,
@@ -301,9 +335,9 @@ function sumNullable(values: readonly (number | null)[]): number | undefined {
 
 function assignIfMissing(params: {
   outputs: Record<string, unknown>;
-  key: DefaultLLMConfigKey;
+  key: DefaultConfigKey;
   value: number | undefined;
-  activeKeys: Set<DefaultLLMConfigKey>;
+  activeKeys: Set<DefaultConfigKey>;
 }): void {
   if (!params.activeKeys.has(params.key)) return;
   if (params.key in params.outputs) return;
@@ -311,17 +345,27 @@ function assignIfMissing(params: {
   params.outputs[params.key] = params.value;
 }
 
-export function addDefaultLlmOutputs(params: {
+export function addDefaultOutputs(params: {
   outputs: Record<string, unknown>;
   spans: EvalTraceSpan[];
   llmCallsConfig: ResolvedLlmCallsConfig;
-  globalRemove: RemoveDefaultLlmConfig;
-  evalRemove: RemoveDefaultLlmConfig;
+  apiCallsConfig: ResolvedApiCallsConfig;
+  globalRemove: RemoveDefaultConfig;
+  evalRemove: RemoveDefaultConfig;
 }): void {
-  const activeKeys = new Set(getActiveDefaultLlmConfigKeys(params));
+  const activeKeys = new Set(getActiveDefaultConfigKeys(params));
   if (activeKeys.size === 0) return;
 
   const calls = extractLlmCalls(params.spans, params.llmCallsConfig);
+  const apiCalls = extractApiCalls(params.spans, params.apiCallsConfig);
+
+  assignIfMissing({
+    outputs: params.outputs,
+    key: 'apiCalls',
+    value: apiCalls.length > 0 ? apiCalls.length : undefined,
+    activeKeys,
+  });
+
   if (calls.length === 0) return;
 
   assignIfMissing({

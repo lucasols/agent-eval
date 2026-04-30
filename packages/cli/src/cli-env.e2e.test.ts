@@ -33,6 +33,7 @@ describe('CLI env loading', () => {
             {
               "caseId": "route-refund-by-env",
               "columns": {
+                "apiCalls": 1,
                 "generatedIds": [
                   "environment-config-demo-evals-support-playground-environment-config-eval-ts-route-refund-by-env-1",
                   "environment-config-demo-evals-support-playground-environment-config-eval-ts-route-refund-by-env-2",
@@ -75,6 +76,7 @@ describe('CLI env loading', () => {
             {
               "caseId": "route-refund-by-env",
               "columns": {
+                "apiCalls": 1,
                 "generatedIds": [
                   "environment-config-demo-evals-support-playground-environment-config-eval-ts-route-refund-by-env-1",
                   "environment-config-demo-evals-support-playground-environment-config-eval-ts-route-refund-by-env-2",
@@ -117,6 +119,7 @@ describe('CLI env loading', () => {
             {
               "caseId": "route-refund-by-env",
               "columns": {
+                "apiCalls": 1,
                 "generatedIds": [
                   "environment-config-demo-evals-support-playground-environment-config-eval-ts-route-refund-by-env-1",
                   "environment-config-demo-evals-support-playground-environment-config-eval-ts-route-refund-by-env-2",

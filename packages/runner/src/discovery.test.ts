@@ -74,7 +74,7 @@ defineEval({
       join(workspacePath, 'agent-evals.config.ts'),
       `export default {
   include: ['evals/**/*.eval.ts'],
-  removeDefaultLLMConfig: true,
+  removeDefaultConfig: true,
 };
 `,
     );
@@ -208,7 +208,7 @@ defineEval({
       join(workspacePath, 'agent-evals.config.ts'),
       `export default {
   include: ['evals/**/*.eval.ts'],
-  removeDefaultLLMConfig: true,
+  removeDefaultConfig: true,
 };
 `,
     );
@@ -256,7 +256,7 @@ defineEval({
     }
   });
 
-  test('adds default LLM columns, stats, and charts during discovery', async () => {
+  test('adds default columns, stats, and charts during discovery', async () => {
     const workspacePath = await mkdtemp(
       join(tmpdir(), 'agent-evals-runner-default-llm-config-'),
     );
@@ -267,7 +267,7 @@ defineEval({
       join(workspacePath, 'agent-evals.config.ts'),
       `export default {
   include: ['evals/**/*.eval.ts'],
-  removeDefaultLLMConfig: ['reasoningTokens'],
+  removeDefaultConfig: ['reasoningTokens'],
 };
 `,
     );
@@ -303,6 +303,7 @@ defineEval({
 
       const summary = runner.getEval('llm-defaults');
       expect(summary?.columnDefs.map((def) => def.key)).toEqual([
+        'apiCalls',
         'costUsd',
         'llmTurns',
         'inputTokens',
@@ -312,13 +313,19 @@ defineEval({
         'cacheCreationInputTokens',
         'llmLatencyMs',
       ]);
-      expect(summary?.columnDefs[0]).toMatchObject({
+      expect(summary?.columnDefs[1]).toMatchObject({
         key: 'costUsd',
         label: 'Custom Cost',
         numberFormat: { prefix: 'USD ', decimalPlaces: 2 },
       });
       expect(summary?.stats).toEqual([
         { kind: 'cases' },
+        {
+          kind: 'column',
+          key: 'apiCalls',
+          label: 'API Calls',
+          aggregate: 'avg',
+        },
         { kind: 'column', key: 'costUsd', label: 'LLM Cost', aggregate: 'sum' },
         {
           kind: 'column',
@@ -341,6 +348,19 @@ defineEval({
       ]);
       expect(summary?.charts).toEqual([
         { type: 'line', metrics: [{ source: 'builtin', metric: 'passRate' }] },
+        {
+          heading: 'API Calls',
+          type: 'bar',
+          metrics: [
+            {
+              source: 'column',
+              key: 'apiCalls',
+              aggregate: 'sum',
+              label: 'API Calls',
+              color: 'accentDim',
+            },
+          ],
+        },
         {
           heading: 'LLM Cost',
           type: 'area',

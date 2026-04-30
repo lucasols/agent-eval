@@ -14,7 +14,7 @@ import type {
   EvalStatItem,
   EvalStatsConfig,
   EvalTraceSpan,
-  DefaultLLMConfigKey,
+  DefaultConfigKey,
   TraceDisplayInputConfig,
 } from '@agent-evals/shared';
 import type { z } from 'zod/v4';
@@ -32,7 +32,7 @@ export type {
   EvalStatAggregate,
   EvalStatItem,
   EvalStatsConfig,
-  DefaultLLMConfigKey,
+  DefaultConfigKey,
 };
 
 /** Single authored eval case with its stable identifier and input payload. */
@@ -284,14 +284,15 @@ type EvalDefinitionBase<
    */
   charts?: EvalChartsConfig;
   /**
-   * Remove built-in eval-level LLM usage outputs, columns, stats, and charts.
+   * Remove built-in eval-level outputs, columns, stats, and charts.
    *
-   * By default the runner derives LLM usage fields from trace spans using the
-   * workspace `llmCalls` config. Set to `true` to remove all defaults for this
-   * eval, or pass specific keys such as `['costUsd', 'totalTokens']` to remove
-   * only those defaults. Per-eval removals are combined with global removals.
+   * By default the runner derives usage fields from trace spans using the
+   * workspace `llmCalls` and `apiCalls` configs. Set to `true` to remove all
+   * defaults for this eval, or pass specific keys such as
+   * `['costUsd', 'apiCalls']` to remove only those defaults. Per-eval removals
+   * are combined with global removals.
    */
-  removeDefaultLLMConfig?: true | DefaultLLMConfigKey[];
+  removeDefaultConfig?: true | DefaultConfigKey[];
 };
 
 /**

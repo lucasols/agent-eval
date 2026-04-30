@@ -267,13 +267,13 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   derive USD costs from token counts by model/provider, and add entries to
   `metrics` to surface arbitrary user metrics (`format: 'string' | 'number' |
 'duration' | 'json' | 'boolean'`, `placements: ['header' | 'body']`).
-- Default LLM usage config derives missing eval outputs from those same LLM
-  spans before `outputsSchema` and scores run: `costUsd`, `llmTurns`,
+- Default usage config derives missing eval outputs from matching LLM/API spans
+  before `outputsSchema` and scores run: `apiCalls`, `costUsd`, `llmTurns`,
   `inputTokens`, `outputTokens`, `totalTokens`, `cachedInputTokens`,
   `cacheCreationInputTokens`, `reasoningTokens`, and `llmLatencyMs`. Authored
   outputs and column overrides win. Remove defaults globally or per eval with
-  `removeDefaultLLMConfig: true` or a key list such as
-  `removeDefaultLLMConfig: ['reasoningTokens']`.
+  `removeDefaultConfig: true` or a key list such as
+  `removeDefaultConfig: ['apiCalls', 'reasoningTokens']`.
 - `apiCalls` (in `agent-evals.config.ts`) configures how API-call spans are
   summarized for review. Defaults to `kind: 'api'`, `'http'`, `'http.client'`,
   and `'fetch'` spans with `method`, `url`, `statusCode`, `request`,
@@ -287,8 +287,8 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   are still captured.
 
 Stats rows and history charts on the eval card can be authored via `stats` /
-`charts` on the eval definition. LLM usage stats/charts are added by default
-unless removed with `removeDefaultLLMConfig`. Their shapes live in the types; no
+`charts` on the eval definition. Usage stats/charts are added by default
+unless removed with `removeDefaultConfig`. Their shapes live in the types; no
 need to memorize the option set.
 
 ## Cached operations

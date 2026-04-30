@@ -53,7 +53,7 @@ export {
   type EvalScoreDef,
   type EvalManualScoreDef,
   type EvalDefinition,
-  type DefaultLLMConfigKey,
+  type DefaultConfigKey,
   type CacheKeyHashInput,
   type CacheKeyHashOptions,
   type SerializedCacheValue,

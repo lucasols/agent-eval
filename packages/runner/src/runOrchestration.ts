@@ -18,6 +18,7 @@ import type {
 } from '@agent-evals/shared';
 import {
   deriveStatusFromCaseRows,
+  resolveApiCallsConfig,
   resolveLlmCallsConfig,
 } from '@agent-evals/shared';
 import {
@@ -27,7 +28,7 @@ import {
 } from './cacheStore.ts';
 import { validateCharts } from './chartValidation.ts';
 import { buildDeclaredColumnDefs, mergeColumnDefs } from './columnBuilder.ts';
-import { resolveEvalDefaultLlmConfig } from './defaultLlmConfig.ts';
+import { resolveEvalDefaultConfig } from './defaultConfig.ts';
 import { loadEvalModule } from './evalModuleLoader.ts';
 import { getTargetEvalIds } from './evalSummaries.ts';
 import { runWithModuleIsolation } from './moduleIsolation.ts';
@@ -311,6 +312,7 @@ export async function executeRun({
     const cacheEnabled = config.cache?.enabled !== false;
     const moduleIsolation = { key: runState.manifest.id, workspaceRoot };
     const llmCallsConfig = resolveLlmCallsConfig(config.llmCalls);
+    const apiCallsConfig = resolveApiCallsConfig(config.apiCalls);
 
     for (const evalMeta of targetEvals) {
       const evalFilePath = evalMeta.sourceFilePath;
@@ -364,12 +366,12 @@ export async function executeRun({
 
               runState.summary.totalCases += cases.length;
 
-              const defaultLlmConfig = resolveEvalDefaultLlmConfig({
+              const defaultConfig = resolveEvalDefaultConfig({
                 evalDef,
-                globalRemove: config.removeDefaultLLMConfig,
+                globalRemove: config.removeDefaultConfig,
               });
               const declaredColumnDefs = buildDeclaredColumnDefs(
-                defaultLlmConfig.columns,
+                defaultConfig.columns,
                 evalDef.scores,
                 evalDef.manualScores,
               );
@@ -377,14 +379,14 @@ export async function executeRun({
                 declaredColumnDefs.map((def) => [def.key, def]),
               );
               const validatedCharts = validateCharts({
-                charts: defaultLlmConfig.charts,
+                charts: defaultConfig.charts,
                 columnDefs: declaredColumnDefs,
                 evalId: evalMeta.id,
               });
               for (const warning of validatedCharts.warnings) {
                 console.warn(warning);
               }
-              evalMeta.stats = defaultLlmConfig.stats;
+              evalMeta.stats = defaultConfig.stats;
               evalMeta.charts = validatedCharts.charts;
 
               const evalCaseRows: CaseRow[] = [];
@@ -405,7 +407,7 @@ export async function executeRun({
                   mergeColumnDefs(
                     accumulatedColumns,
                     columns,
-                    defaultLlmConfig.columns,
+                    defaultConfig.columns,
                     evalDef.scores,
                     evalDef.manualScores,
                   );
@@ -436,8 +438,8 @@ export async function executeRun({
                         evalCase,
                         globalTraceDisplay,
                         llmCallsConfig,
-                        globalRemoveDefaultLLMConfig:
-                          config.removeDefaultLLMConfig,
+                        apiCallsConfig,
+                        globalRemoveDefaultConfig: config.removeDefaultConfig,
                         trial,
                         startTime,
                         cacheAdapter:

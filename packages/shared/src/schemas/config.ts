@@ -13,8 +13,9 @@ export const trialSelectionModeSchema = z.enum(['lowestScore', 'median']);
 /** Strategy used to collapse repeated trials into one stored case result. */
 export type TrialSelectionMode = z.infer<typeof trialSelectionModeSchema>;
 
-/** Built-in eval-level LLM usage output/column keys. */
-export const defaultLLMConfigKeySchema = z.enum([
+/** Built-in eval-level output/column keys. */
+export const defaultConfigKeySchema = z.enum([
+  'apiCalls',
   'costUsd',
   'llmTurns',
   'inputTokens',
@@ -25,18 +26,16 @@ export const defaultLLMConfigKeySchema = z.enum([
   'reasoningTokens',
   'llmLatencyMs',
 ]);
-/** Built-in eval-level LLM usage output/column key. */
-export type DefaultLLMConfigKey = z.infer<typeof defaultLLMConfigKeySchema>;
+/** Built-in eval-level output/column key. */
+export type DefaultConfigKey = z.infer<typeof defaultConfigKeySchema>;
 
-/** Removal config for built-in eval-level LLM usage outputs and UI metadata. */
-export const removeDefaultLLMConfigSchema = z.union([
+/** Removal config for built-in eval-level outputs and UI metadata. */
+export const removeDefaultConfigSchema = z.union([
   z.literal(true),
-  z.array(defaultLLMConfigKeySchema),
+  z.array(defaultConfigKeySchema),
 ]);
-/** Removal config for built-in eval-level LLM usage outputs and UI metadata. */
-export type RemoveDefaultLLMConfig = z.infer<
-  typeof removeDefaultLLMConfigSchema
->;
+/** Removal config for built-in eval-level outputs and UI metadata. */
+export type RemoveDefaultConfig = z.infer<typeof removeDefaultConfigSchema>;
 
 /** Render formats supported by an LLM-call metric in the UI. */
 export const llmCallMetricFormatSchema = z.enum([
@@ -521,14 +520,14 @@ export type AgentEvalsConfig = {
    */
   llmCalls?: LlmCallsConfigInput;
   /**
-   * Remove built-in eval-level LLM usage outputs, columns, stats, and charts.
+   * Remove built-in eval-level outputs, columns, stats, and charts.
    *
-   * Defaults are derived from trace spans using the resolved `llmCalls`
-   * extraction and pricing config. Set to `true` to remove all defaults, or
-   * pass specific keys such as `['costUsd', 'totalTokens']` to remove only
-   * those defaults globally. Per-eval removal is additive.
+   * Defaults are derived from trace spans using the resolved `llmCalls` and
+   * `apiCalls` extraction configs. Set to `true` to remove all defaults, or
+   * pass specific keys such as `['costUsd', 'apiCalls']` to remove only those
+   * defaults globally. Per-eval removal is additive.
    */
-  removeDefaultLLMConfig?: RemoveDefaultLLMConfig;
+  removeDefaultConfig?: RemoveDefaultConfig;
   /**
    * Configuration for the "API calls" tab in the case-run drawer.
    *
@@ -598,7 +597,7 @@ export const agentEvalsConfigSchema = z.object({
   allowCliRunAll: z.boolean().optional(),
   traceDisplay: traceDisplayInputConfigSchema.optional(),
   llmCalls: llmCallsConfigSchema.optional(),
-  removeDefaultLLMConfig: removeDefaultLLMConfigSchema.optional(),
+  removeDefaultConfig: removeDefaultConfigSchema.optional(),
   apiCalls: apiCallsConfigSchema.optional(),
   runLogs: runLogsConfigSchema.optional(),
   cache: z

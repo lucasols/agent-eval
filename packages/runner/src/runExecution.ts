@@ -17,18 +17,19 @@ import type {
   CaseDetail,
   CaseRow,
   CellValue,
-  RemoveDefaultLLMConfig,
+  RemoveDefaultConfig,
+  ResolvedApiCallsConfig,
   ResolvedLlmCallsConfig,
   ScoreTrace,
   TraceDisplayInputConfig,
 } from '@agent-evals/shared';
-import { resolveLlmCallsConfig } from '@agent-evals/shared';
+import {
+  resolveApiCallsConfig,
+  resolveLlmCallsConfig,
+} from '@agent-evals/shared';
 import { z } from 'zod/v4';
 import { normalizeScoreDef, toCellValue } from './columnBuilder.ts';
-import {
-  addDefaultLlmOutputs,
-  mergeDefaultLlmColumns,
-} from './defaultLlmConfig.ts';
+import { addDefaultOutputs, mergeDefaultColumns } from './defaultConfig.ts';
 import { runWithModuleIsolation } from './moduleIsolation.ts';
 import { persistInlineArtifact } from './outputArtifacts.ts';
 import { resolveTracePresentation } from './traceDisplay.ts';
@@ -105,7 +106,8 @@ export async function runCase<
   evalCase: { id: string; input: TRunInput; tags?: string[] };
   globalTraceDisplay: TraceDisplayInputConfig | undefined;
   llmCallsConfig?: ResolvedLlmCallsConfig;
-  globalRemoveDefaultLLMConfig?: RemoveDefaultLLMConfig;
+  apiCallsConfig?: ResolvedApiCallsConfig;
+  globalRemoveDefaultConfig?: RemoveDefaultConfig;
   trial: number;
   startTime: number;
   cacheAdapter: CacheAdapter | null;
@@ -123,7 +125,8 @@ export async function runCase<
     evalCase,
     globalTraceDisplay,
     llmCallsConfig = resolveLlmCallsConfig(undefined),
-    globalRemoveDefaultLLMConfig,
+    apiCallsConfig = resolveApiCallsConfig(undefined),
+    globalRemoveDefaultConfig,
     trial,
     startTime,
     cacheAdapter,
@@ -211,12 +214,13 @@ export async function runCase<
   }
 
   if (!nonAssertError) {
-    addDefaultLlmOutputs({
+    addDefaultOutputs({
       outputs: scope.outputs,
       spans: scope.spans,
       llmCallsConfig,
-      globalRemove: globalRemoveDefaultLLMConfig,
-      evalRemove: evalDef.removeDefaultLLMConfig,
+      apiCallsConfig,
+      globalRemove: globalRemoveDefaultConfig,
+      evalRemove: evalDef.removeDefaultConfig,
     });
   }
 
@@ -350,10 +354,10 @@ export async function runCase<
   );
 
   const columns: Record<string, CellValue> = {};
-  const columnOverrides = mergeDefaultLlmColumns({
+  const columnOverrides = mergeDefaultColumns({
     columns: evalDef.columns,
-    globalRemove: globalRemoveDefaultLLMConfig,
-    evalRemove: evalDef.removeDefaultLLMConfig,
+    globalRemove: globalRemoveDefaultConfig,
+    evalRemove: evalDef.removeDefaultConfig,
   });
   for (const [key, value] of Object.entries(scope.outputs)) {
     const cell = isBlob(value)

@@ -16,10 +16,10 @@ import { buildScopedEvalIdPrefix, runCase } from './runExecution.ts';
 
 type RunCaseOverrides = Partial<Parameters<typeof runCase>[0]>;
 
-async function runDefaultLlmCase(overrides: RunCaseOverrides = {}) {
+async function runDefaultUsageCase(overrides: RunCaseOverrides = {}) {
   return await runCase({
     evalDef: {
-      id: 'default-llm-eval',
+      id: 'default-usage-eval',
       execute: async () => {
         await evalTracer.span({ kind: 'llm', name: 'answer' }, () => {
           evalSpan.setAttributes({
@@ -34,9 +34,16 @@ async function runDefaultLlmCase(overrides: RunCaseOverrides = {}) {
             },
           });
         });
+        await evalTracer.span({ kind: 'api', name: 'lookup' }, () => {
+          evalSpan.setAttributes({
+            method: 'GET',
+            url: 'https://example.test/customers/123',
+            statusCode: 200,
+          });
+        });
       },
     },
-    evalId: 'default-llm-eval',
+    evalId: 'default-usage-eval',
     evalCase: { id: 'case-one', input: {} },
     globalTraceDisplay: undefined,
     llmCallsConfig: resolveLlmCallsConfig({
@@ -58,7 +65,7 @@ async function runDefaultLlmCase(overrides: RunCaseOverrides = {}) {
     cacheMode: 'use',
     codeFingerprint: 'fingerprint',
     moduleIsolation: undefined,
-    evalFilePath: '/repo/evals/default-llm.eval.ts',
+    evalFilePath: '/repo/evals/default-usage.eval.ts',
     workspaceRoot: '/repo',
     artifactDir: '/repo/.agent-evals/runs/run-id/artifacts',
     runId: 'run-id',
@@ -92,10 +99,11 @@ test('buildScopedEvalIdPrefix includes the workspace-relative eval file path', (
   ).toBe('duplicate-id-evals-returns-refund-eval-ts-case-a');
 });
 
-test('runCase derives default LLM usage outputs from trace spans', async () => {
-  const result = await runDefaultLlmCase();
+test('runCase derives default usage outputs from trace spans', async () => {
+  const result = await runDefaultUsageCase();
 
   expect(result.caseDetail.columns).toMatchObject({
+    apiCalls: 1,
     llmTurns: 1,
     inputTokens: 100,
     outputTokens: 40,
@@ -108,10 +116,10 @@ test('runCase derives default LLM usage outputs from trace spans', async () => {
   expect(typeof result.caseDetail.columns.llmLatencyMs).toBe('number');
 });
 
-test('runCase does not overwrite authored outputs with default LLM usage', async () => {
-  const result = await runDefaultLlmCase({
+test('runCase does not overwrite authored outputs with default usage', async () => {
+  const result = await runDefaultUsageCase({
     evalDef: {
-      id: 'default-llm-eval',
+      id: 'default-usage-eval',
       execute: async () => {
         setEvalOutput('costUsd', 42);
         await evalTracer.span({ kind: 'llm', name: 'answer' }, () => {
@@ -129,17 +137,18 @@ test('runCase does not overwrite authored outputs with default LLM usage', async
   expect(result.caseDetail.columns.llmTurns).toBe(1);
 });
 
-test('runCase supports global and per-eval removal of default LLM usage', async () => {
-  const globallyRemoved = await runDefaultLlmCase({
-    globalRemoveDefaultLLMConfig: true,
+test('runCase supports global and per-eval removal of default usage', async () => {
+  const globallyRemoved = await runDefaultUsageCase({
+    globalRemoveDefaultConfig: true,
   });
+  expect(globallyRemoved.caseDetail.columns.apiCalls).toBeUndefined();
   expect(globallyRemoved.caseDetail.columns.llmTurns).toBeUndefined();
   expect(globallyRemoved.caseDetail.columns.costUsd).toBeUndefined();
 
-  const partiallyRemoved = await runDefaultLlmCase({
+  const partiallyRemoved = await runDefaultUsageCase({
     evalDef: {
-      id: 'default-llm-eval',
-      removeDefaultLLMConfig: ['costUsd'],
+      id: 'default-usage-eval',
+      removeDefaultConfig: ['apiCalls', 'costUsd'],
       execute: async () => {
         await evalTracer.span({ kind: 'llm', name: 'answer' }, () => {
           evalSpan.setAttributes({
@@ -148,18 +157,23 @@ test('runCase supports global and per-eval removal of default LLM usage', async 
             usage: { inputTokens: 100, outputTokens: 40 },
           });
         });
+        await evalTracer.span({ kind: 'api', name: 'lookup' }, () => {
+          evalSpan.setAttribute('url', 'https://example.test/customers/123');
+        });
       },
     },
   });
+  expect(partiallyRemoved.caseDetail.columns.apiCalls).toBeUndefined();
   expect(partiallyRemoved.caseDetail.columns.costUsd).toBeUndefined();
   expect(partiallyRemoved.caseDetail.columns.llmTurns).toBe(1);
 });
 
-test('runCase validates typed outputs schema after default LLM outputs are added', async () => {
-  const result = await runDefaultLlmCase({
+test('runCase validates typed outputs schema after default outputs are added', async () => {
+  const result = await runDefaultUsageCase({
     evalDef: {
-      id: 'default-llm-eval',
+      id: 'default-usage-eval',
       outputsSchema: z.object({
+        apiCalls: z.number(),
         costUsd: z.number(),
         llmTurns: z.number(),
         response: z.string(),
@@ -173,12 +187,16 @@ test('runCase validates typed outputs schema after default LLM outputs are added
             usage: { inputTokens: 100, outputTokens: 40 },
           });
         });
+        await evalTracer.span({ kind: 'api', name: 'lookup' }, () => {
+          evalSpan.setAttribute('url', 'https://example.test/customers/123');
+        });
       },
     },
   });
 
   expect(result.caseDetail.status).toBe('pass');
   expect(result.caseDetail.assertionFailures).toEqual([]);
+  expect(result.caseDetail.columns.apiCalls).toBe(1);
   expect(result.caseDetail.columns.costUsd).toBeCloseTo(0.0006);
   expect(result.caseDetail.columns.llmTurns).toBe(1);
 });
