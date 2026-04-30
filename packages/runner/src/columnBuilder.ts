@@ -50,7 +50,6 @@ function getScoreOverride<TInput, TOutputs extends EvalOutputs = EvalOutputs>(
     format: def.format,
     numberFormat: def.numberFormat,
     hideInTable: def.hideInTable,
-    sortable: def.sortable,
     align: def.align,
     maxStars: def.maxStars,
   };
@@ -67,7 +66,6 @@ function mergeOverrides(
     format: override.format ?? base.format,
     numberFormat: override.numberFormat ?? base.numberFormat,
     hideInTable: override.hideInTable ?? base.hideInTable,
-    sortable: override.sortable ?? base.sortable,
     align: override.align ?? base.align,
     maxStars: override.maxStars ?? base.maxStars,
   };
@@ -273,7 +271,6 @@ function createColumnDef<
   if (override?.maxStars !== undefined) def.maxStars = override.maxStars;
   if (override?.hideInTable !== undefined)
     def.hideInTable = override.hideInTable;
-  if (override?.sortable !== undefined) def.sortable = override.sortable;
   if (override?.align !== undefined) def.align = override.align;
   if (!isScore) return def;
 

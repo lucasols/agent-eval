@@ -74,8 +74,6 @@ export type EvalColumnOverride = {
    * views and raw output data.
    */
   hideInTable?: boolean;
-  /** Whether the UI should allow sorting rows by this column. */
-  sortable?: boolean;
   /** Horizontal alignment used when rendering the column cells. */
   align?: 'left' | 'center' | 'right';
   /**

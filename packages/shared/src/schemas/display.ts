@@ -101,7 +101,6 @@ export const columnDefSchema = z.object({
   passThreshold: z.number().optional(),
   maxStars: z.number().int().min(2).optional(),
   hideInTable: z.boolean().optional(),
-  sortable: z.boolean().optional(),
   align: z.enum(['left', 'center', 'right']).optional(),
 });
 /** Column definition exposed to the UI for eval and case tables. */
