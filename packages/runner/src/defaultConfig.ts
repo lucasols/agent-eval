@@ -183,14 +183,6 @@ export function appendDefaultStats(params: {
       aggregate: 'avg',
     });
   }
-  if (activeKeys.has('llmLatencyMs')) {
-    defaults.push({
-      kind: 'column',
-      key: 'llmLatencyMs',
-      label: 'LLM Latency',
-      aggregate: 'avg',
-    });
-  }
 
   const merged = [...(params.stats ?? []), ...defaults];
   return merged.length > 0 ? merged : undefined;

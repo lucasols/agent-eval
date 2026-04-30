@@ -339,12 +339,6 @@ defineEval({
           label: 'LLM Turns',
           aggregate: 'avg',
         },
-        {
-          kind: 'column',
-          key: 'llmLatencyMs',
-          label: 'LLM Latency',
-          aggregate: 'avg',
-        },
       ]);
       expect(summary?.charts).toEqual([
         { type: 'line', metrics: [{ source: 'builtin', metric: 'passRate' }] },
