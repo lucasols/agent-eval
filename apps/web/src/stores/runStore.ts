@@ -159,7 +159,9 @@ function setRunSelection(selection: RunSelection | null): void {
 
 async function fetchCaseDetail(runId: string, caseId: string): Promise<void> {
   const fetchResult = await resultify(() =>
-    fetch(`/api/runs/${runId}/cases/${caseId}`),
+    fetch(
+      `/api/runs/${encodeURIComponent(runId)}/cases/${encodeURIComponent(caseId)}`,
+    ),
   );
   if (fetchResult.error) return;
   const jsonResult = await resultify(() => fetchResult.value.json());

@@ -785,6 +785,9 @@ export function createRunner({
       ignoreInitial: true,
       persistent: true,
     });
+    const watcherReady = new Promise<void>((ready) => {
+      watcher.once('ready', ready);
+    });
     discoveryWatcher = watcher;
 
     const scheduleRefresh = () => {
@@ -806,9 +809,7 @@ export function createRunner({
 
     await setupRunHistoryWatcher();
 
-    await new Promise<void>((ready) => {
-      watcher.once('ready', ready);
-    });
+    await watcherReady;
   }
 
   async function setupRunHistoryWatcher() {
