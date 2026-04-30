@@ -42,7 +42,10 @@ defineEval({
       {
         kind: 'llm',
         name: 'debuggable-call',
-        cache: { key: { prompt: input.prompt, model: 'debug-model' } },
+        cache: {
+          namespace: 'ui-cache-debug__debuggable-call',
+          key: { prompt: input.prompt, model: 'debug-model' },
+        },
       },
       () => ({ text: input.prompt }),
     );

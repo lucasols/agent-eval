@@ -22,8 +22,8 @@ export type CacheMode = z.infer<typeof cacheModeSchema>;
 export const spanCacheOptionsSchema = z.object({
   /** Arbitrary JSON-safe value used to derive the cache key. */
   key: z.unknown(),
-  /** Override the default namespace (`${evalId}__${spanName}`). */
-  namespace: z.string().optional(),
+  /** Required cache namespace shared by span cache entries in the same domain. */
+  namespace: z.string().min(1),
   /**
    * Include native `Blob`/`File` bytes in the cache key. By default only stable
    * metadata (`type`, `size`, plus `name`/`lastModified` for `File`) is used.

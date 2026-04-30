@@ -519,7 +519,7 @@ async function writeDebugKeyFile(
   await mkdir(debugDir, { recursive: true });
   const filePath = ownerPath(debugDir, debugFile.owner);
   const tmpPath = `${filePath}.${process.pid.toString()}.tmp`;
-  await writeFile(tmpPath, JSON.stringify(debugFile));
+  await writeFile(tmpPath, JSON.stringify(debugFile, null, 2));
   await rename(tmpPath, filePath);
 }
 

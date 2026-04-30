@@ -549,7 +549,10 @@ test('cached spans replay outputs but do not replay logs', async () => {
         {
           kind: 'tool',
           name: 'cached-tool',
-          cache: { key: { caseId: 'case-one' } },
+          cache: {
+            namespace: 'cached-log-eval__cached-tool',
+            key: { caseId: 'case-one' },
+          },
         },
         () => {
           evalLog('info', 'inside cached operation');

@@ -29,7 +29,10 @@ export async function triggerWorkflow(
         {
           kind: 'llm',
           name: 'plan-refund',
-          cache: { key: { prompt: input.message, locale: input.locale } },
+          cache: {
+            namespace: 'refund-workflow__plan-refund',
+            key: { prompt: input.message, locale: input.locale },
+          },
         },
         async () => {
           await waitForWorkflowDelay('planRefund');

@@ -208,7 +208,10 @@ defineEval({
       {
         kind: 'tool',
         name: 'optional-warning-loader',
-        cache: { key: { ...input, source: 'warning' } },
+        cache: {
+          namespace: 'captured-span-errors-eval__optional-warning-loader',
+          key: { ...input, source: 'warning' },
+        },
       },
       async () => {
         captureEvalSpanError(
@@ -229,7 +232,10 @@ defineEval({
       {
         kind: 'tool',
         name: 'optional-signal-loader',
-        cache: { key: input },
+        cache: {
+          namespace: 'captured-span-errors-eval__optional-signal-loader',
+          key: input,
+        },
       },
       async () => {
         const primaryError = new Error('Primary signal source timed out');

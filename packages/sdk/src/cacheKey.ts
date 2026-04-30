@@ -6,8 +6,6 @@ import { getCompositeKey } from '@ls-stack/utils/getCompositeKey';
 export type CacheKeyHashInput = {
   /** Cache namespace, usually derived from the eval id and operation name. */
   namespace: string;
-  /** Eval source fingerprint used to invalidate cache entries on code edits. */
-  codeFingerprint: string;
   /** User-authored cache key value. */
   key: unknown;
 };

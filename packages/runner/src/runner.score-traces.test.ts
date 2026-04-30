@@ -68,6 +68,7 @@ defineEval({
             kind: 'scorer',
             name: 'llm-judge',
             cache: {
+              namespace: 'score-trace-eval__llm-judge',
               key: {
                 prompt: input.prompt,
                 response: outputs.response,

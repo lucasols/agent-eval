@@ -634,9 +634,9 @@ async function traceSpanInternal(
       scope.replayingDepth === 0
     ) {
       const ctx = cacheCtx;
-      const namespace = cacheOpts.namespace ?? `${ctx.evalId}__${info.name}`;
+      const namespace = getRequiredSpanCacheNamespace(cacheOpts);
       const keyHash = await hashCacheKey(
-        { namespace, codeFingerprint: ctx.codeFingerprint, key: cacheOpts.key },
+        { namespace, key: cacheOpts.key },
         { serializeFileBytes: cacheOpts.serializeFileBytes === true },
       );
 
@@ -739,6 +739,17 @@ async function traceSpanInternal(
     scope.spanStack.pop();
     scope.activeSpanStack.pop();
   }
+}
+
+function getRequiredSpanCacheNamespace(cacheOpts: unknown): string {
+  if (!isRecordLike(cacheOpts)) {
+    throw new Error('Cached spans require a non-empty cache.namespace');
+  }
+  const namespace = cacheOpts.namespace;
+  if (typeof namespace !== 'string' || namespace.length === 0) {
+    throw new Error('Cached spans require a non-empty cache.namespace');
+  }
+  return namespace;
 }
 
 const traceCache = createTraceCache(generateSpanId);

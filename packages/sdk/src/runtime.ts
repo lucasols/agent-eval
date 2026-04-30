@@ -57,7 +57,7 @@ export type CacheScopeContext = {
   adapter: CacheAdapter;
   mode: CacheMode;
   evalId: string;
-  /** Hash of the eval source file; used to invalidate on code changes. */
+  /** Hash of the eval source file, stored as cache metadata for inspection. */
   codeFingerprint: string;
 };
 

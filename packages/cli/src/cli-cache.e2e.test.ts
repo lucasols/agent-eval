@@ -439,7 +439,7 @@ describe('CLI operation caching', () => {
     });
   });
 
-  test('code fingerprint invalidates cache when the eval source changes', async () => {
+  test('cache keys reuse entries when only the eval source fingerprint changes', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const primed = await runExampleCli(workspacePath, [
         'run',
@@ -451,6 +451,16 @@ describe('CLI operation caching', () => {
       expect(primed.exitCode).toBe(0);
       const cacheBefore = await readCacheDir(workspacePath);
       expect(cacheBefore).toHaveLength(1);
+      const cacheFilePath = resolve(
+        workspacePath,
+        '.agent-evals/cache',
+        requireDefined(cacheBefore[0], 'cache file before source edit'),
+      );
+      const [cacheEntryBefore, extraEntryBefore] =
+        await readCacheEntries(cacheFilePath);
+      if (cacheEntryBefore === undefined || extraEntryBefore !== undefined) {
+        throw new Error('Expected exactly one cache entry before source edit');
+      }
 
       const evalInWorkspace = resolve(
         workspacePath,
@@ -463,11 +473,12 @@ describe('CLI operation caching', () => {
           `Expected eval file at ${evalInWorkspace}; fixture changed?`,
         );
       }
-      // edit a comment-only line so behaviour is identical but the source hash shifts
+      // edit a comment-only line so behaviour is identical but the source
+      // fingerprint shifts.
       const source = await readFile(evalInWorkspace, 'utf8');
       await writeFile(
         evalInWorkspace,
-        `// cache-invalidating comment ${String(Date.now())}\n${source}`,
+        `// cache-preserving comment ${String(Date.now())}\n${source}`,
       );
 
       await resetRunsDirectory(workspacePath);
@@ -485,17 +496,14 @@ describe('CLI operation caching', () => {
         artifacts.traces['simple-text.json'] ?? [],
         'plan-refund',
       );
-      expect(getCacheStatus(planSpan)).toBe('miss');
+      expect(getCacheStatus(planSpan)).toBe('hit');
+      expect(planSpan.attributes?.['cache.key']).toBe(cacheEntryBefore.key);
 
       const cacheAfter = await readCacheDir(workspacePath);
       expect(cacheAfter).toEqual(['refund-workflow.json']);
-      const cacheFilePath = resolve(
-        workspacePath,
-        '.agent-evals/cache',
-        requireDefined(cacheAfter[0], 'cache file after source edit'),
-      );
       const entries = await readCacheEntries(cacheFilePath);
-      expect(entries).toHaveLength(2);
+      expect(entries).toHaveLength(1);
+      expect(entries[0]?.storedAt).toBe(cacheEntryBefore.storedAt);
     });
   });
 

@@ -131,6 +131,26 @@ describe('filesystem cache store raw-key debug storage', () => {
     expect(rawCacheFile).toContain('\n      "key": "hashed-key"');
   });
 
+  test('writes raw-key debug files with two-space indentation', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
+
+    await store.write(cacheEntry({ key: 'hashed-key' }), {
+      rawKey: { prompt: 'refund please', model: 'gpt-4o-mini' },
+      operationType: 'span',
+      operationName: 'expensive-op',
+      codeFingerprint: 'source-fingerprint',
+    });
+
+    const rawDebugFile = await readFile(
+      resolve(workspacePath, '.agent-evals/cache-debug/debug-eval.json'),
+      'utf8',
+    );
+    expect(rawDebugFile).toContain('\n  "version": 1,');
+    expect(rawDebugFile).toContain('\n    "hashed-key": {');
+    expect(rawDebugFile).toContain('\n      "key": "hashed-key"');
+  });
+
   test('lookup succeeds when raw-key debug data is unavailable', async () => {
     const workspacePath = await createWorkspace();
     const store = createFsCacheStore({ workspaceRoot: workspacePath });

@@ -728,6 +728,7 @@ scores: {
           kind: 'scorer',
           name: 'llm-judge',
           cache: {
+            namespace: 'refund-workflow__llm-judge',
             key: {
               prompt: input.message,
               response: outputs.output,
@@ -891,8 +892,9 @@ Each chart declares:
 
 ## Caching costly operations
 
-Wrap a costly span (LLM call, remote tool, etc.) with `cache: { key }` to skip
-execution on subsequent runs. The cache records every observable effect inside
+Wrap a costly span (LLM call, remote tool, etc.) with
+`cache: { namespace, key }` to skip execution on subsequent runs. The cache
+records every observable effect inside
 the span — sub-spans, checkpoints, output helper calls, final attributes — and
 replays them verbatim on hits, so traces and outputs look identical to a fresh
 run.
@@ -902,7 +904,10 @@ await evalTracer.span(
   {
     kind: 'llm',
     name: 'plan-refund',
-    cache: { key: { prompt: input.message, model: 'gpt-4o-mini' } },
+    cache: {
+      namespace: 'refund-workflow__plan-refund',
+      key: { prompt: input.message, model: 'gpt-4o-mini' },
+    },
   },
   async () => {
     const result = await llm.complete(input.message);
@@ -989,16 +994,14 @@ Server API (`/api/cache`):
 
 ### How it works
 
-- Default namespace is `${evalId}__${spanName}` for cached spans and
-  `${evalId}__${name}` for spanless value caches; override per-call with
-  `cache.namespace` / `namespace` to share entries across operations.
-- Shared namespaces still include the eval file `codeFingerprint` in the final
-  cache key. In practice, that means shared namespaces are reusable across
-  evals in the same source file; evals in different files intentionally miss
-  even when they use the same namespace and key.
+- Cached spans require an explicit `cache.namespace`. Spanless value caches
+  default to `${evalId}__${name}` and can be overridden with `namespace`.
+- Cache identity is the namespace plus the authored key. Eval source
+  fingerprints are stored as metadata for inspection, but do not participate in
+  cache-key hashing.
 - Entries live in inspectable per-owner files at
-  `<workspaceRoot>/.agent-evals/cache/<owner>.json`; for default namespaces,
-  the owner is the eval id.
+  `<workspaceRoot>/.agent-evals/cache/<owner>.json`; for conventional
+  eval-prefixed namespaces, the owner is the eval id.
 - Authored raw cache keys are stored for debugging in
   `<workspaceRoot>/.agent-evals/cache-debug/<owner>.json`. This folder may
   contain prompts, user inputs, or other sensitive data, is not needed for cache
@@ -1013,8 +1016,6 @@ Server API (`/api/cache`):
   (`type`, `size`, plus `name`/`lastModified` for `File`) and do not read file
   bytes. Add `serializeFileBytes: true` to a cached span or
   `evalTracer.cache(...)` call when byte-level cache invalidation is required.
-- The cache key folds in a `codeFingerprint` — the sha256 of the eval file's
-  source — so editing the eval produces a miss instead of a stale hit.
 - Modes: `bypass` never reads or writes; `refresh` skips the read and always
   writes; `use` reads on hit and writes on miss.
 - Multi-trial runs isolate cache writes per trial attempt and only flush the

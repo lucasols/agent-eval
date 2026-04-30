@@ -73,7 +73,10 @@ defineEval({
         {
           kind: 'llm',
           name: 'draft-response',
-          cache: { key: { message: input.message } },
+          cache: {
+            namespace: 'trial-selection-eval__draft-response',
+            key: { message: input.message },
+          },
         },
         async () => {
           const next = nextCandidate();

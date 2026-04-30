@@ -574,9 +574,9 @@ export function setTrials(trials: number): void {
 /**
  * Delete cache entries scoped to a single authored eval id.
  *
- * Default cache namespaces still use `${evalId}__${operationName}` for
- * compatibility, so duplicate eval ids in different files share cache
- * management even though their cache keys remain source-fingerprint scoped.
+ * Conventional cache namespaces use `${evalId}__${operationName}`, so duplicate
+ * eval ids in different files share cache management when they use the same
+ * authored keys.
  */
 export async function clearCacheForEval(evalId: string): Promise<void> {
   const listResult = await resultify(() => fetch('/api/cache'));

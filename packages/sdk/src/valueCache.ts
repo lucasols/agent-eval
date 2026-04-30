@@ -49,7 +49,7 @@ export function createTraceCache(generateSpanId: () => string): {
 
     const namespace = info.namespace ?? `${cacheCtx.evalId}__${info.name}`;
     const keyHash = await hashCacheKey(
-      { namespace, codeFingerprint: cacheCtx.codeFingerprint, key: info.key },
+      { namespace, key: info.key },
       { serializeFileBytes: info.serializeFileBytes === true },
     );
     const activeSpan = scope.activeSpanStack.at(-1);

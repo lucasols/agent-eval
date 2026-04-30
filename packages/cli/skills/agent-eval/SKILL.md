@@ -87,7 +87,10 @@ export async function runRefundWorkflow(input: RefundInput) {
         {
           kind: 'llm',
           name: 'plan-refund',
-          cache: { key: { prompt: input.message, model: 'gpt-4o-mini' } },
+          cache: {
+            namespace: 'refund-workflow__plan-refund',
+            key: { prompt: input.message, model: 'gpt-4o-mini' },
+          },
         },
         async () => {
           let text: string;
@@ -319,15 +322,18 @@ Their shapes live in the types; no need to memorize the option set.
 
 ## Cached operations
 
-Wrap a costly pure span in `cache: { key }` so later runs replay its recorded
-effects without re-executing:
+Wrap a costly pure span in `cache: { namespace, key }` so later runs replay its
+recorded effects without re-executing:
 
 ```ts
 await evalTracer.span(
   {
     kind: 'llm',
     name: 'plan-refund',
-    cache: { key: { prompt: input.message, model: 'gpt-4o-mini' } },
+    cache: {
+      namespace: 'refund-workflow__plan-refund',
+      key: { prompt: input.message, model: 'gpt-4o-mini' },
+    },
   },
   async () => {
     const result = await llm.complete(input.message);
@@ -368,12 +374,13 @@ Mental model:
   namespace, and hit/miss status. When called directly from the case body
   (no surrounding span), the ref is recorded on the case detail's `cacheRefs`
   array.
-- The cache key folds in a source-file fingerprint, so editing the eval busts
-  the cache automatically.
-- `cache.namespace` on spans or `namespace` on value caches can share entries
-  across operations/evals, but the source-file fingerprint still participates
-  in the final key. Shared namespaces are reusable across evals in the same
-  file; evals in different files miss even with the same namespace and key.
+- Cache identity is the namespace plus the authored key. Source-file
+  fingerprints are stored as metadata for inspection, but do not participate in
+  cache-key hashing.
+- Cached spans require an explicit `cache.namespace`; value caches default to
+  `${evalId}__${name}` and can be overridden with `namespace`. Matching
+  namespaces share entries across operations/evals that use the same authored
+  key.
 - Authored eval ids are unique within one eval file. The exact eval identity is
   the workspace-relative file path plus eval id, so the same id can be reused in
   different files. Case ids must be unique within one eval; duplicate case ids
@@ -462,9 +469,9 @@ When adding or changing evals:
    formats from the `ColumnFormat` type.
 5. Promote high-signal span attributes with `traceDisplay` so they surface in
    the trace tree and detail pane.
-6. Cache costly pure spans with `cache: { key }` and pure spanless values with
-   `evalTracer.cache(...)`; never cache operations whose external side effects
-   you depend on.
+6. Cache costly pure spans with `cache: { namespace, key }` and pure spanless
+   values with `evalTracer.cache(...)`; never cache operations whose external
+   side effects you depend on.
 7. Sanity-check after changes: `agent-evals list`, then
    `agent-evals run --eval <id>`; use `--file <path|glob>` to target one file
    when multiple files use the same eval id.

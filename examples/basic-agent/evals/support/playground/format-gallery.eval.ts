@@ -92,7 +92,10 @@ defineEval({
           {
             kind: 'scorer',
             name: 'auto-quality-review',
-            cache: { key: { response: outputs.response, rubricVersion: 1 } },
+            cache: {
+              namespace: 'format-gallery__auto-quality-review',
+              key: { response: outputs.response, rubricVersion: 1 },
+            },
           },
           () => {
             evalSpan.setAttributes({

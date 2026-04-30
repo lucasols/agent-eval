@@ -6,18 +6,11 @@ async function cacheHash(
   key: unknown,
   options: { serializeFileBytes?: boolean } = {},
 ): Promise<string> {
-  return await hashCacheKey(
-    { namespace: 'cache-key-test', codeFingerprint: 'source-fingerprint', key },
-    options,
-  );
+  return await hashCacheKey({ namespace: 'cache-key-test', key }, options);
 }
 
 function cacheHashSync(key: unknown): string {
-  return hashCacheKeySync({
-    namespace: 'cache-key-test',
-    codeFingerprint: 'source-fingerprint',
-    key,
-  });
+  return hashCacheKeySync({ namespace: 'cache-key-test', key });
 }
 
 describe('cache key hashing', () => {
