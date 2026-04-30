@@ -100,12 +100,14 @@ const apiCallsConfigSchema: z.ZodType<ResolvedApiCallsConfig> = z.object({
 });
 
 const workspaceInfoSchema = z.object({
+  workspaceRoot: z.string(),
   packageManager: z.enum(['npm', 'pnpm', 'yarn', 'bun']),
   llmCalls: llmCallsConfigSchema,
   apiCalls: apiCallsConfigSchema,
 });
 
 type WorkspaceConfigState = {
+  workspaceRoot: string;
   packageManager: PackageManager;
   llmCalls: ResolvedLlmCallsConfig;
   apiCalls: ResolvedApiCallsConfig;
@@ -123,6 +125,7 @@ const DEFAULT_PACKAGE_MANAGER: PackageManager = 'pnpm';
  */
 export const workspaceConfigStore = new Store<WorkspaceConfigState>({
   state: {
+    workspaceRoot: '',
     packageManager: DEFAULT_PACKAGE_MANAGER,
     llmCalls: DEFAULT_LLM_CALLS_CONFIG,
     apiCalls: DEFAULT_API_CALLS_CONFIG,
@@ -157,6 +160,7 @@ export async function fetchWorkspaceConfig(): Promise<void> {
   }
 
   workspaceConfigStore.setState({
+    workspaceRoot: parseResult.value.workspaceRoot,
     packageManager: parseResult.value.packageManager,
     llmCalls: parseResult.value.llmCalls,
     apiCalls: parseResult.value.apiCalls,

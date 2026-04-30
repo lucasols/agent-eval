@@ -9,6 +9,7 @@ export const workspaceRoutes = new Hono().get('/', async (c) => {
   );
   return c.json(
     {
+      workspaceRoot: runner.getWorkspaceRoot(),
       packageManager,
       llmCalls: runner.getLlmCallsConfig(),
       apiCalls: runner.getApiCallsConfig(),

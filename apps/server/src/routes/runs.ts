@@ -16,9 +16,14 @@ const openRunLocationRequestSchema = z.object({
   line: z.number().int().min(1),
   column: z.number().int().min(1),
 });
+const importQuerySeparatorRegex = /[?#]/;
 
 function isInsideWorkspace(path: string, workspaceRoot: string): boolean {
   return path === workspaceRoot || path.startsWith(workspaceRoot + sep);
+}
+
+function stripImportQuery(path: string): string {
+  return path.split(importQuerySeparatorRegex, 1)[0] ?? path;
 }
 
 export const runsRoutes = new Hono()
@@ -52,9 +57,10 @@ export const runsRoutes = new Hono()
       const body = c.req.valid('json');
       const runner = getRunnerInstance();
       const workspaceRoot = runner.getWorkspaceRoot();
-      const absolutePath = isAbsolute(body.file)
-        ? resolvePath(body.file)
-        : resolvePath(workspaceRoot, body.file);
+      const file = stripImportQuery(body.file);
+      const absolutePath = isAbsolute(file)
+        ? resolvePath(file)
+        : resolvePath(workspaceRoot, file);
       if (!isInsideWorkspace(absolutePath, workspaceRoot)) {
         return c.json({ error: 'Resolved path escapes workspace' }, 400);
       }

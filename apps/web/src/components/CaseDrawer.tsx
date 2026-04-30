@@ -369,9 +369,12 @@ export function CaseDrawer() {
   const { sidebarWidth } = layoutStore.useSelectorRC((s) => ({
     sidebarWidth: s.sidebarWidth,
   }));
-  const { llmCallsConfig, apiCallsConfig } = workspaceConfigStore.useSelectorRC(
-    (s) => ({ llmCallsConfig: s.llmCalls, apiCallsConfig: s.apiCalls }),
-  );
+  const { workspaceRoot, llmCallsConfig, apiCallsConfig } =
+    workspaceConfigStore.useSelectorRC((s) => ({
+      workspaceRoot: s.workspaceRoot,
+      llmCallsConfig: s.llmCalls,
+      apiCallsConfig: s.apiCalls,
+    }));
   const windowWidth = useWindowWidth();
   const minWidth = 360;
   const maxWidth = Math.max(minWidth, windowWidth - sidebarWidth);
@@ -546,6 +549,7 @@ export function CaseDrawer() {
             phases={logPhases}
             selectedPhase={selectedLogPhase}
             onPhaseChange={setLogPhaseFilter}
+            workspaceRoot={workspaceRoot}
           />
         ) : null}
 

@@ -76,12 +76,6 @@ const HeaderButton = styled.button`
   }
 `;
 
-const HeaderAction = styled.div`
-  ${inline({ align: 'center' })}
-  padding-right: 8px;
-  flex-shrink: 0;
-`;
-
 const Caret = styled.span`
   ${inline({ align: 'center' })}
   color: ${colors.textMuted.var};
@@ -187,6 +181,12 @@ const DetailItem = styled.span`
   ${inline({ gap: 4, align: 'center' })}
 `;
 
+const LocationDetailItem = styled.span`
+  ${inline({ gap: 4, align: 'center' })}
+  min-width: 0;
+  flex: 1 1 100%;
+`;
+
 const DetailLabel = styled.span`
   ${kicker};
   font-size: 9.5px;
@@ -197,6 +197,14 @@ const DetailValue = styled.span`
   ${monoFont};
   font-size: 11px;
   color: ${colors.text.var};
+`;
+
+const LocationDetailValue = styled.span`
+  ${monoFont};
+  font-size: 11px;
+  color: ${colors.text.var};
+  min-width: 0;
+  word-break: break-all;
 `;
 
 const TruncatedTag = styled.span`
@@ -213,6 +221,8 @@ const LOG_PHASE_LABELS: Record<RunLogPhase, string> = {
   scorer: 'Scorer',
 };
 const collapsedPreviewMaxChars = 220;
+const importQuerySeparatorRegex = /[?#]/;
+const trailingSlashRegex = /\/$/;
 
 export function getLogPhases(logs: { phase: RunLogPhase }[]): RunLogPhase[] {
   const order: RunLogPhase[] = ['eval', 'derive', 'outputsSchema', 'scorer'];
@@ -225,11 +235,13 @@ export function CaseRunLogs({
   phases,
   selectedPhase,
   onPhaseChange,
+  workspaceRoot,
 }: {
   logs: RunLogEntry[];
   phases: RunLogPhase[];
   selectedPhase: RunLogPhase | 'all';
   onPhaseChange: (phase: RunLogPhase | 'all') => void;
+  workspaceRoot: string;
 }) {
   return (
     <>
@@ -258,6 +270,7 @@ export function CaseRunLogs({
           <LogEntry
             key={`${entry.timestamp}-${String(index)}`}
             entry={entry}
+            workspaceRoot={workspaceRoot}
           />
         ))}
       </LogList>
@@ -265,9 +278,18 @@ export function CaseRunLogs({
   );
 }
 
-function LogEntry({ entry }: { entry: RunLogEntry }) {
+function LogEntry({
+  entry,
+  workspaceRoot,
+}: {
+  entry: RunLogEntry;
+  workspaceRoot: string;
+}) {
   const [expanded, setExpanded] = useState(false);
   const location = entry.location;
+  const normalizedLocation = location
+    ? normalizeLogLocation(location)
+    : undefined;
   return (
     <Card>
       <HeaderRow>
@@ -290,26 +312,14 @@ function LogEntry({ entry }: { entry: RunLogEntry }) {
               {LOG_PHASE_LABELS[entry.phase]}
               {entry.source ? ` / ${entry.source}` : ''}
             </LogPhaseTag>
-            {location ? (
-              <LocationTag>{formatShortLocation(location)}</LocationTag>
+            {normalizedLocation ? (
+              <LocationTag>
+                {formatShortLocation(normalizedLocation)}
+              </LocationTag>
             ) : null}
             {entry.truncated ? <TruncatedTag>truncated</TruncatedTag> : null}
           </LogMeta>
         </HeaderButton>
-        {location ? (
-          <HeaderAction>
-            <Tooltip content="Open in editor">
-              <IconButton
-                aria-label="Open log location in editor"
-                onClick={() => {
-                  void openLogLocationInEditor(location);
-                }}
-              >
-                <SquareArrowOutUpRight />
-              </IconButton>
-            </Tooltip>
-          </HeaderAction>
-        ) : null}
       </HeaderRow>
       {expanded ? (
         <Body>
@@ -328,11 +338,23 @@ function LogEntry({ entry }: { entry: RunLogEntry }) {
               <DetailLabel>time</DetailLabel>
               <DetailValue>{entry.timestamp}</DetailValue>
             </DetailItem>
-            {location ? (
-              <DetailItem>
+            {normalizedLocation ? (
+              <LocationDetailItem>
                 <DetailLabel>location</DetailLabel>
-                <DetailValue>{formatFullLocation(location)}</DetailValue>
-              </DetailItem>
+                <LocationDetailValue>
+                  {formatFullLocation(normalizedLocation, workspaceRoot)}
+                </LocationDetailValue>
+                <Tooltip content="Open in editor">
+                  <IconButton
+                    aria-label="Open log location in editor"
+                    onClick={() => {
+                      void openLogLocationInEditor(normalizedLocation);
+                    }}
+                  >
+                    <SquareArrowOutUpRight />
+                  </IconButton>
+                </Tooltip>
+              </LocationDetailItem>
             ) : null}
           </DetailRow>
           {entry.args.length > 0 ? (
@@ -366,15 +388,46 @@ async function openLogLocationInEditor(
   );
 }
 
+function normalizeLogLocation(
+  location: NonNullable<RunLogEntry['location']>,
+): NonNullable<RunLogEntry['location']> {
+  return { ...location, file: stripImportQuery(location.file) };
+}
+
+function stripImportQuery(file: string): string {
+  return file.split(importQuerySeparatorRegex, 1)[0] ?? file;
+}
+
 function formatShortLocation(location: RunLogEntry['location']): string {
   if (location === undefined) return '';
   const fileName = location.file.split('/').at(-1) ?? location.file;
   return `${fileName}:${String(location.line)}`;
 }
 
-function formatFullLocation(location: RunLogEntry['location']): string {
+function formatFullLocation(
+  location: RunLogEntry['location'],
+  workspaceRoot: string,
+): string {
   if (location === undefined) return '';
-  return `${location.file}:${String(location.line)}:${String(location.column)}`;
+  const file = formatWorkspaceRelativeFile(location.file, workspaceRoot);
+  return `${file}:${String(location.line)}:${String(location.column)}`;
+}
+
+function formatWorkspaceRelativeFile(
+  file: string,
+  workspaceRoot: string,
+): string {
+  if (workspaceRoot.length === 0) return file;
+  const normalizedFile = file.replaceAll('\\', '/');
+  const normalizedRoot = workspaceRoot
+    .replaceAll('\\', '/')
+    .replace(trailingSlashRegex, '');
+  if (normalizedFile === normalizedRoot) return '.';
+  const rootPrefix = `${normalizedRoot}/`;
+  if (normalizedFile.startsWith(rootPrefix)) {
+    return normalizedFile.slice(rootPrefix.length);
+  }
+  return file;
 }
 
 function summarizeLogMessage(message: string): string {
