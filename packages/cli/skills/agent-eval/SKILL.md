@@ -288,8 +288,12 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
 
 Stats rows and history charts on the eval card can be authored via `stats` /
 `charts` on the eval definition. Usage stats and LLM usage charts are added by
-default unless removed with `removeDefaultConfig`. Their shapes live in the
-types; no need to memorize the option set.
+default unless removed with `removeDefaultConfig`. Column stats can override
+`format` and `numberFormat`, otherwise they inherit from the matching column.
+Number formats use `maxDecimalPlaces` to cap decimals and `minDecimalPlaces`
+to pad trailing zeroes. Without `maxDecimalPlaces`, they render up to 3 decimal
+places.
+Their shapes live in the types; no need to memorize the option set.
 
 ## Cached operations
 

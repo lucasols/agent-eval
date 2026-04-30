@@ -37,7 +37,7 @@ export const sharedTraceDisplay: NonNullable<
       path: 'costUsd',
       label: 'Cost',
       format: 'number',
-      numberFormat: { prefix: '$', decimalPlaces: 4 },
+      numberFormat: { prefix: '$', minDecimalPlaces: 4, maxDecimalPlaces: 4 },
       placements: ['tree', 'detail'],
       scope: 'subtree',
       mode: 'sum',

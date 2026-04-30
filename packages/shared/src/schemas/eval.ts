@@ -5,6 +5,7 @@ import {
   cellValueSchema,
   columnDefSchema,
   columnFormatSchema,
+  numberDisplayOptionsSchema,
 } from './display.ts';
 import { traceDisplayConfigSchema, traceSpanSchema } from './trace.ts';
 
@@ -38,6 +39,8 @@ export const evalStatItemSchema = z.discriminatedUnion('kind', [
     label: z.string().optional(),
     aggregate: evalStatAggregateSchema,
     format: columnFormatSchema.optional(),
+    /** Number presentation options applied when `format: 'number'`. */
+    numberFormat: numberDisplayOptionsSchema.optional(),
     accent: z.boolean().optional(),
   }),
 ]);

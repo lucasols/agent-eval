@@ -41,7 +41,7 @@ defineEval<VoiceReturnFollowUpInput>({
     costUsd: {
       label: 'Cost',
       format: 'number',
-      numberFormat: { prefix: '$', decimalPlaces: 4 },
+      numberFormat: { prefix: '$', minDecimalPlaces: 4, maxDecimalPlaces: 4 },
     },
     toolCalls: { label: 'Tool Calls' },
     llmTurns: { label: 'LLM Turns' },

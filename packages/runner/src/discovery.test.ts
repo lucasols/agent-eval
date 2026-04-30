@@ -102,12 +102,12 @@ defineEval({
     requests: {
       label: 'Requests',
       format: 'number',
-      numberFormat: { notation: 'compact', decimalPlaces: 1 },
+      numberFormat: { notation: 'compact' },
     },
     cost: {
       label: 'Cost',
       format: 'number',
-      numberFormat: { prefix: '$', decimalPlaces: 2 },
+      numberFormat: { prefix: '$', minDecimalPlaces: 2, maxDecimalPlaces: 2 },
       align: 'right',
     },
   },
@@ -163,14 +163,18 @@ defineEval({
           label: 'Requests',
           kind: 'number',
           format: 'number',
-          numberFormat: { notation: 'compact', decimalPlaces: 1 },
+          numberFormat: { notation: 'compact' },
         },
         {
           key: 'cost',
           label: 'Cost',
           kind: 'number',
           format: 'number',
-          numberFormat: { prefix: '$', decimalPlaces: 2 },
+          numberFormat: {
+            prefix: '$',
+            minDecimalPlaces: 2,
+            maxDecimalPlaces: 2,
+          },
           align: 'right',
         },
         {
@@ -222,7 +226,13 @@ defineEval({
   stats: [
     { kind: 'cases' },
     { kind: 'passRate', accent: true },
-    { kind: 'column', key: 'accuracy', aggregate: 'avg', format: 'percent' },
+    {
+      kind: 'column',
+      key: 'accuracy',
+      aggregate: 'avg',
+      format: 'number',
+      numberFormat: { suffix: '%', minDecimalPlaces: 1, maxDecimalPlaces: 1 },
+    },
     { kind: 'duration' },
   ],
   scores: {
@@ -247,7 +257,12 @@ defineEval({
           kind: 'column',
           key: 'accuracy',
           aggregate: 'avg',
-          format: 'percent',
+          format: 'number',
+          numberFormat: {
+            suffix: '%',
+            minDecimalPlaces: 1,
+            maxDecimalPlaces: 1,
+          },
         },
         { kind: 'duration' },
       ]);
@@ -282,7 +297,7 @@ defineEval({
     costUsd: {
       label: 'Custom Cost',
       format: 'number',
-      numberFormat: { prefix: 'USD ', decimalPlaces: 2 },
+      numberFormat: { prefix: 'USD ', minDecimalPlaces: 2, maxDecimalPlaces: 2 },
     },
   },
   stats: [{ kind: 'cases' }],
@@ -316,7 +331,11 @@ defineEval({
       expect(summary?.columnDefs[1]).toMatchObject({
         key: 'costUsd',
         label: 'Custom Cost',
-        numberFormat: { prefix: 'USD ', decimalPlaces: 2 },
+        numberFormat: {
+          prefix: 'USD ',
+          minDecimalPlaces: 2,
+          maxDecimalPlaces: 2,
+        },
       });
       expect(summary?.stats).toEqual([
         { kind: 'cases' },
@@ -325,23 +344,36 @@ defineEval({
           key: 'apiCalls',
           label: 'API Calls',
           aggregate: 'avg',
+          numberFormat: { minDecimalPlaces: 0, maxDecimalPlaces: 0 },
         },
-        { kind: 'column', key: 'costUsd', label: 'LLM Cost', aggregate: 'sum' },
+        {
+          kind: 'column',
+          key: 'costUsd',
+          label: 'LLM Cost',
+          aggregate: 'avg',
+          numberFormat: { prefix: '$' },
+        },
         {
           kind: 'column',
           key: 'totalTokens',
           label: 'Tokens',
-          aggregate: 'sum',
+          aggregate: 'avg',
+          numberFormat: { notation: 'compact' },
         },
         {
           kind: 'column',
           key: 'llmTurns',
           label: 'LLM Turns',
           aggregate: 'avg',
+          numberFormat: { minDecimalPlaces: 0, maxDecimalPlaces: 0 },
         },
       ]);
       expect(summary?.charts).toEqual([
-        { type: 'line', metrics: [{ source: 'builtin', metric: 'passRate' }] },
+        {
+          type: 'line',
+          metrics: [{ source: 'builtin', metric: 'passRate' }],
+          tooltipExtras: undefined,
+        },
         {
           heading: 'LLM Cost',
           type: 'area',
@@ -349,11 +381,12 @@ defineEval({
             {
               source: 'column',
               key: 'costUsd',
-              aggregate: 'sum',
+              aggregate: 'avg',
               label: 'Cost',
               color: 'warning',
             },
           ],
+          tooltipExtras: undefined,
         },
         {
           heading: 'LLM Tokens',
@@ -362,23 +395,37 @@ defineEval({
             {
               source: 'column',
               key: 'inputTokens',
-              aggregate: 'sum',
+              aggregate: 'avg',
               label: 'Input',
               color: 'accent',
             },
             {
               source: 'column',
               key: 'outputTokens',
-              aggregate: 'sum',
+              aggregate: 'avg',
               label: 'Output',
               color: 'success',
+            },
+            {
+              source: 'column',
+              key: 'cachedInputTokens',
+              aggregate: 'avg',
+              label: 'Cached Input',
+              color: 'error',
+            },
+            {
+              source: 'column',
+              key: 'cacheCreationInputTokens',
+              aggregate: 'avg',
+              label: 'Cache Write',
+              color: 'warning',
             },
           ],
           tooltipExtras: [
             {
               source: 'column',
               key: 'totalTokens',
-              aggregate: 'sum',
+              aggregate: 'avg',
               label: 'Total',
             },
           ],

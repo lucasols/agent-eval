@@ -65,7 +65,7 @@ export type EvalColumnOverride = {
   /**
    * Extra options for `format: 'number'`.
    *
-   * Use this to add a prefix or suffix, force a fixed number of decimal
+   * Use this to add a prefix or suffix, control minimum and maximum decimal
    * places, or switch to compact notation such as `1.2K`.
    */
   numberFormat?: NumberDisplayOptions;
@@ -263,7 +263,8 @@ type EvalDefinitionBase<
    * column across the latest run's cases — `key` must match one of the eval's
    * score or column keys, and only finite numeric values participate in the
    * reduction. When no case has a numeric value for the key the stat renders
-   * an em dash. `label` and `format` default to the matching `ColumnDef`.
+   * an em dash. `label`, `format`, and `numberFormat` default to the matching
+   * `ColumnDef`.
    */
   stats?: EvalStatsConfig;
   /**

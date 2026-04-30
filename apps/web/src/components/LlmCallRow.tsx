@@ -329,7 +329,7 @@ function StepsSection({ steps }: { steps: unknown[] }) {
 
 function formatCostChip(cost: number | null): string {
   if (cost === null) return '';
-  return formatNumber(cost, { prefix: '$', decimalPlaces: 4 });
+  return formatNumber(cost, { prefix: '$' });
 }
 
 const compactTokenFormatter = new Intl.NumberFormat(undefined, {
@@ -401,9 +401,7 @@ function formatTokenCount(value: number | null): string {
 }
 
 function formatCostValue(value: number | null): string {
-  return value === null
-    ? EM_DASH
-    : formatNumber(value, { prefix: '$', decimalPlaces: 4 });
+  return value === null ? EM_DASH : formatNumber(value, { prefix: '$' });
 }
 
 type BreakdownItem = {
@@ -608,7 +606,10 @@ export function LlmCallRow({ entry }: { entry: LlmCallEntry }) {
                 <MetricRow>
                   <MetricRowLabel>Tokens/sec</MetricRowLabel>
                   <MetricRowValue>
-                    {formatNumber(entry.tokensPerSecond, { decimalPlaces: 1 })}
+                    {formatNumber(entry.tokensPerSecond, {
+                      minDecimalPlaces: 1,
+                      maxDecimalPlaces: 1,
+                    })}
                   </MetricRowValue>
                 </MetricRow>
               ) : null}

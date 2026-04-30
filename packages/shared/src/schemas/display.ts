@@ -52,19 +52,35 @@ export type NumberDisplayOptions = {
   prefix?: string;
   /** String appended to the rendered number, such as ` ms`. */
   suffix?: string;
-  /** Fixed number of decimal places to render. */
-  decimalPlaces?: number;
+  /** Minimum number of decimal places to render. */
+  minDecimalPlaces?: number;
+  /** Maximum number of decimal places to render. */
+  maxDecimalPlaces?: number;
 };
+
+const rawNumberDisplayOptionsSchema = z.object({
+  notation: z.enum(['standard', 'compact']).optional(),
+  compactDisplay: z.enum(['short', 'long']).optional(),
+  prefix: z.string().optional(),
+  suffix: z.string().optional(),
+  minDecimalPlaces: z.number().int().min(0).optional(),
+  maxDecimalPlaces: z.number().int().min(0).optional(),
+});
 
 /** Schema for numeric presentation options used by number-formatted values. */
 export const numberDisplayOptionsSchema: z.ZodType<NumberDisplayOptions> =
-  z.object({
-    notation: z.enum(['standard', 'compact']).optional(),
-    compactDisplay: z.enum(['short', 'long']).optional(),
-    prefix: z.string().optional(),
-    suffix: z.string().optional(),
-    decimalPlaces: z.number().int().min(0).optional(),
-  });
+  rawNumberDisplayOptionsSchema.refine(
+    (options) => {
+      if (options.minDecimalPlaces === undefined) return true;
+      if (options.maxDecimalPlaces === undefined) return true;
+      return options.minDecimalPlaces <= options.maxDecimalPlaces;
+    },
+    {
+      message:
+        'minDecimalPlaces must be less than or equal to maxDecimalPlaces',
+      path: ['minDecimalPlaces'],
+    },
+  );
 
 /** Schema for the supported column rendering kinds in list views. */
 export const columnKindSchema = z.enum(['string', 'number', 'boolean']);

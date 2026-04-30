@@ -24,20 +24,19 @@ export const DEFAULT_CONFIG_KEYS: readonly DefaultConfigKey[] = [
   'totalTokens',
   'cachedInputTokens',
   'cacheCreationInputTokens',
-  'reasoningTokens',
   'llmLatencyMs',
 ];
 
 type RemoveDefaultConfig = true | DefaultConfigKey[] | undefined;
 
-const tokenNumberFormat = {
-  notation: 'compact',
-  decimalPlaces: 1,
-} satisfies NonNullable<EvalColumnOverride['numberFormat']>;
-
-const countNumberFormat = { decimalPlaces: 0 } satisfies NonNullable<
+const tokenNumberFormat = { notation: 'compact' } satisfies NonNullable<
   EvalColumnOverride['numberFormat']
 >;
+
+const countNumberFormat = {
+  minDecimalPlaces: 0,
+  maxDecimalPlaces: 0,
+} satisfies NonNullable<EvalColumnOverride['numberFormat']>;
 
 export const DEFAULT_COLUMNS: Record<DefaultConfigKey, EvalColumnOverride> = {
   apiCalls: {
@@ -49,7 +48,7 @@ export const DEFAULT_COLUMNS: Record<DefaultConfigKey, EvalColumnOverride> = {
   costUsd: {
     label: 'Cost',
     format: 'number',
-    numberFormat: { prefix: '$', decimalPlaces: 4 },
+    numberFormat: { prefix: '$' },
     align: 'right',
   },
   llmTurns: {
@@ -143,6 +142,7 @@ export function appendDefaultStats(params: {
       key: 'apiCalls',
       label: 'API Calls',
       aggregate: 'avg',
+      numberFormat: countNumberFormat,
     });
   }
   if (activeKeys.has('costUsd')) {
@@ -151,6 +151,7 @@ export function appendDefaultStats(params: {
       key: 'costUsd',
       label: 'LLM Cost',
       aggregate: 'avg',
+      numberFormat: { prefix: '$' },
     });
   }
   if (activeKeys.has('totalTokens')) {
@@ -159,6 +160,7 @@ export function appendDefaultStats(params: {
       key: 'totalTokens',
       label: 'Tokens',
       aggregate: 'avg',
+      numberFormat: tokenNumberFormat,
     });
   }
   if (activeKeys.has('llmTurns')) {
@@ -167,6 +169,7 @@ export function appendDefaultStats(params: {
       key: 'llmTurns',
       label: 'LLM Turns',
       aggregate: 'avg',
+      numberFormat: countNumberFormat,
     });
   }
 
@@ -190,7 +193,7 @@ export function appendDefaultCharts(params: {
         {
           source: 'column',
           key: 'costUsd',
-          aggregate: 'sum',
+          aggregate: 'avg',
           label: 'Cost',
           color: 'warning',
         },
@@ -203,7 +206,7 @@ export function appendDefaultCharts(params: {
       ? {
           source: 'column' as const,
           key: 'inputTokens',
-          aggregate: 'sum' as const,
+          aggregate: 'avg' as const,
           label: 'Input',
           color: 'accent' as const,
         }
@@ -212,18 +215,27 @@ export function appendDefaultCharts(params: {
       ? {
           source: 'column' as const,
           key: 'outputTokens',
-          aggregate: 'sum' as const,
+          aggregate: 'avg' as const,
           label: 'Output',
           color: 'success' as const,
         }
       : null,
-    activeKeys.has('reasoningTokens')
+    activeKeys.has('cachedInputTokens')
       ? {
           source: 'column' as const,
-          key: 'reasoningTokens',
-          aggregate: 'sum' as const,
-          label: 'Reasoning',
+          key: 'cachedInputTokens',
+          aggregate: 'avg' as const,
+          label: 'Cached Input',
           color: 'error' as const,
+        }
+      : null,
+    activeKeys.has('cacheCreationInputTokens')
+      ? {
+          source: 'column' as const,
+          key: 'cacheCreationInputTokens',
+          aggregate: 'avg' as const,
+          label: 'Cache Write',
+          color: 'warning' as const,
         }
       : null,
   ].filter((metric) => metric !== null);
@@ -238,7 +250,7 @@ export function appendDefaultCharts(params: {
             {
               source: 'column',
               key: 'totalTokens',
-              aggregate: 'sum',
+              aggregate: 'avg',
               label: 'Total',
             },
           ]
@@ -367,12 +379,6 @@ export function addDefaultOutputs(params: {
     outputs: params.outputs,
     key: 'cacheCreationInputTokens',
     value: sumNullable(calls.map((call) => call.cacheCreationInputTokens)),
-    activeKeys,
-  });
-  assignIfMissing({
-    outputs: params.outputs,
-    key: 'reasoningTokens',
-    value: sumNullable(calls.map((call) => call.reasoningTokens)),
     activeKeys,
   });
   assignIfMissing({

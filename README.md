@@ -723,6 +723,7 @@ stats: [
     label: 'Cost',
     aggregate: 'sum',
     format: 'number',
+    numberFormat: { prefix: '$' },
   },
   { kind: 'duration' },
 ];
@@ -736,9 +737,9 @@ Supported kinds:
 - `cost` — latest run's summary cost in USD, when a run summary contains one.
 - `column` — aggregate a score or numeric output column across the latest
   run's cases. `key` matches a score key or output column key. `aggregate` is
-  `avg | min | max | sum | last`. `label` and `format` default to the matching
-  column definition. Only finite numeric values participate; if none exist the
-  stat renders an em dash.
+  `avg | min | max | sum | last`. `label`, `format`, and `numberFormat`
+  default to the matching column definition. Only finite numeric values
+  participate; if none exist the stat renders an em dash.
 
 ### History charts
 
@@ -991,9 +992,13 @@ For `format: 'number'`, use `numberFormat` to customize the display:
 price: {
   label: 'Price',
   format: 'number',
-  numberFormat: { prefix: '$', decimalPlaces: 2 },
+  numberFormat: { prefix: '$', minDecimalPlaces: 2, maxDecimalPlaces: 2 },
 }
 ```
+
+Use `maxDecimalPlaces` to cap decimals and `minDecimalPlaces` to pad trailing
+zeroes. When `maxDecimalPlaces` is omitted, numeric displays use up to 3
+decimal places.
 
 `numberFormat.notation` also supports compact rendering for shorter displays:
 
@@ -1001,7 +1006,7 @@ price: {
 requestCount: {
   label: 'Requests',
   format: 'number',
-  numberFormat: { notation: 'compact', decimalPlaces: 1 },
+  numberFormat: { notation: 'compact', maxDecimalPlaces: 1 },
 }
 ```
 

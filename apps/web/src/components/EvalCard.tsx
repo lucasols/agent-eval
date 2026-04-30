@@ -217,8 +217,19 @@ const Stat = styled.div`
 
 const StatLabel = styled.div`
   ${kicker};
+  ${inline({ gap: 6, align: 'center' })}
+  min-width: 0;
   font-size: 9px;
   color: ${colors.textMuted.var};
+`;
+
+const StatLabelText = styled.span`
+  ${ellipsis};
+`;
+
+const StatAggregate = styled.span`
+  color: ${colors.textDim.var};
+  flex-shrink: 0;
 `;
 
 const StatValue = styled.div<{ accent: boolean }>`
@@ -754,7 +765,12 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
             <StatsGrid>
               {statDisplays.map((stat, index) => (
                 <Stat key={`${stat.label}-${index}`}>
-                  <StatLabel>{stat.label}</StatLabel>
+                  <StatLabel>
+                    <StatLabelText>{stat.label}</StatLabelText>
+                    {stat.aggregateLabel === undefined ? null : (
+                      <StatAggregate>{stat.aggregateLabel}</StatAggregate>
+                    )}
+                  </StatLabel>
                   <StatValue accent={stat.accent}>{stat.value}</StatValue>
                 </Stat>
               ))}

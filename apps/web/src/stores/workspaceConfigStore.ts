@@ -47,7 +47,8 @@ const llmCallsConfigSchema: z.ZodType<ResolvedLlmCallsConfig> = z.object({
           compactDisplay: z.enum(['short', 'long']).optional(),
           prefix: z.string().optional(),
           suffix: z.string().optional(),
-          decimalPlaces: z.number().int().min(0).optional(),
+          minDecimalPlaces: z.number().int().min(0).optional(),
+          maxDecimalPlaces: z.number().int().min(0).optional(),
         })
         .optional(),
       placements: z.array(z.enum(['header', 'body'])),
@@ -92,7 +93,8 @@ const apiCallsConfigSchema: z.ZodType<ResolvedApiCallsConfig> = z.object({
           compactDisplay: z.enum(['short', 'long']).optional(),
           prefix: z.string().optional(),
           suffix: z.string().optional(),
-          decimalPlaces: z.number().int().min(0).optional(),
+          minDecimalPlaces: z.number().int().min(0).optional(),
+          maxDecimalPlaces: z.number().int().min(0).optional(),
         })
         .optional(),
       placements: z.array(z.enum(['header', 'body'])),

@@ -16,7 +16,12 @@ export type EvalStatContext = {
   latestCases: CaseRow[];
 };
 
-export type EvalStatDisplay = { label: string; value: string; accent: boolean };
+export type EvalStatDisplay = {
+  label: string;
+  aggregateLabel: string | undefined;
+  value: string;
+  accent: boolean;
+};
 
 export function computeStatDisplay(
   stat: EvalStatItem,
@@ -25,6 +30,7 @@ export function computeStatDisplay(
   if (stat.kind === 'cases') {
     return {
       label: 'Cases',
+      aggregateLabel: undefined,
       value:
         ctx.evalSummary.caseCount !== null
           ? String(ctx.evalSummary.caseCount)
@@ -36,6 +42,7 @@ export function computeStatDisplay(
     const s = ctx.latestSummary;
     return {
       label: 'Pass rate',
+      aggregateLabel: undefined,
       value:
         s && s.totalCases > 0
           ? `${String(s.passedCases)}/${String(s.totalCases)}`
@@ -46,6 +53,7 @@ export function computeStatDisplay(
   if (stat.kind === 'duration') {
     return {
       label: 'Duration',
+      aggregateLabel: undefined,
       value: formatDuration(ctx.latestSummary?.totalDurationMs ?? null),
       accent: false,
     };
@@ -61,15 +69,30 @@ function computeColumnStat(
   const label = stat.label ?? columnDef?.label ?? stat.key;
   const values = collectNumericValues(ctx.latestCases, stat.key);
   const aggregated = aggregateColumn(values, stat.aggregate);
+  const aggregateLabel = formatAggregateLabel(stat.aggregate);
   if (aggregated === null) {
-    return { label, value: EM_DASH, accent: stat.accent ?? false };
+    return {
+      label,
+      aggregateLabel,
+      value: EM_DASH,
+      accent: stat.accent ?? false,
+    };
   }
   const effectiveDef = buildEffectiveColumnDef(columnDef, stat);
   return {
     label,
+    aggregateLabel,
     value: formatNumericCellValue(effectiveDef, aggregated),
     accent: stat.accent ?? false,
   };
+}
+
+function formatAggregateLabel(aggregate: EvalStatAggregate): string {
+  if (aggregate === 'avg') return 'avg';
+  if (aggregate === 'sum') return 'sum';
+  if (aggregate === 'min') return 'min';
+  if (aggregate === 'max') return 'max';
+  return 'last';
 }
 
 function collectNumericValues(cases: CaseRow[], key: string): number[] {
@@ -108,10 +131,20 @@ function buildEffectiveColumnDef(
       key: stat.key,
       label: stat.label ?? stat.key,
       kind: 'number',
-      format: stat.format,
+      format:
+        stat.format ?? (stat.numberFormat === undefined ? undefined : 'number'),
+      numberFormat: stat.numberFormat,
       isScore: false,
     };
   }
-  if (stat.format === undefined) return columnDef;
-  return { ...columnDef, format: stat.format };
+  if (stat.format === undefined && stat.numberFormat === undefined) {
+    return columnDef;
+  }
+  return {
+    ...columnDef,
+    format:
+      stat.format ??
+      (stat.numberFormat === undefined ? columnDef.format : 'number'),
+    numberFormat: stat.numberFormat ?? columnDef.numberFormat,
+  };
 }

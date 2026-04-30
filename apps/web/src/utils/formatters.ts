@@ -1,27 +1,53 @@
 import type { ColumnDef, NumberDisplayOptions } from '@agent-evals/shared';
 
-const DEFAULT_MAX_DECIMAL_PLACES = 4;
+const DEFAULT_MAX_DECIMAL_PLACES = 3;
+const TRAILING_ZERO_DECIMAL_REGEX = /0+$/;
+
+function resolveDecimalPlaces(options: NumberDisplayOptions | undefined): {
+  minimumFractionDigits: number;
+  maximumFractionDigits: number;
+} {
+  const maximumFractionDigits =
+    options?.maxDecimalPlaces ?? DEFAULT_MAX_DECIMAL_PLACES;
+  const minimumFractionDigits = Math.min(
+    options?.minDecimalPlaces ?? 0,
+    maximumFractionDigits,
+  );
+  return { minimumFractionDigits, maximumFractionDigits };
+}
+
+function formatStandardNumber(
+  value: number,
+  fractionDigits: ReturnType<typeof resolveDecimalPlaces>,
+): string {
+  const fixed = value.toFixed(fractionDigits.maximumFractionDigits);
+  if (fractionDigits.minimumFractionDigits === 0) {
+    return Number(fixed).toString();
+  }
+
+  const [integer = '0', fraction = ''] = fixed.split('.');
+  const trimmedFraction = fraction.replace(TRAILING_ZERO_DECIMAL_REGEX, '');
+  const paddedFraction = trimmedFraction.padEnd(
+    fractionDigits.minimumFractionDigits,
+    '0',
+  );
+  return paddedFraction.length > 0 ? `${integer}.${paddedFraction}` : integer;
+}
 
 export function formatNumber(
   value: number | null | undefined,
   options: NumberDisplayOptions | undefined = undefined,
 ): string {
   if (value === null || value === undefined) return '\u2014';
+  const fractionDigits = resolveDecimalPlaces(options);
   const rendered =
     options?.notation === 'compact'
       ? new Intl.NumberFormat(undefined, {
           notation: 'compact',
           compactDisplay: options.compactDisplay ?? 'short',
-          ...(options.decimalPlaces === undefined
-            ? { maximumFractionDigits: DEFAULT_MAX_DECIMAL_PLACES }
-            : {
-                maximumFractionDigits: options.decimalPlaces,
-                minimumFractionDigits: options.decimalPlaces,
-              }),
+          ...fractionDigits,
         }).format(value)
-      : options?.decimalPlaces === undefined
-        ? Number(value.toFixed(DEFAULT_MAX_DECIMAL_PLACES)).toString()
-        : value.toFixed(options.decimalPlaces);
+      : formatStandardNumber(value, fractionDigits);
   return `${options?.prefix ?? ''}${rendered}${options?.suffix ?? ''}`;
 }
 

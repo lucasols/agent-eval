@@ -74,7 +74,7 @@ export const config: AgentEvalsConfig = {
         label: 'Temperature',
         path: 'params.temperature',
         format: 'number',
-        numberFormat: { decimalPlaces: 2 },
+        numberFormat: { minDecimalPlaces: 2, maxDecimalPlaces: 2 },
         placements: ['body'],
       },
       {

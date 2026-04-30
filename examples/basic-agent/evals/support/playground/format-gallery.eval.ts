@@ -42,15 +42,41 @@ defineEval({
     handlingCostUsd: {
       label: 'Handling Cost',
       format: 'number',
-      numberFormat: { prefix: '$', decimalPlaces: 2 },
+      numberFormat: { prefix: '$', minDecimalPlaces: 2, maxDecimalPlaces: 2 },
     },
     requestCount: {
       label: 'Requests',
       format: 'number',
-      numberFormat: { notation: 'compact', decimalPlaces: 1 },
+      numberFormat: {
+        notation: 'compact',
+        minDecimalPlaces: 1,
+        maxDecimalPlaces: 1,
+      },
     },
     reviewTimeMs: { label: 'Review Time', format: 'duration' },
   },
+  stats: [
+    {
+      kind: 'column',
+      key: 'handlingCostUsd',
+      label: 'Avg Handling Cost',
+      aggregate: 'avg',
+      format: 'number',
+      numberFormat: { prefix: '$', minDecimalPlaces: 2, maxDecimalPlaces: 2 },
+    },
+    {
+      kind: 'column',
+      key: 'requestCount',
+      label: 'Requests',
+      aggregate: 'sum',
+      format: 'number',
+      numberFormat: {
+        notation: 'compact',
+        minDecimalPlaces: 1,
+        maxDecimalPlaces: 1,
+      },
+    },
+  ],
   scores: {
     automatedQuality: {
       label: 'Auto Quality',
