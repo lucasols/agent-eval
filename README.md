@@ -489,7 +489,8 @@ run:
 Authored outputs with the same key are never overwritten. Authored `columns`,
 `stats`, and `charts` also remain authoritative; default columns use compact
 token formatting, dollar formatting for `costUsd`, and duration formatting for
-`llmLatencyMs`, while default stats/charts are appended after authored config.
+`llmLatencyMs`, while default stats and LLM usage charts are appended after
+authored config.
 `apiCalls` is counted from spans matched by `apiCalls.kinds`. Cost defaults use
 explicit span cost attributes or `llmCalls.pricing`, exactly like the LLM calls
 tab.
@@ -743,7 +744,7 @@ Supported kinds:
 
 The eval page can render one or more history charts at the top of each eval
 card that trend across the last 20 completed runs. Set `charts` to declare
-authored charts. Usage default charts are appended automatically unless
+authored charts. LLM usage default charts are appended automatically unless
 removed with `removeDefaultConfig`.
 
 ```ts

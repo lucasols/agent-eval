@@ -39,10 +39,7 @@ const countNumberFormat = { decimalPlaces: 0 } satisfies NonNullable<
   EvalColumnOverride['numberFormat']
 >;
 
-export const DEFAULT_COLUMNS: Record<
-  DefaultConfigKey,
-  EvalColumnOverride
-> = {
+export const DEFAULT_COLUMNS: Record<DefaultConfigKey, EvalColumnOverride> = {
   apiCalls: {
     label: 'API Calls',
     format: 'number',
@@ -206,22 +203,6 @@ export function appendDefaultCharts(params: {
 }): EvalChartsConfig | undefined {
   const activeKeys = new Set(getActiveDefaultConfigKeys(params));
   const defaults: EvalChartsConfig = [];
-
-  if (activeKeys.has('apiCalls')) {
-    defaults.push({
-      heading: 'API Calls',
-      type: 'bar',
-      metrics: [
-        {
-          source: 'column',
-          key: 'apiCalls',
-          aggregate: 'sum',
-          label: 'API Calls',
-          color: 'accentDim',
-        },
-      ],
-    });
-  }
 
   if (activeKeys.has('costUsd')) {
     defaults.push({

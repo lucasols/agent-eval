@@ -349,19 +349,6 @@ defineEval({
       expect(summary?.charts).toEqual([
         { type: 'line', metrics: [{ source: 'builtin', metric: 'passRate' }] },
         {
-          heading: 'API Calls',
-          type: 'bar',
-          metrics: [
-            {
-              source: 'column',
-              key: 'apiCalls',
-              aggregate: 'sum',
-              label: 'API Calls',
-              color: 'accentDim',
-            },
-          ],
-        },
-        {
           heading: 'LLM Cost',
           type: 'area',
           metrics: [
