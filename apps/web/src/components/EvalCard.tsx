@@ -194,7 +194,8 @@ const Body = styled.div<{ scroll: boolean }>`
   &.scroll {
     flex: 1;
     min-height: 0;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 `;
 
@@ -242,8 +243,7 @@ const Section = styled.div<{ fill: boolean }>`
   }
 
   &.fill {
-    flex: 1;
-    min-height: 0;
+    min-height: 480px;
   }
 `;
 
@@ -818,7 +818,6 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
               runs={visibleRunRows}
               columnDefs={evalSummary.columnDefs}
               evalId={evalSummary.id}
-              fillHeight={isSingle}
             />
           </Section>
         </Body>

@@ -41,7 +41,6 @@ type EvalRunsTableProps = {
   columnDefs: ColumnDef[];
   expandedRunIds: Set<string>;
   onToggleExpandedRun: (runId: string) => void;
-  fillHeight: boolean;
   runScope: RunScope | null;
   emptyMessage?: string;
 };
@@ -55,16 +54,11 @@ const Empty = styled.div`
   font-size: 12.5px;
 `;
 
-const TableWrap = styled.div<{ fillHeight: boolean }>`
+const TableWrap = styled.div`
   border: 1px solid ${colors.border.var};
   border-radius: var(--radius-lg);
   background: ${colors.bg.var};
   overflow: auto;
-
-  &.fillHeight {
-    flex: 1;
-    min-height: 0;
-  }
 `;
 
 const Table = styled.table`
@@ -345,7 +339,6 @@ export function EvalRunsTable({
   columnDefs,
   expandedRunIds,
   onToggleExpandedRun,
-  fillHeight,
   runScope,
   emptyMessage = 'Run this eval to see results',
 }: EvalRunsTableProps) {
@@ -370,7 +363,7 @@ export function EvalRunsTable({
   const totalCols = 3 + scoreColumns.length + otherCustomColumns.length;
 
   return (
-    <TableWrap fillHeight={fillHeight}>
+    <TableWrap>
       <Table>
         <thead>
           <tr>

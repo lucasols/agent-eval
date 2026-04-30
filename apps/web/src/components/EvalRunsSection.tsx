@@ -148,14 +148,12 @@ type EvalRunsSectionProps = {
   runs: ScopedRunRow[];
   columnDefs: ColumnDef[];
   evalId: string;
-  fillHeight: boolean;
 };
 
 export function EvalRunsSection({
   runs,
   columnDefs,
   evalId,
-  fillHeight,
 }: EvalRunsSectionProps) {
   const searchParams = useSearchParams();
   const [expandedRunIds, setExpandedRunIds] = useState<Set<string>>(() => {
@@ -251,7 +249,6 @@ export function EvalRunsSection({
         columnDefs={columnDefs}
         expandedRunIds={expandedRunIds}
         onToggleExpandedRun={toggleExpandedRun}
-        fillHeight={fillHeight}
         runScope={{ kind: 'eval', id: evalId }}
         emptyMessage={
           runFilter === 'all' ? undefined : 'No runs match this filter'
