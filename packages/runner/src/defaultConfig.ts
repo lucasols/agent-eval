@@ -164,7 +164,7 @@ export function appendDefaultStats(params: {
       kind: 'column',
       key: 'costUsd',
       label: 'LLM Cost',
-      aggregate: 'sum',
+      aggregate: 'avg',
     });
   }
   if (activeKeys.has('totalTokens')) {
@@ -172,7 +172,7 @@ export function appendDefaultStats(params: {
       kind: 'column',
       key: 'totalTokens',
       label: 'Tokens',
-      aggregate: 'sum',
+      aggregate: 'avg',
     });
   }
   if (activeKeys.has('llmTurns')) {
