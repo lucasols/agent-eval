@@ -1,6 +1,10 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { getEvalRegistry, runInEvalRuntimeScope } from '@agent-evals/sdk';
+import {
+  getEvalRegistry,
+  runInEvalRuntimeScope,
+  runWithEvalClock,
+} from '@agent-evals/sdk';
 import type {
   AgentEvalsConfig,
   CacheMode,
@@ -351,12 +355,17 @@ export async function executeRun({
         await runWithModuleIsolation(moduleIsolation, async () => {
           await runInEvalRuntimeScope('cases', async () => {
             await entry.use(async (evalDef) => {
+              const evalCases = await runWithEvalClock(
+                evalDef.startTime,
+                async () =>
+                  typeof evalDef.cases === 'function'
+                    ? await evalDef.cases()
+                    : (evalDef.cases ?? []),
+                { freezeTime: evalDef.freezeTime },
+              );
               const cases = filterEvalCases(
                 resolveRunnableEvalCases({
-                  cases:
-                    typeof evalDef.cases === 'function'
-                      ? await evalDef.cases()
-                      : (evalDef.cases ?? []),
+                  cases: evalCases,
                   evalId: evalMeta.id,
                 }),
                 request.target.evalIds,

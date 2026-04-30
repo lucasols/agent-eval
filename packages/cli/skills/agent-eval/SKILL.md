@@ -156,6 +156,19 @@ for settlement; promise and span errors keep their normal behavior. Use
 `waitForBackgroundJob: false` on a span, or `waitForBackgroundJobs: false` on an
 eval definition, when background work should not delay finalization.
 
+Eval Date APIs use a shifted wall clock by default: `new Date()` and
+`Date.now()` start at `2026-04-10T00:00:00.000Z` during case generation,
+execution, tracing, derived outputs, and scorers, then continue advancing with
+real elapsed time. Set `startTime` on a specific `defineEval(...)` to use
+another initial clock value, or set `startTime: 'now'` for that eval to use the
+real current clock. Timers are not faked, so async waits still run normally.
+Set `freezeTime: true` to keep Date APIs frozen until they are moved manually.
+Use `getEvalStartTime()` to read the captured wall-clock start as a `Date`.
+Use `advanceEvalTime(unit, amount)` inside an eval to move the shifted clock
+forward; supported units are `millisecond(s)`, `second(s)`, `minute(s)`,
+`hour(s)`, and `day(s)`. It throws for evals with `startTime: 'now'`, unless
+`freezeTime: true` is also set.
+
 For libraries or observability exporters that already emit span lifecycle
 events, use `evalTracer.startSpan(...)`, `evalTracer.updateSpan(...)`,
 `evalTracer.endSpan(...)`, or `evalTracer.recordSpan(...)` to translate those

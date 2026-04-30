@@ -240,6 +240,8 @@ export const config: AgentEvalsConfig = {
 | `outputsSchema`         | `TOutputs` | Zod schema that validates and types collected outputs before scoring            |
 | `traceDisplay`          |            | Per-eval trace attribute display overrides for the UI                           |
 | `waitForBackgroundJobs` |            | Set `false` to skip waiting for registered background work before finalization  |
+| `startTime`             |            | Initial Date clock for this eval (default `2026-04-10T00:00:00.000Z`)           |
+| `freezeTime`            |            | Set `true` to keep Date frozen until `advanceEvalTime(...)` is called           |
 | `deriveFromTracing`     |            | Derive output columns from the finished trace tree                              |
 | `scores`                |            | Record of scoring functions returning `0..1`                                    |
 | `columns`               |            | Custom columns shown in the results table                                       |
@@ -259,6 +261,52 @@ If you omit `cases` entirely, or resolve them to `[]`, the runner still executes
 the eval once with a synthetic empty-object input and a generated case id.
 
 `columns` populates your custom columns.
+
+### Eval time
+
+By default, every eval's wall clock starts at
+`2026-04-10T00:00:00.000Z`, and then continues advancing with real elapsed
+time. This gives generated cases, logs, outputs, traces, and scorers a stable
+wall-clock origin without freezing time. Timers are not faked, so `setTimeout`,
+network waits, and other async work still run normally.
+
+Override the clock per eval with `startTime`:
+
+```ts
+defineEval({
+  id: 'refund-workflow',
+  startTime: '2024-01-02T03:04:05.000Z',
+  cases: () => [
+    { id: new Date().toISOString(), input: { requestedAt: Date.now() } },
+  ],
+  execute: ({ setOutput }) => {
+    setOutput('executedAt', new Date().toISOString());
+  },
+});
+```
+
+Pass `startTime: 'now'` when one eval should use the real current clock.
+Set `freezeTime: true` when you want `new Date()` and `Date.now()` to stay at
+the eval's current shifted time until you move it manually.
+
+Use `getEvalStartTime()` when shared workflow code needs the eval's captured
+wall-clock start as a `Date`. For `startTime: 'now'`, this returns the real time
+captured when the eval case started.
+
+Use `advanceEvalTime(unit, amount)` inside an eval to move the shifted wall
+clock forward between steps:
+
+```ts
+execute: ({ setOutput }) => {
+  setOutput('startedAt', getEvalStartTime().toISOString());
+  setOutput('readyAt', advanceEvalTime('minutes', 5).toISOString());
+};
+```
+
+Supported units are `millisecond(s)`, `second(s)`, `minute(s)`, `hour(s)`, and
+`day(s)`. `advanceEvalTime(...)` is only available for shifted eval clocks;
+evals with `startTime: 'now'` use the real current clock unless
+`freezeTime: true` is also set.
 
 ### Execute and tracing
 

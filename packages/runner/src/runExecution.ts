@@ -2,6 +2,7 @@ import { relative } from 'node:path';
 import {
   buildTraceTree,
   EvalAssertionError,
+  getEvalClockStateTimeMs,
   runInExistingEvalScope,
   runInEvalScope,
   setEvalOutput,
@@ -166,6 +167,8 @@ export async function runCase<
       cacheContext: cacheAdapter
         ? { adapter: cacheAdapter, mode: cacheMode, evalId, codeFingerprint }
         : undefined,
+      startTime: evalDef.startTime,
+      freezeTime: evalDef.freezeTime,
     },
   );
 
@@ -252,6 +255,8 @@ export async function runCase<
     }
   >();
   const scoringTraces: Record<string, ScoreTrace> = {};
+  const scoreStartTime =
+    getEvalClockStateTimeMs(scope.evalClockState) ?? evalDef.startTime;
 
   if (
     !nonAssertError &&
@@ -288,6 +293,8 @@ export async function runCase<
                 codeFingerprint,
               }
             : undefined,
+          startTime: scoreStartTime,
+          freezeTime: evalDef.freezeTime,
         },
       );
 

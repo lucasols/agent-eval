@@ -15,7 +15,11 @@ import {
   serializeCacheRecording,
 } from './cacheSerialization.ts';
 import type { CacheRecordingFrame, EvalCaseScope } from './runtime.ts';
-import { getCurrentScope, startEvalBackgroundJob } from './runtime.ts';
+import {
+  getCurrentScope,
+  getRealDateNowMs,
+  startEvalBackgroundJob,
+} from './runtime.ts';
 import {
   appendSpanErrors,
   appendSpanWarnings,
@@ -247,9 +251,22 @@ function mergeSpanAttribute(
   mergeSpanAttributes(span, { [key]: { ...existing, ...patch } });
 }
 
-function finishSpanWithoutThrownError(span: EvalTraceSpan): void {
+function addElapsedMsToTimestamp(
+  isoTimestamp: string,
+  elapsedMs: number,
+): string {
+  return new Date(new Date(isoTimestamp).getTime() + elapsedMs).toISOString();
+}
+
+function finishSpanWithoutThrownError(
+  span: EvalTraceSpan,
+  realStartedAt: number,
+): void {
   span.status = hasSpanError(span) ? 'error' : 'ok';
-  span.endedAt = new Date().toISOString();
+  span.endedAt = addElapsedMsToTimestamp(
+    span.startedAt,
+    getRealDateNowMs() - realStartedAt,
+  );
 }
 
 function createSpanHandle(span: EvalTraceSpan): TraceActiveSpan {
@@ -588,6 +605,7 @@ async function traceSpanInternal(
 
   const id = generateSpanId();
   const parentId = scope.activeSpanStack.at(-1)?.id ?? null;
+  const realStartedAt = getRealDateNowMs();
 
   const spanRecord: EvalTraceSpan = {
     id,
@@ -642,7 +660,10 @@ async function traceSpanInternal(
           spanRecord.status =
             recording.finalStatus ??
             (hasSpanError(spanRecord) ? 'error' : 'ok');
-          spanRecord.endedAt = new Date().toISOString();
+          spanRecord.endedAt = addElapsedMsToTimestamp(
+            spanRecord.startedAt,
+            getRealDateNowMs() - realStartedAt,
+          );
           return recording.returnValue;
         }
         mergeSpanAttributes(spanRecord, { 'cache.status': 'miss' });
@@ -667,7 +688,7 @@ async function traceSpanInternal(
       }
 
       appendSubSpanOps(scope, frame);
-      finishSpanWithoutThrownError(spanRecord);
+      finishSpanWithoutThrownError(spanRecord, realStartedAt);
 
       if (ctx.mode !== 'bypass') {
         const recording: CacheRecording = {
@@ -704,11 +725,14 @@ async function traceSpanInternal(
     }
 
     const result = await fn(activeSpan);
-    finishSpanWithoutThrownError(spanRecord);
+    finishSpanWithoutThrownError(spanRecord, realStartedAt);
     return result;
   } catch (error) {
     spanRecord.status = 'error';
-    spanRecord.endedAt = new Date().toISOString();
+    spanRecord.endedAt = addElapsedMsToTimestamp(
+      spanRecord.startedAt,
+      getRealDateNowMs() - realStartedAt,
+    );
     spanRecord.error = normalizeTraceError(error);
     throw error;
   } finally {

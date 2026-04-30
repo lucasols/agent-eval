@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import {
+  advanceEvalTime,
   defineEval,
   evalLog,
   evalSpan,
@@ -20,6 +21,8 @@ const attachmentText = readFileSync(
 defineEval({
   id: 'format-gallery',
   title: 'Format Gallery',
+  startTime: '2024-01-02T03:04:05.000Z',
+  freezeTime: true,
   cases: [
     {
       id: 'all-column-formats',
@@ -54,6 +57,8 @@ defineEval({
       },
     },
     reviewTimeMs: { label: 'Review Time', format: 'duration' },
+    generatedAt: { label: 'Generated At' },
+    reviewQueuedAt: { label: 'Review Queued At' },
   },
   stats: [
     {
@@ -147,5 +152,10 @@ defineEval({
     setEvalOutput('handlingCostUsd', 1.25);
     setEvalOutput('requestCount', 1200);
     setEvalOutput('reviewTimeMs', 1450);
+    setEvalOutput('generatedAt', new Date().toISOString());
+    setEvalOutput(
+      'reviewQueuedAt',
+      advanceEvalTime('minutes', 15).toISOString(),
+    );
   },
 });

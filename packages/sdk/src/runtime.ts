@@ -13,6 +13,11 @@ import type {
   RunLogPhase,
   TraceCacheRef,
 } from '@agent-evals/shared';
+import type { EvalStartTime } from './types.ts';
+
+declare global {
+  var __agentEvalsRealDate: DateConstructor | undefined;
+}
 
 /**
  * Raw-key debug payload passed alongside cache writes.
@@ -66,9 +71,27 @@ export type CacheRecordingFrame = {
   ops: CacheRecordingOp[];
 };
 
+type EvalClockState = {
+  startMs: number;
+  realStartMs: number;
+  offsetMs: number;
+  frozen: boolean;
+  shifted: boolean;
+};
+
 /** Mutable per-case runtime state stored in async local storage. */
 export type EvalCaseScope = {
   caseId: string;
+  /** Initial wall-clock time used by Date APIs inside this eval case. */
+  startTime: EvalStartTime | undefined;
+  /** Mutable shifted wall-clock state shared across this eval case's phases. */
+  evalClockState: {
+    startMs: number;
+    realStartMs: number;
+    offsetMs: number;
+    frozen: boolean;
+    shifted: boolean;
+  };
   /** Stable prefix used by `nextEvalId()` for this eval case scope. */
   idPrefix: string | undefined;
   /** Monotonic per-scope counter used by `nextEvalId()`. */
@@ -123,9 +146,85 @@ export type EvalRuntimeScope =
 
 const scopeStorage = new AsyncLocalStorage<EvalCaseScope>();
 const runtimeScopeStorage = new AsyncLocalStorage<EvalRuntimeScope>();
+const evalClockStorage = new AsyncLocalStorage<EvalClockState>();
 let activeEvalScopeCount = 0;
 let activeEvalRuntimeScopeCount = 0;
 let consoleCaptureEnabled = true;
+
+/** Time unit accepted by `advanceEvalTime(unit, amount)`. */
+export type EvalTimeUnit =
+  | 'millisecond'
+  | 'milliseconds'
+  | 'second'
+  | 'seconds'
+  | 'minute'
+  | 'minutes'
+  | 'hour'
+  | 'hours'
+  | 'day'
+  | 'days';
+
+const defaultEvalStartTimeIso = '2026-04-10T00:00:00.000Z';
+const defaultEvalStartTimeMs = Date.parse(defaultEvalStartTimeIso);
+const realDate = globalThis.__agentEvalsRealDate ?? Date;
+globalThis.__agentEvalsRealDate = realDate;
+
+function toDateConstructorArg(value: unknown): string | number | Date {
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    value instanceof realDate
+  ) {
+    return value;
+  }
+  return Number(value);
+}
+
+function toDateNumberArg(value: unknown): number {
+  return typeof value === 'number' ? value : Number(value);
+}
+
+function constructDateFromArgs(args: readonly unknown[]): Date {
+  if (args.length === 0) return new realDate();
+  if (args.length === 1) return new realDate(toDateConstructorArg(args[0]));
+
+  const year = toDateNumberArg(args[0]);
+  const month = toDateNumberArg(args[1]);
+  const day = args[2] === undefined ? 1 : toDateNumberArg(args[2]);
+  const hours = args[3] === undefined ? 0 : toDateNumberArg(args[3]);
+  const minutes = args[4] === undefined ? 0 : toDateNumberArg(args[4]);
+  const seconds = args[5] === undefined ? 0 : toDateNumberArg(args[5]);
+  const ms = args[6] === undefined ? 0 : toDateNumberArg(args[6]);
+  return new realDate(year, month, day, hours, minutes, seconds, ms);
+}
+
+const evalDate: DateConstructor = new Proxy(realDate, {
+  apply(target, thisArg, argArray_) {
+    const nowMs = getEvalClockNowMs();
+    if (nowMs !== null) {
+      return new target(nowMs).toString();
+    }
+    return target.call(thisArg);
+  },
+  construct(target, argArray, newTarget_) {
+    const nowMs = getEvalClockNowMs();
+    if (argArray.length === 0 && nowMs !== null) {
+      return new target(nowMs);
+    }
+    return constructDateFromArgs(Array.from<unknown>(argArray));
+  },
+  get(target, property) {
+    if (property === 'now') return getEvalDateNow;
+    if (property === 'parse') return target.parse;
+    if (property === 'UTC') return target.UTC;
+    if (property === 'prototype') return target.prototype;
+    if (property === 'name') return target.name;
+    if (property === 'length') return target.length;
+    return undefined;
+  },
+});
+
+globalThis.Date = evalDate;
 
 const maxLogMessageLength = 20_000;
 const maxLogStringLength = 10_000;
@@ -157,6 +256,128 @@ export class EvalAssertionError extends Error {
     super(message);
     this.name = 'EvalAssertionError';
   }
+}
+
+function getEvalClockStateNowMs(state: Exclude<EvalClockState, null>): number {
+  const elapsedMs = state.frozen ? 0 : realDate.now() - state.realStartMs;
+  return state.startMs + elapsedMs + state.offsetMs;
+}
+
+function getEvalClockNowMs(): number | null {
+  const state = evalClockStorage.getStore();
+  if (state?.shifted !== true) return null;
+  return getEvalClockStateNowMs(state);
+}
+
+function getEvalDateNow(): number {
+  return getEvalClockNowMs() ?? realDate.now();
+}
+
+/** Return the host process clock, bypassing the eval Date shim. */
+export function getRealDateNowMs(): number {
+  return realDate.now();
+}
+
+/** Return the shifted wall-clock time for a stored eval clock state. */
+export function getEvalClockStateTimeMs(state: {
+  startMs: number;
+  realStartMs: number;
+  offsetMs: number;
+  frozen: boolean;
+  shifted: boolean;
+}): number | null {
+  if (!state.shifted) return null;
+  return getEvalClockStateNowMs(state);
+}
+
+/**
+ * Return the wall-clock start time captured for the active eval.
+ *
+ * For `startTime: 'now'`, this is the real time captured when the eval clock
+ * context was created.
+ */
+export function getEvalStartTime(): Date {
+  const state = evalClockStorage.getStore();
+  if (state === undefined) {
+    throw new Error('getEvalStartTime() must be called inside an active eval');
+  }
+  return new realDate(state.startMs);
+}
+
+function resolveEvalStartTimeMs(startTime: EvalStartTime | undefined): number {
+  if (startTime === undefined) return defaultEvalStartTimeMs;
+  if (startTime === 'now') return realDate.now();
+  const ms =
+    startTime instanceof realDate
+      ? startTime.getTime()
+      : typeof startTime === 'number'
+        ? startTime
+        : realDate.parse(startTime);
+  if (Number.isFinite(ms)) return ms;
+  throw new Error(
+    `Invalid eval startTime "${String(startTime)}". Use a Date, timestamp, ISO date string, or "now".`,
+  );
+}
+
+function createEvalClockState(
+  startTime: EvalStartTime | undefined,
+  freezeTime: boolean,
+): EvalClockState {
+  const nowMs = realDate.now();
+  const startMs =
+    startTime === 'now' ? nowMs : resolveEvalStartTimeMs(startTime);
+  return {
+    startMs,
+    realStartMs: nowMs,
+    offsetMs: 0,
+    frozen: freezeTime,
+    shifted: startTime !== 'now' || freezeTime,
+  };
+}
+
+/** Execute a callback with the eval Date clock shifted from `startTime`. */
+export async function runWithEvalClock<T>(
+  startTime: EvalStartTime | undefined,
+  fn: () => Promise<T> | T,
+  options: { freezeTime?: boolean } = {},
+): Promise<T> {
+  return await evalClockStorage.run(
+    createEvalClockState(startTime, options.freezeTime === true),
+    fn,
+  );
+}
+
+function getEvalTimeUnitMs(unit: string): number {
+  if (unit === 'millisecond' || unit === 'milliseconds') return 1;
+  if (unit === 'second' || unit === 'seconds') return 1_000;
+  if (unit === 'minute' || unit === 'minutes') return 60_000;
+  if (unit === 'hour' || unit === 'hours') return 3_600_000;
+  if (unit === 'day' || unit === 'days') return 86_400_000;
+  throw new Error(`Unsupported eval time unit "${unit}"`);
+}
+
+/**
+ * Advance the active eval's shifted Date clock and return the new time.
+ *
+ * Throws outside an active shifted eval clock. Evals that set
+ * `startTime: 'now'` use the real current clock unless `freezeTime: true` is
+ * also set.
+ */
+export function advanceEvalTime(unit: EvalTimeUnit, amount: number): Date {
+  const state = evalClockStorage.getStore();
+  if (state === undefined) {
+    throw new Error('advanceEvalTime() must be called inside an active eval');
+  }
+  if (!state.shifted) {
+    throw new Error(
+      'advanceEvalTime() requires a shifted eval clock. Remove startTime: "now" or set freezeTime: true to use it.',
+    );
+  }
+  if (!Number.isFinite(amount)) {
+    throw new Error('advanceEvalTime() amount must be a finite number');
+  }
+  state.offsetMs += getEvalTimeUnitMs(unit) * amount;
+  return new realDate(getEvalClockStateNowMs(state));
 }
 
 /** Return the current eval scope for the active async context, if any. */
@@ -512,6 +733,10 @@ export type RunInEvalScopeOptions = {
   waitForBackgroundJobs?: boolean;
   /** Eval runner phase exposed through `isInEvalScope()`. Defaults to `eval`. */
   runtimeScope?: EvalRuntimeScope;
+  /** Initial wall-clock time used by `new Date()` and `Date.now()` in this eval. */
+  startTime?: EvalStartTime;
+  /** Whether Date APIs stay frozen until advanced manually. */
+  freezeTime?: boolean;
 };
 
 /** Execute a callback while `isInEvalScope()` reports a runner phase. */
@@ -541,7 +766,9 @@ export async function runInExistingEvalScope<T>(
   activeEvalScopeCount++;
   try {
     return await scopeStorage.run(scope, async () => {
-      return await runInEvalRuntimeScope(runtimeScope, fn);
+      return await evalClockStorage.run(scope.evalClockState, async () => {
+        return await runInEvalRuntimeScope(runtimeScope, fn);
+      });
     });
   } finally {
     activeEvalScopeCount--;
@@ -563,6 +790,11 @@ export async function runInEvalScope<T>(
 }> {
   const scope: EvalCaseScope = {
     caseId,
+    startTime: options.startTime,
+    evalClockState: createEvalClockState(
+      options.startTime,
+      options.freezeTime === true,
+    ),
     idPrefix: options.idPrefix,
     nextEvalIdCounter: 0,
     input: options.input,

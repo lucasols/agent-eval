@@ -544,6 +544,7 @@ describe('CLI eval features', () => {
         },
         "automatedQuality": 0.8,
         "confidence": 0.93,
+        "generatedAt": "<timestamp>",
         "handlingCostUsd": 1.25,
         "previewCard": {
           "artifactId": "<run-id>__all-column-formats__t0__previewCard__previewCard.svg",
@@ -554,6 +555,7 @@ describe('CLI eval features', () => {
         "requestCount": 1200,
         "requiresManualReview": false,
         "response": "Prepared **refund package** for order \`A-1024\`.\n\nCustomer note: Please confirm the refund package for my damaged mug.",
+        "reviewQueuedAt": "<timestamp>",
         "reviewTimeMs": 1450,
         "reviewerDecision": null,
         "reviewerQuality": null,

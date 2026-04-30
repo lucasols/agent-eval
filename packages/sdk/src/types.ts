@@ -42,6 +42,13 @@ export type EvalCase<TInput> = { id: string; input: TInput; tags?: string[] };
 export type EvalOutputs = Record<string, unknown>;
 
 /**
+ * Initial wall-clock time used by an eval's shifted Date clock.
+ *
+ * Pass `'now'` to opt one eval back into the real current clock.
+ */
+export type EvalStartTime = Date | number | string;
+
+/**
  * Schema used to validate and type an eval's collected runtime outputs.
  *
  * Zod schemas are supported directly. The runner validates after `execute` and
@@ -238,6 +245,23 @@ type EvalDefinitionBase<
    * delay case finalization; late mutations are not guaranteed to persist.
    */
   waitForBackgroundJobs?: boolean;
+  /**
+   * Optional initial wall-clock time for this eval's runtime.
+   *
+   * When set, `new Date()` and `Date.now()` inside case generation, execution,
+   * tracing, derived outputs, and scorers start from this wall-clock value and
+   * then continue advancing with real elapsed time. The default is
+   * `2026-04-10T00:00:00.000Z`. Pass `'now'` to use the real current clock for
+   * this eval. Timers are not faked, so `setTimeout` and other asynchronous
+   * work still run normally.
+   */
+  startTime?: EvalStartTime;
+  /**
+   * Freeze the eval Date clock at `startTime` until `advanceEvalTime(...)`
+   * moves it manually. Defaults to `false`, so eval time advances with real
+   * elapsed time from the configured `startTime`.
+   */
+  freezeTime?: boolean;
   execute: (ctx: EvalExecuteContext<TInput, TOutputs>) => Promise<void> | void;
   deriveFromTracing?: (
     ctx: EvalDeriveContext<TInput>,
