@@ -274,10 +274,12 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   attribute paths. `latencyMs` is time to first token; duration, total tokens,
   tokens/sec, and USD costs are derived. Override `kinds` to broaden the filter,
   override `attributes.<field>` for non-default primitive span shapes, configure
-  `pricing` to derive USD costs from token counts by model/provider, and add
-  entries to `metrics` to surface arbitrary user metrics (`format: 'string' |
-'number' | 'duration' | 'json' | 'boolean'`, `placements: ['header' |
-'body']`).
+  `pricing` to derive USD costs from token counts by model/provider, add
+  `derivedAttributes` to persist computed values back onto matching LLM spans
+  before trace consumers run, and add entries to `metrics` to surface arbitrary
+  user metrics (`format: 'string' | 'number' | 'duration' | 'json' |
+'boolean'`, `placements: ['header' | 'body']`). `derivedAttributes` keys are
+  dot-paths under `span.attributes`; return `undefined` to skip one span.
 - Default usage config derives missing eval outputs from matching LLM/API spans
   before `outputsSchema` and scores run: `apiCalls`, `costUsd`, `llmTurns`,
   `inputTokens`, `outputTokens`, `totalTokens`, `cachedInputTokens`,
@@ -298,7 +300,8 @@ cacheCreationInputTokens` so cache details are not double-counted.
   and `'fetch'` spans with `method`, `url`, `statusCode`, `request`,
   `response`, `requestBody`, `responseBody`, `headers`, `durationMs`, and
   `error` read from conventional attribute paths. Override `kinds` or
-  `attributes.<field>` for external tracers, and add `metrics` with the same
+  `attributes.<field>` for external tracers, add `derivedAttributes` for
+  computed persisted API span attributes, and add `metrics` with the same
   formats and placements as LLM-call metrics.
 - `runLogs` (in `agent-evals.config.ts`) controls case log capture. Use
   `runLogs: { captureConsole: false }` to keep console output in the terminal

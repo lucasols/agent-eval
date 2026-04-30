@@ -509,17 +509,39 @@ llmCalls: {
       reasoningUsdPerMillion: 4.4,
     },
   ],
+  // Persist derived attributes onto matching LLM spans. These run before
+  // deriveFromTracing, traceDisplay, default outputs, and metrics read the
+  // trace, so the new values can be reused anywhere span attributes are read.
+  derivedAttributes: {
+    'usage.billableTokens': ({ get }) => {
+      const inputTokens = get('usage.inputTokens');
+      const outputTokens = get('usage.outputTokens');
+      const cachedInputTokens = get('usage.cachedInputTokens');
+      if (typeof inputTokens !== 'number') return undefined;
+      if (typeof outputTokens !== 'number') return undefined;
+      return (
+        inputTokens +
+        outputTokens -
+        (typeof cachedInputTokens === 'number' ? cachedInputTokens : 0)
+      );
+    },
+  },
   // Surface arbitrary user metrics on each call. `placements` defaults to
   // `['body']`; include `'header'` to also show a chip on the collapsed row.
   metrics: [
     { label: 'Retries', path: 'retryCount', format: 'number' },
     { label: 'Temperature', path: 'params.temperature', format: 'number' },
+    { label: 'Billable Tokens', path: 'usage.billableTokens', format: 'number' },
     { label: 'Streamed', path: 'streamed', format: 'boolean' },
   ],
 }
 ```
 
-Custom metrics support `'string' | 'number' | 'duration' | 'json' | 'boolean'` formats. Use `tooltip` to add a hover description for compact labels. The tab is hidden automatically for cases with no matching spans.
+Derived attribute keys are dot-paths under `span.attributes`; return
+`undefined` to skip writing a value for one span. Custom metrics support
+`'string' | 'number' | 'duration' | 'json' | 'boolean'` formats. Use `tooltip`
+to add a hover description for compact labels. The tab is hidden automatically
+for cases with no matching spans.
 
 ### Default usage outputs
 
@@ -614,6 +636,15 @@ apiCalls: {
     statusCode: 'http.status_code',
     durationMs: 'timing.totalMs',
   },
+  derivedAttributes: {
+    payloadBytes: ({ get }) => {
+      const requestBytes = get('payload.requestBytes');
+      const responseBytes = get('payload.responseBytes');
+      if (typeof requestBytes !== 'number') return undefined;
+      if (typeof responseBytes !== 'number') return undefined;
+      return requestBytes + responseBytes;
+    },
+  },
   metrics: [
     {
       label: 'Retries',
@@ -621,13 +652,15 @@ apiCalls: {
       format: 'number',
       placements: ['header', 'body'],
     },
+    { label: 'Payload', path: 'payloadBytes', format: 'number' },
   ],
 }
 ```
 
-Custom metrics support the same `'string' | 'number' | 'duration' | 'json' |
-'boolean'` formats and `['header' | 'body']` placements as LLM-call metrics.
-The tab is hidden automatically for cases with no matching API spans.
+API-call `derivedAttributes` follow the same rules as LLM-call derived
+attributes. Custom metrics support the same `'string' | 'number' | 'duration' |
+`'json'`|`'boolean'`formats and`['header' | 'body']` placements as LLM-call
+metrics. The tab is hidden automatically for cases with no matching API spans.
 
 ### Scorers
 

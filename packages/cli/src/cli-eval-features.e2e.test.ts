@@ -244,6 +244,7 @@ describe('CLI eval features', () => {
       ).toBe(false);
       expect(withImagePlan.attributes?.model).toBe('gpt-4o-mini');
       expect(withImagePlan.attributes?.usage).toEqual({
+        billableTokens: 170,
         cacheCreationInputTokens: 80,
         cachedInputTokens: 30,
         inputTokens: 150,
@@ -310,6 +311,7 @@ describe('CLI eval features', () => {
                 },
                 "parentId": "<span-id>",
                 "usage": {
+                  "billableTokens": 170,
                   "cacheCreationInputTokens": 80,
                   "cachedInputTokens": 30,
                   "inputTokens": 150,
@@ -378,6 +380,7 @@ describe('CLI eval features', () => {
                 },
                 "parentId": "<span-id>",
                 "usage": {
+                  "billableTokens": 170,
                   "cacheCreationInputTokens": 80,
                   "cachedInputTokens": 30,
                   "inputTokens": 150,
@@ -446,6 +449,7 @@ describe('CLI eval features', () => {
                 },
                 "parentId": "<span-id>",
                 "usage": {
+                  "billableTokens": 170,
                   "cacheCreationInputTokens": 80,
                   "cachedInputTokens": 30,
                   "inputTokens": 150,

@@ -119,6 +119,55 @@ test('runCase derives default usage outputs from trace spans', async () => {
   expect(typeof result.caseDetail.columns.llmDurationMs).toBe('number');
 });
 
+test('runCase exposes derived call attributes to trace consumers', async () => {
+  const result = await runDefaultUsageCase({
+    llmCallsConfig: resolveLlmCallsConfig({
+      derivedAttributes: {
+        'usage.promptAndCompletionTokens': ({ get }) => {
+          const inputTokens = get('usage.inputTokens');
+          const outputTokens = get('usage.outputTokens');
+          if (typeof inputTokens !== 'number') return undefined;
+          if (typeof outputTokens !== 'number') return undefined;
+          return inputTokens + outputTokens;
+        },
+      },
+      metrics: [
+        {
+          label: 'Prompt + Completion',
+          path: 'usage.promptAndCompletionTokens',
+          format: 'number',
+        },
+      ],
+    }),
+    evalDef: {
+      id: 'default-usage-eval',
+      execute: async () => {
+        await evalTracer.span({ kind: 'llm', name: 'answer' }, () => {
+          evalSpan.setAttributes({
+            model: 'gpt-4o-mini',
+            usage: { inputTokens: 100, outputTokens: 40 },
+          });
+        });
+      },
+      deriveFromTracing: ({ trace }) => {
+        const answerSpan = trace.findSpan('answer');
+        const usage = answerSpan?.attributes?.usage;
+        if (typeof usage !== 'object' || usage === null) return {};
+        if (!('promptAndCompletionTokens' in usage)) return {};
+        return { observedTotal: usage.promptAndCompletionTokens };
+      },
+    },
+  });
+
+  const llmSpan = result.caseDetail.trace.find((span) => span.kind === 'llm');
+  expect(llmSpan?.attributes?.usage).toMatchObject({
+    inputTokens: 100,
+    outputTokens: 40,
+    promptAndCompletionTokens: 140,
+  });
+  expect(result.caseDetail.columns.observedTotal).toBe(140);
+});
+
 test('runCase does not overwrite authored outputs with default usage', async () => {
   const result = await runDefaultUsageCase({
     evalDef: {

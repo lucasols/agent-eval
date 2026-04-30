@@ -5,6 +5,7 @@ import {
 } from './display.ts';
 import {
   traceDisplayInputConfigSchema,
+  type EvalTraceSpan,
   type TraceDisplayInputConfig,
 } from './trace.ts';
 
@@ -67,13 +68,49 @@ export type ApiCallMetricPlacement = z.infer<
   typeof apiCallMetricPlacementSchema
 >;
 
+/** Context passed to an LLM/API-call derived attribute function. */
+export type CallDerivedAttributeContext = {
+  /** Raw attributes from the matching trace span. */
+  attributes: Record<string, unknown> | undefined;
+  /** Matching trace span. */
+  span: EvalTraceSpan;
+  /** Dot-path helper for reading from `span.attributes`. */
+  get: (path: string) => unknown;
+};
+
+/**
+ * Runner-side function used to derive one new span attribute from a matching
+ * LLM/API-call span. Return `undefined` to omit the attribute for that span.
+ */
+export type CallDerivedAttribute = (
+  ctx: CallDerivedAttributeContext,
+) => unknown;
+
+const callDerivedAttributeSchema = z.custom<CallDerivedAttribute>(
+  (value) => typeof value === 'function',
+  { message: 'Expected a derived attribute function' },
+);
+
+/** One resolved derived span attribute rule. */
+export type ResolvedCallDerivedAttribute = {
+  /** Dot-path where the derived value is persisted on `span.attributes`. */
+  path: string;
+  /**
+   * Function that derives the persisted value for each matching span. Omitted
+   * after this config is serialized to the browser.
+   */
+  compute?: CallDerivedAttribute;
+};
+
 /**
  * Schema for a single user-defined metric attached to LLM call rows.
  *
  * Each metric reads `path` from the span's `attributes` and renders the value
- * with the configured `format` and `numberFormat`. `placements` controls
- * whether the metric appears as a chip on the collapsed row header, as a row
- * inside the expanded body, or both. Defaults to `['body']` when omitted.
+ * with the configured `format` and `numberFormat`. Use
+ * `llmCalls.derivedAttributes` when a metric should read a value computed from
+ * other attributes. `placements` controls whether the metric appears as a chip
+ * on the collapsed row header, as a row inside the expanded body, or both.
+ * Defaults to `['body']` when omitted.
  */
 export const llmCallMetricSchema = z.object({
   /** Display label for the metric row or header chip. */
@@ -103,9 +140,11 @@ export type LlmCallMetric = z.infer<typeof llmCallMetricSchema>;
  * Schema for a single user-defined metric attached to API call rows.
  *
  * Each metric reads `path` from the span's `attributes` and renders the value
- * with the configured `format` and `numberFormat`. `placements` controls
- * whether the metric appears as a chip on the collapsed row header, as a row
- * inside the expanded body, or both. Defaults to `['body']` when omitted.
+ * with the configured `format` and `numberFormat`. Use
+ * `apiCalls.derivedAttributes` when a metric should read a value computed from
+ * other attributes. `placements` controls whether the metric appears as a chip
+ * on the collapsed row header, as a row inside the expanded body, or both.
+ * Defaults to `['body']` when omitted.
  */
 export const apiCallMetricSchema = z.object({
   /** Display label for the metric row or header chip. */
@@ -190,6 +229,15 @@ export const llmCallsConfigSchema = z.object({
     })
     .optional(),
   /**
+   * Derived attributes persisted onto every matching LLM span before
+   * `deriveFromTracing`, default outputs, trace display, and call metrics read
+   * the trace. Keys are dot-paths under `span.attributes`; return `undefined`
+   * to skip writing the attribute for one span.
+   */
+  derivedAttributes: z
+    .record(z.string().min(1), callDerivedAttributeSchema)
+    .optional(),
+  /**
    * Model/provider pricing registry used to calculate LLM-call costs from
    * token counts. Built-in LLM cost fields are only derived from this registry.
    */
@@ -222,6 +270,15 @@ export const apiCallsConfigSchema = z.object({
       durationMs: z.string().optional(),
       error: z.string().optional(),
     })
+    .optional(),
+  /**
+   * Derived attributes persisted onto every matching API span before trace
+   * display and call metrics read the trace. Keys are dot-paths under
+   * `span.attributes`; return `undefined` to skip writing the attribute for
+   * one span.
+   */
+  derivedAttributes: z
+    .record(z.string().min(1), callDerivedAttributeSchema)
     .optional(),
   /** Custom user-defined metrics surfaced on each API call. */
   metrics: z.array(apiCallMetricSchema).optional(),
@@ -261,6 +318,7 @@ export type ResolvedLlmCallsConfig = {
     reasoning: string;
     toolCalls: string;
   };
+  derivedAttributes: ResolvedCallDerivedAttribute[];
   metrics: ResolvedLlmCallMetric[];
   pricing: ResolvedLlmCallPricing[];
 };
@@ -280,6 +338,7 @@ export type ResolvedApiCallsConfig = {
     durationMs: string;
     error: string;
   };
+  derivedAttributes: ResolvedCallDerivedAttribute[];
   metrics: ResolvedApiCallMetric[];
 };
 
@@ -335,6 +394,7 @@ export const DEFAULT_LLM_CALLS_CONFIG: ResolvedLlmCallsConfig = {
     reasoning: 'reasoning',
     toolCalls: 'toolCalls',
   },
+  derivedAttributes: [],
   metrics: [],
   pricing: [],
 };
@@ -354,8 +414,40 @@ export const DEFAULT_API_CALLS_CONFIG: ResolvedApiCallsConfig = {
     durationMs: 'durationMs',
     error: 'error',
   },
+  derivedAttributes: [],
   metrics: [],
 };
+
+function resolveDerivedAttributes(
+  input: Record<string, CallDerivedAttribute> | undefined,
+): ResolvedCallDerivedAttribute[] {
+  return Object.entries(input ?? {}).map(([path, compute]) => ({
+    path,
+    compute,
+  }));
+}
+
+function resolveLlmCallMetric(metric: LlmCallMetric): ResolvedLlmCallMetric {
+  return {
+    label: metric.label,
+    tooltip: metric.tooltip,
+    path: metric.path,
+    format: metric.format ?? 'string',
+    numberFormat: metric.numberFormat,
+    placements: metric.placements ? [...metric.placements] : ['body'],
+  };
+}
+
+function resolveApiCallMetric(metric: ApiCallMetric): ResolvedApiCallMetric {
+  return {
+    label: metric.label,
+    tooltip: metric.tooltip,
+    path: metric.path,
+    format: metric.format ?? 'string',
+    numberFormat: metric.numberFormat,
+    placements: metric.placements ? [...metric.placements] : ['body'],
+  };
+}
 
 /**
  * Resolve the user-authored LLM-calls config to a fully-defaulted shape used
@@ -381,14 +473,8 @@ export function resolveLlmCallsConfig(
       ...DEFAULT_LLM_CALLS_CONFIG.attributes,
       ...input?.attributes,
     },
-    metrics: (input?.metrics ?? []).map((m) => ({
-      label: m.label,
-      tooltip: m.tooltip,
-      path: m.path,
-      format: m.format ?? 'string',
-      numberFormat: m.numberFormat,
-      placements: m.placements ? [...m.placements] : ['body'],
-    })),
+    derivedAttributes: resolveDerivedAttributes(input?.derivedAttributes),
+    metrics: (input?.metrics ?? []).map(resolveLlmCallMetric),
     pricing: (input?.pricing ?? []).map((p) => ({
       model: p.model,
       provider: p.provider,
@@ -424,14 +510,8 @@ export function resolveApiCallsConfig(
       ...DEFAULT_API_CALLS_CONFIG.attributes,
       ...input?.attributes,
     },
-    metrics: (input?.metrics ?? []).map((m) => ({
-      label: m.label,
-      tooltip: m.tooltip,
-      path: m.path,
-      format: m.format ?? 'string',
-      numberFormat: m.numberFormat,
-      placements: m.placements ? [...m.placements] : ['body'],
-    })),
+    derivedAttributes: resolveDerivedAttributes(input?.derivedAttributes),
+    metrics: (input?.metrics ?? []).map(resolveApiCallMetric),
   };
 }
 

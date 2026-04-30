@@ -23,6 +23,20 @@ export const config: AgentEvalsConfig = {
     ],
   },
   llmCalls: {
+    derivedAttributes: {
+      'usage.billableTokens': ({ get }) => {
+        const inputTokens = get('usage.inputTokens');
+        const outputTokens = get('usage.outputTokens');
+        const cachedInputTokens = get('usage.cachedInputTokens');
+        if (typeof inputTokens !== 'number') return undefined;
+        if (typeof outputTokens !== 'number') return undefined;
+        return (
+          inputTokens +
+          outputTokens -
+          (typeof cachedInputTokens === 'number' ? cachedInputTokens : 0)
+        );
+      },
+    },
     pricing: [
       {
         model: 'gpt-4o-mini',
@@ -81,6 +95,12 @@ export const config: AgentEvalsConfig = {
         label: 'Streamed',
         path: 'streamed',
         format: 'boolean',
+        placements: ['body'],
+      },
+      {
+        label: 'Billable Tokens',
+        path: 'usage.billableTokens',
+        format: 'number',
         placements: ['body'],
       },
     ],

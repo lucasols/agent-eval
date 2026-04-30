@@ -25,6 +25,7 @@ import type {
   TraceDisplayInputConfig,
 } from '@agent-evals/shared';
 import {
+  applyDerivedCallAttributes,
   resolveApiCallsConfig,
   resolveLlmCallsConfig,
 } from '@agent-evals/shared';
@@ -172,7 +173,16 @@ export async function runCase<
     },
   );
 
-  const traceTree = buildTraceTree(scope.spans, scope.checkpoints);
+  const spansWithDerivedAttributes = applyDerivedCallAttributes({
+    spans: scope.spans,
+    llmCallsConfig,
+    apiCallsConfig,
+  });
+
+  const traceTree = buildTraceTree(
+    spansWithDerivedAttributes,
+    scope.checkpoints,
+  );
 
   const nonAssertError =
     executeError && !(executeError instanceof EvalAssertionError)
@@ -219,7 +229,7 @@ export async function runCase<
   if (!nonAssertError) {
     addDefaultOutputs({
       outputs: scope.outputs,
-      spans: scope.spans,
+      spans: spansWithDerivedAttributes,
       llmCallsConfig,
       apiCallsConfig,
       globalRemove: globalRemoveDefaultConfig,
@@ -355,7 +365,7 @@ export async function runCase<
       : 'fail';
 
   const { trace: displayTrace, traceDisplay } = resolveTracePresentation(
-    scope.spans,
+    spansWithDerivedAttributes,
     globalTraceDisplay,
     evalDef.traceDisplay,
   );

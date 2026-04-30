@@ -1,4 +1,6 @@
 import {
+  applyDerivedCallAttributes,
+  DEFAULT_API_CALLS_CONFIG,
   DEFAULT_LLM_CALLS_CONFIG,
   extractLlmCalls,
   resolveLlmCallsConfig,
@@ -413,6 +415,54 @@ test('extractLlmCalls reads custom metrics and drops undefined values', () => {
       numberFormat: undefined,
       placements: ['body'],
     },
+  ]);
+});
+
+test('extractLlmCalls reads metrics from derived attributes', () => {
+  const config = resolveLlmCallsConfig({
+    derivedAttributes: {
+      'usage.promptAndCompletionTokens': ({ get }) => {
+        const inputTokens = get('usage.inputTokens');
+        const outputTokens = get('usage.outputTokens');
+        if (typeof inputTokens !== 'number') return undefined;
+        if (typeof outputTokens !== 'number') return undefined;
+        return inputTokens + outputTokens;
+      },
+    },
+    metrics: [
+      {
+        label: 'Prompt + Completion',
+        path: 'usage.promptAndCompletionTokens',
+        format: 'number',
+      },
+    ],
+  });
+
+  const spans = [
+    llmSpan({
+      attributes: {
+        model: 'gpt-4o-mini',
+        usage: { inputTokens: 150, outputTokens: 50 },
+      },
+    }),
+  ];
+
+  expect(extractLlmCalls(spans, config)[0]?.metrics).toEqual([]);
+
+  const spansWithDerivedAttributes = applyDerivedCallAttributes({
+    spans,
+    llmCallsConfig: config,
+    apiCallsConfig: { ...DEFAULT_API_CALLS_CONFIG, kinds: [] },
+  });
+  expect(spansWithDerivedAttributes[0]?.attributes?.usage).toEqual({
+    inputTokens: 150,
+    outputTokens: 50,
+    promptAndCompletionTokens: 200,
+  });
+  expect(
+    extractLlmCalls(spansWithDerivedAttributes, config)[0]?.metrics,
+  ).toMatchObject([
+    { label: 'Prompt + Completion', rawValue: 200, format: 'number' },
   ]);
 });
 

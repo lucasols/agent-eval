@@ -1,5 +1,7 @@
 import {
+  applyDerivedCallAttributes,
   DEFAULT_API_CALLS_CONFIG,
+  DEFAULT_LLM_CALLS_CONFIG,
   extractApiCalls,
   resolveApiCallsConfig,
   type EvalTraceSpan,
@@ -180,6 +182,41 @@ test('extractApiCalls reads custom attributes and metrics', () => {
       placements: ['body'],
     },
   ]);
+});
+
+test('extractApiCalls reads metrics from derived attributes', () => {
+  const config = resolveApiCallsConfig({
+    derivedAttributes: {
+      payloadBytes: ({ get }) => {
+        const requestBytes = get('payload.requestBytes');
+        const responseBytes = get('payload.responseBytes');
+        if (typeof requestBytes !== 'number') return undefined;
+        if (typeof responseBytes !== 'number') return undefined;
+        return requestBytes + responseBytes;
+      },
+    },
+    metrics: [
+      { label: 'Payload Bytes', path: 'payloadBytes', format: 'number' },
+    ],
+  });
+
+  const spans = [
+    apiSpan({
+      attributes: { payload: { requestBytes: 12, responseBytes: 30 } },
+    }),
+  ];
+
+  expect(extractApiCalls(spans, config)[0]?.metrics).toEqual([]);
+
+  const spansWithDerivedAttributes = applyDerivedCallAttributes({
+    spans,
+    llmCallsConfig: { ...DEFAULT_LLM_CALLS_CONFIG, kinds: [] },
+    apiCallsConfig: config,
+  });
+  expect(spansWithDerivedAttributes[0]?.attributes?.payloadBytes).toBe(42);
+  expect(
+    extractApiCalls(spansWithDerivedAttributes, config)[0]?.metrics,
+  ).toMatchObject([{ label: 'Payload Bytes', rawValue: 42, format: 'number' }]);
 });
 
 test('extractApiCalls keeps rows with missing optional attributes', () => {

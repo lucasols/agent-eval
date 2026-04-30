@@ -106,6 +106,7 @@ export {
 export { getEvalDisplayStatus, type EvalDisplayStatus } from './evalStatus.ts';
 export { getEvalTitle } from './evalTitle.ts';
 export { getNestedAttribute } from './utils/getNestedAttribute.ts';
+export { applyDerivedCallAttributes } from './utils/deriveCallAttributes.ts';
 export {
   extractLlmCalls,
   type LlmCallEntry,
@@ -162,6 +163,9 @@ export {
   type LlmCallMetric,
   type LlmCallPricing,
   type ApiCallMetric,
+  type CallDerivedAttribute,
+  type CallDerivedAttributeContext,
+  type ResolvedCallDerivedAttribute,
   type LlmCallMetricFormat,
   type ApiCallMetricFormat,
   type LlmCallMetricPlacement,
