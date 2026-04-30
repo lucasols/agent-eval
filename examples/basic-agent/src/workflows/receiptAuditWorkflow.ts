@@ -1,14 +1,12 @@
 import {
   appendToEvalOutput,
   evalAssert,
-  incrementEvalOutput,
   mergeEvalOutput,
   setEvalOutput,
   evalSpan,
   evalTracer,
 } from '@ls-stack/agent-eval';
 import { waitForWorkflowDelay } from './simulatedDelay.ts';
-import { calculateWorkflowCostUsd } from './workflowCost.ts';
 
 export type ReceiptAuditInput = {
   orderId: string;
@@ -81,21 +79,17 @@ export async function runReceiptAuditWorkflow(
       async () => {
         await waitForWorkflowDelay('compareClaimAgainstReceipt');
 
-        const usage = { inputTokens: 190, outputTokens: 60 };
-        const costUsd = calculateWorkflowCostUsd(usage);
-
         evalSpan.setAttributes({
           input: {
             customerMessage: input.customerMessage,
             expectedTotalUsd: receiptContext.expectedTotalUsd,
           },
           model: 'gpt-4o-mini',
-          usage,
+          usage: { inputTokens: 190, outputTokens: 60 },
           output: { auditStatus: 'verified', discrepancyCount: 0 },
         });
 
         evalSpan.incrementAttribute('reviewedReceipts', 1);
-        incrementEvalOutput('costUsd', costUsd);
         appendToEvalOutput('auditEvents', {
           step: 'claim-compared',
           discrepancyCount: 0,

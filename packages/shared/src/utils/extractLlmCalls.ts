@@ -148,7 +148,7 @@ function pickPricingEntry({
   return fallback;
 }
 
-function computeFallbackTotalCost({
+function computeTotalCost({
   inputTokens,
   inputCostUsd,
   outputTokens,
@@ -205,17 +205,31 @@ function computeDurationMs(span: EvalTraceSpan): number | null {
 }
 
 function computeTotalTokens({
-  declared,
   input,
   output,
 }: {
-  declared: number | null;
   input: number | null;
   output: number | null;
 }): number | null {
-  if (declared !== null) return declared;
   if (input === null && output === null) return null;
   return (input ?? 0) + (output ?? 0);
+}
+
+function computeTokensPerSecond({
+  outputTokens,
+  durationMs,
+  latencyMs,
+}: {
+  outputTokens: number | null;
+  durationMs: number | null;
+  latencyMs: number | null;
+}): number | null {
+  if (outputTokens === null || durationMs === null) return null;
+  if (outputTokens === 0) return 0;
+
+  const generationMs = latencyMs === null ? durationMs : durationMs - latencyMs;
+  if (generationMs <= 0) return null;
+  return outputTokens / (generationMs / 1000);
 }
 
 function readSteps(
@@ -225,9 +239,6 @@ function readSteps(
   const raw = getNestedAttribute(attributes, path);
   if (Array.isArray(raw)) {
     return { stepCount: raw.length, stepDetails: raw };
-  }
-  if (typeof raw === 'number' && Number.isFinite(raw)) {
-    return { stepCount: raw, stepDetails: null };
   }
   return { stepCount: null, stepDetails: null };
 }
@@ -250,25 +261,22 @@ function pickError(span: EvalTraceSpan): EvalTraceSpanError | null {
  * shape consumed by the LLM calls tab.
  *
  * Spans whose `kind` is not in `config.kinds` are dropped. Structured fields
- * (`model`, token counts, explicit cost, etc.) are read via
+ * (`model`, token counts, latency, etc.) are read via
  * `getNestedAttribute` from the configured paths, with safe coercion to
  * `string | null` / `number | null`. `latencyMs` is an explicit
  * time-to-first-token attribute; full span elapsed time is reported separately
- * as `durationMs`. When explicit USD costs are absent, configured model
- * pricing derives per-token-type costs from token counts.
- * `totalTokens` falls back to a sum of input + output when no explicit total
- * attribute is present. Cached input and cache creation tokens are reported
+ * as `durationMs`. Built-in USD costs are derived only from configured model
+ * pricing and token counts. `totalTokens` is always derived from input +
+ * output tokens. Cached input and cache creation tokens are reported
  * separately because they are subsets of input/output usage. The main cache
  * creation token field is treated as the total write count; optional one-hour
- * cache creation tokens only split that total for cost calculation. When
- * deriving costs from pricing, base input cost uses input minus cache
- * read/write tokens so cached tokens are not charged twice. Cache read/write
- * costs still contribute to the total USD cost at their configured rates. The
- * `steps` attribute path may resolve to either a number (rendered as the
- * inference-round count) or an array of per-step detail objects (rendered as a
- * Steps section in the body, with `stepCount` derived from the array length).
- * `durationMs` is `null` while the span is still running. User-defined `metrics`
- * whose path resolves to
+ * cache creation tokens only split that total for cost calculation. Base input
+ * cost uses input minus cache read/write tokens so cached tokens are not
+ * charged twice. Cache read/write costs still contribute to the total USD cost
+ * at their configured rates. The `steps` attribute path may resolve to an array
+ * of per-step detail objects, with `stepCount` derived from the array length.
+ * `durationMs` and `tokensPerSecond` are `null` while the span is still
+ * running. User-defined `metrics` whose path resolves to
  * `undefined` are dropped, but `null`, `0`, and `false` are preserved as
  * legitimate values worth displaying. Original span order is preserved so the
  * LLM calls tab matches the ordering in the Trace tab.
@@ -304,10 +312,8 @@ export function extractLlmCalls(
       attrs,
       config.attributes.reasoningTokens,
     );
-    const declaredTotalTokens = readNumber(
-      attrs,
-      config.attributes.totalTokens,
-    );
+    const latencyMs = readNumber(attrs, config.attributes.latencyMs);
+    const durationMs = computeDurationMs(span);
     const pricing = pickPricingEntry({
       pricing: config.pricing,
       model,
@@ -318,40 +324,40 @@ export function extractLlmCalls(
       cachedInputTokens,
       cacheCreationInputTokens,
     });
-    const inputCostUsd =
-      readNumber(attrs, config.attributes.inputCost) ??
-      computeTokenCost(baseInputTokens, pricing?.inputUsdPerMillion);
-    const outputCostUsd =
-      readNumber(attrs, config.attributes.outputCost) ??
-      computeTokenCost(outputTokens, pricing?.outputUsdPerMillion);
-    const cachedInputCostUsd =
-      readNumber(attrs, config.attributes.cachedInputCost) ??
-      computeTokenCost(cachedInputTokens, pricing?.cachedInputUsdPerMillion);
-    const cacheCreationInputCostUsd =
-      readNumber(attrs, config.attributes.cacheCreationInputCost) ??
-      computeCacheCreationInputCost({
-        cacheCreationInputTokens,
-        cacheCreationInput1hTokens,
-        usdPerMillion: pricing?.cacheCreationInputUsdPerMillion,
-        oneHourUsdPerMillion: pricing?.cacheCreationInput1hUsdPerMillion,
-      });
-    const reasoningCostUsd =
-      readNumber(attrs, config.attributes.reasoningCost) ??
-      computeTokenCost(reasoningTokens, pricing?.reasoningUsdPerMillion);
-    const costUsd =
-      readNumber(attrs, config.attributes.cost) ??
-      computeFallbackTotalCost({
-        inputTokens,
-        inputCostUsd,
-        outputTokens,
-        outputCostUsd,
-        cachedInputTokens,
-        cachedInputCostUsd,
-        cacheCreationInputTokens,
-        cacheCreationInputCostUsd,
-        reasoningTokens,
-        reasoningCostUsd,
-      });
+    const inputCostUsd = computeTokenCost(
+      baseInputTokens,
+      pricing?.inputUsdPerMillion,
+    );
+    const outputCostUsd = computeTokenCost(
+      outputTokens,
+      pricing?.outputUsdPerMillion,
+    );
+    const cachedInputCostUsd = computeTokenCost(
+      cachedInputTokens,
+      pricing?.cachedInputUsdPerMillion,
+    );
+    const cacheCreationInputCostUsd = computeCacheCreationInputCost({
+      cacheCreationInputTokens,
+      cacheCreationInput1hTokens,
+      usdPerMillion: pricing?.cacheCreationInputUsdPerMillion,
+      oneHourUsdPerMillion: pricing?.cacheCreationInput1hUsdPerMillion,
+    });
+    const reasoningCostUsd = computeTokenCost(
+      reasoningTokens,
+      pricing?.reasoningUsdPerMillion,
+    );
+    const costUsd = computeTotalCost({
+      inputTokens,
+      inputCostUsd,
+      outputTokens,
+      outputCostUsd,
+      cachedInputTokens,
+      cachedInputCostUsd,
+      cacheCreationInputTokens,
+      cacheCreationInputCostUsd,
+      reasoningTokens,
+      reasoningCostUsd,
+    });
 
     const metrics: LlmCallMetricValue[] = [];
     for (const metric of config.metrics) {
@@ -380,12 +386,15 @@ export function extractLlmCalls(
       cacheCreationInputTokens,
       reasoningTokens,
       totalTokens: computeTotalTokens({
-        declared: declaredTotalTokens,
         input: inputTokens,
         output: outputTokens,
       }),
-      latencyMs: readNumber(attrs, config.attributes.latencyMs),
-      tokensPerSecond: readNumber(attrs, config.attributes.tokensPerSecond),
+      latencyMs,
+      tokensPerSecond: computeTokensPerSecond({
+        outputTokens,
+        durationMs,
+        latencyMs,
+      }),
       costUsd,
       inputCostUsd,
       outputCostUsd,
@@ -394,7 +403,7 @@ export function extractLlmCalls(
       reasoningCostUsd,
       ...readSteps(attrs, config.attributes.steps),
       finishReason: readString(attrs, config.attributes.finishReason),
-      durationMs: computeDurationMs(span),
+      durationMs,
       input: getNestedAttribute(attrs, config.attributes.input),
       output: getNestedAttribute(attrs, config.attributes.output),
       reasoning: getNestedAttribute(attrs, config.attributes.reasoning),

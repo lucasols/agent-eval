@@ -120,8 +120,9 @@ function llmSpan(overrides: Partial<EvalTraceSpan> = {}): EvalTraceSpan {
     attributes: {
       model: 'gpt-4o-mini',
       latencyMs: 42,
-      usage: { inputTokens: 150, outputTokens: 50 },
+      usage: { inputTokens: 150, outputTokens: 50, totalTokens: 999 },
       costUsd: 0.0015,
+      tokensPerSecond: 999,
       input: { prompt: 'hi' },
       output: { reply: 'hello' },
     },
@@ -147,8 +148,8 @@ test('extractLlmCalls filters by configured kinds and projects defaults', () => 
     inputTokens: 150,
     outputTokens: 50,
     totalTokens: 200,
-    tokensPerSecond: null,
-    costUsd: 0.0015,
+    tokensPerSecond: 500,
+    costUsd: null,
     inputCostUsd: null,
     outputCostUsd: null,
     cachedInputCostUsd: null,
@@ -164,17 +165,19 @@ test('extractLlmCalls filters by configured kinds and projects defaults', () => 
   });
 });
 
-test('extractLlmCalls reads per-token-type cost breakdown', () => {
+test('extractLlmCalls ignores explicit span costs and derives totals', () => {
   const spans: EvalTraceSpan[] = [
     llmSpan({
       attributes: {
         model: 'claude-sonnet',
+        latencyMs: 42,
         usage: {
           inputTokens: 100,
           outputTokens: 200,
           cachedInputTokens: 50,
           cacheCreationInputTokens: 80,
         },
+        tokensPerSecond: 900,
         costUsd: 0.0145,
         cost: {
           inputUsd: 0.001,
@@ -192,12 +195,13 @@ test('extractLlmCalls reads per-token-type cost breakdown', () => {
     cachedInputTokens: 50,
     cacheCreationInputTokens: 80,
     totalTokens: 300,
-    inputCostUsd: 0.001,
-    outputCostUsd: 0.0105,
-    cachedInputCostUsd: 0.001,
-    cacheCreationInputCostUsd: 0.002,
+    tokensPerSecond: 2000,
+    inputCostUsd: 0,
+    outputCostUsd: null,
+    cachedInputCostUsd: null,
+    cacheCreationInputCostUsd: null,
     reasoningCostUsd: null,
-    costUsd: 0.0145,
+    costUsd: null,
   });
 });
 
@@ -244,7 +248,7 @@ test('extractLlmCalls derives costs from pricing registry when span costs are mi
   expect(call?.costUsd).toBeCloseTo(0.00402);
 });
 
-test('extractLlmCalls prefers explicit span costs over derived pricing', () => {
+test('extractLlmCalls ignores explicit span costs when pricing is configured', () => {
   const config = resolveLlmCallsConfig({
     pricing: [
       {
@@ -267,9 +271,9 @@ test('extractLlmCalls prefers explicit span costs over derived pricing', () => {
   ];
 
   expect(extractLlmCalls(spans, config)[0]).toMatchObject({
-    inputCostUsd: 0.1,
+    inputCostUsd: 0.01,
     outputCostUsd: 0.01,
-    costUsd: 0.5,
+    costUsd: 0.02,
   });
 });
 
@@ -412,12 +416,13 @@ test('extractLlmCalls reads custom metrics and drops undefined values', () => {
   ]);
 });
 
-test('extractLlmCalls reads tokens per second as a built-in field', () => {
+test('extractLlmCalls derives tokens per second after latency', () => {
   const calls = extractLlmCalls(
     [
       llmSpan({
         attributes: {
           model: 'gpt-4o-mini',
+          latencyMs: 42,
           usage: { inputTokens: 10, outputTokens: 5 },
           tokensPerSecond: 38.2,
         },
@@ -426,7 +431,49 @@ test('extractLlmCalls reads tokens per second as a built-in field', () => {
     DEFAULT_LLM_CALLS_CONFIG,
   );
 
-  expect(calls[0]).toMatchObject({ tokensPerSecond: 38.2 });
+  expect(calls[0]?.tokensPerSecond).toBeCloseTo(50);
+});
+
+test('extractLlmCalls derives tokens per second from full duration without latency', () => {
+  const calls = extractLlmCalls(
+    [
+      llmSpan({
+        attributes: {
+          model: 'gpt-4o-mini',
+          usage: { inputTokens: 10, outputTokens: 5 },
+        },
+      }),
+    ],
+    DEFAULT_LLM_CALLS_CONFIG,
+  );
+
+  expect(calls[0]?.tokensPerSecond).toBeCloseTo(35.211);
+});
+
+test('extractLlmCalls handles zero output tokens and impossible generation windows', () => {
+  const calls = extractLlmCalls(
+    [
+      llmSpan({
+        attributes: {
+          model: 'gpt-4o-mini',
+          latencyMs: 142,
+          usage: { inputTokens: 10, outputTokens: 5 },
+        },
+      }),
+      llmSpan({
+        id: 'span-2',
+        attributes: {
+          model: 'gpt-4o-mini',
+          latencyMs: 142,
+          usage: { inputTokens: 10, outputTokens: 0 },
+        },
+      }),
+    ],
+    DEFAULT_LLM_CALLS_CONFIG,
+  );
+
+  expect(calls[0]?.tokensPerSecond).toBeNull();
+  expect(calls[1]?.tokensPerSecond).toBe(0);
 });
 
 test('extractLlmCalls reports null duration for running spans and computes total fallback', () => {
@@ -444,6 +491,7 @@ test('extractLlmCalls reports null duration for running spans and computes total
   expect(calls[0]).toMatchObject({
     status: 'running',
     durationMs: null,
+    tokensPerSecond: null,
     inputTokens: 12,
     outputTokens: null,
     totalTokens: 12,
@@ -455,8 +503,10 @@ test('extractLlmCalls supports overridden attribute paths', () => {
     attributes: {
       inputTokens: 'usage.prompt_tokens',
       outputTokens: 'usage.completion_tokens',
-      cost: 'pricing.totalUsd',
     },
+    pricing: [
+      { model: 'o1-mini', inputUsdPerMillion: 1, outputUsdPerMillion: 2 },
+    ],
   });
 
   const spans = [
@@ -472,12 +522,12 @@ test('extractLlmCalls supports overridden attribute paths', () => {
   expect(extractLlmCalls(spans, config)[0]).toMatchObject({
     inputTokens: 100,
     outputTokens: 200,
-    costUsd: 0.05,
+    costUsd: 0.0005,
     totalTokens: 300,
   });
 });
 
-test('extractLlmCalls reads steps as a number count', () => {
+test('extractLlmCalls ignores numeric steps as a built-in count', () => {
   const calls = extractLlmCalls(
     [
       llmSpan({
@@ -491,7 +541,7 @@ test('extractLlmCalls reads steps as a number count', () => {
     DEFAULT_LLM_CALLS_CONFIG,
   );
 
-  expect(calls[0]).toMatchObject({ stepCount: 3, stepDetails: null });
+  expect(calls[0]).toMatchObject({ stepCount: null, stepDetails: null });
 });
 
 test('extractLlmCalls reads steps as an array of step details', () => {

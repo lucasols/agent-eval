@@ -92,20 +92,16 @@ export async function runRefundWorkflow(input: RefundInput) {
         async () => {
           let text: string;
           let usage: { inputTokens: number; outputTokens: number };
-          let costUsd: number;
           try {
-            ({ text, usage, costUsd } = await llm.complete(input.message));
+            ({ text, usage } = await llm.complete(input.message));
           } catch (error) {
             captureEvalSpanError(error);
-            ({ text, usage, costUsd } = await llm.completeWithFallback(
-              input.message,
-            ));
+            ({ text, usage } = await llm.completeWithFallback(input.message));
           }
           evalSpan.setAttributes({
             model: 'gpt-4o-mini',
             provider: 'openai',
             usage,
-            costUsd,
           });
           const expectedLocale = getEvalCaseInput('locale');
           if (typeof expectedLocale === 'string') {
@@ -137,8 +133,8 @@ are more specific. Only the `input` and `output` span attributes are promoted
 automatically in the trace tree; use `traceDisplay` for other span attributes
 such as `model` or `usage`. Eval-level LLM usage outputs, columns, stats, and
 charts are derived from matching LLM spans by default. Prefer
-`llmCalls.pricing` for LLM-call cost display instead of writing `costUsd` on
-each span.
+`llmCalls.pricing` for LLM-call cost display; built-in costs ignore span
+`costUsd` attributes.
 
 Use `captureEvalSpanError(error)` for recoverable errors on the active
 `evalTracer.span(...)`, such as optional model/tool failures that fall back and
@@ -261,27 +257,26 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   See the `TraceDisplayInputConfig` type.
 - `llmCalls` (in `agent-evals.config.ts`) configures how LLM-call spans are
   summarized for review. Defaults to `kind: 'llm'` spans with `model`,
-  `usage.*`, `latencyMs`, `tokensPerSecond`, `input`, `output`, etc. read from
-  conventional attribute paths. `latencyMs` is time to first token; the full
-  elapsed span time is shown separately as duration. Override `kinds` to broaden
-  the filter, override `attributes.<field>` for non-default span shapes,
-  configure `pricing` to derive USD costs from token counts by model/provider,
-  and add entries to `metrics` to surface arbitrary user metrics (`format:
-  'string' | 'number' |
-'duration' | 'json' | 'boolean'`, `placements: ['header' | 'body']`).
+  `usage.*`, `latencyMs`, `input`, `output`, etc. read from conventional
+  attribute paths. `latencyMs` is time to first token; duration, total tokens,
+  tokens/sec, and USD costs are derived. Override `kinds` to broaden the filter,
+  override `attributes.<field>` for non-default primitive span shapes, configure
+  `pricing` to derive USD costs from token counts by model/provider, and add
+  entries to `metrics` to surface arbitrary user metrics (`format: 'string' |
+'number' | 'duration' | 'json' | 'boolean'`, `placements: ['header' |
+'body']`).
 - Default usage config derives missing eval outputs from matching LLM/API spans
   before `outputsSchema` and scores run: `apiCalls`, `costUsd`, `llmTurns`,
   `inputTokens`, `outputTokens`, `totalTokens`, `cachedInputTokens`,
   `cacheCreationInputTokens`, `reasoningTokens`, and `llmDurationMs`. Authored
-  outputs and column overrides win. When no explicit `usage.totalTokens` is
-  present, default `totalTokens` is input + output only; cache read/write tokens
-  stay separate and affect `costUsd` at their own rates. Derived base input
-  cost uses `inputTokens - cachedInputTokens - cacheCreationInputTokens` so
-  cache details are not double-counted. `cacheCreationInputTokens` is the total
-  cache-write count; optional `cacheCreationInput1hTokens` only splits that
-  total for 1-hour write pricing via `cacheCreationInput1hUsdPerMillion`.
-  `llmDurationMs` sums elapsed matched LLM span durations; it is not
-  time-to-first-token latency.
+  outputs and column overrides win. `totalTokens` is input + output only; cache
+  read/write tokens stay separate and affect `costUsd` at their own rates.
+  Derived base input cost uses `inputTokens - cachedInputTokens -
+cacheCreationInputTokens` so cache details are not double-counted.
+  `cacheCreationInputTokens` is the total cache-write count; optional
+  `cacheCreationInput1hTokens` only splits that total for 1-hour write pricing
+  via `cacheCreationInput1hUsdPerMillion`. `llmDurationMs` sums elapsed matched
+  LLM span durations; it is not time-to-first-token latency.
   Remove defaults globally or per eval with `removeDefaultConfig: true` or a
   key list such as
   `removeDefaultConfig: ['apiCalls', 'reasoningTokens']`.

@@ -1,12 +1,10 @@
 import {
   evalAssert,
-  incrementEvalOutput,
   setEvalOutput,
   evalSpan,
   evalTracer,
 } from '@ls-stack/agent-eval';
 import { waitForWorkflowDelay } from './simulatedDelay.ts';
-import { calculateWorkflowCostUsd } from './workflowCost.ts';
 
 export type VoiceReturnFollowUpInput = {
   customerMessage: string;
@@ -37,17 +35,12 @@ export async function runVoiceReturnFollowUpWorkflow(
         async () => {
           await waitForWorkflowDelay('transcribeVoiceNote');
 
-          const usage = { inputTokens: 130, outputTokens: 90 };
-          const costUsd = calculateWorkflowCostUsd(usage);
-
           evalSpan.setAttributes({
             input: { voiceNote: input.voiceNote },
             model: 'whisper-1',
             provider: 'openai',
-            usage,
-            steps: 1,
+            usage: { inputTokens: 130, outputTokens: 90 },
             finishReason: 'stop',
-            tokensPerSecond: 88.4,
             retryCount: 0,
             streamed: false,
             output: {
@@ -56,8 +49,6 @@ export async function runVoiceReturnFollowUpWorkflow(
                 'Customer requested a return and follow-up instructions.',
             },
           });
-
-          incrementEvalOutput('costUsd', costUsd);
         },
       );
 
@@ -84,8 +75,6 @@ export async function runVoiceReturnFollowUpWorkflow(
         async () => {
           await waitForWorkflowDelay('localizeFollowUp');
 
-          const usage = { inputTokens: 320, outputTokens: 180 };
-          const costUsd = calculateWorkflowCostUsd(usage);
           const finalText = `Prepared a ${input.preferredChannel} follow-up with return steps for order ${input.orderId}.`;
 
           evalSpan.setAttributes({
@@ -95,7 +84,7 @@ export async function runVoiceReturnFollowUpWorkflow(
             },
             model: 'gpt-4o',
             provider: 'openai',
-            usage,
+            usage: { inputTokens: 320, outputTokens: 180 },
             steps: [
               {
                 index: 0,
@@ -136,7 +125,6 @@ export async function runVoiceReturnFollowUpWorkflow(
               },
             ],
             finishReason: 'tool_use',
-            tokensPerSecond: 54.8,
             retryCount: 0,
             streamed: true,
             params: { temperature: 0.4, toolChoice: 'auto' },
@@ -162,8 +150,6 @@ export async function runVoiceReturnFollowUpWorkflow(
               followUpChannel: input.preferredChannel,
             },
           });
-
-          incrementEvalOutput('costUsd', costUsd);
 
           return {
             detectedLocale,

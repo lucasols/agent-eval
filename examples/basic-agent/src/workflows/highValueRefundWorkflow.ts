@@ -1,12 +1,10 @@
 import {
   evalAssert,
-  incrementEvalOutput,
   setEvalOutput,
   evalSpan,
   evalTracer,
 } from '@ls-stack/agent-eval';
 import { waitForWorkflowDelay } from './simulatedDelay.ts';
-import { calculateWorkflowCostUsd } from './workflowCost.ts';
 
 export type HighValueRefundInput = {
   customerMessage: string;
@@ -52,20 +50,11 @@ export async function runHighValueRefundWorkflow(
         async () => {
           await waitForWorkflowDelay('assessRefundRisk');
 
-          const REASONING_PRICE_PER_MILLION = 60;
           const usage = {
             inputTokens: 260,
             outputTokens: 80,
             reasoningTokens: 320,
-            totalTokens: 660,
           };
-          const baseCost = calculateWorkflowCostUsd({
-            inputTokens: usage.inputTokens,
-            outputTokens: usage.outputTokens,
-          });
-          const reasoningCostUsd =
-            (usage.reasoningTokens / 1_000_000) * REASONING_PRICE_PER_MILLION;
-          const costUsd = baseCost + reasoningCostUsd;
 
           evalSpan.setAttributes({
             input: {
@@ -76,9 +65,7 @@ export async function runHighValueRefundWorkflow(
             model: 'o1-mini',
             provider: 'openai',
             usage,
-            steps: 1,
             finishReason: 'stop',
-            tokensPerSecond: 22.6,
             retryCount: 0,
             streamed: false,
             params: { temperature: 0 },
@@ -86,8 +73,6 @@ export async function runHighValueRefundWorkflow(
               'Premium loyalty status raises refund authority but the requested amount exceeds the manager-approval threshold. Receipt verification still pending so escalate to finance review rather than auto-approving.',
             output: { riskLevel: 'high', requiresManagerApproval: true },
           });
-
-          incrementEvalOutput('costUsd', costUsd);
         },
       );
 
@@ -108,9 +93,6 @@ export async function runHighValueRefundWorkflow(
         async () => {
           await waitForWorkflowDelay('summarizeFinanceHandoff');
 
-          const usage = { inputTokens: 540, outputTokens: 256 };
-          const costUsd = calculateWorkflowCostUsd(usage);
-
           evalSpan.setAttributes({
             input: {
               orderId: input.orderId,
@@ -119,10 +101,8 @@ export async function runHighValueRefundWorkflow(
             },
             model: 'gpt-4o-mini',
             provider: 'openai',
-            usage,
-            steps: 1,
+            usage: { inputTokens: 540, outputTokens: 256 },
             finishReason: 'length',
-            tokensPerSecond: 64.4,
             retryCount: 0,
             streamed: true,
             params: { temperature: 0.3, maxOutputTokens: 256 },
@@ -132,8 +112,6 @@ export async function runHighValueRefundWorkflow(
               truncated: true,
             },
           });
-
-          incrementEvalOutput('costUsd', costUsd);
         },
       );
 

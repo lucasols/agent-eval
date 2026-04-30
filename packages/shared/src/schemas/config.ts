@@ -132,7 +132,7 @@ export type ApiCallMetric = z.infer<typeof apiCallMetricSchema>;
 
 /**
  * Schema for one model/provider pricing entry used to derive LLM-call costs
- * from token counts when a span does not already record explicit USD costs.
+ * from token counts.
  */
 export const llmCallPricingSchema = z.object({
   /** Exact model name read from the configured `attributes.model` path. */
@@ -166,12 +166,9 @@ export const llmCallsConfigSchema = z.object({
   /**
    * Attribute paths used to extract structured per-call fields. Each entry is
    * a dot-path inside `span.attributes`. Missing paths fall back to the
-   * built-in defaults (e.g. `usage.inputTokens`, `costUsd`).
-   *
-   * Per-token-type cost paths (`inputCost`, `outputCost`, `cachedInputCost`,
-   * `reasoningCost`) feed the cost breakdown table in the expanded row when
-   * spans provide explicit USD cost overrides. Prefer `pricing` for deriving
-   * costs from token counts globally.
+   * built-in defaults (e.g. `usage.inputTokens`). Derived fields such as
+   * total tokens, tokens/sec, duration, and USD costs are intentionally not
+   * configurable as attribute paths.
    */
   attributes: z
     .object({
@@ -183,15 +180,7 @@ export const llmCallsConfigSchema = z.object({
       cacheCreationInputTokens: z.string().optional(),
       cacheCreationInput1hTokens: z.string().optional(),
       reasoningTokens: z.string().optional(),
-      totalTokens: z.string().optional(),
       latencyMs: z.string().optional(),
-      tokensPerSecond: z.string().optional(),
-      cost: z.string().optional(),
-      inputCost: z.string().optional(),
-      outputCost: z.string().optional(),
-      cachedInputCost: z.string().optional(),
-      cacheCreationInputCost: z.string().optional(),
-      reasoningCost: z.string().optional(),
       steps: z.string().optional(),
       finishReason: z.string().optional(),
       input: z.string().optional(),
@@ -201,9 +190,8 @@ export const llmCallsConfigSchema = z.object({
     })
     .optional(),
   /**
-   * Model/provider pricing registry used to calculate missing LLM-call costs
-   * from token counts. Explicit span attributes (`costUsd`, `cost.inputUsd`,
-   * etc.) take precedence over derived prices.
+   * Model/provider pricing registry used to calculate LLM-call costs from
+   * token counts. Built-in LLM cost fields are only derived from this registry.
    */
   pricing: z.array(llmCallPricingSchema).optional(),
   /** Custom user-defined metrics surfaced on each LLM call. */
@@ -265,15 +253,7 @@ export type ResolvedLlmCallsConfig = {
     cacheCreationInputTokens: string;
     cacheCreationInput1hTokens: string;
     reasoningTokens: string;
-    totalTokens: string;
     latencyMs: string;
-    tokensPerSecond: string;
-    cost: string;
-    inputCost: string;
-    outputCost: string;
-    cachedInputCost: string;
-    cacheCreationInputCost: string;
-    reasoningCost: string;
     steps: string;
     finishReason: string;
     input: string;
@@ -347,15 +327,7 @@ export const DEFAULT_LLM_CALLS_CONFIG: ResolvedLlmCallsConfig = {
     cacheCreationInputTokens: 'usage.cacheCreationInputTokens',
     cacheCreationInput1hTokens: 'usage.cacheCreationInput1hTokens',
     reasoningTokens: 'usage.reasoningTokens',
-    totalTokens: 'usage.totalTokens',
     latencyMs: 'latencyMs',
-    tokensPerSecond: 'tokensPerSecond',
-    cost: 'costUsd',
-    inputCost: 'cost.inputUsd',
-    outputCost: 'cost.outputUsd',
-    cachedInputCost: 'cost.cachedInputUsd',
-    cacheCreationInputCost: 'cost.cacheCreationInputUsd',
-    reasoningCost: 'cost.reasoningUsd',
     steps: 'steps',
     finishReason: 'finishReason',
     input: 'input',
@@ -394,8 +366,8 @@ export const DEFAULT_API_CALLS_CONFIG: ResolvedApiCallsConfig = {
  *   attribute path.
  * - Missing `metrics[].format` defaults to `'string'`.
  * - Missing `metrics[].placements` defaults to `['body']`.
- * - Missing `pricing` defaults to an empty registry; explicit span costs still
- *   take precedence over derived costs.
+ * - Missing `pricing` defaults to an empty registry; built-in costs are only
+ *   derived from configured pricing and token counts.
  */
 export function resolveLlmCallsConfig(
   input: LlmCallsConfigInput | undefined,
@@ -506,10 +478,10 @@ export type AgentEvalsConfig = {
    *
    * Determines which trace spans are treated as LLM calls (`kinds`), how
    * structured fields like `model` and `usage.inputTokens` are read from
-   * span attributes, and which custom user-defined metrics are surfaced on
-   * each call. All fields are optional and fall back to the documented
-   * defaults; the LLM calls tab is shown automatically when at least one
-   * matching span exists in a case run.
+   * span attributes, which pricing table derives built-in costs, and which
+   * custom user-defined metrics are surfaced on each call. All fields are
+   * optional and fall back to the documented defaults; the LLM calls tab is
+   * shown automatically when at least one matching span exists in a case run.
    *
    * @example
    * ```ts

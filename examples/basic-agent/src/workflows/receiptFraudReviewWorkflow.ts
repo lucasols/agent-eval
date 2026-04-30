@@ -1,13 +1,11 @@
 import {
   captureEvalSpanError,
   evalAssert,
-  incrementEvalOutput,
   setEvalOutput,
   evalSpan,
   evalTracer,
 } from '@ls-stack/agent-eval';
 import { waitForWorkflowDelay } from './simulatedDelay.ts';
-import { calculateWorkflowCostUsd } from './workflowCost.ts';
 
 export type ReceiptFraudReviewInput = {
   claimedAmountUsd: number;
@@ -55,7 +53,6 @@ export async function runReceiptFraudReviewWorkflow(
             model: 'gpt-4o-vision-preview',
             provider: 'openai',
             usage: { inputTokens: 0, outputTokens: 0 },
-            steps: 0,
             finishReason: 'error',
             retryCount: 1,
             streamed: false,
@@ -74,9 +71,6 @@ export async function runReceiptFraudReviewWorkflow(
         async () => {
           await waitForWorkflowDelay('flagTamperingSignals');
 
-          const usage = { inputTokens: 240, outputTokens: 90 };
-          const costUsd = calculateWorkflowCostUsd(usage);
-
           evalSpan.setAttributes({
             input: {
               customerMessage: input.customerMessage,
@@ -84,10 +78,8 @@ export async function runReceiptFraudReviewWorkflow(
             },
             model: 'claude-3-5-sonnet',
             provider: 'anthropic',
-            usage,
-            steps: 1,
+            usage: { inputTokens: 240, outputTokens: 90 },
             finishReason: 'stop',
-            tokensPerSecond: 41.5,
             retryCount: 2,
             streamed: true,
             params: { temperature: 0.1 },
@@ -105,8 +97,6 @@ export async function runReceiptFraudReviewWorkflow(
             },
             'warning',
           );
-
-          incrementEvalOutput('costUsd', costUsd);
         },
       );
 
