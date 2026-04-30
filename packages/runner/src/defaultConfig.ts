@@ -38,6 +38,11 @@ const countNumberFormat = {
   maxDecimalPlaces: 0,
 } satisfies NonNullable<EvalColumnOverride['numberFormat']>;
 
+const costNumberFormat = {
+  prefix: '$',
+  maxDecimalPlaces: 4,
+} satisfies NonNullable<EvalColumnOverride['numberFormat']>;
+
 export const DEFAULT_COLUMNS: Record<DefaultConfigKey, EvalColumnOverride> = {
   apiCalls: {
     label: 'API Calls',
@@ -48,7 +53,7 @@ export const DEFAULT_COLUMNS: Record<DefaultConfigKey, EvalColumnOverride> = {
   costUsd: {
     label: 'Cost',
     format: 'number',
-    numberFormat: { prefix: '$' },
+    numberFormat: costNumberFormat,
     align: 'right',
   },
   llmTurns: {
@@ -151,7 +156,7 @@ export function appendDefaultStats(params: {
       key: 'costUsd',
       label: 'LLM Cost',
       aggregate: 'avg',
-      numberFormat: { prefix: '$' },
+      numberFormat: costNumberFormat,
     });
   }
   if (activeKeys.has('totalTokens')) {

@@ -351,7 +351,7 @@ defineEval({
           key: 'costUsd',
           label: 'LLM Cost',
           aggregate: 'avg',
-          numberFormat: { prefix: '$' },
+          numberFormat: { prefix: '$', maxDecimalPlaces: 4 },
         },
         {
           kind: 'column',
