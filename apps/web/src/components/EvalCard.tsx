@@ -199,8 +199,8 @@ const Body = styled.div<{ scroll: boolean }>`
 `;
 
 const StatsGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 1px;
   background: ${colors.border.var};
   border-bottom: 1px solid ${colors.border.var};
@@ -210,6 +210,8 @@ const Stat = styled.div`
   ${stack({ gap: 6 })}
   padding: 12px 16px 13px;
   background: ${colors.bg.var};
+  flex: 1 1 160px;
+  min-width: 160px;
 `;
 
 const StatLabel = styled.div`
