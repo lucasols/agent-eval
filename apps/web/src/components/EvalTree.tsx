@@ -233,13 +233,13 @@ export function EvalTree() {
     currentRun: s.currentRun,
   }));
 
-  const isEvalRunning = (evalId: string): boolean =>
+  const isEvalRunning = (evalKey: string): boolean =>
     currentRun?.manifest.status === 'running' &&
-    targetIncludesEval(currentRun.manifest.target, evalId);
+    targetIncludesEval(currentRun.manifest.target, evalKey);
 
   useEffect(() => {
     if (selection.kind !== 'eval') return;
-    const ev = evals.find((e) => e.id === selection.id);
+    const ev = evals.find((e) => e.key === selection.id);
     if (!ev) return;
     expandFolder(ev.filePath);
     const segments = ev.filePath.split('/').filter((p) => p.length > 0);
@@ -521,10 +521,10 @@ function FileRow({
       {isOpen
         ? file.evals.map((ev) => (
             <LeafRow
-              key={`${file.path}#${ev.id}`}
+              key={ev.key}
               leaf={{
                 kind: 'leaf',
-                path: `${ev.filePath}#${ev.id}`,
+                path: ev.key,
                 filePath: ev.filePath,
                 fileName: file.name,
                 evalSummary: ev,
@@ -554,7 +554,7 @@ function LeafRow({
   isEvalRunning: (evalId: string) => boolean;
 }) {
   const ev = leaf.evalSummary;
-  const isActive = selection.kind === 'eval' && selection.id === ev.id;
+  const isActive = selection.kind === 'eval' && selection.id === ev.key;
 
   const displayStatus = getEvalSummaryDisplayStatus(ev, isEvalRunning);
   const title = getEvalTitle(ev);
@@ -564,7 +564,7 @@ function LeafRow({
   return (
     <RowBase
       type="button"
-      onClick={() => selectEval(ev.id)}
+      onClick={() => selectEval(ev.key)}
       title={rowTooltip ?? undefined}
       active={isActive}
       depth0={depth === 0}
@@ -587,12 +587,12 @@ function LeafRow({
 }
 
 function targetIncludesEval(
-  target: { mode: string; evalIds?: string[] },
-  evalId: string,
+  target: { mode: string; evalIds?: string[]; evalKeys?: string[] },
+  evalKey: string,
 ): boolean {
   if (target.mode === 'all') return true;
   if (target.mode === 'evalIds') {
-    return target.evalIds?.includes(evalId) ?? false;
+    return target.evalKeys?.includes(evalKey) ?? false;
   }
   return false;
 }

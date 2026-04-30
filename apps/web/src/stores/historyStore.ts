@@ -73,17 +73,24 @@ export async function refetchHistory(): Promise<void> {
   historyStore.setPartialState({ runs, loading: false });
 }
 
-export function runTargetsEval(manifest: RunManifest, evalId: string): boolean {
+export function runTargetsEval(
+  manifest: RunManifest,
+  evalKey: string,
+): boolean {
   if (manifest.target.mode === 'all') return true;
   if (manifest.target.mode === 'evalIds') {
-    return manifest.target.evalIds?.includes(evalId) ?? false;
+    return (
+      manifest.target.evalKeys?.includes(evalKey) ??
+      manifest.target.evalIds?.includes(evalKey) ??
+      false
+    );
   }
   return false;
 }
 
 export function getRunsForEval(
   runs: HistoricalRun[],
-  evalId: string,
+  evalKey: string,
 ): HistoricalRun[] {
-  return runs.filter((r) => runTargetsEval(r.manifest, evalId));
+  return runs.filter((r) => runTargetsEval(r.manifest, evalKey));
 }

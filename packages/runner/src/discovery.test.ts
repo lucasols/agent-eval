@@ -16,6 +16,111 @@ afterEach(async () => {
 });
 
 describe('discovery metadata', () => {
+  test('allows the same eval id in different files', async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), 'agent-evals-runner-duplicate-files-'),
+    );
+    createdWorkspaces.push(workspacePath);
+
+    await mkdir(join(workspacePath, 'evals', 'a'), { recursive: true });
+    await mkdir(join(workspacePath, 'evals', 'b'), { recursive: true });
+    await writeFile(
+      join(workspacePath, 'agent-evals.config.ts'),
+      `export default {
+  include: ['evals/**/*.eval.ts'],
+};
+`,
+    );
+    for (const folder of ['a', 'b']) {
+      await writeFile(
+        join(workspacePath, 'evals', folder, 'shared.eval.ts'),
+        `import { defineEval } from '@agent-evals/sdk';
+
+defineEval({
+  id: 'shared-eval',
+  title: 'Shared Eval ${folder}',
+  execute: () => {},
+});
+`,
+      );
+    }
+
+    const previousCwd = process.cwd();
+    process.chdir(workspacePath);
+    const runner = createRunner({ watchForChanges: false });
+
+    try {
+      await runner.init();
+      const evals = runner.getEvals();
+
+      expect(
+        evals.map((ev) => ({ id: ev.id, key: ev.key, file: ev.filePath })),
+      ).toEqual([
+        {
+          id: 'shared-eval',
+          key: 'evals%2Fa%2Fshared.eval.ts#shared-eval',
+          file: 'evals/a/shared.eval.ts',
+        },
+        {
+          id: 'shared-eval',
+          key: 'evals%2Fb%2Fshared.eval.ts#shared-eval',
+          file: 'evals/b/shared.eval.ts',
+        },
+      ]);
+      expect(runner.getDiscoveryIssues()).toEqual([]);
+    } finally {
+      await runner.close();
+      process.chdir(previousCwd);
+    }
+  });
+
+  test('reports duplicate eval ids in the same file', async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), 'agent-evals-runner-duplicate-same-file-'),
+    );
+    createdWorkspaces.push(workspacePath);
+
+    await mkdir(join(workspacePath, 'evals'), { recursive: true });
+    await writeFile(
+      join(workspacePath, 'agent-evals.config.ts'),
+      `export default {
+  include: ['evals/**/*.eval.ts'],
+};
+`,
+    );
+    await writeFile(
+      join(workspacePath, 'evals', 'duplicates.eval.ts'),
+      `import { defineEval } from '@agent-evals/sdk';
+
+defineEval({ id: 'duplicate-eval', execute: () => {} });
+defineEval({ id: 'duplicate-eval', execute: () => {} });
+`,
+    );
+
+    const previousCwd = process.cwd();
+    process.chdir(workspacePath);
+    const runner = createRunner({ watchForChanges: false });
+
+    try {
+      await runner.init();
+
+      expect(runner.getEvals()).toEqual([]);
+      expect(runner.getDiscoveryIssues()).toEqual([
+        {
+          type: 'duplicate-eval-id',
+          severity: 'error',
+          filePath: 'evals/duplicates.eval.ts',
+          evalId: 'duplicate-eval',
+          message:
+            'Duplicate eval id "duplicate-eval" in evals/duplicates.eval.ts. Eval ids must be unique within one file.',
+        },
+      ]);
+    } finally {
+      await runner.close();
+      process.chdir(previousCwd);
+    }
+  });
+
   test('discovers new eval files added under an included glob', async () => {
     const workspacePath = await mkdtemp(
       join(tmpdir(), 'agent-evals-runner-watch-add-'),

@@ -9,7 +9,14 @@ import type { EvalLatestRunInfo } from './runPersistence.ts';
 
 type EvalSummaryMeta = Pick<
   EvalSummary,
-  'id' | 'title' | 'filePath' | 'columnDefs' | 'caseCount' | 'stats' | 'charts'
+  | 'key'
+  | 'id'
+  | 'title'
+  | 'filePath'
+  | 'columnDefs'
+  | 'caseCount'
+  | 'stats'
+  | 'charts'
 > & { sourceFingerprint: string | null };
 
 /** Build the API/UI summary payload for one discovered eval. */
@@ -41,17 +48,19 @@ export function buildEvalSummary(params: {
   };
 }
 
-/** Resolve which eval ids a run request should mark as the latest run. */
+/** Resolve which eval keys a run request should mark as the latest run. */
 export function getTargetEvalIds(params: {
   request: CreateRunRequest;
-  sortedEvalIds: string[];
-  knownEvalIds: Set<string>;
+  sortedEvalKeys: string[];
+  knownEvalKeys: Set<string>;
 }): string[] {
-  const { request, sortedEvalIds, knownEvalIds } = params;
-  if (request.target.evalIds && request.target.evalIds.length > 0) {
-    return request.target.evalIds.filter((evalId) => knownEvalIds.has(evalId));
+  const { request, sortedEvalKeys, knownEvalKeys } = params;
+  if (request.target.evalKeys && request.target.evalKeys.length > 0) {
+    return request.target.evalKeys.filter((evalKey) =>
+      knownEvalKeys.has(evalKey),
+    );
   }
-  return sortedEvalIds;
+  return sortedEvalKeys;
 }
 
 /** Write one latest-run snapshot to each targeted eval id. */

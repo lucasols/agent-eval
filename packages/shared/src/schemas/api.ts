@@ -5,6 +5,10 @@ import { cacheModeSchema } from './cache.ts';
 export const createRunRequestSchema = z.object({
   target: z.object({
     mode: z.enum(['all', 'evalIds', 'caseIds']),
+    /** Exact stable eval identities (`filePath + evalId`) selected by UI/API callers. */
+    evalKeys: z.array(z.string()).optional(),
+    /** Workspace-relative file paths or glob patterns used to filter selected evals. */
+    files: z.array(z.string()).optional(),
     evalIds: z.array(z.string()).optional(),
     caseIds: z.array(z.string()).optional(),
   }),

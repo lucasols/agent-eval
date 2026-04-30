@@ -215,7 +215,12 @@ export const runStore = new Store<RunState>({
 
 export type RunTarget =
   | { mode: 'all' }
-  | { mode: 'evalIds'; evalIds: string[] };
+  | {
+      mode: 'evalIds';
+      evalIds?: string[];
+      evalKeys?: string[];
+      files?: string[];
+    };
 
 /** Optional run-start options, notably the cache mode. */
 export type StartRunOptions = { cacheMode?: CacheMode };
@@ -223,7 +228,10 @@ export type StartRunOptions = { cacheMode?: CacheMode };
 const LARGE_APP_RUN_CONFIRM_EVAL_COUNT = 5;
 
 function getRunTargetEvalCount(target: RunTarget): number {
-  if (target.mode === 'evalIds') return new Set(target.evalIds).size;
+  if (target.mode === 'evalIds') {
+    return new Set(target.evalKeys ?? target.evalIds ?? target.files ?? [])
+      .size;
+  }
   return evalsStore.state.evals.length;
 }
 
@@ -306,14 +314,16 @@ function subscribeToRunEvents(runId: string): void {
     runStore.setState((prev) => {
       if (!prev.currentRun) return prev;
       const cases = prev.currentRun.cases.map((c) =>
-        c.caseId === envelope.payload.caseId &&
+        (c.caseKey ?? c.caseId) ===
+          (envelope.payload.caseKey ?? envelope.payload.caseId) &&
         c.trial === envelope.payload.trial
           ? envelope.payload
           : c,
       );
       const hasCase = cases.some(
         (c) =>
-          c.caseId === envelope.payload.caseId &&
+          (c.caseKey ?? c.caseId) ===
+            (envelope.payload.caseKey ?? envelope.payload.caseId) &&
           c.trial === envelope.payload.trial,
       );
       return {
@@ -560,10 +570,11 @@ export function setTrials(trials: number): void {
 }
 
 /**
- * Delete cache entries scoped to a single eval id.
+ * Delete cache entries scoped to a single authored eval id.
  *
- * Namespace convention is `${evalId}__${operationName}`, so we fetch the list and
- * delete every namespace matching the prefix.
+ * Default cache namespaces still use `${evalId}__${operationName}` for
+ * compatibility, so duplicate eval ids in different files share cache
+ * management even though their cache keys remain source-fingerprint scoped.
  */
 export async function clearCacheForEval(evalId: string): Promise<void> {
   const listResult = await resultify(() => fetch('/api/cache'));

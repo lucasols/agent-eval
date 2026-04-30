@@ -146,7 +146,7 @@ export function buildEvalTree(evals: EvalSummary[]): TreeNode[] {
       if (!ev) continue;
       parent.children.push({
         kind: 'leaf',
-        path: `${ev.filePath}#${ev.id}`,
+        path: ev.key,
         filePath: ev.filePath,
         fileName: displayName,
         evalSummary: ev,
@@ -248,7 +248,7 @@ export function getEvalSummaryDisplayStatus(
     stale: ev.stale,
     outdated: ev.outdated,
     lastRunStatus: ev.lastRunStatus,
-    isRunning: isEvalRunning(ev.id),
+    isRunning: isEvalRunning(ev.key),
   });
 }
 

@@ -1,6 +1,10 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { deriveScopedSummaryFromCases } from '@agent-evals/shared';
+import {
+  deriveScopedSummaryFromCases,
+  getCaseRowCaseKey,
+  getCaseRowEvalKey,
+} from '@agent-evals/shared';
 import type {
   CaseDetail,
   CaseRow,
@@ -56,15 +60,26 @@ export function recomputePersistedCaseStatus(
 export function runTouchesEval(params: {
   target: RunManifest['target'];
   caseRows: CaseRow[];
-  evalId: string;
+  evalKey: string;
+  evalId?: string;
   evalExists: boolean;
 }): boolean {
-  if (params.caseRows.some((caseRow) => caseRow.evalId === params.evalId)) {
+  if (
+    params.caseRows.some(
+      (caseRow) =>
+        getCaseRowEvalKey(caseRow) === params.evalKey ||
+        (caseRow.evalKey === undefined && caseRow.evalId === params.evalId),
+    )
+  ) {
     return true;
   }
   if (params.target.mode === 'all') return params.evalExists;
   if (params.target.mode === 'evalIds') {
-    return params.target.evalIds?.includes(params.evalId) ?? false;
+    return (
+      params.target.evalKeys?.includes(params.evalKey) ??
+      params.target.evalIds?.includes(params.evalId ?? params.evalKey) ??
+      false
+    );
   }
   return false;
 }
@@ -79,7 +94,8 @@ export type MaintainedRunState = {
 
 export async function recomputeEvalStatusesInRuns(params: {
   runs: Iterable<MaintainedRunState>;
-  evalId: string;
+  evalKey: string;
+  evalId?: string;
   evalExists: boolean;
   scoreThresholds: ReadonlyMap<string, number>;
   persistCaseDetail: (runDir: string, caseDetail: CaseDetail) => Promise<void>;
@@ -90,6 +106,7 @@ export async function recomputeEvalStatusesInRuns(params: {
       !runTouchesEval({
         target: run.manifest.target,
         caseRows: run.cases,
+        evalKey: params.evalKey,
         evalId: params.evalId,
         evalExists: params.evalExists,
       })
@@ -100,8 +117,13 @@ export async function recomputeEvalStatusesInRuns(params: {
 
     let changed = false;
     for (const caseRow of run.cases) {
-      if (caseRow.evalId !== params.evalId) continue;
-      const caseDetail = run.caseDetails.get(caseRow.caseId);
+      if (
+        getCaseRowEvalKey(caseRow) !== params.evalKey &&
+        !(caseRow.evalKey === undefined && caseRow.evalId === params.evalId)
+      ) {
+        continue;
+      }
+      const caseDetail = run.caseDetails.get(getCaseRowCaseKey(caseRow));
       const nextStatus = recomputePersistedCaseStatus(
         caseRow,
         caseDetail,

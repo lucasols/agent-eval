@@ -401,10 +401,10 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     latestSummary,
     latestCases,
   } = useMemo(() => {
-    const evalRuns = getRunsForEval(runs, evalSummary.id);
+    const evalRuns = getRunsForEval(runs, evalSummary.key);
     const liveRun =
       currentRun &&
-      runTargetsEvalLocal(currentRun.manifest.target, evalSummary.id)
+      runTargetsEvalLocal(currentRun.manifest.target, evalSummary.key)
         ? currentRun
         : null;
 
@@ -415,7 +415,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
       merged.unshift(liveRun);
     }
 
-    const rows = buildEvalScopedRunRows(merged, evalSummary.id);
+    const rows = buildEvalScopedRunRows(merged, evalSummary.key);
 
     const perChart =
       isSingle && charts.length > 0
@@ -444,7 +444,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   }, [
     runs,
     currentRun,
-    evalSummary.id,
+    evalSummary.key,
     evalSummary.columnDefs,
     isSingle,
     isStacked,
@@ -458,7 +458,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
 
   const isRunning =
     currentRun?.manifest.status === 'running' &&
-    runTargetsEvalLocal(currentRun.manifest.target, evalSummary.id);
+    runTargetsEvalLocal(currentRun.manifest.target, evalSummary.key);
   const hasScoreHistory =
     isSingle && charts.length > 0 && completedRunCount > 1;
   const displayStatus = getEvalDisplayStatus({
@@ -475,7 +475,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
 
   function handleRun(e: React.MouseEvent) {
     e.stopPropagation();
-    void startRun({ mode: 'evalIds', evalIds: [evalSummary.id] });
+    void startRun({ mode: 'evalIds', evalKeys: [evalSummary.key] });
   }
 
   function handleStop(e: React.MouseEvent) {
@@ -490,7 +490,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
       description: 'Read on hit, write on miss.',
       onSelect: () => {
         void startRun(
-          { mode: 'evalIds', evalIds: [evalSummary.id] },
+          { mode: 'evalIds', evalKeys: [evalSummary.key] },
           { cacheMode: 'use' },
         );
       },
@@ -501,7 +501,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
       description: 'Skip reads and writes for this run.',
       onSelect: () => {
         void startRun(
-          { mode: 'evalIds', evalIds: [evalSummary.id] },
+          { mode: 'evalIds', evalKeys: [evalSummary.key] },
           { cacheMode: 'bypass' },
         );
       },
@@ -512,7 +512,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
       description: 'Force re-execution and overwrite entries.',
       onSelect: () => {
         void startRun(
-          { mode: 'evalIds', evalIds: [evalSummary.id] },
+          { mode: 'evalIds', evalKeys: [evalSummary.key] },
           { cacheMode: 'refresh' },
         );
       },
@@ -533,7 +533,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   async function handleRecomputeStatuses() {
     setMaintenanceAction('recompute');
     try {
-      await recomputeStatusesForEval(evalSummary.id);
+      await recomputeStatusesForEval(evalSummary.key);
     } finally {
       setMaintenanceAction(null);
     }
@@ -542,7 +542,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   async function handleCleanRuns() {
     setMaintenanceAction('clean');
     try {
-      await cleanRunsForEval(evalSummary.id);
+      await cleanRunsForEval(evalSummary.key);
     } finally {
       setMaintenanceAction(null);
     }
@@ -585,7 +585,11 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   async function handleCopyCliRunCommand() {
     const { packageManager } = workspaceConfigStore.state;
     await copyTextToClipboard(
-      buildEvalRunCliCommand({ packageManager, evalId: evalSummary.id }),
+      buildEvalRunCliCommand({
+        packageManager,
+        evalId: evalSummary.id,
+        filePath: evalSummary.filePath,
+      }),
       'Copy CLI run command',
     );
   }
@@ -593,7 +597,11 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   async function handleCopyCliDebugCommand() {
     const { packageManager } = workspaceConfigStore.state;
     await copyTextToClipboard(
-      buildEvalDebugCliCommand({ packageManager, evalId: evalSummary.id }),
+      buildEvalDebugCliCommand({
+        packageManager,
+        evalId: evalSummary.id,
+        filePath: evalSummary.filePath,
+      }),
       'Copy CLI debug command',
     );
   }
@@ -688,7 +696,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
               currentLabel={filename}
               onSelect={selectFolder}
               onOpenInEditor={() => {
-                void openEvalInEditor(evalSummary.id);
+                void openEvalInEditor(evalSummary.key);
               }}
             />
           </BreadcrumbWrap>
@@ -726,7 +734,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
               <Tooltip content="Open eval page">
                 <IconButton
                   aria-label="Open eval page"
-                  onClick={() => selectEval(evalSummary.id)}
+                  onClick={() => selectEval(evalSummary.key)}
                 >
                   <SquareArrowOutUpRight />
                 </IconButton>
@@ -843,12 +851,12 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
 }
 
 function runTargetsEvalLocal(
-  target: { mode: string; evalIds?: string[] },
-  evalId: string,
+  target: { mode: string; evalIds?: string[]; evalKeys?: string[] },
+  evalKey: string,
 ): boolean {
   if (target.mode === 'all') return true;
   if (target.mode === 'evalIds') {
-    return target.evalIds?.includes(evalId) ?? false;
+    return target.evalKeys?.includes(evalKey) ?? false;
   }
   return false;
 }

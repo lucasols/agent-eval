@@ -32,6 +32,7 @@ type CliArgs = {
   helpTopic: HelpTopic;
   unknownHelpTarget: string | undefined;
   evalIds: string[];
+  files: string[];
   caseIds: string[];
   trials: number;
   json: boolean;
@@ -52,6 +53,7 @@ function parseArgs(argv: string[]): CliArgs {
     helpTopic: 'global',
     unknownHelpTarget: undefined,
     evalIds: [],
+    files: [],
     caseIds: [],
     trials: 1,
     json: false,
@@ -96,6 +98,9 @@ function parseArgs(argv: string[]): CliArgs {
       args.showHelp = true;
     } else if (arg === '--eval' && next) {
       args.evalIds.push(...next.split(','));
+      i++;
+    } else if (arg === '--file' && next) {
+      args.files.push(...next.split(','));
       i++;
     } else if (arg === '--case' && next) {
       args.caseIds.push(...next.split(','));
@@ -184,6 +189,35 @@ function isCliCommand(command: string | undefined): command is CliCommand {
     command === 'cache' ||
     command === 'help'
   );
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[|\\{}()[\]^$+?.]/g, '\\$&');
+}
+
+function globToRegex(pattern: string): RegExp {
+  const normalized = pattern.replaceAll('\\', '/');
+  let regex = '^';
+  for (let i = 0; i < normalized.length; i++) {
+    const char = normalized[i];
+    const next = normalized[i + 1];
+    if (char === '*' && next === '*') {
+      regex += '.*';
+      i++;
+    } else if (char === '*') {
+      regex += '[^/]*';
+    } else if (char === '?') {
+      regex += '[^/]';
+    } else {
+      regex += escapeRegex(char ?? '');
+    }
+  }
+  return new RegExp(`${regex}$`);
+}
+
+function fileMatches(pattern: string, filePath: string): boolean {
+  const normalized = pattern.replaceAll('\\', '/');
+  return normalized === filePath || globToRegex(normalized).test(filePath);
 }
 
 function loadWorkspaceEnv(): boolean {
@@ -302,10 +336,20 @@ async function commandList(args_: CliArgs): Promise<void> {
   const runner = createRunner({ watchForChanges: false });
   await runner.init();
 
+  const discoveryIssues = runner.getDiscoveryIssues();
+  if (discoveryIssues.length > 0) {
+    console.error('Discovery errors:\n');
+    for (const issue of discoveryIssues) {
+      console.error(`  ${issue.message}`);
+    }
+    console.error('');
+  }
+
   const evals = runner.getEvals();
 
   if (evals.length === 0) {
     console.info('No eval files found.');
+    if (discoveryIssues.length > 0) process.exit(1);
     return;
   }
 
@@ -329,6 +373,7 @@ async function commandList(args_: CliArgs): Promise<void> {
     }
     console.info('');
   }
+  if (discoveryIssues.length > 0) process.exit(1);
 }
 
 async function commandRun(args: CliArgs): Promise<void> {
@@ -336,10 +381,12 @@ async function commandRun(args: CliArgs): Promise<void> {
   await runner.init();
 
   const runTargetsAllEvals =
-    args.evalIds.length === 0 && args.caseIds.length === 0;
+    args.evalIds.length === 0 &&
+    args.caseIds.length === 0 &&
+    args.files.length === 0;
   if (runTargetsAllEvals && !runner.getAllowCliRunAll()) {
     console.error(
-      'This workspace disables running all evals from the CLI. Pass --eval <id> or --case <id> to run a targeted subset.',
+      'This workspace disables running all evals from the CLI. Pass --eval <id>, --file <path|glob>, or --case <id> to run a targeted subset.',
     );
     process.exit(1);
     return;
@@ -359,10 +406,17 @@ async function commandRun(args: CliArgs): Promise<void> {
           mode: 'caseIds' as const,
           caseIds: args.caseIds,
           evalIds: args.evalIds.length > 0 ? args.evalIds : undefined,
+          files: args.files.length > 0 ? args.files : undefined,
         }
       : args.evalIds.length > 0
-        ? { mode: 'evalIds' as const, evalIds: args.evalIds }
-        : { mode: 'all' as const };
+        ? {
+            mode: 'evalIds' as const,
+            evalIds: args.evalIds,
+            files: args.files.length > 0 ? args.files : undefined,
+          }
+        : args.files.length > 0
+          ? { mode: 'evalIds' as const, files: args.files }
+          : { mode: 'all' as const };
 
   const run = await runner.startRun({
     target,
@@ -406,9 +460,16 @@ async function commandRun(args: CliArgs): Promise<void> {
     if (summary.totalDurationMs !== null) {
       console.info(`Duration: ${(summary.totalDurationMs / 1000).toFixed(1)}s`);
     }
+    if (summary.errorMessage !== null) {
+      console.info('');
+      console.info(summary.errorMessage);
+    }
   }
 
-  const hasFailures = summary.failedCases > 0 || summary.errorCases > 0;
+  const hasFailures =
+    summary.status === 'error' ||
+    summary.failedCases > 0 ||
+    summary.errorCases > 0;
 
   if (hasFailures) {
     process.exit(1);
@@ -439,7 +500,9 @@ type RunFileIndex = {
   };
   cases: Array<{
     caseId: string;
+    caseKey: string | undefined;
     evalId: string;
+    evalKey: string | undefined;
     status: CaseRow['status'];
     files: { caseDetail: string; trace: string };
   }>;
@@ -507,8 +570,17 @@ async function commandCache(args: CliArgs): Promise<void> {
   }
 
   if (args.subcommand === 'clear') {
-    if (args.evalIds.length > 0) {
-      for (const evalId of args.evalIds) {
+    if (args.evalIds.length > 0 || args.files.length > 0) {
+      const evalIds = runner
+        .getEvals()
+        .filter(
+          (ev) =>
+            (args.evalIds.length === 0 || args.evalIds.includes(ev.id)) &&
+            (args.files.length === 0 ||
+              args.files.some((file) => fileMatches(file, ev.filePath))),
+        )
+        .map((ev) => ev.id);
+      for (const evalId of evalIds) {
         const entries = await runner.listCache();
         const prefix = `${evalId}__`;
         const matching = entries.filter((entry) =>
@@ -521,7 +593,7 @@ async function commandCache(args: CliArgs): Promise<void> {
           });
         }
       }
-      console.info(`Cleared cache entries for: ${args.evalIds.join(', ')}`);
+      console.info(`Cleared cache entries for: ${evalIds.join(', ')}`);
       return;
     }
     if (args.all) {
@@ -554,6 +626,14 @@ function buildRunFileIndex(
   run: RunSnapshot,
 ): RunFileIndex {
   const runDir = join(workspaceRoot, '.agent-evals', 'runs', run.manifest.id);
+  const caseIdCounts = new Map<string, number>();
+  for (const caseRow of run.cases) {
+    caseIdCounts.set(
+      caseRow.caseId,
+      (caseIdCounts.get(caseRow.caseId) ?? 0) + 1,
+    );
+  }
+  const seenCaseIds = new Set<string>();
   return {
     id: run.manifest.id,
     shortId: run.manifest.shortId,
@@ -571,10 +651,19 @@ function buildRunFileIndex(
       tracesDir: join(runDir, 'traces'),
     },
     cases: run.cases.map((caseRow) => {
-      const fileName = `${encodeURIComponent(caseRow.caseId)}.json`;
+      const duplicateCaseIdCount = caseIdCounts.get(caseRow.caseId) ?? 0;
+      const hasPreviousCaseWithId = seenCaseIds.has(caseRow.caseId);
+      const fileId =
+        duplicateCaseIdCount > 1 && hasPreviousCaseWithId
+          ? (caseRow.caseKey ?? caseRow.caseId)
+          : caseRow.caseId;
+      seenCaseIds.add(caseRow.caseId);
+      const fileName = `${encodeURIComponent(fileId)}.json`;
       return {
         caseId: caseRow.caseId,
+        caseKey: caseRow.caseKey,
         evalId: caseRow.evalId,
+        evalKey: caseRow.evalKey,
         status: caseRow.status,
         files: {
           caseDetail: join(runDir, 'case-details', fileName),
@@ -724,7 +813,8 @@ Usage:
 
 Flags:
   --eval <id>                Run specific eval(s) (comma-separated)
-  --case <id>                Run specific case(s) (comma-separated)
+  --file <path|glob>         Run eval files matching path/glob (comma-separated)
+  --case <id>                Run case(s); combine with --file/--eval if ambiguous
   --trials <n>               Number of trials per case
   --inspect[=host:port]      Run with the Node.js inspector enabled
   --inspect-brk[=host:port]  Enable inspector and pause before startup

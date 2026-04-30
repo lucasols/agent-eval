@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { relative } from 'node:path';
 import { configureEvalRunLogs } from '@agent-evals/sdk';
 import {
+  buildEvalKey,
   columnDefSchema,
   createRunRequestSchema,
   evalChartsConfigSchema,
@@ -16,7 +17,7 @@ import { glob } from 'glob';
 import { z } from 'zod/v4';
 import { createFsCacheStore } from './cacheStore.ts';
 import { loadConfig } from './config.ts';
-import { parseEvalMetas } from './discovery.ts';
+import { parseEvalDiscovery } from './discovery.ts';
 import type { RunChildContext, RunChildMessage } from './runChildProtocol.ts';
 import {
   executeRun,
@@ -24,8 +25,10 @@ import {
   type RunState,
 } from './runOrchestration.ts';
 import type { EvalLatestRunInfo } from './runPersistence.ts';
+import { getTargetEvals as resolveTargetEvals } from './targeting.ts';
 
 const evalMetaSchema = z.object({
+  key: z.string(),
   id: z.string(),
   title: z.string().optional(),
   filePath: z.string(),
@@ -70,17 +73,10 @@ function getTargetEvals(params: {
   evals: Map<string, EvalMeta>;
   request: CreateRunRequest;
 }): EvalMeta[] {
-  if (
-    params.request.target.evalIds &&
-    params.request.target.evalIds.length > 0
-  ) {
-    return params.request.target.evalIds
-      .map((id) => params.evals.get(id))
-      .filter((entry): entry is EvalMeta => entry !== undefined);
-  }
-  return [...params.evals.values()].toSorted((a, b) =>
-    a.filePath.localeCompare(b.filePath),
-  );
+  return resolveTargetEvals({
+    evals: params.evals.values(),
+    request: params.request,
+  });
 }
 
 function toWorkspaceRelativePath(params: {
@@ -108,16 +104,19 @@ async function discoverRunEvals(params: {
   for (const filePath of discovered) {
     const source = await readFile(filePath, 'utf-8');
     const sourceFingerprint = getSourceFingerprint(source);
-    const metas = parseEvalMetas(filePath, source);
+    const metas = parseEvalDiscovery(filePath, source).metas;
 
     for (const meta of metas) {
-      evals.set(meta.id, {
+      const relativeFilePath = toWorkspaceRelativePath({
+        filePath: meta.filePath,
+        workspaceRoot: params.workspaceRoot,
+      });
+      const key = buildEvalKey({ filePath: relativeFilePath, evalId: meta.id });
+      evals.set(key, {
+        key,
         id: meta.id,
         title: meta.title,
-        filePath: toWorkspaceRelativePath({
-          filePath: meta.filePath,
-          workspaceRoot: params.workspaceRoot,
-        }),
+        filePath: relativeFilePath,
         sourceFilePath: meta.filePath,
         sourceFingerprint,
         columnDefs: [],
@@ -126,8 +125,8 @@ async function discoverRunEvals(params: {
     }
   }
 
-  return [...evals.values()].toSorted((a, b) =>
-    a.filePath.localeCompare(b.filePath),
+  return [...evals.values()].toSorted(
+    (a, b) => a.filePath.localeCompare(b.filePath) || a.id.localeCompare(b.id),
   );
 }
 
@@ -163,7 +162,7 @@ async function main(): Promise<void> {
     config,
     workspaceRoot: context.workspaceRoot,
   });
-  const evals = new Map(evalMetas.map((evalMeta) => [evalMeta.id, evalMeta]));
+  const evals = new Map(evalMetas.map((evalMeta) => [evalMeta.key, evalMeta]));
   const lastRunStatusMap = new Map<string, EvalSummary['lastRunStatus']>();
   const latestRunInfoMap = new Map<string, EvalLatestRunInfo>();
 
@@ -181,7 +180,6 @@ async function main(): Promise<void> {
     request: context.request,
     runDir: context.runDir,
     config,
-    evals,
     cacheStore,
     lastRunStatusMap,
     latestRunInfoMap,
@@ -195,8 +193,9 @@ async function main(): Promise<void> {
     getConfiguredConcurrency: () =>
       getConfiguredConcurrency(config.concurrency),
     getSortedEvalMetas: () =>
-      [...evals.values()].toSorted((a, b) =>
-        a.filePath.localeCompare(b.filePath),
+      [...evals.values()].toSorted(
+        (a, b) =>
+          a.filePath.localeCompare(b.filePath) || a.id.localeCompare(b.id),
       ),
     getTargetEvals: (request) => getTargetEvals({ evals, request }),
     onCaseFinished(caseDetail, caseRow) {

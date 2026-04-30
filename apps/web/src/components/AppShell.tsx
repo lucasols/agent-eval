@@ -51,6 +51,15 @@ const MainContentFrame = styled.div<{ sideDrawerOpen: boolean }>`
   }
 `;
 
+const DiscoveryIssueBanner = styled.div`
+  padding: 10px 16px;
+  border-bottom: 1px solid ${colors.error.alpha(0.22)};
+  background: ${colors.error.alpha(0.08)};
+  color: ${colors.error.var};
+  font-size: 13px;
+  line-height: 1.4;
+`;
+
 export function AppShell() {
   const searchParams = useSearchParams();
   const search = searchParams.toString();
@@ -113,22 +122,39 @@ function MainContent() {
   const { selection } = selectionStore.useSelectorRC((s) => ({
     selection: s.selection,
   }));
-  const { evals } = evalsStore.useSelectorRC((s) => ({ evals: s.evals }));
+  const { evals, discoveryIssues } = evalsStore.useSelectorRC((s) => ({
+    evals: s.evals,
+    discoveryIssues: s.discoveryIssues,
+  }));
   const folderPath = selection.kind === 'folder' ? selection.path : '';
+  const issueBanner =
+    discoveryIssues.length > 0 ? (
+      <DiscoveryIssueBanner>
+        {discoveryIssues.map((issue) => issue.message).join(' ')}
+      </DiscoveryIssueBanner>
+    ) : null;
 
   if (selection.kind === 'eval') {
-    const ev = evals.find((e) => e.id === selection.id);
+    const ev = evals.find((e) => e.key === selection.id);
     if (!ev) return <PendingState />;
-    return <SingleEvalView evalSummary={ev} />;
+    return (
+      <>
+        {issueBanner}
+        <SingleEvalView evalSummary={ev} />
+      </>
+    );
   }
 
   const inFolder = collectEvalsInFolder(evals, folderPath);
 
   return (
-    <FolderView
-      folderPath={folderPath}
-      evals={inFolder}
-    />
+    <>
+      {issueBanner}
+      <FolderView
+        folderPath={folderPath}
+        evals={inFolder}
+      />
+    </>
   );
 }
 

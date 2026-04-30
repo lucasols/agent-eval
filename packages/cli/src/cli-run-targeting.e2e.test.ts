@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { runSummarySchema } from '@agent-evals/shared';
 import { describe, expect, test } from 'vitest';
@@ -100,6 +100,127 @@ defineEval({
 }
 
 describe('CLI run targeting', () => {
+  async function writeDuplicateIdCliEvals(workspacePath: string) {
+    await mkdir(join(workspacePath, 'evals', 'duplicate-id', 'a'), {
+      recursive: true,
+    });
+    await mkdir(join(workspacePath, 'evals', 'duplicate-id', 'b'), {
+      recursive: true,
+    });
+    for (const folder of ['a', 'b']) {
+      await writeFile(
+        join(workspacePath, 'evals', 'duplicate-id', folder, 'shared.eval.ts'),
+        `import { defineEval, setEvalOutput } from '@ls-stack/agent-eval';
+
+defineEval({
+  id: 'shared-cli-eval',
+  cases: [{ id: 'shared-cli-case', input: { folder: '${folder}' } }],
+  execute: ({ input }) => {
+    setEvalOutput('folder', input.folder);
+  },
+});
+`,
+      );
+    }
+  }
+
+  test('runs duplicate eval ids across files with --eval and narrows with --file', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      await writeDuplicateIdCliEvals(workspacePath);
+
+      const allMatches = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'shared-cli-eval',
+        '--json',
+      ]);
+      expect(allMatches.exitCode).toBe(0);
+      expect(
+        runSummarySchema.parse(JSON.parse(allMatches.stdout)),
+      ).toMatchObject({ totalCases: 2, passedCases: 2 });
+
+      const fileMatch = await runExampleCli(workspacePath, [
+        'run',
+        '--file',
+        'evals/duplicate-id/a/shared.eval.ts',
+        '--eval',
+        'shared-cli-eval',
+        '--json',
+      ]);
+      expect(fileMatch.exitCode).toBe(0);
+      expect(
+        runSummarySchema.parse(JSON.parse(fileMatch.stdout)),
+      ).toMatchObject({ totalCases: 1, passedCases: 1 });
+
+      const globMatch = await runExampleCli(workspacePath, [
+        'run',
+        '--file',
+        'evals/duplicate-id/**/shared.eval.ts',
+        '--eval',
+        'shared-cli-eval',
+        '--json',
+      ]);
+      expect(globMatch.exitCode).toBe(0);
+      expect(
+        runSummarySchema.parse(JSON.parse(globMatch.stdout)),
+      ).toMatchObject({ totalCases: 2, passedCases: 2 });
+    });
+  }, 20_000);
+
+  test('requires --case to be narrowed when duplicate eval ids share a case id', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      await writeDuplicateIdCliEvals(workspacePath);
+
+      const ambiguous = await runExampleCli(workspacePath, [
+        'run',
+        '--case',
+        'shared-cli-case',
+      ]);
+      expect(ambiguous.exitCode).toBe(1);
+      expect(ambiguous.stdout).toContain('Ambiguous --case target');
+
+      const narrowed = await runExampleCli(workspacePath, [
+        'run',
+        '--file',
+        'evals/duplicate-id/a/shared.eval.ts',
+        '--case',
+        'shared-cli-case',
+        '--json',
+      ]);
+      expect(narrowed.exitCode).toBe(0);
+      expect(runSummarySchema.parse(JSON.parse(narrowed.stdout))).toMatchObject(
+        { totalCases: 1, passedCases: 1 },
+      );
+    });
+  });
+
+  test('fails when an eval defines duplicate case ids', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      await writeFile(
+        join(workspacePath, 'evals', 'duplicate-cases.eval.ts'),
+        `import { defineEval } from '@ls-stack/agent-eval';
+
+defineEval({
+  id: 'duplicate-cases-cli',
+  cases: [
+    { id: 'same-case', input: {} },
+    { id: 'same-case', input: {} },
+  ],
+  execute: () => {},
+});
+`,
+      );
+
+      const result = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'duplicate-cases-cli',
+      ]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toContain('Duplicate case id');
+    });
+  });
+
   test('prints run help without starting a run', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const result = await runExampleCli(workspacePath, ['run', '--help']);
@@ -126,7 +247,7 @@ describe('CLI run targeting', () => {
       expect(result.exitCode).toBe(1);
       expect(result.stdout).toBe('');
       expect(result.stderr).toBe(
-        'This workspace disables running all evals from the CLI. Pass --eval <id> or --case <id> to run a targeted subset.',
+        'This workspace disables running all evals from the CLI. Pass --eval <id>, --file <path|glob>, or --case <id> to run a targeted subset.',
       );
       expect(
         await readdir(resolve(workspacePath, '.agent-evals/runs')),

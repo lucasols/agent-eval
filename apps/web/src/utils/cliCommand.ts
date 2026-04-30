@@ -17,13 +17,23 @@ function getAgentEvalsCommandPrefix(packageManager: PackageManager): string {
 export function buildEvalRunCliCommand(params: {
   packageManager: PackageManager;
   evalId: string;
+  filePath?: string;
 }): string {
-  return `${getAgentEvalsCommandPrefix(params.packageManager)} run --eval ${shellQuote(params.evalId)}`;
+  const fileArg =
+    params.filePath === undefined
+      ? ''
+      : ` --file ${shellQuote(params.filePath)}`;
+  return `${getAgentEvalsCommandPrefix(params.packageManager)} run${fileArg} --eval ${shellQuote(params.evalId)}`;
 }
 
 export function buildEvalDebugCliCommand(params: {
   packageManager: PackageManager;
   evalId: string;
+  filePath?: string;
 }): string {
-  return `${getAgentEvalsCommandPrefix(params.packageManager)} run --inspect --eval ${shellQuote(params.evalId)}`;
+  const fileArg =
+    params.filePath === undefined
+      ? ''
+      : ` --file ${shellQuote(params.filePath)}`;
+  return `${getAgentEvalsCommandPrefix(params.packageManager)} run --inspect${fileArg} --eval ${shellQuote(params.evalId)}`;
 }

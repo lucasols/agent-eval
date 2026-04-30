@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  getCaseRowCaseKey,
   runSummarySchema,
   type CaseDetail,
   type CaseRow,
@@ -166,8 +167,7 @@ function upsertFinishedCase(
 ): void {
   const existingIndex = runState.cases.findIndex(
     (row) =>
-      row.evalId === caseRow.evalId &&
-      row.caseId === caseRow.caseId &&
+      getCaseRowCaseKey(row) === getCaseRowCaseKey(caseRow) &&
       row.trial === caseRow.trial,
   );
   if (existingIndex === -1) {
@@ -175,7 +175,7 @@ function upsertFinishedCase(
   } else {
     runState.cases[existingIndex] = caseRow;
   }
-  runState.caseDetails.set(caseDetail.caseId, caseDetail);
+  runState.caseDetails.set(caseDetail.caseKey ?? caseDetail.caseId, caseDetail);
 }
 
 function applyChildEvalMetas(
@@ -183,9 +183,9 @@ function applyChildEvalMetas(
   childMetas: EvalMeta[],
 ): void {
   for (const childMeta of childMetas) {
-    const evalMeta = evals.get(childMeta.id);
+    const evalMeta = evals.get(childMeta.key);
     if (evalMeta === undefined) {
-      evals.set(childMeta.id, childMeta);
+      evals.set(childMeta.key, childMeta);
       continue;
     }
     evalMeta.columnDefs = childMeta.columnDefs;

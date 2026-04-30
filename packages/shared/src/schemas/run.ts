@@ -20,8 +20,8 @@ export const runManifestSchema = z.object({
    */
   commitSha: z.string().nullable().optional().default(null),
   /**
-   * Eval-file fingerprints captured for this run, keyed by eval id. Older
-   * persisted runs may not include this field.
+   * Eval-file fingerprints captured for this run, keyed by exact eval key.
+   * Older persisted runs may use authored eval ids or omit this field.
    */
   evalSourceFingerprints: z
     .record(z.string(), z.string())
@@ -29,6 +29,10 @@ export const runManifestSchema = z.object({
     .default({}),
   target: z.object({
     mode: z.enum(['all', 'evalIds', 'caseIds']),
+    /** Exact stable eval identities (`filePath + evalId`) selected by UI/API callers. */
+    evalKeys: z.array(z.string()).optional(),
+    /** Workspace-relative file paths or glob patterns used to filter selected evals. */
+    files: z.array(z.string()).optional(),
     evalIds: z.array(z.string()).optional(),
     caseIds: z.array(z.string()).optional(),
   }),

@@ -54,6 +54,12 @@ export type EvalStatsConfig = z.infer<typeof evalStatsConfigSchema>;
 
 /** Schema summarizing a discovered eval for list and overview screens. */
 export const evalSummarySchema = z.object({
+  /**
+   * Stable eval identity derived from the workspace-relative file path and
+   * authored eval id. Older clients should display `id`; callers that need an
+   * exact eval must use `key`.
+   */
+  key: z.string().default(''),
   id: z.string(),
   title: z.string().optional(),
   /** Eval file path relative to the active workspace root. */
@@ -91,6 +97,16 @@ export type EvalSummary = z.infer<typeof evalSummarySchema>;
 
 /** Schema for one case row in an eval run result table. */
 export const caseRowSchema = z.object({
+  /**
+   * Stable eval identity for this case row. Legacy rows may omit it and fall
+   * back to `evalId`.
+   */
+  evalKey: z.string().optional(),
+  /**
+   * Stable case identity derived from file path, eval id, and case id. Legacy
+   * rows may omit it and fall back to `caseId`.
+   */
+  caseKey: z.string().optional(),
   caseId: z.string(),
   evalId: z.string(),
   status: z.enum(['pending', 'running', 'pass', 'fail', 'error', 'cancelled']),
@@ -180,6 +196,10 @@ export type ScoreTrace = z.infer<typeof scoreTraceSchema>;
 
 /** Schema for the detailed payload shown when opening a specific case. */
 export const caseDetailSchema = z.object({
+  /** Stable eval identity for this case detail. */
+  evalKey: z.string().optional(),
+  /** Stable case identity for this case detail. */
+  caseKey: z.string().optional(),
   caseId: z.string(),
   evalId: z.string(),
   status: z.enum(['pending', 'running', 'pass', 'fail', 'error', 'cancelled']),
@@ -216,3 +236,14 @@ export const caseDetailSchema = z.object({
 });
 /** Full case payload including inputs, trace, outputs, and failures. */
 export type CaseDetail = z.infer<typeof caseDetailSchema>;
+
+/** Schema for discovery problems that should be shown before running evals. */
+export const discoveryIssueSchema = z.object({
+  type: z.enum(['duplicate-eval-id']),
+  severity: z.enum(['error']),
+  filePath: z.string(),
+  evalId: z.string(),
+  message: z.string(),
+});
+/** Discovery problem found while scanning eval files. */
+export type DiscoveryIssue = z.infer<typeof discoveryIssueSchema>;

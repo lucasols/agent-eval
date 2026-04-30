@@ -1,4 +1,10 @@
+import type { DiscoveryIssue } from '@agent-evals/shared';
+
 type EvalDiscoveryMeta = { filePath: string; id: string; title?: string };
+export type EvalDiscoveryResult = {
+  metas: EvalDiscoveryMeta[];
+  issues: DiscoveryIssue[];
+};
 
 const evalIdMatchRegex = /\bid\s*:\s*['"]([^'"]+)['"]/;
 const evalTitleMatchRegex = /\btitle\s*:\s*['"]([^'"]+)['"]/;
@@ -7,6 +13,14 @@ export function parseEvalMetas(
   filePath: string,
   content: string,
 ): EvalDiscoveryMeta[] {
+  return parseEvalDiscovery(filePath, content).metas;
+}
+
+/** Parse static eval metadata and discovery issues from one eval file. */
+export function parseEvalDiscovery(
+  filePath: string,
+  content: string,
+): EvalDiscoveryResult {
   const metas: EvalDiscoveryMeta[] = [];
   let searchIndex = 0;
 
@@ -37,7 +51,22 @@ export function parseEvalMetas(
     searchIndex = extracted.nextIndex;
   }
 
-  return metas;
+  const countsById = new Map<string, number>();
+  for (const meta of metas) {
+    countsById.set(meta.id, (countsById.get(meta.id) ?? 0) + 1);
+  }
+  const duplicateIds = new Set(
+    [...countsById].filter(([, count]) => count > 1).map(([id]) => id),
+  );
+  const issues: DiscoveryIssue[] = [...duplicateIds].map((evalId) => ({
+    type: 'duplicate-eval-id',
+    severity: 'error',
+    filePath,
+    evalId,
+    message: `Duplicate eval id "${evalId}" in ${filePath}. Eval ids must be unique within one file.`,
+  }));
+
+  return { metas: metas.filter((meta) => !duplicateIds.has(meta.id)), issues };
 }
 
 function extractDefineEvalObject(

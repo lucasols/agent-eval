@@ -214,19 +214,20 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
       label,
       path: displaySegments.slice(0, index + 1).join('/'),
     }));
-  const isEvalRunning = (evalId: string): boolean =>
+  const isEvalRunning = (evalKey: string): boolean =>
     currentRun?.manifest.status === 'running' &&
-    targetIncludesEval(currentRun.manifest.target, evalId);
+    targetIncludesEval(currentRun.manifest.target, evalKey);
   const filteredEvals = filterEvalsByStatuses(
     evals,
     statusFilters,
     isEvalRunning,
   );
-  const evalIds = filteredEvals.map((ev) => ev.id);
+  const evalKeys = filteredEvals.map((ev) => ev.key);
+  const evalIds = [...new Set(filteredEvals.map((ev) => ev.id))];
   const isRunning =
     currentRun?.manifest.status === 'running' &&
-    evalIds.some((evalId) =>
-      targetIncludesEval(currentRun.manifest.target, evalId),
+    evalKeys.some((evalKey) =>
+      targetIncludesEval(currentRun.manifest.target, evalKey),
     );
   const breakdown = getStatusBreakdown(evals, isEvalRunning);
   const breakdownItems = BREAKDOWN_STATUS_ORDER.filter(
@@ -234,8 +235,8 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
   );
 
   function handleRunAll() {
-    if (evalIds.length === 0) return;
-    void startRun({ mode: 'evalIds', evalIds });
+    if (evalKeys.length === 0) return;
+    void startRun({ mode: 'evalIds', evalKeys });
   }
 
   function handleStop() {
@@ -245,7 +246,7 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
   function handleRecomputeStatuses() {
     setMaintenanceAction('recompute');
     void Promise.all(
-      evalIds.map((evalId) => recomputeStatusesForEval(evalId)),
+      evalKeys.map((evalKey) => recomputeStatusesForEval(evalKey)),
     ).finally(() => {
       setMaintenanceAction(null);
     });
@@ -253,11 +254,11 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
 
   function handleCleanRuns() {
     setMaintenanceAction('clean');
-    void Promise.all(evalIds.map((evalId) => cleanRunsForEval(evalId))).finally(
-      () => {
-        setMaintenanceAction(null);
-      },
-    );
+    void Promise.all(
+      evalKeys.map((evalKey) => cleanRunsForEval(evalKey)),
+    ).finally(() => {
+      setMaintenanceAction(null);
+    });
   }
 
   const cacheMenu: SplitButtonMenuEntry[] = [
@@ -266,7 +267,7 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
       label: 'Run (use cache)',
       description: 'Read on hit, write on miss.',
       onSelect: () => {
-        void startRun({ mode: 'evalIds', evalIds }, { cacheMode: 'use' });
+        void startRun({ mode: 'evalIds', evalKeys }, { cacheMode: 'use' });
       },
     },
     {
@@ -274,7 +275,7 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
       label: 'Run without cache',
       description: 'Skip reads and writes for this run.',
       onSelect: () => {
-        void startRun({ mode: 'evalIds', evalIds }, { cacheMode: 'bypass' });
+        void startRun({ mode: 'evalIds', evalKeys }, { cacheMode: 'bypass' });
       },
     },
     {
@@ -282,7 +283,7 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
       label: 'Refresh cache',
       description: 'Force re-execution and overwrite entries.',
       onSelect: () => {
-        void startRun({ mode: 'evalIds', evalIds }, { cacheMode: 'refresh' });
+        void startRun({ mode: 'evalIds', evalKeys }, { cacheMode: 'refresh' });
       },
     },
     { kind: 'separator' },
@@ -294,7 +295,7 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
       onSelect: () => {
         if (
           !window.confirm(
-            `Clear cached entries for ${String(evalIds.length)} evals in this view?`,
+            `Clear cached entries for ${String(evalIds.length)} eval ids in this view?`,
           )
         ) {
           return;
@@ -320,7 +321,7 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
       onSelect: () => {
         if (
           !window.confirm(
-            `Delete saved runs for ${String(evalIds.length)} evals in this view?`,
+            `Delete saved runs for ${String(evalKeys.length)} evals in this view?`,
           )
         ) {
           return;
@@ -386,14 +387,14 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
                 label="Run all"
                 leftIcon={<Play />}
                 onPrimaryClick={handleRunAll}
-                disabled={evalIds.length === 0}
+                disabled={evalKeys.length === 0}
                 menu={cacheMenu}
                 aria-label="Run all"
               />
             )}
             <MenuButton
               menu={moreMenu}
-              disabled={evalIds.length === 0 || maintenanceAction !== null}
+              disabled={evalKeys.length === 0 || maintenanceAction !== null}
               aria-label="More eval actions"
             />
           </HeaderMeta>
@@ -413,7 +414,7 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
         <Stack>
           {filteredEvals.map((ev) => (
             <EvalCard
-              key={ev.id}
+              key={ev.key}
               evalSummary={ev}
               mode="stacked"
             />
@@ -425,12 +426,12 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
 }
 
 function targetIncludesEval(
-  target: { mode: string; evalIds?: string[] },
-  evalId: string,
+  target: { mode: string; evalIds?: string[]; evalKeys?: string[] },
+  evalKey: string,
 ): boolean {
   if (target.mode === 'all') return true;
   if (target.mode === 'evalIds') {
-    return target.evalIds?.includes(evalId) ?? false;
+    return target.evalKeys?.includes(evalKey) ?? false;
   }
   return false;
 }

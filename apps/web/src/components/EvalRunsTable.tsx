@@ -459,8 +459,8 @@ function RunGroup({
   const runHasOpenDrawer =
     selectedRunId === manifest.id || selectedCaseRunId === manifest.id;
 
-  function handleCaseClick(caseId: string) {
-    void selectCase(manifest.id, caseId);
+  function handleCaseClick(caseKey: string) {
+    void selectCase(manifest.id, caseKey);
   }
 
   function handleChevronClick(e: MouseEvent) {
@@ -609,12 +609,12 @@ function RunGroup({
         ) : (
           cases.map((row) => (
             <CaseRowEl
-              key={`${row.caseId}-${String(row.trial)}`}
+              key={`${row.caseKey ?? row.caseId}-${String(row.trial)}`}
               active={
                 selectedCaseRunId === manifest.id &&
-                selectedCaseId === row.caseId
+                selectedCaseId === (row.caseKey ?? row.caseId)
               }
-              onClick={() => handleCaseClick(row.caseId)}
+              onClick={() => handleCaseClick(row.caseKey ?? row.caseId)}
             >
               <CaseTd
                 rightAlign={false}
@@ -644,7 +644,7 @@ function RunGroup({
                     {c.isManualScore === true ? (
                       <ManualScoreCell
                         runId={manifest.id}
-                        caseId={row.caseId}
+                        caseId={row.caseKey ?? row.caseId}
                         column={c}
                         value={score}
                       />

@@ -12,7 +12,7 @@ import {
   serializeCacheRecording,
 } from './cacheSerialization.ts';
 import type { CacheRecordingFrame } from './runtime.ts';
-import { getCurrentScope } from './runtime.ts';
+import { getCurrentScope, getRealDateNowMs } from './runtime.ts';
 
 /** Info accepted by `evalTracer.cache(info, fn)` for spanless value caching. */
 export type TraceCacheInfo = {
@@ -131,7 +131,7 @@ export function createTraceCache(generateSpanId: () => string): {
           namespace,
           operationType: 'value',
           operationName: info.name,
-          storedAt: new Date().toISOString(),
+          storedAt: new Date(getRealDateNowMs()).toISOString(),
           codeFingerprint: cacheCtx.codeFingerprint,
           recording: await serializeCacheRecording(recording),
         },

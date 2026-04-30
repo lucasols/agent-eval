@@ -413,7 +413,7 @@ export function CaseDrawer() {
   }
 
   const d = selectedCaseDetail;
-  const evalSummary = evals.find((e) => e.id === d.evalId);
+  const evalSummary = evals.find((e) => e.key === (d.evalKey ?? d.evalId));
   const columnDefs = evalSummary?.columnDefs ?? [];
   const hasOutputValue = columnDefs.some((columnDef) =>
     hasRenderableOutputValue(d.columns[columnDef.key]),

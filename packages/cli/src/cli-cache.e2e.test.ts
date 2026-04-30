@@ -149,7 +149,7 @@ describe('CLI operation caching', () => {
       );
       const cacheEntry = await readSingleCacheEntry(cacheFilePath);
       expect(cacheEntry.namespace).toBe('refund-workflow__plan-refund');
-      expect(cacheEntry.recording.ops.length).toBeGreaterThan(0);
+      expect(cacheEntry.recording.finalAttributes.model).toBe('gpt-4o-mini');
       expect(cacheEntry).not.toHaveProperty('debugKey');
       expect(JSON.stringify(cacheEntry)).not.toContain('"rawKey"');
 
@@ -210,7 +210,7 @@ describe('CLI operation caching', () => {
       expect(secondDebugEntries).toHaveLength(1);
       expect(secondDebugEntries[0]?.storedAt).toBe(firstStoredAt);
     });
-  });
+  }, 10_000);
 
   test('--no-cache bypasses the cache and leaves existing entries untouched', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {

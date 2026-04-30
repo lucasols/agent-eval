@@ -709,7 +709,7 @@ async function traceSpanInternal(
           operationName: info.name,
           spanName: info.name,
           spanKind: info.kind,
-          storedAt: new Date().toISOString(),
+          storedAt: new Date(getRealDateNowMs()).toISOString(),
           codeFingerprint: ctx.codeFingerprint,
           recording: await serializeCacheRecording(recording),
         };

@@ -25,6 +25,7 @@ import type {
   TraceDisplayInputConfig,
 } from '@agent-evals/shared';
 import {
+  buildCaseKey,
   applyDerivedCallAttributes,
   resolveApiCallsConfig,
   resolveLlmCallsConfig,
@@ -38,14 +39,8 @@ import { resolveTracePresentation } from './traceDisplay.ts';
 
 export function filterEvalCases<TInput>(
   cases: { id: string; input: TInput; tags?: string[] }[],
-  evalIds: string[] | undefined,
   caseIds: string[] | undefined,
-  evalId: string,
 ): { id: string; input: TInput; tags?: string[] }[] {
-  if (evalIds && evalIds.length > 0 && !evalIds.includes(evalId)) {
-    return [];
-  }
-
   if (!caseIds || caseIds.length === 0) {
     return cases;
   }
@@ -105,6 +100,7 @@ export async function runCase<
 >(params: {
   evalDef: EvalDefinition<TInput, TOutputs>;
   evalId: string;
+  evalKey?: string;
   evalCase: { id: string; input: TRunInput; tags?: string[] };
   globalTraceDisplay: TraceDisplayInputConfig | undefined;
   llmCallsConfig?: ResolvedLlmCallsConfig;
@@ -117,6 +113,7 @@ export async function runCase<
   codeFingerprint: string;
   moduleIsolation: { key: string; workspaceRoot: string } | undefined;
   evalFilePath: string;
+  evalFileRelativePath?: string;
   workspaceRoot: string;
   artifactDir: string;
   runId: string;
@@ -124,6 +121,7 @@ export async function runCase<
   const {
     evalDef,
     evalId,
+    evalKey = evalId,
     evalCase,
     globalTraceDisplay,
     llmCallsConfig = resolveLlmCallsConfig(undefined),
@@ -136,6 +134,7 @@ export async function runCase<
     codeFingerprint,
     moduleIsolation,
     evalFilePath,
+    evalFileRelativePath = evalFilePath,
     workspaceRoot,
     artifactDir,
     runId,
@@ -145,6 +144,11 @@ export async function runCase<
     evalFilePath,
     caseId: evalCase.id,
     workspaceRoot,
+  });
+  const caseKey = buildCaseKey({
+    filePath: evalFileRelativePath,
+    evalId,
+    caseId: evalCase.id,
   });
 
   const { scope, error: executeError } = await runInEvalScope(
@@ -404,6 +408,8 @@ export async function runCase<
     : null;
 
   const caseDetail: CaseDetail = {
+    evalKey,
+    caseKey,
     caseId: evalCase.id,
     evalId,
     status,

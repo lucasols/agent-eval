@@ -343,9 +343,9 @@ export function Sidebar() {
     setSidebarWidth(width);
   }, [width]);
 
-  const isEvalRunning = (evalId: string): boolean =>
+  const isEvalRunning = (evalKey: string): boolean =>
     currentRun?.manifest.status === 'running' &&
-    targetIncludesEval(currentRun.manifest.target, evalId);
+    targetIncludesEval(currentRun.manifest.target, evalKey);
   const statusFilteredEvals = filterEvalsByStatuses(
     evals,
     statusFilters,
@@ -500,12 +500,12 @@ function getStatusTone(status: EvalDisplayStatus): StatusTone {
 }
 
 function targetIncludesEval(
-  target: { mode: string; evalIds?: string[] },
-  evalId: string,
+  target: { mode: string; evalIds?: string[]; evalKeys?: string[] },
+  evalKey: string,
 ): boolean {
   if (target.mode === 'all') return true;
   if (target.mode === 'evalIds') {
-    return target.evalIds?.includes(evalId) ?? false;
+    return target.evalKeys?.includes(evalKey) ?? false;
   }
   return false;
 }

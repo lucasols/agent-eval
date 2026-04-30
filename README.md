@@ -233,7 +233,7 @@ export const config: AgentEvalsConfig = {
 
 | Field                   | Required   | Purpose                                                                         |
 | ----------------------- | ---------- | ------------------------------------------------------------------------------- |
-| `id`                    | yes        | Unique eval id                                                                  |
+| `id`                    | yes        | Eval id, unique within one eval file                                            |
 | `title`                 |            | Display title (defaults to a humanized version of `id`)                         |
 | `cases`                 | yes        | `EvalCase[]` or `() => Promise<EvalCase[]>` (async loader for dynamic datasets) |
 | `execute`               | yes        | `async ({ input }) => { ... }`                                                  |
@@ -259,6 +259,11 @@ cases: [
 
 If you omit `cases` entirely, or resolve them to `[]`, the runner still executes
 the eval once with a synthetic empty-object input and a generated case id.
+Case ids must be unique within one eval. The same eval id may appear in
+different files; the runner treats the exact eval identity as
+`filePath + evalId`, and the exact case identity as `filePath + evalId + caseId`.
+Duplicate eval ids inside one file and duplicate case ids inside one eval are
+reported as errors.
 
 `columns` populates your custom columns.
 
@@ -964,7 +969,7 @@ CLI:
 - `--refresh-cache` — shortcut for `--cache refresh`.
 - `--clear-cache` — wipe cache entries before the run starts.
 - `pnpm eval cache list` — dump persisted entries (add `--json` for JSON).
-- `pnpm eval cache clear --eval <id>` — drop entries for one eval.
+- `pnpm eval cache clear --eval <id>` — drop entries for matching authored eval ids.
 - `pnpm eval cache clear --all` — drop every entry.
 
 UI: every `EvalCard` has a split button next to **Run** with a chevron menu
@@ -1138,8 +1143,9 @@ Commands:
   cache clear --all          Clear every cached entry
 
 Flags:
-  --eval <id[,id]>           Run specific evals only
-  --case <id[,id]>           Run specific cases only
+  --file <path|glob[,..]>    Narrow evals by workspace-relative file path/glob
+  --eval <id[,id]>           Run evals with matching authored ids
+  --case <id[,id]>           Run specific cases; use --file/--eval if ambiguous
   --trials <n>               Override trials per case
   --inspect[=host:port]      Run with the Node.js inspector enabled
   --inspect-brk[=host:port]  Enable inspector and pause before startup

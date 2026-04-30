@@ -254,11 +254,13 @@ function formatCaseDuration(caseRow: CaseRow): string {
 function formatTarget(target: {
   mode: 'all' | 'evalIds' | 'caseIds';
   evalIds?: string[];
+  evalKeys?: string[];
+  files?: string[];
   caseIds?: string[];
 }): string {
   if (target.mode === 'all') return 'all evals';
   if (target.mode === 'evalIds') {
-    const ids = target.evalIds ?? [];
+    const ids = target.files ?? target.evalIds ?? target.evalKeys ?? [];
     return ids.length > 0 ? ids.join(', ') : 'evalIds';
   }
   const ids = target.caseIds ?? [];
@@ -605,9 +607,14 @@ export function RunDrawer() {
             <CaseList>
               {scopedCases.map((caseRow) => (
                 <CaseItem
-                  key={`${caseRow.caseId}-${String(caseRow.trial)}`}
+                  key={`${caseRow.caseKey ?? caseRow.caseId}-${String(caseRow.trial)}`}
                   type="button"
-                  onClick={() => void selectCase(manifest.id, caseRow.caseId)}
+                  onClick={() =>
+                    void selectCase(
+                      manifest.id,
+                      caseRow.caseKey ?? caseRow.caseId,
+                    )
+                  }
                 >
                   <StatusBadge status={caseRow.status} />
                   <CaseMain>

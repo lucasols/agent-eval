@@ -655,7 +655,12 @@ describe('CLI eval features', () => {
       expect(
         normalizeSnapshotValue(workspacePath, {
           summary: artifacts.summary,
-          cases: artifacts.cases.map((caseRow) => ({
+          cases: [
+            scoreThresholdCase,
+            assertionFailureCase,
+            silentPassCase,
+            silentAssertionCase,
+          ].map((caseRow) => ({
             caseId: caseRow.caseId,
             columns: caseRow.columns,
             evalId: caseRow.evalId,

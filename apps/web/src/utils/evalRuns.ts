@@ -1,5 +1,6 @@
 import {
   deriveScopedSummaryFromCases,
+  getCaseRowEvalKey,
   type CaseRow,
   type EvalSummary,
   type RunManifest,
@@ -41,10 +42,12 @@ function getCommonPrefixLength(allDirs: string[][]): number {
 
 export function buildEvalScopedRunRows(
   runs: Array<{ manifest: RunManifest; cases: CaseRow[] }>,
-  evalId: string,
+  evalKey: string,
 ): ScopedRunRow[] {
   return runs.map((run) => {
-    const cases = run.cases.filter((caseRow) => caseRow.evalId === evalId);
+    const cases = run.cases.filter(
+      (caseRow) => getCaseRowEvalKey(caseRow) === evalKey,
+    );
     return {
       manifest: run.manifest,
       summary: deriveScopedSummaryFromCases({
@@ -57,7 +60,7 @@ export function buildEvalScopedRunRows(
 }
 
 export function getEvalIdsForFolderPath(params: {
-  evals: Array<Pick<EvalSummary, 'id' | 'filePath'>>;
+  evals: Array<Pick<EvalSummary, 'id' | 'filePath'> & { key?: string }>;
   selectedFolderPath: string;
 }): Set<string> {
   const prefixLength = getCommonPrefixLength(
@@ -73,13 +76,13 @@ export function getEvalIdsForFolderPath(params: {
           dir.startsWith(`${params.selectedFolderPath}/`)
         );
       })
-      .map((ev) => ev.id),
+      .map((ev) => ev.key ?? ev.id),
   );
 }
 
 export function scopeRunCases(params: {
   cases: CaseRow[];
-  evals: Array<Pick<EvalSummary, 'id' | 'filePath'>>;
+  evals: Array<Pick<EvalSummary, 'id' | 'filePath'> & { key?: string }>;
   selectedEvalId: string | null;
   selectedFolderPath: string | null;
 }): RunCaseScope {
@@ -87,7 +90,9 @@ export function scopeRunCases(params: {
 
   if (selectedEvalId) {
     return {
-      cases: cases.filter((caseRow) => caseRow.evalId === selectedEvalId),
+      cases: cases.filter(
+        (caseRow) => getCaseRowEvalKey(caseRow) === selectedEvalId,
+      ),
       label: selectedEvalId,
     };
   }
@@ -102,7 +107,9 @@ export function scopeRunCases(params: {
   });
 
   return {
-    cases: cases.filter((caseRow) => evalIdsInFolder.has(caseRow.evalId)),
+    cases: cases.filter((caseRow) =>
+      evalIdsInFolder.has(getCaseRowEvalKey(caseRow)),
+    ),
     label: selectedFolderPath,
   };
 }

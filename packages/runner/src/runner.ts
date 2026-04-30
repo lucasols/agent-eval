@@ -16,9 +16,13 @@ import type {
   CacheMode,
   ResolvedApiCallsConfig,
   ResolvedLlmCallsConfig,
+  DiscoveryIssue,
 } from '@agent-evals/shared';
 import {
+  buildEvalKey,
   deriveScopedSummaryFromCases,
+  getCaseRowCaseKey,
+  getCaseRowEvalKey,
   resolveApiCallsConfig,
   resolveLlmCallsConfig,
 } from '@agent-evals/shared';
@@ -33,13 +37,9 @@ import { validateCharts } from './chartValidation.ts';
 import { buildDeclaredColumnDefs, normalizeScoreDef } from './columnBuilder.ts';
 import { loadConfig } from './config.ts';
 import { resolveEvalDefaultConfig } from './defaultConfig.ts';
-import { parseEvalMetas } from './discovery.ts';
+import { parseEvalDiscovery } from './discovery.ts';
 import { loadEvalModule } from './evalModuleLoader.ts';
-import {
-  buildEvalSummary,
-  getTargetEvalIds,
-  setLatestRunInfoMap,
-} from './evalSummaries.ts';
+import { buildEvalSummary, setLatestRunInfoMap } from './evalSummaries.ts';
 import { readGitWorktreeState } from './gitState.ts';
 import { resolveArtifactPath } from './outputArtifacts.ts';
 import {
@@ -65,6 +65,7 @@ import {
   type EvalLatestRunInfo,
   type PersistedRunSnapshot,
 } from './runPersistence.ts';
+import { getTargetEvalKeys } from './targeting.ts';
 
 /** Imperative runner interface used by the server and CLI. */
 export type EvalRunner = {
@@ -74,6 +75,8 @@ export type EvalRunner = {
   getEvals(): EvalSummary[];
   /** Look up one discovered eval by id. */
   getEval(id: string): EvalSummary | undefined;
+  /** Return discovery errors that should be shown before running evals. */
+  getDiscoveryIssues(): DiscoveryIssue[];
   /** Re-scan configured eval files and emit a discovery update to listeners. */
   refreshDiscovery(): Promise<void>;
   startRun(
@@ -139,10 +142,16 @@ export type EvalRunner = {
    * supplied.
    */
   clearCache(filter?: CacheClearFilter): Promise<void>;
-  /** Recompute persisted case and run statuses for terminal runs touching one eval. */
-  recomputeStatusesForEval(evalId: string): Promise<{ updatedRuns: number }>;
-  /** Delete terminal persisted runs that touch one eval from in-memory history and disk. */
-  cleanRunsForEval(evalId: string): Promise<{ deletedRuns: number }>;
+  /**
+   * Recompute persisted case and run statuses for terminal runs touching one
+   * eval. Accepts the exact eval key, with a legacy fallback for unique eval ids.
+   */
+  recomputeStatusesForEval(evalKey: string): Promise<{ updatedRuns: number }>;
+  /**
+   * Delete terminal persisted runs that touch one eval from memory and disk.
+   * Accepts the exact eval key, with a legacy fallback for unique eval ids.
+   */
+  cleanRunsForEval(evalKey: string): Promise<{ deletedRuns: number }>;
   /** Persist a UI-authored manual score for one case and recompute affected summaries. */
   updateManualScore(params: {
     runId: string;
@@ -239,6 +248,7 @@ export function createRunner({
   let llmCallsConfig: ResolvedLlmCallsConfig = resolveLlmCallsConfig(undefined);
   let apiCallsConfig: ResolvedApiCallsConfig = resolveApiCallsConfig(undefined);
   const evals = new Map<string, EvalMeta>();
+  let discoveryIssues: DiscoveryIssue[] = [];
   const runs = new Map<string, RunnerRunState>();
   const lastRunStatusMap = new Map<string, EvalSummary['lastRunStatus']>();
   const latestRunInfoMap = new Map<string, EvalLatestRunInfo>();
@@ -254,9 +264,18 @@ export function createRunner({
   }
 
   function getSortedEvalMetas(): EvalMeta[] {
-    return [...evals.values()].toSorted((a, b) =>
-      a.filePath.localeCompare(b.filePath),
+    return [...evals.values()].toSorted(
+      (a, b) =>
+        a.filePath.localeCompare(b.filePath) || a.id.localeCompare(b.id),
     );
+  }
+
+  function resolveEvalMeta(evalRef: string): EvalMeta | undefined {
+    const exactMatch = evals.get(evalRef);
+    if (exactMatch !== undefined) return exactMatch;
+
+    const matches = getSortedEvalMetas().filter((ev) => ev.id === evalRef);
+    return matches.length === 1 ? matches[0] : undefined;
   }
 
   function getSourceFingerprint(source: string): string {
@@ -298,8 +317,8 @@ export function createRunner({
     async clearCache(filter) {
       await cacheStore.clear(filter);
     },
-    async recomputeStatusesForEval(evalId) {
-      const evalMeta = evals.get(evalId);
+    async recomputeStatusesForEval(evalKey) {
+      const evalMeta = resolveEvalMeta(evalKey);
       if (!evalMeta) return { updatedRuns: 0 };
 
       const registry = getEvalRegistry();
@@ -307,7 +326,7 @@ export function createRunner({
         evalMeta.sourceFilePath,
         evalMeta.sourceFingerprint ?? undefined,
       );
-      const entry = registry.get(evalId);
+      const entry = registry.get(evalMeta.id);
       if (!entry) return { updatedRuns: 0 };
 
       const scoreThresholds = new Map<string, number>();
@@ -325,8 +344,9 @@ export function createRunner({
 
       const updatedRuns = await recomputeEvalStatusesInRuns({
         runs: runs.values(),
-        evalId,
-        evalExists: evals.has(evalId),
+        evalKey: evalMeta.key,
+        evalId: evalMeta.id,
+        evalExists: evals.has(evalMeta.key),
         scoreThresholds,
         persistCaseDetail,
       });
@@ -334,15 +354,17 @@ export function createRunner({
       emitDiscoveryEvent();
       return { updatedRuns };
     },
-    async cleanRunsForEval(evalId) {
+    async cleanRunsForEval(evalKey) {
+      const evalMeta = resolveEvalMeta(evalKey);
       let deletedRuns = 0;
       for (const [runId, run] of [...runs]) {
         if (
           !runTouchesEval({
             target: run.manifest.target,
             caseRows: run.cases,
-            evalId,
-            evalExists: evals.has(evalId),
+            evalKey: evalMeta?.key ?? evalKey,
+            evalId: evalMeta?.id,
+            evalExists: evalMeta !== undefined,
           })
         ) {
           continue;
@@ -364,10 +386,12 @@ export function createRunner({
         return { updated: false, reason: 'Run is still running' };
       }
 
-      const caseRow = run.cases.find((row) => row.caseId === caseId);
+      const caseRow = run.cases.find(
+        (row) => getCaseRowCaseKey(row) === caseId || row.caseId === caseId,
+      );
       if (!caseRow) return { updated: false, reason: 'Case not found' };
 
-      const evalMeta = evals.get(caseRow.evalId);
+      const evalMeta = evals.get(getCaseRowEvalKey(caseRow));
       if (!evalMeta) {
         return { updated: false, reason: 'Eval not found' };
       }
@@ -376,7 +400,7 @@ export function createRunner({
         return { updated: false, reason: 'Manual score not found' };
       }
 
-      const caseDetail = run.caseDetails.get(caseId);
+      const caseDetail = run.caseDetails.get(getCaseRowCaseKey(caseRow));
       if (!caseDetail) {
         return { updated: false, reason: 'Case detail not found' };
       }
@@ -438,23 +462,26 @@ export function createRunner({
             meta,
             config,
             gitState,
-            latestRun: latestRunInfoMap.get(meta.id),
-            lastRunStatus: lastRunStatusMap.get(meta.id) ?? null,
+            latestRun: latestRunInfoMap.get(meta.key),
+            lastRunStatus: lastRunStatusMap.get(meta.key) ?? null,
           }),
         );
       }
       return result;
     },
     getEval(id) {
-      const meta = evals.get(id);
+      const meta = resolveEvalMeta(id);
       if (!meta) return undefined;
       return buildEvalSummary({
         meta,
         config,
         gitState: readGitWorktreeState(workspaceRoot),
-        latestRun: latestRunInfoMap.get(meta.id),
-        lastRunStatus: lastRunStatusMap.get(meta.id) ?? null,
+        latestRun: latestRunInfoMap.get(meta.key),
+        lastRunStatus: lastRunStatusMap.get(meta.key) ?? null,
       });
+    },
+    getDiscoveryIssues() {
+      return discoveryIssues;
     },
     async refreshDiscovery() {
       const patterns = config.include;
@@ -469,19 +496,32 @@ export function createRunner({
       }
 
       evals.clear();
+      discoveryIssues = [];
       for (const filePath of discovered) {
         try {
           const content = await readFile(filePath, 'utf-8');
-          const discoveredMetas = parseEvalMetas(filePath, content);
+          const discovery = parseEvalDiscovery(filePath, content);
+          const discoveredMetas = discovery.metas;
+          discoveryIssues.push(
+            ...discovery.issues.map((issue) => ({
+              ...issue,
+              filePath: toWorkspaceRelativePath(issue.filePath),
+              message: `Duplicate eval id "${issue.evalId}" in ${toWorkspaceRelativePath(issue.filePath)}. Eval ids must be unique within one file.`,
+            })),
+          );
           const sourceFingerprint = getSourceFingerprint(content);
           const registry = getEvalRegistry();
+          let moduleLoaded = false;
           try {
             await loadEvalModule(filePath, sourceFingerprint);
+            moduleLoaded = true;
           } catch {
             // Fall back to statically parsed metadata when the module fails to load.
           }
           for (const meta of discoveredMetas) {
-            const discoveredEntry = registry.get(meta.id);
+            const discoveredEntry = moduleLoaded
+              ? registry.get(meta.id)
+              : undefined;
             const title = meta.title;
             let columnDefs = buildDeclaredColumnDefs(
               undefined,
@@ -513,10 +553,16 @@ export function createRunner({
               charts = validated.charts;
             });
 
-            evals.set(meta.id, {
+            const relativeFilePath = toWorkspaceRelativePath(meta.filePath);
+            const key = buildEvalKey({
+              filePath: relativeFilePath,
+              evalId: meta.id,
+            });
+            evals.set(key, {
+              key,
               id: meta.id,
               title,
-              filePath: toWorkspaceRelativePath(meta.filePath),
+              filePath: relativeFilePath,
               sourceFilePath: meta.filePath,
               sourceFingerprint,
               columnDefs,
@@ -580,10 +626,9 @@ export function createRunner({
       runs.set(runId, runState);
       setLatestRunInfoMap({
         latestRunInfoMap,
-        evalIds: getTargetEvalIds({
+        evalIds: getTargetEvalKeys({
           request,
-          sortedEvalIds: getSortedEvalMetas().map((meta) => meta.id),
-          knownEvalIds: new Set(evals.keys()),
+          sortedEvals: getSortedEvalMetas(),
         }),
         info: {
           status: 'running',
@@ -663,7 +708,18 @@ export function createRunner({
     getCaseDetail(runId, caseId) {
       const run = runs.get(runId);
       if (!run) return undefined;
-      return run.caseDetails.get(caseId);
+      return (
+        run.caseDetails.get(caseId) ??
+        run.caseDetails.get(
+          getCaseRowCaseKey(
+            run.cases.find(
+              (caseRow) =>
+                getCaseRowCaseKey(caseRow) === caseId ||
+                caseRow.caseId === caseId,
+            ) ?? { caseId },
+          ),
+        )
+      );
     },
     subscribe(runId, listener) {
       const run = runs.get(runId);

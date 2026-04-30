@@ -56,6 +56,7 @@ export {
   runLogLevelSchema,
   runLogPhaseSchema,
   scoreTraceSchema,
+  discoveryIssueSchema,
   type AssertionFailure,
   type EvalFreshnessStatus,
   type EvalStatAggregate,
@@ -69,7 +70,14 @@ export {
   type RunLogLevel,
   type RunLogPhase,
   type ScoreTrace,
+  type DiscoveryIssue,
 } from './schemas/eval.ts';
+export {
+  buildEvalKey,
+  buildCaseKey,
+  getCaseRowEvalKey,
+  getCaseRowCaseKey,
+} from './evalIdentity.ts';
 export {
   evalChartAggregateSchema,
   evalChartAxisSchema,

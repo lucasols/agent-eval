@@ -17,6 +17,10 @@ export const evalsRoutes = new Hono()
     const evals = runner.getEvals();
     return c.json(evals, 200);
   })
+  .get('/discovery-issues', (c) => {
+    const runner = getRunnerInstance();
+    return c.json(runner.getDiscoveryIssues(), 200);
+  })
   .get('/events', (c) => {
     const runner = getRunnerInstance();
 

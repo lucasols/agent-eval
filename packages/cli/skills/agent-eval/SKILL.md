@@ -374,6 +374,10 @@ Mental model:
   across operations/evals, but the source-file fingerprint still participates
   in the final key. Shared namespaces are reusable across evals in the same
   file; evals in different files miss even with the same namespace and key.
+- Authored eval ids are unique within one eval file. The exact eval identity is
+  the workspace-relative file path plus eval id, so the same id can be reused in
+  different files. Case ids must be unique within one eval; duplicate case ids
+  are reported as run errors.
 - Cache keys should be deterministic primitives, arrays, and plain objects.
   `Buffer`, `ArrayBuffer`, and typed arrays hash by bytes. Native `Blob`/`File`
   keys use stable metadata by default (`type`, `size`, plus
@@ -462,7 +466,8 @@ When adding or changing evals:
    `evalTracer.cache(...)`; never cache operations whose external side effects
    you depend on.
 7. Sanity-check after changes: `agent-evals list`, then
-   `agent-evals run --eval <id>`.
+   `agent-evals run --eval <id>`; use `--file <path|glob>` to target one file
+   when multiple files use the same eval id.
 8. Locate saved artifacts with `agent-evals show-runs latest --json`, then read
    the relevant `summary.json`, `cases.jsonl`, `case-details/<case-id>.json`,
    or `traces/<case-id>.json` file directly.

@@ -106,11 +106,17 @@ describe('CLI span diagnostic examples', () => {
       expect(
         normalizeSnapshotValue(workspacePath, {
           summary: artifacts.summary,
-          caseRows: artifacts.cases.map((caseRow) => ({
-            caseId: caseRow.caseId,
-            columns: caseRow.columns,
-            status: caseRow.status,
-          })),
+          caseRows: artifacts.cases
+            .toSorted(
+              (left, right) =>
+                getDiagnosticCaseOrder(left.caseId) -
+                getDiagnosticCaseOrder(right.caseId),
+            )
+            .map((caseRow) => ({
+              caseId: caseRow.caseId,
+              columns: caseRow.columns,
+              status: caseRow.status,
+            })),
           capturedSpan: {
             name: capturedSpan.name,
             status: capturedSpan.status,
@@ -313,6 +319,15 @@ describe('CLI span diagnostic examples', () => {
     });
   });
 });
+
+function getDiagnosticCaseOrder(caseId: string): number {
+  const order = [
+    'recover-with-fallback-signals',
+    'continue-with-stale-signal',
+    'recover-after-webhook-error',
+  ].indexOf(caseId);
+  return order === -1 ? Number.MAX_SAFE_INTEGER : order;
+}
 
 function requireTrace(
   traces: Record<string, EvalTraceSpan[]>,

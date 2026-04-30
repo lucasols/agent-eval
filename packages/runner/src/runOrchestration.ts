@@ -22,6 +22,7 @@ import type {
 } from '@agent-evals/shared';
 import {
   deriveStatusFromCaseRows,
+  getCaseRowCaseKey,
   resolveApiCallsConfig,
   resolveLlmCallsConfig,
 } from '@agent-evals/shared';
@@ -34,7 +35,6 @@ import { validateCharts } from './chartValidation.ts';
 import { buildDeclaredColumnDefs, mergeColumnDefs } from './columnBuilder.ts';
 import { resolveEvalDefaultConfig } from './defaultConfig.ts';
 import { loadEvalModule } from './evalModuleLoader.ts';
-import { getTargetEvalIds } from './evalSummaries.ts';
 import { runWithModuleIsolation } from './moduleIsolation.ts';
 import {
   filterEvalCases,
@@ -44,8 +44,10 @@ import {
 import { persistRunState } from './runMaintenance.ts';
 import { persistCaseDetail, type EvalLatestRunInfo } from './runPersistence.ts';
 import { executeQueuedCases, type QueuedCaseRun } from './runQueue.ts';
+import { getTargetEvalKeys } from './targeting.ts';
 
 export type EvalMeta = {
+  key: string;
   id: string;
   title?: string;
   filePath: string;
@@ -94,7 +96,6 @@ type ExecuteRunParams = {
   request: CreateRunRequest;
   runDir: string;
   config: AgentEvalsConfig;
-  evals: Map<string, EvalMeta>;
   cacheStore: FsCacheStore;
   lastRunStatusMap: Map<string, EvalSummary['lastRunStatus']>;
   latestRunInfoMap: Map<string, EvalLatestRunInfo>;
@@ -181,6 +182,35 @@ function formatUnknownErrorDetails(error: unknown): string {
   return String(error);
 }
 
+function findDuplicateCaseIds(cases: readonly { id: string }[]): string[] {
+  const counts = new Map<string, number>();
+  for (const evalCase of cases) {
+    counts.set(evalCase.id, (counts.get(evalCase.id) ?? 0) + 1);
+  }
+  return [...counts]
+    .filter(([, count]) => count > 1)
+    .map(([caseId]) => caseId)
+    .toSorted();
+}
+
+function findAmbiguousTargetCaseIds(
+  preparedEvals: readonly PreparedEvalRun[],
+): string[] {
+  const ownersByCaseId = new Map<string, Set<string>>();
+  for (const preparedEval of preparedEvals) {
+    for (const preparedCase of preparedEval.preparedCases) {
+      const owners = ownersByCaseId.get(preparedCase.caseId) ?? new Set();
+      owners.add(
+        `${preparedEval.evalMeta.filePath}#${preparedEval.evalMeta.id}`,
+      );
+      ownersByCaseId.set(preparedCase.caseId, owners);
+    }
+  }
+  return [...ownersByCaseId]
+    .filter(([, owners]) => owners.size > 1)
+    .map(([caseId, owners]) => `${caseId} (${[...owners].join(', ')})`);
+}
+
 function buildRunErrorMessage(errors: EvalRunError[]): string {
   return errors
     .map((entry) => {
@@ -222,8 +252,12 @@ async function finalizePreparedCase(params: {
     await winningTrial.bufferedCacheStore.commit();
   }
 
+  const artifactFileId = getCaseArtifactFileId(runState, winningTrial.caseRow);
   runState.cases.push(winningTrial.caseRow);
-  runState.caseDetails.set(preparedCase.caseId, winningTrial.caseDetail);
+  runState.caseDetails.set(
+    getCaseRowCaseKey(winningTrial.caseRow),
+    winningTrial.caseDetail,
+  );
   preparedEval.mergeColumns(winningTrial.caseDetail.columns);
 
   if (winningTrial.caseRow.status === 'pass') {
@@ -235,10 +269,10 @@ async function finalizePreparedCase(params: {
   }
 
   await writeFile(
-    join(runDir, 'traces', `${preparedCase.caseId}.json`),
+    join(runDir, 'traces', `${encodeURIComponent(artifactFileId)}.json`),
     JSON.stringify(winningTrial.caseDetail.trace, null, 2),
   );
-  await persistCaseDetail(runDir, winningTrial.caseDetail);
+  await persistCaseDetail(runDir, winningTrial.caseDetail, artifactFileId);
   onCaseFinished?.(winningTrial.caseDetail, winningTrial.caseRow);
 
   emitEvent(runState, {
@@ -252,7 +286,17 @@ async function finalizePreparedCase(params: {
 }
 
 function getPreparedCaseOrderKey(caseRow: CaseRow): string {
-  return `${caseRow.evalId}\u0000${caseRow.caseId}`;
+  return `${caseRow.evalKey ?? caseRow.evalId}\u0000${caseRow.caseId}`;
+}
+
+function getCaseArtifactFileId(runState: RunState, caseRow: CaseRow): string {
+  const caseKey = getCaseRowCaseKey(caseRow);
+  const collides = runState.cases.some(
+    (existing) =>
+      existing.caseId === caseRow.caseId &&
+      getCaseRowCaseKey(existing) !== caseKey,
+  );
+  return collides ? caseKey : caseRow.caseId;
 }
 
 function sortCaseRowsByPreparedOrder(
@@ -264,7 +308,7 @@ function sortCaseRowsByPreparedOrder(
   for (const preparedEval of preparedEvals) {
     for (const preparedCase of preparedEval.preparedCases) {
       orderByCase.set(
-        `${preparedEval.evalMeta.id}\u0000${preparedCase.caseId}`,
+        `${preparedEval.evalMeta.key}\u0000${preparedCase.caseId}`,
         order,
       );
       order++;
@@ -286,7 +330,6 @@ export async function executeRun({
   request,
   runDir,
   config,
-  evals,
   cacheStore,
   lastRunStatusMap,
   latestRunInfoMap,
@@ -328,10 +371,11 @@ export async function executeRun({
         codeFingerprint = '';
       }
       if (codeFingerprint.length > 0) {
-        runState.manifest.evalSourceFingerprints[evalMeta.id] = codeFingerprint;
+        runState.manifest.evalSourceFingerprints[evalMeta.key] =
+          codeFingerprint;
         evalMeta.sourceFingerprint = codeFingerprint;
       } else {
-        delete runState.manifest.evalSourceFingerprints[evalMeta.id];
+        delete runState.manifest.evalSourceFingerprints[evalMeta.key];
         evalMeta.sourceFingerprint = null;
       }
 
@@ -363,14 +407,19 @@ export async function executeRun({
                     : (evalDef.cases ?? []),
                 { freezeTime: evalDef.freezeTime },
               );
+              const runnableCases = resolveRunnableEvalCases({
+                cases: evalCases,
+                evalId: evalMeta.id,
+              });
+              const duplicateCaseIds = findDuplicateCaseIds(runnableCases);
+              if (duplicateCaseIds.length > 0) {
+                throw new Error(
+                  `Duplicate case id${duplicateCaseIds.length === 1 ? '' : 's'} in ${evalMeta.filePath}#${evalMeta.id}: ${duplicateCaseIds.join(', ')}`,
+                );
+              }
               const cases = filterEvalCases(
-                resolveRunnableEvalCases({
-                  cases: evalCases,
-                  evalId: evalMeta.id,
-                }),
-                request.target.evalIds,
+                runnableCases,
                 request.target.caseIds,
-                evalMeta.id,
               );
 
               runState.summary.totalCases += cases.length;
@@ -444,6 +493,7 @@ export async function executeRun({
                       const { caseDetail, caseRowUpdate } = await runCase({
                         evalDef,
                         evalId: evalMeta.id,
+                        evalKey: evalMeta.key,
                         evalCase,
                         globalTraceDisplay,
                         llmCallsConfig,
@@ -458,6 +508,7 @@ export async function executeRun({
                         codeFingerprint,
                         moduleIsolation,
                         evalFilePath,
+                        evalFileRelativePath: evalMeta.filePath,
                         workspaceRoot,
                         artifactDir: join(runDir, 'artifacts'),
                         runId: runState.manifest.id,
@@ -468,6 +519,8 @@ export async function executeRun({
                         caseRow: {
                           caseId: evalCase.id,
                           evalId: evalMeta.id,
+                          evalKey: evalMeta.key,
+                          caseKey: caseDetail.caseKey,
                           status: caseRowUpdate.status ?? 'pending',
                           durationMs: caseRowUpdate.durationMs ?? null,
                           columns: caseRowUpdate.columns ?? {},
@@ -503,22 +556,34 @@ export async function executeRun({
           evalId: evalMeta.id,
           details: formatUnknownErrorDetails(error),
         });
-        lastRunStatusMap.set(evalMeta.id, 'error');
-        latestRunInfoMap.set(evalMeta.id, {
+        lastRunStatusMap.set(evalMeta.key, 'error');
+        latestRunInfoMap.set(evalMeta.key, {
           status: 'error',
           startedAt: runState.manifest.endedAt ?? runState.manifest.startedAt,
           commitSha: runState.manifest.commitSha ?? null,
           evalSourceFingerprint:
-            runState.manifest.evalSourceFingerprints[evalMeta.id] ?? null,
+            runState.manifest.evalSourceFingerprints[evalMeta.key] ?? null,
         });
       }
     }
 
-    await executeQueuedCases({
-      queuedCases,
-      concurrency: getConfiguredConcurrency(),
-      globalTraceDisplay: config.traceDisplay,
-    });
+    const ambiguousCaseTargets =
+      request.target.caseIds && request.target.caseIds.length > 0
+        ? findAmbiguousTargetCaseIds(preparedEvals)
+        : [];
+    if (ambiguousCaseTargets.length > 0) {
+      queuedCases.length = 0;
+      evalErrors.push({
+        evalId: 'target',
+        details: `Ambiguous --case target. Narrow it with --file and/or --eval: ${ambiguousCaseTargets.join('; ')}`,
+      });
+    } else {
+      await executeQueuedCases({
+        queuedCases,
+        concurrency: getConfiguredConcurrency(),
+        globalTraceDisplay: config.traceDisplay,
+      });
+    }
 
     for (const preparedEval of preparedEvals) {
       for (const preparedCase of preparedEval.preparedCases) {
@@ -537,19 +602,19 @@ export async function executeRun({
       ];
 
       lastRunStatusMap.set(
-        preparedEval.evalMeta.id,
+        preparedEval.evalMeta.key,
         toLastRunStatus(
           deriveStatusFromCaseRows({ caseRows: preparedEval.evalCaseRows }),
         ),
       );
       const latestStatus =
-        lastRunStatusMap.get(preparedEval.evalMeta.id) ?? null;
-      latestRunInfoMap.set(preparedEval.evalMeta.id, {
+        lastRunStatusMap.get(preparedEval.evalMeta.key) ?? null;
+      latestRunInfoMap.set(preparedEval.evalMeta.key, {
         status: latestStatus,
         startedAt: runState.manifest.endedAt ?? runState.manifest.startedAt,
         commitSha: runState.manifest.commitSha ?? null,
         evalSourceFingerprint:
-          runState.manifest.evalSourceFingerprints[preparedEval.evalMeta.id] ??
+          runState.manifest.evalSourceFingerprints[preparedEval.evalMeta.key] ??
           null,
       });
     }
@@ -571,25 +636,24 @@ export async function executeRun({
     runState.summary.errorMessage =
       evalErrors.length > 0 ? buildRunErrorMessage(evalErrors) : null;
 
-    for (const evalId of getTargetEvalIds({
+    for (const evalKey of getTargetEvalKeys({
       request,
-      sortedEvalIds: getSortedEvalMetas().map((meta) => meta.id),
-      knownEvalIds: new Set(evals.keys()),
+      sortedEvals: getSortedEvalMetas(),
     })) {
       const latestStatus =
-        lastRunStatusMap.get(evalId) ??
+        lastRunStatusMap.get(evalKey) ??
         toLastRunStatus(
           deriveStatusFromCaseRows({
             caseRows: [],
             lifecycleStatus: runState.manifest.status,
           }),
         );
-      latestRunInfoMap.set(evalId, {
+      latestRunInfoMap.set(evalKey, {
         status: latestStatus,
         startedAt: completedRunAt,
         commitSha: runState.manifest.commitSha ?? null,
         evalSourceFingerprint:
-          runState.manifest.evalSourceFingerprints[evalId] ?? null,
+          runState.manifest.evalSourceFingerprints[evalKey] ?? null,
       });
     }
 
