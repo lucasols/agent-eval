@@ -184,6 +184,7 @@ export const llmCallsConfigSchema = z.object({
       cacheCreationInput1hTokens: z.string().optional(),
       reasoningTokens: z.string().optional(),
       totalTokens: z.string().optional(),
+      latencyMs: z.string().optional(),
       tokensPerSecond: z.string().optional(),
       cost: z.string().optional(),
       inputCost: z.string().optional(),
@@ -265,6 +266,7 @@ export type ResolvedLlmCallsConfig = {
     cacheCreationInput1hTokens: string;
     reasoningTokens: string;
     totalTokens: string;
+    latencyMs: string;
     tokensPerSecond: string;
     cost: string;
     inputCost: string;
@@ -346,6 +348,7 @@ export const DEFAULT_LLM_CALLS_CONFIG: ResolvedLlmCallsConfig = {
     cacheCreationInput1hTokens: 'usage.cacheCreationInput1hTokens',
     reasoningTokens: 'usage.reasoningTokens',
     totalTokens: 'usage.totalTokens',
+    latencyMs: 'latencyMs',
     tokensPerSecond: 'tokensPerSecond',
     cost: 'costUsd',
     inputCost: 'cost.inputUsd',

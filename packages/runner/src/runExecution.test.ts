@@ -25,6 +25,7 @@ async function runDefaultUsageCase(overrides: RunCaseOverrides = {}) {
           evalSpan.setAttributes({
             model: 'gpt-4o-mini',
             provider: 'openai',
+            latencyMs: 42,
             usage: {
               inputTokens: 100,
               outputTokens: 40,
@@ -112,6 +113,8 @@ test('runCase derives default usage outputs from trace spans', async () => {
     reasoningTokens: 5,
     totalTokens: 140,
   });
+  const llmSpan = result.caseDetail.trace.find((span) => span.kind === 'llm');
+  expect(llmSpan?.attributes?.latencyMs).toBe(42);
   expect(result.caseDetail.columns.costUsd).toBeCloseTo(0.000692);
   expect(typeof result.caseDetail.columns.llmDurationMs).toBe('number');
 });

@@ -261,11 +261,13 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   See the `TraceDisplayInputConfig` type.
 - `llmCalls` (in `agent-evals.config.ts`) configures how LLM-call spans are
   summarized for review. Defaults to `kind: 'llm'` spans with `model`,
-  `usage.*`, `tokensPerSecond`, `input`, `output`, etc. read from conventional
-  attribute paths. Override `kinds` to broaden the filter, override
-  `attributes.<field>` for non-default span shapes, configure `pricing` to
-  derive USD costs from token counts by model/provider, and add entries to
-  `metrics` to surface arbitrary user metrics (`format: 'string' | 'number' |
+  `usage.*`, `latencyMs`, `tokensPerSecond`, `input`, `output`, etc. read from
+  conventional attribute paths. `latencyMs` is time to first token; the full
+  elapsed span time is shown separately as duration. Override `kinds` to broaden
+  the filter, override `attributes.<field>` for non-default span shapes,
+  configure `pricing` to derive USD costs from token counts by model/provider,
+  and add entries to `metrics` to surface arbitrary user metrics (`format:
+  'string' | 'number' |
 'duration' | 'json' | 'boolean'`, `placements: ['header' | 'body']`).
 - Default usage config derives missing eval outputs from matching LLM/API spans
   before `outputsSchema` and scores run: `apiCalls`, `costUsd`, `llmTurns`,

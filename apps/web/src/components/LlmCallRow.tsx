@@ -525,12 +525,12 @@ function TokenBreakdownTable({ entry }: { entry: LlmCallEntry }) {
  * Render one LLM-call card inside the case-drawer LLM calls tab.
  *
  * Collapsed by default. The header shows the call name, status, model chip,
- * duration, total tokens, cost, and any user-defined metric whose `placements`
- * includes `'header'`. Click toggles expansion to reveal token breakdown,
- * built-in and body-placement metrics, then the JSON sections in order: Input
- * / Output / Reasoning / Steps (when the configured `steps` attribute
- * resolved to an array) / Tool calls. Span warnings and any captured error
- * render at the bottom.
+ * latency, duration, total tokens, cost, and any user-defined metric whose
+ * `placements` includes `'header'`. Click toggles expansion to reveal token
+ * breakdown, built-in and body-placement metrics, then the JSON sections in
+ * order: Input / Output / Reasoning / Steps (when the configured `steps`
+ * attribute resolved to an array) / Tool calls. Span warnings and any captured
+ * error render at the bottom.
  */
 export function LlmCallRow({ entry }: { entry: LlmCallEntry }) {
   const [expanded, setExpanded] = useState(false);
@@ -543,6 +543,8 @@ export function LlmCallRow({ entry }: { entry: LlmCallEntry }) {
   );
 
   const costLabel = formatCostChip(entry.costUsd);
+  const latencyLabel =
+    entry.latencyMs === null ? null : formatDuration(entry.latencyMs);
   const durationLabel =
     entry.durationMs === null ? null : formatDuration(entry.durationMs);
 
@@ -555,6 +557,8 @@ export function LlmCallRow({ entry }: { entry: LlmCallEntry }) {
 
   const showMetricsSection =
     entry.stepCount !== null ||
+    entry.latencyMs !== null ||
+    entry.durationMs !== null ||
     entry.tokensPerSecond !== null ||
     entry.finishReason !== null ||
     entry.provider !== null ||
@@ -574,7 +578,18 @@ export function LlmCallRow({ entry }: { entry: LlmCallEntry }) {
         <HeaderMeta>
           <StatusBadge status={entry.status} />
           {entry.model !== null ? <ModelChip>{entry.model}</ModelChip> : null}
-          {durationLabel !== null ? <span>{durationLabel}</span> : null}
+          {latencyLabel !== null ? (
+            <MetricChip>
+              <MetricChipLabel>Latency</MetricChipLabel>
+              {latencyLabel}
+            </MetricChip>
+          ) : null}
+          {durationLabel !== null ? (
+            <MetricChip>
+              <MetricChipLabel>Duration</MetricChipLabel>
+              {durationLabel}
+            </MetricChip>
+          ) : null}
           <HeaderTokenChip
             inputTokens={entry.inputTokens}
             outputTokens={entry.outputTokens}
@@ -609,6 +624,18 @@ export function LlmCallRow({ entry }: { entry: LlmCallEntry }) {
                   <MetricRowValue>
                     {formatNumber(entry.stepCount)}
                   </MetricRowValue>
+                </MetricRow>
+              ) : null}
+              {latencyLabel !== null ? (
+                <MetricRow>
+                  <MetricRowLabel>Latency</MetricRowLabel>
+                  <MetricRowValue>{latencyLabel}</MetricRowValue>
+                </MetricRow>
+              ) : null}
+              {durationLabel !== null ? (
+                <MetricRow>
+                  <MetricRowLabel>Duration</MetricRowLabel>
+                  <MetricRowValue>{durationLabel}</MetricRowValue>
                 </MetricRow>
               ) : null}
               {entry.tokensPerSecond !== null ? (

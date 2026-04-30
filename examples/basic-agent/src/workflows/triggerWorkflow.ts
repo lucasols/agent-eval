@@ -45,6 +45,7 @@ export async function triggerWorkflow(
             input: { prompt: input.message },
             model: 'gpt-4o-mini',
             provider: 'openai',
+            latencyMs: 72,
             usage,
             steps: 1,
             finishReason: 'stop',

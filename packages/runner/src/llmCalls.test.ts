@@ -17,13 +17,17 @@ test('resolveLlmCallsConfig fills defaults for empty input', () => {
 test('resolveLlmCallsConfig overrides kinds and merges attributes', () => {
   const resolved = resolveLlmCallsConfig({
     kinds: ['anthropic.messages'],
-    attributes: { cachedInputTokens: 'usage.cache_read_input_tokens' },
+    attributes: {
+      cachedInputTokens: 'usage.cache_read_input_tokens',
+      latencyMs: 'timing.timeToFirstTokenMs',
+    },
   });
 
   expect(resolved.kinds).toEqual(['anthropic.messages']);
   expect(resolved.attributes.cachedInputTokens).toBe(
     'usage.cache_read_input_tokens',
   );
+  expect(resolved.attributes.latencyMs).toBe('timing.timeToFirstTokenMs');
   expect(resolved.attributes.inputTokens).toBe(
     DEFAULT_LLM_CALLS_CONFIG.attributes.inputTokens,
   );
@@ -115,6 +119,7 @@ function llmSpan(overrides: Partial<EvalTraceSpan> = {}): EvalTraceSpan {
     status: 'ok',
     attributes: {
       model: 'gpt-4o-mini',
+      latencyMs: 42,
       usage: { inputTokens: 150, outputTokens: 50 },
       costUsd: 0.0015,
       input: { prompt: 'hi' },
@@ -150,6 +155,7 @@ test('extractLlmCalls filters by configured kinds and projects defaults', () => 
     cacheCreationInputCostUsd: null,
     reasoningCostUsd: null,
     cacheCreationInputTokens: null,
+    latencyMs: 42,
     durationMs: 142,
     input: { prompt: 'hi' },
     output: { reply: 'hello' },

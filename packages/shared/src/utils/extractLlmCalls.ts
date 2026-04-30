@@ -36,6 +36,8 @@ export type LlmCallEntry = {
   cacheCreationInputTokens: number | null;
   reasoningTokens: number | null;
   totalTokens: number | null;
+  /** Time to first token for the LLM call in milliseconds, when reported by the span. */
+  latencyMs: number | null;
   tokensPerSecond: number | null;
   costUsd: number | null;
   inputCostUsd: number | null;
@@ -250,8 +252,10 @@ function pickError(span: EvalTraceSpan): EvalTraceSpanError | null {
  * Spans whose `kind` is not in `config.kinds` are dropped. Structured fields
  * (`model`, token counts, explicit cost, etc.) are read via
  * `getNestedAttribute` from the configured paths, with safe coercion to
- * `string | null` / `number | null`. When explicit USD costs are absent,
- * configured model pricing derives per-token-type costs from token counts.
+ * `string | null` / `number | null`. `latencyMs` is an explicit
+ * time-to-first-token attribute; full span elapsed time is reported separately
+ * as `durationMs`. When explicit USD costs are absent, configured model
+ * pricing derives per-token-type costs from token counts.
  * `totalTokens` falls back to a sum of input + output when no explicit total
  * attribute is present. Cached input and cache creation tokens are reported
  * separately because they are subsets of input/output usage. The main cache
@@ -380,6 +384,7 @@ export function extractLlmCalls(
         input: inputTokens,
         output: outputTokens,
       }),
+      latencyMs: readNumber(attrs, config.attributes.latencyMs),
       tokensPerSecond: readNumber(attrs, config.attributes.tokensPerSecond),
       costUsd,
       inputCostUsd,
