@@ -1,6 +1,5 @@
 import {
   deriveScopedSummaryFromCases,
-  getCaseRowEvalKey,
   type CaseRow,
   type EvalSummary,
   type RunManifest,
@@ -45,9 +44,7 @@ export function buildEvalScopedRunRows(
   evalKey: string,
 ): ScopedRunRow[] {
   return runs.map((run) => {
-    const cases = run.cases.filter(
-      (caseRow) => getCaseRowEvalKey(caseRow) === evalKey,
-    );
+    const cases = run.cases.filter((caseRow) => caseRow.evalKey === evalKey);
     return {
       manifest: run.manifest,
       summary: deriveScopedSummaryFromCases({
@@ -60,7 +57,7 @@ export function buildEvalScopedRunRows(
 }
 
 export function getEvalIdsForFolderPath(params: {
-  evals: Array<Pick<EvalSummary, 'id' | 'filePath'> & { key?: string }>;
+  evals: Array<Pick<EvalSummary, 'key' | 'filePath'>>;
   selectedFolderPath: string;
 }): Set<string> {
   const prefixLength = getCommonPrefixLength(
@@ -76,24 +73,24 @@ export function getEvalIdsForFolderPath(params: {
           dir.startsWith(`${params.selectedFolderPath}/`)
         );
       })
-      .map((ev) => ev.key ?? ev.id),
+      .map((ev) => ev.key),
   );
 }
 
 export function scopeRunCases(params: {
   cases: CaseRow[];
-  evals: Array<Pick<EvalSummary, 'id' | 'filePath'> & { key?: string }>;
-  selectedEvalId: string | null;
+  evals: Array<Pick<EvalSummary, 'id' | 'key' | 'filePath'>>;
+  selectedEvalKey: string | null;
   selectedFolderPath: string | null;
 }): RunCaseScope {
-  const { cases, evals, selectedEvalId, selectedFolderPath } = params;
+  const { cases, evals, selectedEvalKey, selectedFolderPath } = params;
 
-  if (selectedEvalId) {
+  if (selectedEvalKey) {
+    const selectedEvalLabel =
+      evals.find((ev) => ev.key === selectedEvalKey)?.id ?? selectedEvalKey;
     return {
-      cases: cases.filter(
-        (caseRow) => getCaseRowEvalKey(caseRow) === selectedEvalId,
-      ),
-      label: selectedEvalId,
+      cases: cases.filter((caseRow) => caseRow.evalKey === selectedEvalKey),
+      label: selectedEvalLabel,
     };
   }
 
@@ -107,8 +104,9 @@ export function scopeRunCases(params: {
   });
 
   return {
-    cases: cases.filter((caseRow) =>
-      evalIdsInFolder.has(getCaseRowEvalKey(caseRow)),
+    cases: cases.filter(
+      (caseRow) =>
+        caseRow.evalKey !== undefined && evalIdsInFolder.has(caseRow.evalKey),
     ),
     label: selectedFolderPath,
   };

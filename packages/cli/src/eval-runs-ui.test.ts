@@ -55,6 +55,7 @@ describe('eval run rows ui', () => {
       {
         caseId: 'alpha-pass',
         evalId: 'alpha',
+        evalKey: 'evals%2Falpha.eval.ts#alpha',
         status: 'pass',
         durationMs: 120,
         columns: {},
@@ -63,6 +64,7 @@ describe('eval run rows ui', () => {
       {
         caseId: 'beta-fail',
         evalId: 'beta',
+        evalKey: 'evals%2Fbeta.eval.ts#beta',
         status: 'fail',
         durationMs: 260,
         columns: {},
@@ -70,8 +72,14 @@ describe('eval run rows ui', () => {
       },
     ];
 
-    const [alphaRow] = buildEvalScopedRunRows([{ manifest, cases }], 'alpha');
-    const [betaRow] = buildEvalScopedRunRows([{ manifest, cases }], 'beta');
+    const [alphaRow] = buildEvalScopedRunRows(
+      [{ manifest, cases }],
+      'evals%2Falpha.eval.ts#alpha',
+    );
+    const [betaRow] = buildEvalScopedRunRows(
+      [{ manifest, cases }],
+      'evals%2Fbeta.eval.ts#beta',
+    );
 
     expect(alphaRow?.summary).toMatchObject({
       status: 'pass',
@@ -94,6 +102,8 @@ describe('eval run rows ui', () => {
       {
         caseId: 'refund-pass',
         evalId: 'high-value-refund',
+        evalKey:
+          'evals%2Fsupport%2Frefunds%2Fescalations%2Fhigh-value-refund.eval.ts#high-value-refund',
         status: 'pass',
         durationMs: 564,
         columns: {},
@@ -102,6 +112,8 @@ describe('eval run rows ui', () => {
       {
         caseId: 'other-fail',
         evalId: 'receipt-fraud-review',
+        evalKey:
+          'evals%2Fsupport%2Frefunds%2Freceipts%2Freceipt-fraud-review.eval.ts#receipt-fraud-review',
         status: 'fail',
         durationMs: 1200,
         columns: {},
@@ -114,16 +126,19 @@ describe('eval run rows ui', () => {
       evals: [
         {
           id: 'high-value-refund',
+          key: 'evals%2Fsupport%2Frefunds%2Fescalations%2Fhigh-value-refund.eval.ts#high-value-refund',
           filePath:
             'evals/support/refunds/escalations/high-value-refund.eval.ts',
         },
         {
           id: 'receipt-fraud-review',
+          key: 'evals%2Fsupport%2Frefunds%2Freceipts%2Freceipt-fraud-review.eval.ts#receipt-fraud-review',
           filePath:
             'evals/support/refunds/receipts/receipt-fraud-review.eval.ts',
         },
       ],
-      selectedEvalId: 'high-value-refund',
+      selectedEvalKey:
+        'evals%2Fsupport%2Frefunds%2Fescalations%2Fhigh-value-refund.eval.ts#high-value-refund',
       selectedFolderPath: null,
     });
 
@@ -132,6 +147,50 @@ describe('eval run rows ui', () => {
       expect.objectContaining({
         caseId: 'refund-pass',
         evalId: 'high-value-refund',
+      }),
+    ]);
+  });
+
+  test('scopes drawer run data by eval key', () => {
+    const cases: CaseRow[] = [
+      {
+        caseId: 'simple-text',
+        evalId: 'refund-workflow',
+        evalKey: 'evals%2Frefund-workflow.eval.ts#refund-workflow',
+        status: 'pass',
+        durationMs: 229,
+        columns: {},
+        trial: 0,
+      },
+      {
+        caseId: 'other',
+        evalId: 'refund-workflow',
+        evalKey: 'evals%2Fother-refund.eval.ts#refund-workflow',
+        status: 'fail',
+        durationMs: 1200,
+        columns: {},
+        trial: 0,
+      },
+    ];
+
+    const scoped = scopeRunCases({
+      cases,
+      evals: [
+        {
+          id: 'refund-workflow',
+          key: 'evals%2Frefund-workflow.eval.ts#refund-workflow',
+          filePath: 'evals/refund-workflow.eval.ts',
+        },
+      ],
+      selectedEvalKey: 'evals%2Frefund-workflow.eval.ts#refund-workflow',
+      selectedFolderPath: null,
+    });
+
+    expect(scoped.label).toBe('refund-workflow');
+    expect(scoped.cases).toEqual([
+      expect.objectContaining({
+        caseId: 'simple-text',
+        evalKey: 'evals%2Frefund-workflow.eval.ts#refund-workflow',
       }),
     ]);
   });

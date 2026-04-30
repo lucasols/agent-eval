@@ -841,7 +841,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
               key={visibleRunRows.map((run) => run.manifest.id).join(':')}
               runs={visibleRunRows}
               columnDefs={evalSummary.columnDefs}
-              evalId={evalSummary.id}
+              evalKey={evalSummary.key}
             />
           </Section>
         </Body>

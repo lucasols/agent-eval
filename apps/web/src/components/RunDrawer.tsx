@@ -365,7 +365,7 @@ function formatRunErrorItems(errorMessage: string): ErrorDetailItem[] {
 
 function getScopedRunErrorMessage(params: {
   errorMessage: string | null;
-  evals: Array<{ id: string; filePath: string }>;
+  evals: Array<{ id: string; key: string; filePath: string }>;
   selectedEvalId: string | null;
   selectedFolderPath: string | null;
 }): string | null {
@@ -454,7 +454,7 @@ export function RunDrawer() {
   const scopedRunCases = scopeRunCases({
     cases,
     evals,
-    selectedEvalId: scopedEvalId,
+    selectedEvalKey: scopedEvalId,
     selectedFolderPath: scopedFolderPath,
   });
   const scopedSummary =
