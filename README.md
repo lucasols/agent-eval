@@ -127,7 +127,7 @@ Example:
 
 ```ts
 import { mock } from 'node:test';
-import { defineEval, evalAssert } from '@ls-stack/agent-eval';
+import { defineEval, evalExpect } from '@ls-stack/agent-eval';
 
 defineEval({
   id: 'module-mock-demo',
@@ -139,11 +139,11 @@ defineEval({
       },
     });
 
-    const { runWorkflow } = await );
+    const { runWorkflow } = await import('../src/workflow.ts');
     const result = await runWorkflow(input);
 
     setOutput('segment', result.segment);
-    evalAssert(result.segment === 'vip', 'expected the mocked dependency');
+    evalExpect(result.segment).toBe('vip');
   },
 });
 ```
@@ -153,7 +153,8 @@ Notes:
 - `isInEvalScope()` returns the current eval runner phase (`'env'`, `'cases'`, `'eval'`, `'derive'`, `'outputsSchema'`, or `'scorer'`) and returns `null` outside eval-owned work. This is useful when shared workflow code needs to branch on eval-only behavior. Top-level modules imported while a run is being prepared see `'env'`; code called from `execute` sees `'eval'`.
 - `getEvalCaseInput()` returns the current case input while an eval case is executing, and `getEvalCaseInput('customer.tier')` reads nested values with dot-path access. Outside a case scope, both return `undefined`.
 - `nextEvalId()` returns a stable sequential id for the active eval file, eval id, and case id, such as `refund-workflow-evals-refund-workflow-eval-ts-simple-text-1`. It throws outside an eval case scope so accidental production-only usage is visible.
-- `evalAssert(...)` records a failed assertion only while an eval case scope is active. Outside a case scope, it is a no-op so shared workflow code can be reused safely.
+- `evalAssert(value, message)` accepts any value, narrows it as truthy in TypeScript, and records a failed assertion only while an eval case scope is active. Outside a case scope, it is a runtime no-op so shared workflow code can be reused safely.
+- `evalExpect(value)` provides focused comparison helpers for eval invariants: `.toBe`, `.toEqual`, `.toMatchObject`, `.toContain`, `.toHaveLength`, `.toHaveProperty`, numeric comparisons, `.toBeCloseTo`, `.toMatch`, and `.not`. Use `evalAssert` for simple truthiness checks and custom narrowing.
 - `evalLog(level, ...args)` records manual per-case logs shown in the case drawer's **Logs** tab. The runner also captures `console.log`, `console.info`, `console.warn`, and `console.error` during case-owned phases by default. Log arguments are stored as JSON-safe values and rendered with the JSON viewer, with a capped text preview and best-effort code location for collapsed rows; logs emitted inside cached operations are not replayed from cache hits.
 - `mock.module(...)` only affects modules imported after the mock is registered.
 - Use dynamic `import(...)` inside `execute`; static imports happen too early.

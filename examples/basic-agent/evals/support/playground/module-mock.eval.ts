@@ -1,5 +1,5 @@
 import { mock } from 'node:test';
-import { defineEval, evalAssert, setEvalOutput } from '@ls-stack/agent-eval';
+import { defineEval, evalExpect, setEvalOutput } from '@ls-stack/agent-eval';
 
 defineEval<{ customerId: string; request: string }>({
   id: 'module-mock-demo',
@@ -35,10 +35,7 @@ defineEval<{ customerId: string; request: string }>({
     setEvalOutput('response', result.response);
     setEvalOutput('appliedSegment', result.segment);
 
-    evalAssert(
-      result.segment === 'vip',
-      'module mock should replace the customer lookup dependency',
-    );
+    evalExpect(result.segment).toBe('vip');
   },
   scores: {
     usedVipSegment: {

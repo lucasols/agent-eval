@@ -2,6 +2,7 @@ import {
   appendToEvalOutput,
   EvalAssertionError,
   evalAssert,
+  evalExpect,
   evalSpan,
   evalTracer,
   getCurrentScope,
@@ -16,6 +17,8 @@ import {
   type TraceActiveSpan,
 } from '@agent-evals/sdk';
 import { expect, test } from 'vitest';
+
+const approvedPattern = /approved/;
 
 test('evalAssert is a no-op outside an active eval scope', () => {
   expect(getCurrentScope()).toBeUndefined();
@@ -46,6 +49,83 @@ test('evalAssert still records and throws inside an active eval scope', async ()
   expect(scope.assertionFailures[0]?.message).toBe('expected failure');
   expect(scope.assertionFailures[0]?.stack).toContain(
     'EvalAssertionError: expected failure',
+  );
+});
+
+test('evalAssert accepts any condition value and narrows truthy values', () => {
+  const rawCaseId = getMaybeCaseId();
+  evalAssert(rawCaseId, 'case id should be present');
+  const narrowedCaseId: string = rawCaseId;
+
+  expect(narrowedCaseId).toBe('refund-case');
+});
+
+function getMaybeCaseId(): string | undefined {
+  return 'refund-case';
+}
+
+test('evalExpect is a no-op outside an active eval scope', () => {
+  expect(() => {
+    evalExpect('approved').toBe('denied');
+  }).not.toThrow();
+});
+
+test('evalExpect passes focused comparison matchers', async () => {
+  const { error, scope } = await runInEvalScope('expect-pass', () => {
+    evalExpect('vip').toBe('vip');
+    evalExpect({ decision: 'approve', totals: [1, 2] }).toEqual({
+      decision: 'approve',
+      totals: [1, 2],
+    });
+    evalExpect({
+      customer: { tier: 'vip', region: 'br' },
+      decision: 'approve',
+    }).toMatchObject({ customer: { tier: 'vip' } });
+    evalExpect('refund approved').toContain('approved');
+    evalExpect(['refund', 'return']).toContain('refund');
+    evalExpect(new Set(['vip', 'standard'])).toContain('vip');
+    evalExpect(['refund', 'return']).toHaveLength(2);
+    evalExpect({ customer: { tier: 'vip' } }).toHaveProperty(
+      'customer.tier',
+      'vip',
+    );
+    evalExpect(0.95).toBeGreaterThan(0.9);
+    evalExpect(0.95).toBeGreaterThanOrEqual(0.95);
+    evalExpect(0.95).toBeLessThan(1);
+    evalExpect(0.95).toBeLessThanOrEqual(0.95);
+    evalExpect(1.004).toBeCloseTo(1, 2);
+    evalExpect('refund approved').toMatch(approvedPattern);
+    evalExpect('refund approved').not.toContain('denied');
+  });
+
+  expect(error).toBeUndefined();
+  expect(scope.assertionFailures).toEqual([]);
+});
+
+test('evalExpect records and throws comparison failures', async () => {
+  const { error, scope } = await runInEvalScope('expect-fail', () => {
+    evalExpect({ decision: 'deny' }).toMatchObject({ decision: 'approve' });
+  });
+
+  expect(error).toBeInstanceOf(EvalAssertionError);
+  expect(scope.assertionFailures).toHaveLength(1);
+  expect(scope.assertionFailures[0]?.message).toBe(
+    "Expected { decision: 'deny' } to match object { decision: 'approve' }",
+  );
+  expect(scope.assertionFailures[0]?.stack).toContain(
+    "EvalAssertionError: Expected { decision: 'deny' } to match object { decision: 'approve' }",
+  );
+});
+
+test('evalExpect supports negated comparison failures', async () => {
+  const { error, scope } = await runInEvalScope('expect-not-fail', () => {
+    evalExpect('refund approved').not.toMatch(approvedPattern);
+  });
+
+  expect(error).toBeInstanceOf(EvalAssertionError);
+  expect(scope.assertionFailures).toHaveLength(1);
+  expect(scope.assertionFailures[0]?.message).toBe(
+    'Expected refund approved not to match /approved/',
   );
 });
 

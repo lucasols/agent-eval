@@ -39,8 +39,9 @@ file wires up cases and scoring; the real `evalTracer.span(...)` calls sit
 inside the workflow, agent, or tool functions that both production and evals
 invoke.
 
-`evalTracer`, `evalSpan`, output helpers, `evalLog`, and `evalAssert` are
-ambient no-ops when called outside an eval case scope, so leaving them in
+`evalTracer`, `evalSpan`, output helpers, `evalLog`, `evalAssert`, and
+`evalExpect` are ambient no-ops when called outside an eval case scope, so
+leaving them in
 production paths is safe — they only record anything when the product code runs
 inside an eval's `execute`. Use `isInEvalScope()` to branch on eval-only behavior in shared code
 (e.g. skip a real network side effect): it returns `null` outside eval-owned
@@ -67,6 +68,7 @@ import {
   appendToEvalOutput,
   captureEvalSpanError,
   evalAssert,
+  evalExpect,
   evalSpan,
   evalTracer,
   getEvalCaseInput,
@@ -122,6 +124,7 @@ export async function runRefundWorkflow(input: RefundInput) {
       setEvalOutput('reviewId', reviewId);
       mergeEvalOutput('metadata', { approved: result.approved });
       evalAssert(result.approved, 'refund workflow should approve the case');
+      evalExpect(result.finalText).toMatch(/refund/i);
       evalSpan.setAttribute('output', { result, reviewId });
       return result;
     },
@@ -462,8 +465,9 @@ When adding or changing evals:
 1. Put the tracing + ambient SDK calls in the product code that runs in both
    production and evals. Keep eval files thin.
 2. Use realistic cases drawn from real product flows; avoid placeholder inputs.
-3. `evalAssert` for hard invariants, `scores` for graded signals,
-   `passThreshold` only on scores that should gate pass/fail.
+3. `evalAssert` for hard invariants and truthy type narrowing, `evalExpect`
+   for non-trivial comparisons, `scores` for graded signals, `passThreshold`
+   only on scores that should gate pass/fail.
 4. Surface reviewable values through execute-context `setOutput` or ambient
    `setEvalOutput` in shared workflow code, and shape them with `columns`
    formats from the `ColumnFormat` type.

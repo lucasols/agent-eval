@@ -956,12 +956,17 @@ export function incrementEvalOutput(key: string, delta: number): void {
 }
 
 /**
- * Assert a condition for the current eval case and throw on failure.
+ * Assert a truthy condition for the current eval case and throw on failure.
  *
  * Calls made outside `runInEvalScope(...)` are ignored so shared workflow code
- * can safely reuse `evalAssert(...)` when it also runs outside an eval.
+ * can safely reuse `evalAssert(...)` when it also runs outside an eval. The
+ * TypeScript assertion signature still narrows the checked value after the
+ * call.
  */
-export function evalAssert(condition: boolean, message: string): void {
+export function evalAssert(
+  condition: unknown,
+  message: string,
+): asserts condition {
   if (condition) return;
   const scope = getCurrentScope();
   if (!scope) return;
