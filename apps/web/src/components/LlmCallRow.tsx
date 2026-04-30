@@ -112,14 +112,6 @@ const Body = styled.div`
   border-top: 1px solid ${colors.border.var};
 `;
 
-const MetaRow = styled.div`
-  ${inline({ gap: 10, align: 'center' })}
-  ${monoFont};
-  flex-wrap: wrap;
-  font-size: 11px;
-  color: ${colors.textMuted.var};
-`;
-
 const MetricRow = styled.div`
   ${inline({ gap: 12, align: 'center' })}
   font-size: 12px;
@@ -526,12 +518,12 @@ function TokenBreakdownTable({ entry }: { entry: LlmCallEntry }) {
  * Render one LLM-call card inside the case-drawer LLM calls tab.
  *
  * Collapsed by default. The header shows the call name, status, model chip,
- * latency, total tokens, cost, and any user-defined metric whose
- * `placements` includes `'header'`. Click toggles expansion to reveal token
- * breakdown, steps/finish/provider, body-placement metrics, then the JSON
- * sections in order: Input / Output / Reasoning / Steps (when the configured
- * `steps` attribute resolved to an array) / Tool calls. Span warnings and any
- * captured error render at the bottom.
+ * latency, total tokens, cost, and any user-defined metric whose `placements`
+ * includes `'header'`. Click toggles expansion to reveal token breakdown,
+ * built-in and body-placement metrics, then the JSON sections in order: Input
+ * / Output / Reasoning / Steps (when the configured `steps` attribute
+ * resolved to an array) / Tool calls. Span warnings and any captured error
+ * render at the bottom.
  */
 export function LlmCallRow({ entry }: { entry: LlmCallEntry }) {
   const [expanded, setExpanded] = useState(false);
@@ -554,10 +546,12 @@ export function LlmCallRow({ entry }: { entry: LlmCallEntry }) {
     entry.reasoningTokens !== null ||
     entry.totalTokens !== null;
 
-  const showStepRow =
+  const showMetricsSection =
     entry.stepCount !== null ||
+    entry.tokensPerSecond !== null ||
     entry.finishReason !== null ||
-    entry.provider !== null;
+    entry.provider !== null ||
+    bodyMetrics.length > 0;
 
   return (
     <Card>
@@ -600,22 +594,36 @@ export function LlmCallRow({ entry }: { entry: LlmCallEntry }) {
             <TokenBreakdownTable entry={entry} />
           ) : null}
 
-          {showStepRow ? (
-            <MetaRow>
+          {showMetricsSection ? (
+            <MetricsSection>
               {entry.stepCount !== null ? (
-                <span>Steps {formatNumber(entry.stepCount)}</span>
+                <MetricRow>
+                  <MetricRowLabel>Steps</MetricRowLabel>
+                  <MetricRowValue>
+                    {formatNumber(entry.stepCount)}
+                  </MetricRowValue>
+                </MetricRow>
+              ) : null}
+              {entry.tokensPerSecond !== null ? (
+                <MetricRow>
+                  <MetricRowLabel>Tokens/sec</MetricRowLabel>
+                  <MetricRowValue>
+                    {formatNumber(entry.tokensPerSecond, { decimalPlaces: 1 })}
+                  </MetricRowValue>
+                </MetricRow>
               ) : null}
               {entry.finishReason !== null ? (
-                <span>Finish {entry.finishReason}</span>
+                <MetricRow>
+                  <MetricRowLabel>Finish</MetricRowLabel>
+                  <MetricRowValue>{entry.finishReason}</MetricRowValue>
+                </MetricRow>
               ) : null}
               {entry.provider !== null ? (
-                <span>Provider {entry.provider}</span>
+                <MetricRow>
+                  <MetricRowLabel>Provider</MetricRowLabel>
+                  <MetricRowValue>{entry.provider}</MetricRowValue>
+                </MetricRow>
               ) : null}
-            </MetaRow>
-          ) : null}
-
-          {bodyMetrics.length > 0 ? (
-            <MetricsSection>
               {bodyMetrics.map((metric) => (
                 <MetricRow key={metricKey(metric)}>
                   <Tooltip content={metric.tooltip}>

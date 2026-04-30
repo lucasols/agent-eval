@@ -17,11 +17,18 @@ import type {
   CaseDetail,
   CaseRow,
   CellValue,
+  RemoveDefaultLLMConfig,
+  ResolvedLlmCallsConfig,
   ScoreTrace,
   TraceDisplayInputConfig,
 } from '@agent-evals/shared';
+import { resolveLlmCallsConfig } from '@agent-evals/shared';
 import { z } from 'zod/v4';
 import { normalizeScoreDef, toCellValue } from './columnBuilder.ts';
+import {
+  addDefaultLlmOutputs,
+  mergeDefaultLlmColumns,
+} from './defaultLlmConfig.ts';
 import { runWithModuleIsolation } from './moduleIsolation.ts';
 import { persistInlineArtifact } from './outputArtifacts.ts';
 import { resolveTracePresentation } from './traceDisplay.ts';
@@ -97,6 +104,8 @@ export async function runCase<
   evalId: string;
   evalCase: { id: string; input: TRunInput; tags?: string[] };
   globalTraceDisplay: TraceDisplayInputConfig | undefined;
+  llmCallsConfig?: ResolvedLlmCallsConfig;
+  globalRemoveDefaultLLMConfig?: RemoveDefaultLLMConfig;
   trial: number;
   startTime: number;
   cacheAdapter: CacheAdapter | null;
@@ -113,6 +122,8 @@ export async function runCase<
     evalId,
     evalCase,
     globalTraceDisplay,
+    llmCallsConfig = resolveLlmCallsConfig(undefined),
+    globalRemoveDefaultLLMConfig,
     trial,
     startTime,
     cacheAdapter,
@@ -197,6 +208,16 @@ export async function runCase<
         toAssertionFailure(message, e instanceof Error ? e : undefined),
       );
     }
+  }
+
+  if (!nonAssertError) {
+    addDefaultLlmOutputs({
+      outputs: scope.outputs,
+      spans: scope.spans,
+      llmCallsConfig,
+      globalRemove: globalRemoveDefaultLLMConfig,
+      evalRemove: evalDef.removeDefaultLLMConfig,
+    });
   }
 
   if (!nonAssertError && evalDef.outputsSchema) {
@@ -329,6 +350,11 @@ export async function runCase<
   );
 
   const columns: Record<string, CellValue> = {};
+  const columnOverrides = mergeDefaultLlmColumns({
+    columns: evalDef.columns,
+    globalRemove: globalRemoveDefaultLLMConfig,
+    evalRemove: evalDef.removeDefaultLLMConfig,
+  });
   for (const [key, value] of Object.entries(scope.outputs)) {
     const cell = isBlob(value)
       ? await persistInlineArtifact({
@@ -339,7 +365,7 @@ export async function runCase<
           trial,
           value,
         })
-      : toCellValue(value, evalDef.columns?.[key]);
+      : toCellValue(value, columnOverrides?.[key]);
     if (cell !== undefined) {
       columns[key] = cell;
     }

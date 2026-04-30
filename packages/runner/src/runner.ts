@@ -32,6 +32,7 @@ import {
 import { validateCharts } from './chartValidation.ts';
 import { buildDeclaredColumnDefs, normalizeScoreDef } from './columnBuilder.ts';
 import { loadConfig } from './config.ts';
+import { resolveEvalDefaultLlmConfig } from './defaultLlmConfig.ts';
 import { parseEvalMetas } from './discovery.ts';
 import { loadEvalModule } from './evalModuleLoader.ts';
 import {
@@ -491,14 +492,18 @@ export function createRunner({
             let charts: EvalMeta['charts'];
 
             discoveredEntry?.use((evalDef) => {
+              const defaultLlmConfig = resolveEvalDefaultLlmConfig({
+                evalDef,
+                globalRemove: config.removeDefaultLLMConfig,
+              });
               columnDefs = buildDeclaredColumnDefs(
-                evalDef.columns,
+                defaultLlmConfig.columns,
                 evalDef.scores,
                 evalDef.manualScores,
               );
-              stats = evalDef.stats;
+              stats = defaultLlmConfig.stats;
               const validated = validateCharts({
-                charts: evalDef.charts,
+                charts: defaultLlmConfig.charts,
                 columnDefs,
                 evalId: meta.id,
               });

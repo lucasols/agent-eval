@@ -113,6 +113,12 @@ describe('CLI eval features', () => {
         }
         expect(caseRow.columns.llmTurns).toBe(1);
         expect(typeof caseRow.columns.costUsd).toBe('number');
+        expect(caseRow.columns.inputTokens).toBe(150);
+        expect(caseRow.columns.outputTokens).toBe(50);
+        expect(caseRow.columns.cachedInputTokens).toBe(30);
+        expect(caseRow.columns.cacheCreationInputTokens).toBe(80);
+        expect(caseRow.columns.totalTokens).toBe(310);
+        expect(typeof caseRow.columns.llmLatencyMs).toBe('number');
         expect(typeof caseRow.columns.response).toBe('string');
       }
 
@@ -129,45 +135,65 @@ describe('CLI eval features', () => {
           artifacts.cases.map((caseRow) => ({
             caseId: caseRow.caseId,
             costUsd: caseRow.columns.costUsd,
+            cacheCreationInputTokens: caseRow.columns.cacheCreationInputTokens,
+            cachedInputTokens: caseRow.columns.cachedInputTokens,
+            inputTokens: caseRow.columns.inputTokens,
             llmTurns: caseRow.columns.llmTurns,
             mentionsRefund: caseRow.columns.mentionsRefund,
+            outputTokens: caseRow.columns.outputTokens,
             reviewConfidence: caseRow.columns.reviewConfidence,
             response: caseRow.columns.response,
             status: caseRow.status,
+            totalTokens: caseRow.columns.totalTokens,
             toolCalls: caseRow.columns.toolCalls,
           })),
         ),
       ).toMatchInlineSnapshot(`
         [
           {
+            "cacheCreationInputTokens": 80,
+            "cachedInputTokens": 30,
             "caseId": "simple-text",
             "costUsd": 0.0011324999999999998,
+            "inputTokens": 150,
             "llmTurns": 1,
             "mentionsRefund": 1,
+            "outputTokens": 50,
             "response": "Approved refund for: I want a refund for order #123",
             "reviewConfidence": 0.64,
             "status": "pass",
             "toolCalls": 1,
+            "totalTokens": 310,
           },
           {
+            "cacheCreationInputTokens": 80,
+            "cachedInputTokens": 30,
             "caseId": "with-image",
             "costUsd": 0.0011324999999999998,
+            "inputTokens": 150,
             "llmTurns": 1,
             "mentionsRefund": 1,
+            "outputTokens": 50,
             "response": "Approved refund for: Please refund this damaged item",
             "reviewConfidence": 0.84,
             "status": "pass",
             "toolCalls": 2,
+            "totalTokens": 310,
           },
           {
+            "cacheCreationInputTokens": 80,
+            "cachedInputTokens": 30,
             "caseId": "with-audio",
             "costUsd": 0.0011324999999999998,
+            "inputTokens": 150,
             "llmTurns": 1,
             "mentionsRefund": 1,
+            "outputTokens": 50,
             "response": "Approved refund for: I need to return this product",
             "reviewConfidence": 0.96,
             "status": "pass",
             "toolCalls": 1,
+            "totalTokens": 310,
           },
         ]
       `);

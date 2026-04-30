@@ -105,6 +105,7 @@ export async function runRefundWorkflow(input: RefundInput) {
             model: 'gpt-4o-mini',
             provider: 'openai',
             usage,
+            costUsd,
           });
           const expectedLocale = getEvalCaseInput('locale');
           if (typeof expectedLocale === 'string') {
@@ -112,8 +113,6 @@ export async function runRefundWorkflow(input: RefundInput) {
           }
           evalSpan.incrementAttribute('llmCalls', 1);
           evalSpan.appendToAttribute('models', 'gpt-4o-mini');
-          incrementEvalOutput('costUsd', costUsd);
-          appendToEvalOutput('modelCalls', { model: 'gpt-4o-mini', costUsd });
           return text;
         },
       );
@@ -135,9 +134,11 @@ Span `kind` values are open-ended strings. Use familiar kinds such as
 `agent`, `tool`, `llm`, `api`, `retrieval`, `scorer`, or `checkpoint` when they
 fit, and preserve external tracer kinds such as `mastra.workflow.step` when they
 are more specific. Only the `input` and `output` span attributes are promoted
-automatically; use `traceDisplay` for other span attributes such as `model` or
-`usage`. Prefer `llmCalls.pricing` for LLM-call cost display instead of writing
-`costUsd` on each span.
+automatically in the trace tree; use `traceDisplay` for other span attributes
+such as `model` or `usage`. Eval-level LLM usage outputs, columns, stats, and
+charts are derived from matching LLM spans by default. Prefer
+`llmCalls.pricing` for LLM-call cost display instead of writing `costUsd` on
+each span.
 
 Use `captureEvalSpanError(error)` for recoverable errors on the active
 `evalTracer.span(...)`, such as optional model/tool failures that fall back and
@@ -194,7 +195,6 @@ defineEval<RefundInput, RefundOutputs>({
   },
   deriveFromTracing: ({ trace }) => ({
     toolCalls: trace.findSpansByKind('tool').length,
-    llmTurns: trace.findSpansByKind('llm').length,
   }),
   scores: {
     mentionsRefund: {
@@ -261,12 +261,19 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   See the `TraceDisplayInputConfig` type.
 - `llmCalls` (in `agent-evals.config.ts`) configures how LLM-call spans are
   summarized for review. Defaults to `kind: 'llm'` spans with `model`,
-  `usage.*`, `input`, `output`, etc. read from conventional
+  `usage.*`, `tokensPerSecond`, `input`, `output`, etc. read from conventional
   attribute paths. Override `kinds` to broaden the filter, override
   `attributes.<field>` for non-default span shapes, configure `pricing` to
   derive USD costs from token counts by model/provider, and add entries to
   `metrics` to surface arbitrary user metrics (`format: 'string' | 'number' |
 'duration' | 'json' | 'boolean'`, `placements: ['header' | 'body']`).
+- Default LLM usage config derives missing eval outputs from those same LLM
+  spans before `outputsSchema` and scores run: `costUsd`, `llmTurns`,
+  `inputTokens`, `outputTokens`, `totalTokens`, `cachedInputTokens`,
+  `cacheCreationInputTokens`, `reasoningTokens`, and `llmLatencyMs`. Authored
+  outputs and column overrides win. Remove defaults globally or per eval with
+  `removeDefaultLLMConfig: true` or a key list such as
+  `removeDefaultLLMConfig: ['reasoningTokens']`.
 - `apiCalls` (in `agent-evals.config.ts`) configures how API-call spans are
   summarized for review. Defaults to `kind: 'api'`, `'http'`, `'http.client'`,
   and `'fetch'` spans with `method`, `url`, `statusCode`, `request`,
@@ -279,9 +286,10 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   without persisting console calls to case details. Manual `evalLog(...)` calls
   are still captured.
 
-Stats rows and history charts on the eval card are opt-in via `stats` /
-`charts` on the eval definition. Their shapes live in the types; no need to
-memorize the option set.
+Stats rows and history charts on the eval card can be authored via `stats` /
+`charts` on the eval definition. LLM usage stats/charts are added by default
+unless removed with `removeDefaultLLMConfig`. Their shapes live in the types; no
+need to memorize the option set.
 
 ## Cached operations
 
@@ -303,8 +311,6 @@ await evalTracer.span(
       usage: result.usage,
       output: result,
     });
-    incrementEvalOutput('costUsd', computeCost(result));
-    appendToEvalOutput('llmCalls', { model: 'gpt-4o-mini' });
     return result;
   },
 );

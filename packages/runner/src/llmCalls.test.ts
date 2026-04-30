@@ -141,6 +141,7 @@ test('extractLlmCalls filters by configured kinds and projects defaults', () => 
     inputTokens: 150,
     outputTokens: 50,
     totalTokens: 200,
+    tokensPerSecond: null,
     costUsd: 0.0015,
     inputCostUsd: null,
     outputCostUsd: null,
@@ -400,6 +401,23 @@ test('extractLlmCalls reads custom metrics and drops undefined values', () => {
       placements: ['body'],
     },
   ]);
+});
+
+test('extractLlmCalls reads tokens per second as a built-in field', () => {
+  const calls = extractLlmCalls(
+    [
+      llmSpan({
+        attributes: {
+          model: 'gpt-4o-mini',
+          usage: { inputTokens: 10, outputTokens: 5 },
+          tokensPerSecond: 38.2,
+        },
+      }),
+    ],
+    DEFAULT_LLM_CALLS_CONFIG,
+  );
+
+  expect(calls[0]).toMatchObject({ tokensPerSecond: 38.2 });
 });
 
 test('extractLlmCalls reports null latency for running spans and computes total fallback', () => {

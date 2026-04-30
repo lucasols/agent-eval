@@ -60,6 +60,7 @@ export type {
   EvalTraceSpan,
   EvalTraceSpanError,
   EvalTraceSpanWarning,
+  DefaultLLMConfigKey,
   FileRef,
   RepoFileRef,
   RunArtifactRef,

@@ -1,6 +1,5 @@
 import {
   evalAssert,
-  incrementEvalOutput,
   setEvalOutput,
   evalSpan,
   evalTracer,
@@ -16,8 +15,6 @@ export type WorkflowInput = {
 
 export type WorkflowResult = { finalText: string; approved: boolean };
 
-const INPUT_PRICE_PER_MILLION = 2.5;
-const OUTPUT_PRICE_PER_MILLION = 10;
 const REFUND_REGEX = /refund/i;
 
 export async function triggerWorkflow(
@@ -37,31 +34,12 @@ export async function triggerWorkflow(
         async () => {
           await waitForWorkflowDelay('planRefund');
 
-          const CACHE_WRITE_MULTIPLIER = 1.25;
-          const CACHE_READ_MULTIPLIER = 0.1;
           const usage = {
             inputTokens: 150,
             outputTokens: 50,
             cacheCreationInputTokens: 80,
             cachedInputTokens: 30,
           };
-          const inputCostUsd =
-            (usage.inputTokens / 1_000_000) * INPUT_PRICE_PER_MILLION;
-          const outputCostUsd =
-            (usage.outputTokens / 1_000_000) * OUTPUT_PRICE_PER_MILLION;
-          const cacheCreationInputCostUsd =
-            (usage.cacheCreationInputTokens / 1_000_000) *
-            INPUT_PRICE_PER_MILLION *
-            CACHE_WRITE_MULTIPLIER;
-          const cachedInputCostUsd =
-            (usage.cachedInputTokens / 1_000_000) *
-            INPUT_PRICE_PER_MILLION *
-            CACHE_READ_MULTIPLIER;
-          const costUsd =
-            inputCostUsd +
-            outputCostUsd +
-            cacheCreationInputCostUsd +
-            cachedInputCostUsd;
 
           evalSpan.setAttributes({
             input: { prompt: input.message },
@@ -76,8 +54,6 @@ export async function triggerWorkflow(
             params: { temperature: 0.2 },
             output: { plan: 'approve refund' },
           });
-
-          incrementEvalOutput('costUsd', costUsd);
         },
       );
 

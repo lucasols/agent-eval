@@ -21,6 +21,7 @@ const llmCallsConfigSchema: z.ZodType<ResolvedLlmCallsConfig> = z.object({
     cacheCreationInputTokens: z.string(),
     reasoningTokens: z.string(),
     totalTokens: z.string(),
+    tokensPerSecond: z.string(),
     cost: z.string(),
     inputCost: z.string(),
     outputCost: z.string(),

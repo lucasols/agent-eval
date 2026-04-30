@@ -135,6 +135,8 @@ export {
 } from './schemas/api.ts';
 export {
   trialSelectionModeSchema,
+  defaultLLMConfigKeySchema,
+  removeDefaultLLMConfigSchema,
   agentEvalsConfigSchema,
   llmCallsConfigSchema,
   apiCallsConfigSchema,
@@ -151,6 +153,8 @@ export {
   DEFAULT_LLM_CALLS_CONFIG,
   DEFAULT_API_CALLS_CONFIG,
   type TrialSelectionMode,
+  type DefaultLLMConfigKey,
+  type RemoveDefaultLLMConfig,
   type AgentEvalsConfig,
   type LlmCallsConfigInput,
   type ApiCallsConfigInput,

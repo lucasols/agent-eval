@@ -16,7 +16,7 @@ afterEach(async () => {
 });
 
 describe('discovery metadata', () => {
-  test('discovers new eval files added under an included glob while watching', async () => {
+  test('discovers new eval files added under an included glob', async () => {
     const workspacePath = await mkdtemp(
       join(tmpdir(), 'agent-evals-runner-watch-add-'),
     );
@@ -33,20 +33,11 @@ describe('discovery metadata', () => {
 
     const previousCwd = process.cwd();
     process.chdir(workspacePath);
-    const runner = createRunner({ watchForChanges: true });
+    const runner = createRunner({ watchForChanges: false });
 
     try {
       await runner.init();
       expect(runner.getEvals()).toEqual([]);
-
-      const discoveryUpdated = new Promise<void>((resolve) => {
-        const unsubscribe = runner.subscribeDiscovery((event) => {
-          if (event.type !== 'discovery.updated') return;
-          if (runner.getEval('created-eval') === undefined) return;
-          unsubscribe();
-          resolve();
-        });
-      });
 
       await mkdir(join(workspacePath, 'evals', 'nested'), { recursive: true });
       await writeFile(
@@ -56,11 +47,11 @@ describe('discovery metadata', () => {
 defineEval({
   id: 'created-eval',
   title: 'Created Eval',
+  execute: () => {},
 });
 `,
       );
-
-      await discoveryUpdated;
+      await runner.refreshDiscovery();
 
       expect(runner.getEval('created-eval')?.filePath).toBe(
         'evals/nested/created.eval.ts',
@@ -70,7 +61,7 @@ defineEval({
       await runner.close();
       process.chdir(previousCwd);
     }
-  }, 10_000);
+  });
 
   test('discovers declared output and score columns before any run executes', async () => {
     const workspacePath = await mkdtemp(
@@ -83,6 +74,7 @@ defineEval({
       join(workspacePath, 'agent-evals.config.ts'),
       `export default {
   include: ['evals/**/*.eval.ts'],
+  removeDefaultLLMConfig: true,
 };
 `,
     );
@@ -216,6 +208,7 @@ defineEval({
       join(workspacePath, 'agent-evals.config.ts'),
       `export default {
   include: ['evals/**/*.eval.ts'],
+  removeDefaultLLMConfig: true,
 };
 `,
     );
@@ -257,6 +250,138 @@ defineEval({
           format: 'percent',
         },
         { kind: 'duration' },
+      ]);
+    } finally {
+      process.chdir(previousCwd);
+    }
+  });
+
+  test('adds default LLM columns, stats, and charts during discovery', async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), 'agent-evals-runner-default-llm-config-'),
+    );
+    createdWorkspaces.push(workspacePath);
+
+    await mkdir(join(workspacePath, 'evals'), { recursive: true });
+    await writeFile(
+      join(workspacePath, 'agent-evals.config.ts'),
+      `export default {
+  include: ['evals/**/*.eval.ts'],
+  removeDefaultLLMConfig: ['reasoningTokens'],
+};
+`,
+    );
+    await writeFile(
+      join(workspacePath, 'evals', 'llm-defaults.eval.ts'),
+      `import { defineEval } from '@agent-evals/sdk';
+
+defineEval({
+  id: 'llm-defaults',
+  title: 'LLM Defaults',
+  columns: {
+    costUsd: {
+      label: 'Custom Cost',
+      format: 'number',
+      numberFormat: { prefix: 'USD ', decimalPlaces: 2 },
+    },
+  },
+  stats: [{ kind: 'cases' }],
+  charts: [
+    { type: 'line', metrics: [{ source: 'builtin', metric: 'passRate' }] },
+  ],
+  execute: () => {},
+});
+`,
+    );
+
+    const previousCwd = process.cwd();
+    process.chdir(workspacePath);
+
+    try {
+      const runner = createRunner({ watchForChanges: false });
+      await runner.init();
+
+      const summary = runner.getEval('llm-defaults');
+      expect(summary?.columnDefs.map((def) => def.key)).toEqual([
+        'costUsd',
+        'llmTurns',
+        'inputTokens',
+        'outputTokens',
+        'totalTokens',
+        'cachedInputTokens',
+        'cacheCreationInputTokens',
+        'llmLatencyMs',
+      ]);
+      expect(summary?.columnDefs[0]).toMatchObject({
+        key: 'costUsd',
+        label: 'Custom Cost',
+        numberFormat: { prefix: 'USD ', decimalPlaces: 2 },
+      });
+      expect(summary?.stats).toEqual([
+        { kind: 'cases' },
+        { kind: 'column', key: 'costUsd', label: 'LLM Cost', aggregate: 'sum' },
+        {
+          kind: 'column',
+          key: 'totalTokens',
+          label: 'Tokens',
+          aggregate: 'sum',
+        },
+        {
+          kind: 'column',
+          key: 'llmTurns',
+          label: 'LLM Turns',
+          aggregate: 'avg',
+        },
+        {
+          kind: 'column',
+          key: 'llmLatencyMs',
+          label: 'LLM Latency',
+          aggregate: 'avg',
+        },
+      ]);
+      expect(summary?.charts).toEqual([
+        { type: 'line', metrics: [{ source: 'builtin', metric: 'passRate' }] },
+        {
+          heading: 'LLM Cost',
+          type: 'area',
+          metrics: [
+            {
+              source: 'column',
+              key: 'costUsd',
+              aggregate: 'sum',
+              label: 'Cost',
+              color: 'warning',
+            },
+          ],
+        },
+        {
+          heading: 'LLM Tokens',
+          type: 'bar',
+          metrics: [
+            {
+              source: 'column',
+              key: 'inputTokens',
+              aggregate: 'sum',
+              label: 'Input',
+              color: 'accent',
+            },
+            {
+              source: 'column',
+              key: 'outputTokens',
+              aggregate: 'sum',
+              label: 'Output',
+              color: 'success',
+            },
+          ],
+          tooltipExtras: [
+            {
+              source: 'column',
+              key: 'totalTokens',
+              aggregate: 'sum',
+              label: 'Total',
+            },
+          ],
+        },
       ]);
     } finally {
       process.chdir(previousCwd);

@@ -36,6 +36,7 @@ export type LlmCallEntry = {
   cacheCreationInputTokens: number | null;
   reasoningTokens: number | null;
   totalTokens: number | null;
+  tokensPerSecond: number | null;
   costUsd: number | null;
   inputCostUsd: number | null;
   outputCostUsd: number | null;
@@ -330,6 +331,7 @@ export function extractLlmCalls(
         cached: cachedInputTokens,
         cacheCreation: cacheCreationInputTokens,
       }),
+      tokensPerSecond: readNumber(attrs, config.attributes.tokensPerSecond),
       costUsd,
       inputCostUsd,
       outputCostUsd,

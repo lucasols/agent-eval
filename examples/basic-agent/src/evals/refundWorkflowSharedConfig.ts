@@ -40,13 +40,7 @@ export const refundWorkflowSharedConfig: Pick<
   outputsSchema: refundWorkflowOutputsSchema,
   columns: {
     response: { label: 'Response', format: 'markdown' },
-    costUsd: {
-      label: 'Cost',
-      format: 'number',
-      numberFormat: { prefix: '$', decimalPlaces: 4 },
-    },
     toolCalls: { label: 'Tool Calls' },
-    llmTurns: { label: 'LLM Turns' },
     reviewConfidence: { label: 'Review Confidence' },
   },
   traceDisplay: {
@@ -95,7 +89,6 @@ export const refundWorkflowSharedConfig: Pick<
   },
   deriveFromTracing: ({ trace }) => ({
     toolCalls: trace.findSpansByKind('tool').length,
-    llmTurns: trace.findSpansByKind('llm').length,
   }),
   scores: {
     mentionsRefund: {

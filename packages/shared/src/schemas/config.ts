@@ -13,6 +13,31 @@ export const trialSelectionModeSchema = z.enum(['lowestScore', 'median']);
 /** Strategy used to collapse repeated trials into one stored case result. */
 export type TrialSelectionMode = z.infer<typeof trialSelectionModeSchema>;
 
+/** Built-in eval-level LLM usage output/column keys. */
+export const defaultLLMConfigKeySchema = z.enum([
+  'costUsd',
+  'llmTurns',
+  'inputTokens',
+  'outputTokens',
+  'totalTokens',
+  'cachedInputTokens',
+  'cacheCreationInputTokens',
+  'reasoningTokens',
+  'llmLatencyMs',
+]);
+/** Built-in eval-level LLM usage output/column key. */
+export type DefaultLLMConfigKey = z.infer<typeof defaultLLMConfigKeySchema>;
+
+/** Removal config for built-in eval-level LLM usage outputs and UI metadata. */
+export const removeDefaultLLMConfigSchema = z.union([
+  z.literal(true),
+  z.array(defaultLLMConfigKeySchema),
+]);
+/** Removal config for built-in eval-level LLM usage outputs and UI metadata. */
+export type RemoveDefaultLLMConfig = z.infer<
+  typeof removeDefaultLLMConfigSchema
+>;
+
 /** Render formats supported by an LLM-call metric in the UI. */
 export const llmCallMetricFormatSchema = z.enum([
   'string',
@@ -157,6 +182,7 @@ export const llmCallsConfigSchema = z.object({
       cacheCreationInputTokens: z.string().optional(),
       reasoningTokens: z.string().optional(),
       totalTokens: z.string().optional(),
+      tokensPerSecond: z.string().optional(),
       cost: z.string().optional(),
       inputCost: z.string().optional(),
       outputCost: z.string().optional(),
@@ -236,6 +262,7 @@ export type ResolvedLlmCallsConfig = {
     cacheCreationInputTokens: string;
     reasoningTokens: string;
     totalTokens: string;
+    tokensPerSecond: string;
     cost: string;
     inputCost: string;
     outputCost: string;
@@ -314,6 +341,7 @@ export const DEFAULT_LLM_CALLS_CONFIG: ResolvedLlmCallsConfig = {
     cacheCreationInputTokens: 'usage.cacheCreationInputTokens',
     reasoningTokens: 'usage.reasoningTokens',
     totalTokens: 'usage.totalTokens',
+    tokensPerSecond: 'tokensPerSecond',
     cost: 'costUsd',
     inputCost: 'cost.inputUsd',
     outputCost: 'cost.outputUsd',
@@ -482,8 +510,6 @@ export type AgentEvalsConfig = {
    *     cachedInputTokens: 'usage.cache_read_input_tokens',
    *   },
    *   metrics: [
-   *     { label: 'Tokens/sec', path: 'tokensPerSecond', format: 'number',
-   *       numberFormat: { decimalPlaces: 1 }, placements: ['header', 'body'] },
    *     { label: 'Retries', path: 'retryCount', format: 'number' },
    *   ],
    *   pricing: [
@@ -494,6 +520,15 @@ export type AgentEvalsConfig = {
    * ```
    */
   llmCalls?: LlmCallsConfigInput;
+  /**
+   * Remove built-in eval-level LLM usage outputs, columns, stats, and charts.
+   *
+   * Defaults are derived from trace spans using the resolved `llmCalls`
+   * extraction and pricing config. Set to `true` to remove all defaults, or
+   * pass specific keys such as `['costUsd', 'totalTokens']` to remove only
+   * those defaults globally. Per-eval removal is additive.
+   */
+  removeDefaultLLMConfig?: RemoveDefaultLLMConfig;
   /**
    * Configuration for the "API calls" tab in the case-run drawer.
    *
@@ -563,6 +598,7 @@ export const agentEvalsConfigSchema = z.object({
   allowCliRunAll: z.boolean().optional(),
   traceDisplay: traceDisplayInputConfigSchema.optional(),
   llmCalls: llmCallsConfigSchema.optional(),
+  removeDefaultLLMConfig: removeDefaultLLMConfigSchema.optional(),
   apiCalls: apiCallsConfigSchema.optional(),
   runLogs: runLogsConfigSchema.optional(),
   cache: z

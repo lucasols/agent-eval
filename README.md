@@ -188,19 +188,20 @@ build also bundles the web UI assets used by `agent-evals app`.
 
 `agent-evals.config.ts` at your project root defines how evals are discovered and executed.
 
-| Field            | Type                            | Description                                                                             |
-| ---------------- | ------------------------------- | --------------------------------------------------------------------------------------- |
-| `include`        | `string[]`                      | Glob patterns for eval files (e.g. `['evals/**/*.eval.ts']`)                            |
-| `workspaceRoot`  | `string?`                       | Root directory; defaults to `process.cwd()`                                             |
-| `defaultTrials`  | `number?`                       | Trials per case when not overridden (default: `1`)                                      |
-| `trialSelection` | `'lowestScore' \| 'median'?`    | Winner selection strategy for persisted multi-trial case results                        |
-| `concurrency`    | `number?`                       | Max parallel case executions per run, including trials (default: `2`)                   |
-| `staleAfterDays` | `number?`                       | Days before a mismatched-commit latest run is marked outdated (default: `14`)           |
-| `allowCliRunAll` | `boolean?`                      | Allow unfiltered `agent-evals run` to run every eval (default: `false`)                 |
-| `traceDisplay`   | `TraceDisplayConfig?`           | Global trace attribute display config for the UI                                        |
-| `llmCalls`       | `LlmCallsConfig?`               | LLM calls tab config for the case-run drawer (kinds, attribute paths, pricing, metrics) |
-| `apiCalls`       | `ApiCallsConfig?`               | API calls tab config for the case-run drawer (kinds, attribute paths, custom metrics)   |
-| `runLogs`        | `{ captureConsole?: boolean }?` | Case log capture config; set `captureConsole: false` to stop persisting console calls   |
+| Field                    | Type                             | Description                                                                             |
+| ------------------------ | -------------------------------- | --------------------------------------------------------------------------------------- |
+| `include`                | `string[]`                       | Glob patterns for eval files (e.g. `['evals/**/*.eval.ts']`)                            |
+| `workspaceRoot`          | `string?`                        | Root directory; defaults to `process.cwd()`                                             |
+| `defaultTrials`          | `number?`                        | Trials per case when not overridden (default: `1`)                                      |
+| `trialSelection`         | `'lowestScore' \| 'median'?`     | Winner selection strategy for persisted multi-trial case results                        |
+| `concurrency`            | `number?`                        | Max parallel case executions per run, including trials (default: `2`)                   |
+| `staleAfterDays`         | `number?`                        | Days before a mismatched-commit latest run is marked outdated (default: `14`)           |
+| `allowCliRunAll`         | `boolean?`                       | Allow unfiltered `agent-evals run` to run every eval (default: `false`)                 |
+| `traceDisplay`           | `TraceDisplayConfig?`            | Global trace attribute display config for the UI                                        |
+| `llmCalls`               | `LlmCallsConfig?`                | LLM calls tab config for the case-run drawer (kinds, attribute paths, pricing, metrics) |
+| `removeDefaultLLMConfig` | `true \| DefaultLLMConfigKey[]?` | Remove built-in eval-level LLM usage outputs, columns, stats, and charts                |
+| `apiCalls`               | `ApiCallsConfig?`                | API calls tab config for the case-run drawer (kinds, attribute paths, custom metrics)   |
+| `runLogs`                | `{ captureConsole?: boolean }?`  | Case log capture config; set `captureConsole: false` to stop persisting console calls   |
 
 When `trials > 1`, the runner executes the case repeatedly but persists a
 single winning result per case. `lowestScore` is the default. `median` uses the
@@ -230,20 +231,21 @@ export const config: AgentEvalsConfig = {
 
 `defineEval` takes a single definition object:
 
-| Field                   | Required   | Purpose                                                                         |
-| ----------------------- | ---------- | ------------------------------------------------------------------------------- |
-| `id`                    | yes        | Unique eval id                                                                  |
-| `title`                 |            | Display title (defaults to a humanized version of `id`)                         |
-| `cases`                 | yes        | `EvalCase[]` or `() => Promise<EvalCase[]>` (async loader for dynamic datasets) |
-| `execute`               | yes        | `async ({ input }) => { ... }`                                                  |
-| `outputsSchema`         | `TOutputs` | Zod schema that validates and types collected outputs before scoring            |
-| `traceDisplay`          |            | Per-eval trace attribute display overrides for the UI                           |
-| `waitForBackgroundJobs` |            | Set `false` to skip waiting for registered background work before finalization  |
-| `deriveFromTracing`     |            | Derive output columns from the finished trace tree                              |
-| `scores`                |            | Record of scoring functions returning `0..1`                                    |
-| `columns`               |            | Custom columns shown in the results table                                       |
-| `stats`                 |            | Opt-in stats row on the eval page (see [Stats row](#stats-row))                 |
-| `charts`                |            | Opt-in history charts on the eval page (see [History charts](#history-charts))  |
+| Field                    | Required   | Purpose                                                                         |
+| ------------------------ | ---------- | ------------------------------------------------------------------------------- |
+| `id`                     | yes        | Unique eval id                                                                  |
+| `title`                  |            | Display title (defaults to a humanized version of `id`)                         |
+| `cases`                  | yes        | `EvalCase[]` or `() => Promise<EvalCase[]>` (async loader for dynamic datasets) |
+| `execute`                | yes        | `async ({ input }) => { ... }`                                                  |
+| `outputsSchema`          | `TOutputs` | Zod schema that validates and types collected outputs before scoring            |
+| `traceDisplay`           |            | Per-eval trace attribute display overrides for the UI                           |
+| `waitForBackgroundJobs`  |            | Set `false` to skip waiting for registered background work before finalization  |
+| `deriveFromTracing`      |            | Derive output columns from the finished trace tree                              |
+| `scores`                 |            | Record of scoring functions returning `0..1`                                    |
+| `columns`                |            | Custom columns shown in the results table                                       |
+| `stats`                  |            | Opt-in stats row on the eval page (see [Stats row](#stats-row))                 |
+| `charts`                 |            | Opt-in history charts on the eval page (see [History charts](#history-charts))  |
+| `removeDefaultLLMConfig` |            | Remove built-in LLM usage defaults for this eval                                |
 
 ### Cases
 
@@ -420,7 +422,7 @@ Use `key` when you want to display the same source attribute more than once, suc
 
 ### LLM calls tab
 
-The case-run drawer surfaces a dedicated **LLM calls** tab that derives a focused list from the trace whenever a case run produced at least one matching span. By default, every span with `kind: 'llm'` is treated as an LLM call and the tab reads `model`, `usage.inputTokens`, `usage.outputTokens`, `usage.cachedInputTokens`, `usage.reasoningTokens`, `steps`, `finishReason`, `provider`, `input`, `output`, `reasoning`, and `toolCalls` from the span's attributes. Each row is collapsed by default; clicking expands it to show a per-token-type tokens + cost breakdown table, finish reason, input/output JSON, reasoning text, tool calls, and any custom metrics.
+The case-run drawer surfaces a dedicated **LLM calls** tab that derives a focused list from the trace whenever a case run produced at least one matching span. By default, every span with `kind: 'llm'` is treated as an LLM call and the tab reads `model`, `usage.inputTokens`, `usage.outputTokens`, `usage.cachedInputTokens`, `usage.reasoningTokens`, `tokensPerSecond`, `steps`, `finishReason`, `provider`, `input`, `output`, `reasoning`, and `toolCalls` from the span's attributes. Each row is collapsed by default; clicking expands it to show a per-token-type tokens + cost breakdown table, tokens/sec, finish reason, input/output JSON, reasoning text, tool calls, and any custom metrics.
 
 The expanded breakdown table includes separate **Cache write** and **Cache read** rows so providers like Anthropic — which charge a premium for cache creation (1.25× / 2× the base input rate) and a deep discount on cache reads (0.1×) — show up correctly. Configure `llmCalls.pricing` once in `agent-evals.config.ts` and the UI derives USD costs from token counts using exact `model` matches, with optional `provider` matches taking precedence. Existing explicit span cost attributes still work as overrides (`costUsd`, `cost.inputUsd`, `cost.outputUsd`, `cost.cacheCreationInputUsd`, `cost.cachedInputUsd`, and `cost.reasoningUsd`), but new spans should only need model/provider plus token counts.
 
@@ -457,14 +459,6 @@ llmCalls: {
   // Surface arbitrary user metrics on each call. `placements` defaults to
   // `['body']`; include `'header'` to also show a chip on the collapsed row.
   metrics: [
-    {
-      label: 't/s',
-      tooltip: 'Tokens per second', // shown on hover
-      path: 'tokensPerSecond',
-      format: 'number',
-      numberFormat: { decimalPlaces: 1 },
-      placements: ['header', 'body'],
-    },
     { label: 'Retries', path: 'retryCount', format: 'number' },
     { label: 'Temperature', path: 'params.temperature', format: 'number' },
     { label: 'Streamed', path: 'streamed', format: 'boolean' },
@@ -473,6 +467,55 @@ llmCalls: {
 ```
 
 Custom metrics support `'string' | 'number' | 'duration' | 'json' | 'boolean'` formats. Use `tooltip` to add a hover description for compact labels. The tab is hidden automatically for cases with no matching spans.
+
+### Default LLM usage
+
+The runner also derives eval-level LLM usage outputs from the same resolved
+`llmCalls` config used by the drawer. When a case trace has matching LLM spans,
+missing outputs are filled before `outputsSchema` and scores run:
+
+- `costUsd`
+- `llmTurns`
+- `inputTokens`
+- `outputTokens`
+- `totalTokens`
+- `cachedInputTokens`
+- `cacheCreationInputTokens`
+- `reasoningTokens`
+- `llmLatencyMs`
+
+Authored outputs with the same key are never overwritten. Authored `columns`,
+`stats`, and `charts` also remain authoritative; default columns use compact
+token formatting, dollar formatting for `costUsd`, and duration formatting for
+`llmLatencyMs`, while default stats/charts are appended after authored config.
+Cost defaults use explicit span cost attributes or `llmCalls.pricing`, exactly
+like the LLM calls tab.
+
+Remove all defaults globally:
+
+```ts
+export const config: AgentEvalsConfig = {
+  include: ['evals/**/*.eval.ts'],
+  removeDefaultLLMConfig: true,
+};
+```
+
+Or remove selected defaults globally or per eval:
+
+```ts
+export const config: AgentEvalsConfig = {
+  include: ['evals/**/*.eval.ts'],
+  removeDefaultLLMConfig: ['reasoningTokens'],
+};
+
+defineEval({
+  id: 'support-agent',
+  removeDefaultLLMConfig: ['costUsd', 'llmLatencyMs'],
+  execute: async ({ input }) => {
+    await runSupportAgent(input);
+  },
+});
+```
 
 ### API calls tab
 
@@ -655,10 +698,10 @@ without taking up space in the runs table.
 
 ### Stats row
 
-The eval page can show a stats row at the top of each eval card. This is
-**opt-in**: when `stats` is omitted (or empty) the row is not rendered. Set
-`stats` to declare which stats appear, including score and numeric output
-columns:
+The eval page can show a stats row at the top of each eval card. Set `stats` to
+declare authored stats, including score and numeric output columns. LLM usage
+defaults are appended automatically unless removed with
+`removeDefaultLLMConfig`:
 
 ```ts
 stats: [
@@ -696,8 +739,9 @@ Supported kinds:
 ### History charts
 
 The eval page can render one or more history charts at the top of each eval
-card that trend across the last 20 completed runs. Charts are **opt-in**:
-when `charts` is omitted (or empty) no chart is rendered.
+card that trend across the last 20 completed runs. Set `charts` to declare
+authored charts. LLM usage default charts are appended automatically unless
+removed with `removeDefaultLLMConfig`.
 
 ```ts
 charts: [
@@ -771,8 +815,6 @@ await evalTracer.span(
       usage: result.usage,
       output: result,
     });
-    incrementEvalOutput('costUsd', computeCost(result));
-    appendToEvalOutput('llmCalls', { model: 'gpt-4o-mini' });
     return result;
   },
 );

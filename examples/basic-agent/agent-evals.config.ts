@@ -65,14 +65,6 @@ export const config: AgentEvalsConfig = {
     ],
     metrics: [
       {
-        label: 't/s',
-        tooltip: 'Tokens per second',
-        path: 'tokensPerSecond',
-        format: 'number',
-        numberFormat: { decimalPlaces: 1 },
-        placements: ['header', 'body'],
-      },
-      {
         label: 'Retries',
         path: 'retryCount',
         format: 'number',

@@ -1,7 +1,4 @@
-export type CustomerLookup = {
-  segment: 'standard' | 'vip';
-  summary: string;
-};
+export type CustomerLookup = { segment: 'standard' | 'vip'; summary: string };
 
 export function lookupCustomer(customerId: string): Promise<CustomerLookup> {
   return Promise.resolve({

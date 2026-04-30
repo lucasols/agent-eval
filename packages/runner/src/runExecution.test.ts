@@ -1,5 +1,6 @@
 import {
   configureEvalRunLogs,
+  evalSpan,
   evalLog,
   evalTracer,
   isInEvalScope,
@@ -9,9 +10,61 @@ import {
   z,
   type CacheAdapter,
 } from '@agent-evals/sdk';
-import type { CacheEntry } from '@agent-evals/shared';
+import { resolveLlmCallsConfig, type CacheEntry } from '@agent-evals/shared';
 import { expect, test } from 'vitest';
 import { buildScopedEvalIdPrefix, runCase } from './runExecution.ts';
+
+type RunCaseOverrides = Partial<Parameters<typeof runCase>[0]>;
+
+async function runDefaultLlmCase(overrides: RunCaseOverrides = {}) {
+  return await runCase({
+    evalDef: {
+      id: 'default-llm-eval',
+      execute: async () => {
+        await evalTracer.span({ kind: 'llm', name: 'answer' }, () => {
+          evalSpan.setAttributes({
+            model: 'gpt-4o-mini',
+            provider: 'openai',
+            usage: {
+              inputTokens: 100,
+              outputTokens: 40,
+              cachedInputTokens: 10,
+              cacheCreationInputTokens: 20,
+              reasoningTokens: 5,
+            },
+          });
+        });
+      },
+    },
+    evalId: 'default-llm-eval',
+    evalCase: { id: 'case-one', input: {} },
+    globalTraceDisplay: undefined,
+    llmCallsConfig: resolveLlmCallsConfig({
+      pricing: [
+        {
+          model: 'gpt-4o-mini',
+          provider: 'openai',
+          inputUsdPerMillion: 2,
+          outputUsdPerMillion: 10,
+          cachedInputUsdPerMillion: 0.2,
+          cacheCreationInputUsdPerMillion: 2.5,
+          reasoningUsdPerMillion: 20,
+        },
+      ],
+    }),
+    trial: 0,
+    startTime: Date.now(),
+    cacheAdapter: null,
+    cacheMode: 'use',
+    codeFingerprint: 'fingerprint',
+    moduleIsolation: undefined,
+    evalFilePath: '/repo/evals/default-llm.eval.ts',
+    workspaceRoot: '/repo',
+    artifactDir: '/repo/.agent-evals/runs/run-id/artifacts',
+    runId: 'run-id',
+    ...overrides,
+  });
+}
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -37,6 +90,97 @@ test('buildScopedEvalIdPrefix includes the workspace-relative eval file path', (
       workspaceRoot: '/repo',
     }),
   ).toBe('duplicate-id-evals-returns-refund-eval-ts-case-a');
+});
+
+test('runCase derives default LLM usage outputs from trace spans', async () => {
+  const result = await runDefaultLlmCase();
+
+  expect(result.caseDetail.columns).toMatchObject({
+    llmTurns: 1,
+    inputTokens: 100,
+    outputTokens: 40,
+    cachedInputTokens: 10,
+    cacheCreationInputTokens: 20,
+    reasoningTokens: 5,
+    totalTokens: 170,
+  });
+  expect(result.caseDetail.columns.costUsd).toBeCloseTo(0.000752);
+  expect(typeof result.caseDetail.columns.llmLatencyMs).toBe('number');
+});
+
+test('runCase does not overwrite authored outputs with default LLM usage', async () => {
+  const result = await runDefaultLlmCase({
+    evalDef: {
+      id: 'default-llm-eval',
+      execute: async () => {
+        setEvalOutput('costUsd', 42);
+        await evalTracer.span({ kind: 'llm', name: 'answer' }, () => {
+          evalSpan.setAttributes({
+            model: 'gpt-4o-mini',
+            provider: 'openai',
+            usage: { inputTokens: 100, outputTokens: 40 },
+          });
+        });
+      },
+    },
+  });
+
+  expect(result.caseDetail.columns.costUsd).toBe(42);
+  expect(result.caseDetail.columns.llmTurns).toBe(1);
+});
+
+test('runCase supports global and per-eval removal of default LLM usage', async () => {
+  const globallyRemoved = await runDefaultLlmCase({
+    globalRemoveDefaultLLMConfig: true,
+  });
+  expect(globallyRemoved.caseDetail.columns.llmTurns).toBeUndefined();
+  expect(globallyRemoved.caseDetail.columns.costUsd).toBeUndefined();
+
+  const partiallyRemoved = await runDefaultLlmCase({
+    evalDef: {
+      id: 'default-llm-eval',
+      removeDefaultLLMConfig: ['costUsd'],
+      execute: async () => {
+        await evalTracer.span({ kind: 'llm', name: 'answer' }, () => {
+          evalSpan.setAttributes({
+            model: 'gpt-4o-mini',
+            provider: 'openai',
+            usage: { inputTokens: 100, outputTokens: 40 },
+          });
+        });
+      },
+    },
+  });
+  expect(partiallyRemoved.caseDetail.columns.costUsd).toBeUndefined();
+  expect(partiallyRemoved.caseDetail.columns.llmTurns).toBe(1);
+});
+
+test('runCase validates typed outputs schema after default LLM outputs are added', async () => {
+  const result = await runDefaultLlmCase({
+    evalDef: {
+      id: 'default-llm-eval',
+      outputsSchema: z.object({
+        costUsd: z.number(),
+        llmTurns: z.number(),
+        response: z.string(),
+      }),
+      execute: async () => {
+        setEvalOutput('response', 'ok');
+        await evalTracer.span({ kind: 'llm', name: 'answer' }, () => {
+          evalSpan.setAttributes({
+            model: 'gpt-4o-mini',
+            provider: 'openai',
+            usage: { inputTokens: 100, outputTokens: 40 },
+          });
+        });
+      },
+    },
+  });
+
+  expect(result.caseDetail.status).toBe('pass');
+  expect(result.caseDetail.assertionFailures).toEqual([]);
+  expect(result.caseDetail.columns.costUsd).toBeCloseTo(0.0006);
+  expect(result.caseDetail.columns.llmTurns).toBe(1);
 });
 
 test('runCase gives execute and score scopes distinct deterministic eval IDs', async () => {

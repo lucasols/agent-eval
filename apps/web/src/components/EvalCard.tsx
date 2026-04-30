@@ -256,6 +256,7 @@ const SectionLabel = styled.div<{ collapsed: boolean }>`
 
 const SectionLabelLeft = styled.button`
   ${inline({ gap: 8, align: 'center' })}
+  min-width: 0;
   background: none;
   border: none;
   padding: 0;
@@ -299,14 +300,43 @@ const SectionMeta = styled.span`
   color: ${colors.textMuted.var};
 `;
 
+const SectionLabelRight = styled.span`
+  ${inline({ justify: 'right', align: 'center', gap: 10 })}
+  min-width: 0;
+  flex: 1;
+`;
+
+const CollapsedChartLabels = styled.span`
+  ${inline({ gap: 8, align: 'center' })}
+  min-width: 0;
+  justify-content: flex-end;
+  color: ${colors.textMuted.var};
+  font-size: 12px;
+`;
+
+const CollapsedChartLabelItem = styled.span`
+  ${inline({ gap: 8, align: 'center' })}
+  min-width: 0;
+`;
+
+const CollapsedChartLabel = styled.span`
+  ${ellipsis};
+  max-width: 180px;
+`;
+
+const CollapsedChartSeparator = styled.span`
+  color: ${colors.textMuted.var};
+`;
+
 const SCORE_HISTORY_COLLAPSED_STORAGE_KEY =
-  'agent-evals.eval-card.score-history-collapsed';
+  'agent-evals.eval-card.score-history-collapsed.v2';
 
 function readScoreHistoryCollapsed(): boolean {
-  if (typeof window === 'undefined') return false;
-  return (
-    window.localStorage.getItem(SCORE_HISTORY_COLLAPSED_STORAGE_KEY) === '1'
+  if (typeof window === 'undefined') return true;
+  const stored = window.localStorage.getItem(
+    SCORE_HISTORY_COLLAPSED_STORAGE_KEY,
   );
+  return stored === null ? true : stored === '1';
 }
 
 async function copyTextToClipboard(
@@ -347,6 +377,9 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const searchParams = useSearchParams();
 
   const charts = evalSummary.charts ?? [];
+  const chartLabels = charts.map(
+    (chart, index) => chart.heading ?? `Chart ${String(index + 1)}`,
+  );
   const {
     allRunRows,
     visibleRunRows,
@@ -744,9 +777,25 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
                   </SectionChevron>
                   <SectionLabelText>History</SectionLabelText>
                 </SectionLabelLeft>
-                <SectionMeta>
-                  {completedRunCount} {completedRunCount === 1 ? 'run' : 'runs'}
-                </SectionMeta>
+                <SectionLabelRight>
+                  {scoreHistoryCollapsed ? (
+                    <CollapsedChartLabels>
+                      {chartLabels.map((label, index) => (
+                        <CollapsedChartLabelItem key={`${label}-${index}`}>
+                          {index > 0 ? (
+                            <CollapsedChartSeparator>·</CollapsedChartSeparator>
+                          ) : null}
+                          <CollapsedChartLabel>{label}</CollapsedChartLabel>
+                        </CollapsedChartLabelItem>
+                      ))}
+                    </CollapsedChartLabels>
+                  ) : (
+                    <SectionMeta>
+                      {completedRunCount}{' '}
+                      {completedRunCount === 1 ? 'run' : 'runs'}
+                    </SectionMeta>
+                  )}
+                </SectionLabelRight>
               </SectionLabel>
               {scoreHistoryCollapsed
                 ? null
