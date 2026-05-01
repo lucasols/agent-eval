@@ -12,17 +12,10 @@ import {
   type RunSummary,
 } from '@agent-evals/shared';
 import { resultify } from 't-result';
+import { printHelp, type HelpTopic } from './cliHelp.ts';
+import { collectManualInputs } from './manualInputArgs.ts';
 
 type CliCommand = 'app' | 'list' | 'run' | 'show-runs' | 'cache' | 'help';
-type HelpTopic =
-  | 'global'
-  | 'app'
-  | 'list'
-  | 'run'
-  | 'show-runs'
-  | 'cache'
-  | 'cache list'
-  | 'cache clear';
 
 type CliArgs = {
   command: CliCommand;
@@ -41,6 +34,14 @@ type CliArgs = {
   clearCache: boolean;
   all: boolean;
   loadEnv: boolean;
+  /** JSON value supplied with `--input`; used as the manual input for a single targeted eval. */
+  inputJson: string | undefined;
+  /**
+   * Path supplied with `--input-file`; resolved as JSON. The file may be the
+   * raw input value (for a single-eval run) or an object keyed by eval key
+   * mapping to per-eval inputs (for multi-eval runs).
+   */
+  inputFilePath: string | undefined;
 };
 
 function parseArgs(argv: string[]): CliArgs {
@@ -62,6 +63,8 @@ function parseArgs(argv: string[]): CliArgs {
     clearCache: false,
     all: false,
     loadEnv: normalizedArgv.length === argv.length,
+    inputJson: undefined,
+    inputFilePath: undefined,
   };
 
   const command = normalizedArgv[0];
@@ -124,6 +127,12 @@ function parseArgs(argv: string[]): CliArgs {
       args.cacheMode = 'refresh';
     } else if (arg === '--clear-cache') {
       args.clearCache = true;
+    } else if (arg === '--input' && next !== undefined) {
+      args.inputJson = next;
+      i++;
+    } else if (arg === '--input-file' && next !== undefined) {
+      args.inputFilePath = next;
+      i++;
     } else if (arg === '--all') {
       args.all = true;
     } else if (!arg.startsWith('-')) {
@@ -418,10 +427,27 @@ async function commandRun(args: CliArgs): Promise<void> {
           ? { mode: 'evalIds' as const, files: args.files }
           : { mode: 'all' as const };
 
+  const manualInputsResult = await collectManualInputs({
+    runner,
+    args: {
+      evalIds: args.evalIds,
+      files: args.files,
+      caseIds: args.caseIds,
+      inputJson: args.inputJson,
+      inputFilePath: args.inputFilePath,
+    },
+  });
+  if (manualInputsResult.error !== null) {
+    console.error(manualInputsResult.error);
+    process.exit(1);
+    return;
+  }
+
   const run = await runner.startRun({
     target,
     trials: args.trials,
     cache: { mode: args.cacheMode },
+    manualInputs: manualInputsResult.value,
   });
 
   if (!args.json) {
@@ -772,127 +798,4 @@ async function waitForRunCompletion(
     };
     check();
   });
-}
-
-function printHelp(topic: HelpTopic = 'global'): void {
-  if (topic === 'app') {
-    console.info(`
-agent-evals app - Start server with UI
-
-Usage:
-  agent-evals app [flags]
-
-Flags:
-  --port <n>                 Server port (default: 4100)
-  --no-env                   Disable automatic .env loading
-  --help, -h                 Show this help
-  `);
-    return;
-  }
-
-  if (topic === 'list') {
-    console.info(`
-agent-evals list - List discovered evals
-
-Usage:
-  agent-evals list [flags]
-
-Flags:
-  --no-env                   Disable automatic .env loading
-  --help, -h                 Show this help
-  `);
-    return;
-  }
-
-  if (topic === 'run') {
-    console.info(`
-agent-evals run - Run evals
-
-Usage:
-  agent-evals run [flags]
-
-Flags:
-  --eval <id>                Run specific eval(s) (comma-separated)
-  --file <path|glob>         Run eval files matching path/glob (comma-separated)
-  --case <id>                Run case(s); combine with --file/--eval if ambiguous
-  --trials <n>               Number of trials per case
-  --inspect[=host:port]      Run with the Node.js inspector enabled
-  --inspect-brk[=host:port]  Enable inspector and pause before startup
-  --json                     Output run summary as JSON
-  --cache <use|bypass|refresh>  Cache mode for this run (default: use)
-  --no-cache                 Shortcut for --cache bypass
-  --refresh-cache            Shortcut for --cache refresh
-  --clear-cache              Clear the cache before starting the run
-  --no-env                   Disable automatic .env loading
-  --help, -h                 Show this help
-  `);
-    return;
-  }
-
-  if (topic === 'show-runs') {
-    console.info(`
-agent-evals show-runs - Show saved run artifact file paths
-
-Usage:
-  agent-evals show-runs [<run-id>|latest] [--json]
-
-Prints the run directory and stable artifact paths for run.json, summary.json,
-cases.jsonl, case detail JSON, and trace JSON files. Run ids can be full
-timestamp ids, short ids such as r0, or latest.
-
-Flags:
-  --json                     Output the file index as JSON
-  --no-env                   Disable automatic .env loading
-  --help, -h                 Show this help
-  `);
-    return;
-  }
-
-  if (topic === 'cache' || topic === 'cache list' || topic === 'cache clear') {
-    console.info(`
-agent-evals cache - Manage cached operation entries
-
-Usage:
-  agent-evals cache list [flags]
-  agent-evals cache clear --eval <id>
-  agent-evals cache clear --all
-
-Flags:
-  --eval <id>                Clear entries for specific eval(s) (comma-separated)
-  --all                      Confirm clearing every cached entry
-  --json                     Output cache listing as JSON
-  --no-env                   Disable automatic .env loading
-  --help, -h                 Show this help
-  `);
-    return;
-  }
-
-  console.info(`
-agent-evals - LLM/Agent eval runner
-
-Commands:
-  app                        Start server with UI
-  list                       List discovered evals
-  run                        Run evals
-  show-runs [id|latest]      Show saved run artifact file paths
-  cache list                 List cached operation entries
-  cache clear --eval <id>    Clear cache entries for one eval
-  cache clear --all          Clear every cached entry
-  help                       Show this help
-
-Options:
-  --eval <id>                Run specific eval(s) (comma-separated)
-  --case <id>                Run specific case(s) (comma-separated)
-  --trials <n>               Number of trials per case
-  --inspect[=host:port]      Run with the Node.js inspector enabled
-  --inspect-brk[=host:port]  Enable inspector and pause before startup
-  --json                     Output results as JSON
-  --port <n>                 Server port (default: 4100)
-  --cache <use|bypass|refresh>  Cache mode for this run (default: use)
-  --no-cache                 Shortcut for --cache bypass
-  --refresh-cache            Shortcut for --cache refresh
-  --clear-cache              Clear the cache before starting the run
-  --no-env                   Disable automatic .env loading
-  --help, -h                 Show help
-  `);
 }

@@ -8,6 +8,7 @@ import {
   createRunRequestSchema,
   evalChartsConfigSchema,
   evalStatsConfigSchema,
+  manualInputDescriptorSchema,
   runManifestSchema,
   runSummarySchema,
   type CreateRunRequest,
@@ -38,6 +39,8 @@ const evalMetaSchema = z.object({
   caseCount: z.number().nullable(),
   stats: evalStatsConfigSchema.optional(),
   charts: evalChartsConfigSchema.optional(),
+  manualInputDescriptor: manualInputDescriptorSchema.optional(),
+  requiresManualInput: z.boolean().optional(),
 });
 
 const runChildContextSchema = z.object({

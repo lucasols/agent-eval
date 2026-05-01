@@ -229,7 +229,39 @@ export type RunTarget =
     };
 
 /** Optional run-start options, notably the cache mode. */
-export type StartRunOptions = { cacheMode?: CacheMode };
+export type StartRunOptions = {
+  cacheMode?: CacheMode;
+  /**
+   * Manual-input payload keyed by eval key. Set when the user submitted the
+   * `ManualInputModal` for a run that targets one or more evals declaring
+   * `manualInput`. The server validates each entry against its eval schema.
+   */
+  manualInputs?: Record<string, unknown>;
+};
+
+const manualInputValidationFailureSchema = z.object({
+  evalKey: z.string(),
+  evalId: z.string(),
+  reason: z.enum(['missing', 'invalid']),
+  issues: z.array(z.object({ path: z.string(), message: z.string() })),
+});
+
+const manualInputValidationErrorBodySchema = z.object({
+  error: z.literal('Manual input validation failed'),
+  failures: z.array(manualInputValidationFailureSchema),
+});
+
+/** Per-eval manual-input failure surfaced from a 400 `POST /api/runs` response. */
+export type ManualInputStartRunFailure = z.infer<
+  typeof manualInputValidationFailureSchema
+>;
+
+/** Result of {@link startRun}, including structured manual-input failures. */
+export type StartRunResult =
+  | { status: 'started' }
+  | { status: 'cancelled' }
+  | { status: 'manual-input-error'; failures: ManualInputStartRunFailure[] }
+  | { status: 'error'; message: string };
 
 const LARGE_APP_RUN_CONFIRM_EVAL_COUNT = 5;
 
@@ -252,33 +284,62 @@ function confirmLargeAppRun(target: RunTarget): boolean {
 export async function startRun(
   target: RunTarget,
   options: StartRunOptions = {},
-): Promise<void> {
-  if (!confirmLargeAppRun(target)) return;
+): Promise<StartRunResult> {
+  if (!confirmLargeAppRun(target)) return { status: 'cancelled' };
 
   const { trials } = runStore.state;
   const cacheMode = options.cacheMode ?? 'use';
+  const body: Record<string, unknown> = {
+    target,
+    trials,
+    cache: { mode: cacheMode },
+  };
+  if (options.manualInputs) body.manualInputs = options.manualInputs;
 
   const fetchResult = await resultify(() =>
     fetch('/api/runs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ target, trials, cache: { mode: cacheMode } }),
+      body: JSON.stringify(body),
     }),
   );
-  if (fetchResult.error) return;
+  if (fetchResult.error) {
+    return { status: 'error', message: fetchResult.error.message };
+  }
 
   const jsonResult = await resultify(() => fetchResult.value.json());
-  if (jsonResult.error) return;
+  if (jsonResult.error) {
+    return { status: 'error', message: 'Server returned non-JSON response' };
+  }
+
+  if (!fetchResult.value.ok) {
+    const validationParse = manualInputValidationErrorBodySchema.safeParse(
+      jsonResult.value,
+    );
+    if (validationParse.success) {
+      return {
+        status: 'manual-input-error',
+        failures: validationParse.data.failures,
+      };
+    }
+    return {
+      status: 'error',
+      message: `Server responded ${String(fetchResult.value.status)}`,
+    };
+  }
 
   const parseResult = resultify(() =>
     createRunResponseSchema.parse(jsonResult.value),
   );
-  if (parseResult.error) return;
+  if (parseResult.error) {
+    return { status: 'error', message: 'Run response did not match schema' };
+  }
 
   runStore.setPartialState({ currentRun: parseResult.value });
   setCaseSelection(null);
 
   subscribeToRunEvents(parseResult.value.manifest.id);
+  return { status: 'started' };
 }
 
 function safeJsonParse(raw: string): unknown {

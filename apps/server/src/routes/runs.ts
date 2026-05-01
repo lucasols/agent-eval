@@ -47,6 +47,16 @@ export const runsRoutes = new Hono()
   .post('/', zValidator('json', createRunRequestSchema), async (c) => {
     const body = c.req.valid('json');
     const runner = getRunnerInstance();
+    const validation = runner.validateManualInputs(body);
+    if (!validation.ok) {
+      return c.json(
+        {
+          error: 'Manual input validation failed',
+          failures: validation.failures,
+        },
+        400,
+      );
+    }
     const run = await runner.startRun(body);
     return c.json(run, 201);
   })

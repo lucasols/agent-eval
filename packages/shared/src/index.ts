@@ -143,6 +143,21 @@ export {
   type UpdateManualScoreRequest,
 } from './schemas/api.ts';
 export {
+  manualInputBooleanFieldSchema,
+  manualInputDescriptorSchema,
+  manualInputFieldDescriptorSchema,
+  manualInputJsonFieldSchema,
+  manualInputMultilineFieldSchema,
+  manualInputNumberFieldSchema,
+  manualInputSelectFieldSchema,
+  manualInputSelectOptionSchema,
+  manualInputTextFieldSchema,
+  type ManualInputDescriptor,
+  type ManualInputFieldDescriptor,
+  type ManualInputFieldKind,
+  type ManualInputSelectOption,
+} from './schemas/manualInput.ts';
+export {
   trialSelectionModeSchema,
   defaultConfigKeySchema,
   evalColumnOverrideSchema,

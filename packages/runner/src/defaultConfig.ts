@@ -222,6 +222,7 @@ export function appendDefaultCharts(params: {
     defaults.push({
       heading: 'LLM Cost',
       hideIfNoValue: true,
+      dedupeConsecutiveValues: true,
       type: 'area',
       metrics: [
         {
@@ -235,7 +236,7 @@ export function appendDefaultCharts(params: {
     });
   }
 
-  const tokenMetrics = [
+  const inputTokenMetrics = [
     activeKeys.has('inputTokens')
       ? {
           source: 'column' as const,
@@ -243,15 +244,6 @@ export function appendDefaultCharts(params: {
           aggregate: 'avg' as const,
           label: 'Input',
           color: 'accent' as const,
-        }
-      : null,
-    activeKeys.has('outputTokens')
-      ? {
-          source: 'column' as const,
-          key: 'outputTokens',
-          aggregate: 'avg' as const,
-          label: 'Output',
-          color: 'success' as const,
         }
       : null,
     activeKeys.has('cachedInputTokens')
@@ -274,22 +266,31 @@ export function appendDefaultCharts(params: {
       : null,
   ].filter((metric) => metric !== null);
 
-  if (tokenMetrics.length > 0) {
+  if (inputTokenMetrics.length > 0) {
     defaults.push({
-      heading: 'LLM Tokens',
+      heading: 'LLM Input Tokens',
       hideIfNoValue: true,
+      dedupeConsecutiveValues: true,
       type: 'bar',
-      metrics: tokenMetrics,
-      tooltipExtras: activeKeys.has('totalTokens')
-        ? [
-            {
-              source: 'column',
-              key: 'totalTokens',
-              aggregate: 'avg',
-              label: 'Total',
-            },
-          ]
-        : undefined,
+      metrics: inputTokenMetrics,
+    });
+  }
+
+  if (activeKeys.has('outputTokens')) {
+    defaults.push({
+      heading: 'LLM Output Tokens',
+      hideIfNoValue: true,
+      dedupeConsecutiveValues: true,
+      type: 'bar',
+      metrics: [
+        {
+          source: 'column',
+          key: 'outputTokens',
+          aggregate: 'avg',
+          label: 'Output',
+          color: 'success',
+        },
+      ],
     });
   }
 

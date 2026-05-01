@@ -561,6 +561,7 @@ defineEval({
         {
           heading: 'LLM Cost',
           hideIfNoValue: true,
+          dedupeConsecutiveValues: true,
           type: 'area',
           metrics: [
             {
@@ -574,8 +575,9 @@ defineEval({
           tooltipExtras: undefined,
         },
         {
-          heading: 'LLM Tokens',
+          heading: 'LLM Input Tokens',
           hideIfNoValue: true,
+          dedupeConsecutiveValues: true,
           type: 'bar',
           metrics: [
             {
@@ -584,13 +586,6 @@ defineEval({
               aggregate: 'avg',
               label: 'Input',
               color: 'accent',
-            },
-            {
-              source: 'column',
-              key: 'outputTokens',
-              aggregate: 'avg',
-              label: 'Output',
-              color: 'success',
             },
             {
               source: 'column',
@@ -607,14 +602,23 @@ defineEval({
               color: 'warning',
             },
           ],
-          tooltipExtras: [
+          tooltipExtras: undefined,
+        },
+        {
+          heading: 'LLM Output Tokens',
+          hideIfNoValue: true,
+          dedupeConsecutiveValues: true,
+          type: 'bar',
+          metrics: [
             {
               source: 'column',
-              key: 'totalTokens',
+              key: 'outputTokens',
               aggregate: 'avg',
-              label: 'Total',
+              label: 'Output',
+              color: 'success',
             },
           ],
+          tooltipExtras: undefined,
         },
       ]);
     } finally {

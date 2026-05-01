@@ -5,6 +5,7 @@ import type {
   RunManifest,
 } from '@agent-evals/shared';
 import { describe, expect, test } from 'vitest';
+import { buildChartPoints } from '../../../apps/web/src/utils/chartData.ts';
 import { chartHasNumericValue } from '../../../apps/web/src/utils/chartVisibility.ts';
 import {
   buildEvalDebugCliCommand,
@@ -14,8 +15,57 @@ import { getVisibleRunTableColumns } from '../../../apps/web/src/utils/columnVis
 import {
   buildEvalScopedRunRows,
   scopeRunCases,
+  type ScopedRunRow,
 } from '../../../apps/web/src/utils/evalRuns.ts';
 import { shouldShowStatDisplay } from '../../../apps/web/src/utils/statVisibility.ts';
+
+function createScopedRun(params: {
+  id: string;
+  quality: number | null;
+  cost: number | null;
+}): ScopedRunRow {
+  const columns: CaseRow['columns'] = {};
+  if (params.quality !== null) columns.quality = params.quality;
+  if (params.cost !== null) columns.costUsd = params.cost;
+
+  return {
+    manifest: {
+      id: params.id,
+      shortId: `r${params.id}`,
+      status: 'completed',
+      startedAt: `2026-04-21T12:00:0${params.id}.000Z`,
+      endedAt: `2026-04-21T12:00:1${params.id}.000Z`,
+      commitSha: null,
+      evalSourceFingerprints: {},
+      target: { mode: 'all' },
+      trials: 1,
+      trialSelection: 'lowestScore',
+      cacheMode: 'use',
+    },
+    summary: {
+      status: 'pass',
+      totalCases: 1,
+      passedCases: 1,
+      failedCases: 0,
+      errorCases: 0,
+      cancelledCases: 0,
+      runningCases: 0,
+      pendingCases: 0,
+      totalDurationMs: 1,
+    },
+    cases: [
+      {
+        caseId: 'case-1',
+        evalId: 'eval-1',
+        evalKey: 'eval-1',
+        status: 'pass',
+        durationMs: 1,
+        columns,
+        trial: 0,
+      },
+    ],
+  };
+}
 
 describe('eval run rows ui', () => {
   test('builds package-manager-specific eval run commands', () => {
@@ -301,5 +351,54 @@ describe('eval run rows ui', () => {
         { values: { 'column:quality:avg': 0 } },
       ]),
     ).toBe(true);
+  });
+
+  test('dedupes consecutive chart points by metric and tooltip values', () => {
+    const chartConfig: EvalChartConfig = {
+      type: 'line',
+      dedupeConsecutiveValues: true,
+      metrics: [{ source: 'column', key: 'quality', aggregate: 'avg' }],
+      tooltipExtras: [{ source: 'column', key: 'costUsd', aggregate: 'avg' }],
+    };
+
+    const data = buildChartPoints({
+      rows: [
+        createScopedRun({ id: '5', quality: 1, cost: 12 }),
+        createScopedRun({ id: '4', quality: 1, cost: 11 }),
+        createScopedRun({ id: '3', quality: 1, cost: 11 }),
+        createScopedRun({ id: '2', quality: null, cost: null }),
+        createScopedRun({ id: '1', quality: null, cost: null }),
+      ],
+      config: chartConfig,
+      columnDefs: [
+        { key: 'quality', label: 'Quality', kind: 'number' },
+        { key: 'costUsd', label: 'Cost', kind: 'number' },
+      ],
+    });
+
+    expect(data.map((point) => point.shortId)).toEqual(['r1', 'r3', 'r5']);
+    expect(data.map((point) => point.axisLabel)).toEqual(['1', '3', 'LATEST']);
+  });
+
+  test('keeps non-consecutive repeated chart values', () => {
+    const chartConfig: EvalChartConfig = {
+      type: 'line',
+      dedupeConsecutiveValues: true,
+      metrics: [{ source: 'column', key: 'quality', aggregate: 'avg' }],
+    };
+
+    const data = buildChartPoints({
+      rows: [
+        createScopedRun({ id: '4', quality: 1, cost: null }),
+        createScopedRun({ id: '3', quality: 2, cost: null }),
+        createScopedRun({ id: '2', quality: 1, cost: null }),
+        createScopedRun({ id: '1', quality: 1, cost: null }),
+      ],
+      config: chartConfig,
+      columnDefs: [{ key: 'quality', label: 'Quality', kind: 'number' }],
+    });
+
+    expect(data.map((point) => point.shortId)).toEqual(['r1', 'r3', 'r4']);
+    expect(data.at(-1)?.axisLabel).toBe('LATEST');
   });
 });

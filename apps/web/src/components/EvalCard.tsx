@@ -24,6 +24,7 @@ import {
   setRunFilterSearchParam,
 } from '#src/components/EvalRunsSection';
 import { IconButton } from '#src/components/IconButton';
+import { ManualInputModal } from '#src/components/ManualInputModal';
 import { MenuButton } from '#src/components/MenuButton';
 import { PathBreadcrumb } from '#src/components/PathBreadcrumb';
 import {
@@ -32,6 +33,7 @@ import {
 } from '#src/components/SplitButton';
 import { StatusBadge } from '#src/components/StatusBadge';
 import { Tooltip } from '#src/components/Tooltip';
+import { useManualInputRun } from '#src/hooks/useManualInputRun';
 import { useSearchParams } from '#src/hooks/useSearchParams';
 import { evalsStore, openEvalInEditor } from '#src/stores/evalsStore';
 import { getRunsForEval, historyStore } from '#src/stores/historyStore';
@@ -66,6 +68,7 @@ import {
 import { buildEvalScopedRunRows } from '#src/utils/evalRuns';
 import { computeStatDisplay } from '#src/utils/evalStats';
 import { getFreshnessTooltip } from '#src/utils/freshness';
+import { runTargetsEval as runTargetsEvalLocal } from '#src/utils/runTargeting';
 import { shouldShowStatDisplay } from '#src/utils/statVisibility';
 
 type EvalCardProps = { evalSummary: EvalSummary; mode: 'single' | 'stacked' };
@@ -489,9 +492,23 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
       ? getFreshnessTooltip(evalSummary)
       : undefined;
 
+  const requiresManualInput = evalSummary.manualInput !== undefined;
+  const manualInputRun = useManualInputRun(evalSummary);
+
+  function startEvalRun(cacheMode: 'use' | 'bypass' | 'refresh') {
+    if (requiresManualInput) {
+      manualInputRun.open(cacheMode);
+      return;
+    }
+    void startRun(
+      { mode: 'evalIds', evalKeys: [evalSummary.key] },
+      { cacheMode },
+    );
+  }
+
   function handleRun(e: React.MouseEvent) {
     e.stopPropagation();
-    void startRun({ mode: 'evalIds', evalKeys: [evalSummary.key] });
+    startEvalRun('use');
   }
 
   function handleStop(e: React.MouseEvent) {
@@ -504,34 +521,19 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
       id: 'run-default',
       label: 'Run (use cache)',
       description: 'Read on hit, write on miss.',
-      onSelect: () => {
-        void startRun(
-          { mode: 'evalIds', evalKeys: [evalSummary.key] },
-          { cacheMode: 'use' },
-        );
-      },
+      onSelect: () => startEvalRun('use'),
     },
     {
       id: 'run-no-cache',
       label: 'Run without cache',
       description: 'Skip reads and writes for this run.',
-      onSelect: () => {
-        void startRun(
-          { mode: 'evalIds', evalKeys: [evalSummary.key] },
-          { cacheMode: 'bypass' },
-        );
-      },
+      onSelect: () => startEvalRun('bypass'),
     },
     {
       id: 'run-refresh',
       label: 'Refresh cache',
       description: 'Force re-execution and overwrite entries.',
-      onSelect: () => {
-        void startRun(
-          { mode: 'evalIds', evalKeys: [evalSummary.key] },
-          { cacheMode: 'refresh' },
-        );
-      },
+      onSelect: () => startEvalRun('refresh'),
     },
     { kind: 'separator' },
     {
@@ -862,17 +864,17 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
           </Section>
         </Body>
       ) : null}
+      {requiresManualInput && evalSummary.manualInput ? (
+        <ManualInputModal
+          evalSummary={evalSummary}
+          descriptor={evalSummary.manualInput}
+          isOpen={manualInputRun.isOpen}
+          onCancel={manualInputRun.cancel}
+          onSubmit={manualInputRun.submit}
+          serverFailure={manualInputRun.serverFailure}
+          isSubmitting={manualInputRun.isSubmitting}
+        />
+      ) : null}
     </Card>
   );
-}
-
-function runTargetsEvalLocal(
-  target: { mode: string; evalIds?: string[]; evalKeys?: string[] },
-  evalKey: string,
-): boolean {
-  if (target.mode === 'all') return true;
-  if (target.mode === 'evalIds') {
-    return target.evalKeys?.includes(evalKey) ?? false;
-  }
-  return false;
 }

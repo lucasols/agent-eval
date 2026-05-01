@@ -161,6 +161,80 @@ export type EvalManualScoreDef = EvalColumnOverride & {
   passThreshold?: number;
 };
 
+/**
+ * Per-field override applied on top of the configuration derived from the
+ * eval's `manualInput.schema`. Every property is optional; missing values
+ * fall back to whatever the schema-walker inferred.
+ */
+export type ManualInputFieldOverride = {
+  /** Display label rendered next to the field. Defaults to a humanised key. */
+  label?: string;
+  /** Optional helper text rendered under the label. */
+  description?: string;
+  /** Optional placeholder rendered inside the input. */
+  placeholder?: string;
+  /**
+   * Force the textarea/multiline widget for a string field. By default a
+   * `z.string()` field renders as a single-line text input.
+   */
+  multiline?: boolean;
+  /**
+   * Suggested number of visible textarea rows when `multiline` is enabled or
+   * the field falls back to the JSON widget. UIs may clamp this value.
+   */
+  rows?: number;
+  /**
+   * Force the JSON textarea widget. Use when a field's Zod type is supported
+   * natively but you want the raw JSON authoring experience instead.
+   */
+  asJson?: boolean;
+  /**
+   * Override the inferred default value. Useful when the schema has no
+   * `.default()` but you want the modal to prefill a starting value.
+   */
+  defaultValue?: unknown;
+  /**
+   * Override the inferred select options. Each entry may be a plain string
+   * (used as both value and label) or a `{ value, label }` pair.
+   */
+  options?: Array<string | { value: string; label?: string }>;
+};
+
+/**
+ * Per-field override map accepted by `manualInput.fields`. Keys must match a
+ * top-level field on the eval's `manualInput.schema` object shape.
+ */
+export type ManualInputFieldsConfig<TInput> = {
+  [K in Extract<keyof TInput, string>]?: ManualInputFieldOverride;
+};
+
+/**
+ * Manual-input configuration for an eval. When set, every run of the eval
+ * pauses on a modal in the web UI (or requires `--input` / `--input-file`
+ * in the CLI) until the user submits values matching `schema`. The
+ * validated values become the input for a single synthetic case per run.
+ *
+ * `schema` is bound to the eval's `TInput` generic, so the values delivered
+ * to `execute` are end-to-end type-safe. Authoring `cases` and `manualInput`
+ * on the same eval is rejected at discovery time.
+ */
+export type EvalManualInputConfig<TInput> = {
+  /** Zod schema describing the user-entered input. Must produce `TInput`. */
+  schema: z.ZodType<TInput>;
+  /** Optional title shown in the modal header. Defaults to the eval title. */
+  title?: string;
+  /** Optional helper text rendered above the form. */
+  description?: string;
+  /** Optional submit button label. Defaults to `Run`. */
+  submitLabel?: string;
+  /**
+   * Optional per-field overrides merged on top of the configuration derived
+   * from `schema`. Keys must match a top-level field on the schema's object
+   * shape.
+   */
+  fields?: ManualInputFieldsConfig<TInput>;
+};
+
 type EvalDefinitionOutputSchemaConfig<TOutputs extends EvalOutputs> = [
   EvalOutputs,
 ] extends [TOutputs]
@@ -220,8 +294,23 @@ type EvalDefinitionBase<
    *
    * When omitted or resolved to an empty array, the runner still executes the
    * eval once using a synthetic case with empty object input.
+   *
+   * Mutually exclusive with `manualInput`: declaring both raises a discovery
+   * issue and prevents the eval from running. Manual-input evals always
+   * produce a single synthetic case whose input is the user-submitted value.
    */
   cases?: EvalCase<TInput>[] | (() => Promise<EvalCase<TInput>[]>);
+  /**
+   * Pause every run on a modal in the web UI (or require `--input` /
+   * `--input-file` from the CLI) and use the user-submitted, schema-validated
+   * value as the case input.
+   *
+   * Default field configuration is derived from `manualInput.schema`; per
+   * field overrides under `manualInput.fields` can replace labels, mark a
+   * string field as multiline, override the default value, etc. Mutually
+   * exclusive with `cases`.
+   */
+  manualInput?: EvalManualInputConfig<TInput>;
   /**
    * Output and score column display overrides for this eval.
    *
@@ -325,7 +414,9 @@ type EvalDefinitionBase<
    * across the run using an `aggregate` reducer (`avg`, `sum`, `min`, `max`,
    * `latest`, `passThresholdRate`). `passThresholdRate` requires a score column
    * with `passThreshold`. Set `hideIfNoValue` to hide a chart until at least
-   * one metric has a numeric value in the rendered history window.
+   * one metric has a numeric value in the rendered history window. Set
+   * `dedupeConsecutiveValues` to drop consecutive history points when the
+   * chart's plotted metrics and tooltip extras match the previous kept point.
    */
   charts?: EvalChartsConfig;
   /**

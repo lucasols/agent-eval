@@ -1,13 +1,21 @@
 import type {
+  CaseRow,
   ColumnDef,
   EvalChartAggregate,
   EvalChartConfig,
   EvalChartMetric,
   EvalChartTooltipExtra,
+  RunManifest,
+  ScopedCaseSummary,
 } from '@agent-evals/shared';
-import type { ScopedRunRow } from '#src/utils/evalRuns';
 
 const RUN_SHORT_ID_PREFIX = /^r/;
+
+type ChartRunRow = {
+  manifest: RunManifest;
+  summary: ScopedCaseSummary;
+  cases: CaseRow[];
+};
 
 /**
  * One point in a per-eval history chart series. `values` is flat-keyed using
@@ -20,6 +28,8 @@ export type ChartPoint = {
   startedAt: string;
   values: Record<string, number | null>;
 };
+
+type UnlabeledChartPoint = Omit<ChartPoint, 'axisLabel'>;
 
 /**
  * Stable, deterministic series id used for recharts `dataKey` lookups and for
@@ -67,7 +77,7 @@ function aggregateColumn(params: {
 }
 
 function computeColumnValue(params: {
-  row: ScopedRunRow;
+  row: ChartRunRow;
   key: string;
   aggregate: EvalChartAggregate;
   columnsByKey: Map<string, ColumnDef>;
@@ -88,7 +98,7 @@ function computeColumnValue(params: {
 }
 
 function computeBuiltinValue(params: {
-  row: ScopedRunRow;
+  row: ChartRunRow;
   metric: 'passRate' | 'durationMs';
 }): number | null {
   const { row, metric } = params;
@@ -102,7 +112,7 @@ function computeBuiltinValue(params: {
 }
 
 function computeMetricValue(params: {
-  row: ScopedRunRow;
+  row: ChartRunRow;
   metric: EvalChartMetric | EvalChartTooltipExtra;
   columnsByKey: Map<string, ColumnDef>;
 }): number | null {
@@ -118,14 +128,42 @@ function computeMetricValue(params: {
   });
 }
 
+function chartValuesAreEqual(params: {
+  left: UnlabeledChartPoint;
+  right: UnlabeledChartPoint;
+  keys: string[];
+}): boolean {
+  return params.keys.every(
+    (key) => params.left.values[key] === params.right.values[key],
+  );
+}
+
+function dedupeChartPoints(params: {
+  points: UnlabeledChartPoint[];
+  keys: string[];
+}): UnlabeledChartPoint[] {
+  const deduped: UnlabeledChartPoint[] = [];
+  for (const point of params.points) {
+    const previous = deduped.at(-1);
+    if (
+      previous !== undefined &&
+      chartValuesAreEqual({ left: previous, right: point, keys: params.keys })
+    ) {
+      continue;
+    }
+    deduped.push(point);
+  }
+  return deduped;
+}
+
 /**
  * Build chart points for one eval history chart from the last N completed runs
  * for the scoped eval. Only completed runs with at least one case contribute,
  * matching the current chart behavior. The oldest-first output is what recharts
- * expects; the newest point is labeled `LATEST`.
+ * expects; the newest kept point is labeled `LATEST`.
  */
 export function buildChartPoints(params: {
-  rows: ScopedRunRow[];
+  rows: ChartRunRow[];
   config: EvalChartConfig;
   columnDefs: ColumnDef[];
   limit?: number;
@@ -144,8 +182,9 @@ export function buildChartPoints(params: {
     ...config.metrics,
     ...(config.tooltipExtras ?? []),
   ];
+  const metricKeys = allMetrics.map(metricId);
 
-  return completed.map((row, index, list) => {
+  const points = completed.map((row) => {
     const values: Record<string, number | null> = {};
     for (const metric of allMetrics) {
       values[metricId(metric)] = computeMetricValue({
@@ -155,13 +194,22 @@ export function buildChartPoints(params: {
       });
     }
     return {
-      axisLabel:
-        index === list.length - 1
-          ? 'LATEST'
-          : row.manifest.shortId.replace(RUN_SHORT_ID_PREFIX, ''),
       shortId: row.manifest.shortId,
       startedAt: row.manifest.startedAt,
       values,
     };
   });
+
+  const renderedPoints =
+    config.dedupeConsecutiveValues === true
+      ? dedupeChartPoints({ points, keys: metricKeys })
+      : points;
+
+  return renderedPoints.map((point, index, list) => ({
+    ...point,
+    axisLabel:
+      index === list.length - 1
+        ? 'LATEST'
+        : point.shortId.replace(RUN_SHORT_ID_PREFIX, ''),
+  }));
 }

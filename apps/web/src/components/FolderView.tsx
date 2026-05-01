@@ -234,9 +234,27 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
     ({ key }) => breakdown[key] > 0 || statusFilters.has(key),
   );
 
-  function handleRunAll() {
+  function startRunForEvalKeys(cacheMode?: 'use' | 'bypass' | 'refresh'): void {
     if (evalKeys.length === 0) return;
-    void startRun({ mode: 'evalIds', evalKeys });
+    const skipped = filteredEvals.filter((ev) => ev.manualInput !== undefined);
+    const runnableKeys = filteredEvals
+      .filter((ev) => ev.manualInput === undefined)
+      .map((ev) => ev.key);
+    if (skipped.length > 0) {
+      const skippedNames = skipped.map((ev) => ev.title ?? ev.id).join(', ');
+      window.alert(
+        `Skipping ${String(skipped.length)} eval(s) that require manual input — run them individually: ${skippedNames}`,
+      );
+    }
+    if (runnableKeys.length === 0) return;
+    void startRun(
+      { mode: 'evalIds', evalKeys: runnableKeys },
+      cacheMode ? { cacheMode } : {},
+    );
+  }
+
+  function handleRunAll() {
+    startRunForEvalKeys();
   }
 
   function handleStop() {
@@ -266,25 +284,19 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
       id: 'run-default',
       label: 'Run (use cache)',
       description: 'Read on hit, write on miss.',
-      onSelect: () => {
-        void startRun({ mode: 'evalIds', evalKeys }, { cacheMode: 'use' });
-      },
+      onSelect: () => startRunForEvalKeys('use'),
     },
     {
       id: 'run-no-cache',
       label: 'Run without cache',
       description: 'Skip reads and writes for this run.',
-      onSelect: () => {
-        void startRun({ mode: 'evalIds', evalKeys }, { cacheMode: 'bypass' });
-      },
+      onSelect: () => startRunForEvalKeys('bypass'),
     },
     {
       id: 'run-refresh',
       label: 'Refresh cache',
       description: 'Force re-execution and overwrite entries.',
-      onSelect: () => {
-        void startRun({ mode: 'evalIds', evalKeys }, { cacheMode: 'refresh' });
-      },
+      onSelect: () => startRunForEvalKeys('refresh'),
     },
     { kind: 'separator' },
     {

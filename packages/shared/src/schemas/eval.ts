@@ -7,6 +7,7 @@ import {
   columnFormatSchema,
   numberDisplayOptionsSchema,
 } from './display.ts';
+import { manualInputDescriptorSchema } from './manualInput.ts';
 import { traceDisplayConfigSchema, traceSpanSchema } from './trace.ts';
 
 /** Freshness signal derived from the latest relevant run plus git state. */
@@ -105,6 +106,12 @@ export const evalSummarySchema = z.object({
    * when omitted or empty, the UI renders no history chart at all.
    */
   charts: evalChartsConfigSchema.optional(),
+  /**
+   * Manual-input form descriptor when the eval declares `manualInput`. The
+   * web UI renders these fields in a modal before kicking off a run; the
+   * runner consumes the validated values as the case input.
+   */
+  manualInput: manualInputDescriptorSchema.optional(),
 });
 /** Metadata shown for one discovered eval in the explorer UI. */
 export type EvalSummary = z.infer<typeof evalSummarySchema>;
@@ -259,7 +266,7 @@ export type CaseDetail = z.infer<typeof caseDetailSchema>;
 
 /** Schema for discovery problems that should be shown before running evals. */
 export const discoveryIssueSchema = z.object({
-  type: z.enum(['duplicate-eval-id']),
+  type: z.enum(['duplicate-eval-id', 'manual-input-with-cases']),
   severity: z.enum(['error']),
   filePath: z.string(),
   evalId: z.string(),

@@ -230,6 +230,40 @@ Case `id` values anchor historical runs, caches, and manual scores — keep them
 stable. See `EvalDefinition` / `EvalCase` in the types for every supported
 field.
 
+### Manual input
+
+Use `manualInput` instead of `cases` when each run should pause for the user
+to type values:
+
+```ts
+const inputSchema = z.object({
+  name: z.string().min(1),
+  tone: z.enum(['friendly', 'formal']),
+  notes: z.string().max(500).optional(),
+  sendEmail: z.boolean().default(false),
+});
+
+defineEval<z.infer<typeof inputSchema>>({
+  id: 'manual-input-greeting',
+  manualInput: {
+    schema: inputSchema,
+    title: 'Greet someone',
+    submitLabel: 'Greet',
+    fields: { notes: { multiline: true, rows: 4 } },
+  },
+  execute: ({ input, setOutput }) => {
+    setOutput('greeting', `Hi, ${input.name}!`);
+  },
+});
+```
+
+The web UI opens a modal driven by the descriptor derived from the schema
+(`z.string` → text, `z.enum` → select, `z.boolean` → checkbox, etc.; nested
+shapes fall back to a JSON textarea). The CLI accepts `--input '<json>'` for a
+single targeted eval or `--input-file <path>` mapping eval keys/ids to inputs.
+Each run produces one synthetic case `<evalId>-manual` with the validated
+submission; mixing `manualInput` with `cases` is rejected at discovery time.
+
 ## Scoring
 
 Every score returns a normalized `0..1` value. Pass/fail is per-score: a case
@@ -308,8 +342,10 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   `cacheCreationInputTokens`, `reasoningTokens`, and `llmDurationMs`. Authored
   outputs and column overrides win. Default usage columns, stats, and charts
   use `hideIfNoValue: true`, so the UI hides them until matching LLM/API span
-  data exists. `totalTokens` is input + output only; cache read/write tokens
-  stay separate and affect `costUsd` at their own rates.
+  data exists. Default LLM usage charts render cost, input tokens, and output
+  tokens separately and use `dedupeConsecutiveValues: true` to skip repeated
+  adjacent chart values. `totalTokens` is input + output only; cache read/write
+  tokens stay separate and affect `costUsd` at their own rates.
   Derived base input cost uses `inputTokens - cachedInputTokens -
 cacheCreationInputTokens` so cache details are not double-counted.
   `cacheCreationInputTokens` is the total cache-write count; optional
@@ -341,7 +377,9 @@ Number formats use `maxDecimalPlaces` to cap decimals and `minDecimalPlaces`
 to pad trailing zeroes. Without `maxDecimalPlaces`, they render up to 3 decimal
 places. Stats and charts support `hideIfNoValue: true`; stats hide when they
 would otherwise render an empty value, and charts hide when no plotted metric or
-tooltip extra has a numeric value in the rendered history window.
+tooltip extra has a numeric value in the rendered history window. Charts support
+`dedupeConsecutiveValues: true` to omit consecutive points whose plotted metrics
+and tooltip extras match the previous kept point.
 Their shapes live in the types; no need to memorize the option set.
 
 ## Cached operations

@@ -274,6 +274,63 @@ reported as errors.
 `agent-evals.config.ts` apply to every eval, and eval-level `columns` override
 global metadata for matching keys.
 
+### Manual input
+
+For exploratory evals where you want to type values before each run, declare
+`manualInput` instead of `cases`. The web UI renders a modal driven by your Zod
+schema and the CLI accepts `--input '<json>'` (or `--input-file <path>`):
+
+```ts
+import { defineEval, z } from '@ls-stack/agent-eval';
+
+const inputSchema = z.object({
+  name: z.string().min(1).describe('Recipient'),
+  tone: z.enum(['friendly', 'formal', 'playful']),
+  notes: z.string().max(500).optional(),
+  sendEmail: z.boolean().default(false),
+  locale: z.enum(['en', 'pt-BR', 'es']).default('en'),
+});
+
+defineEval<z.infer<typeof inputSchema>>({
+  id: 'manual-input-greeting',
+  manualInput: {
+    schema: inputSchema,
+    title: 'Greet someone',
+    description: 'Type the recipient and tone, then run.',
+    submitLabel: 'Greet',
+    fields: {
+      notes: { multiline: true, rows: 4, placeholder: 'Anything to add' },
+      sendEmail: { label: 'Send via email after replying' },
+    },
+  },
+  execute: ({ input, setOutput }) => {
+    setOutput('greeting', `Hi, ${input.name}!`);
+  },
+});
+```
+
+Field widgets are derived automatically: `z.string()` becomes a single-line
+text input, `z.number()` a number input (with `min`/`max`/integer detection),
+`z.boolean()` a checkbox, `z.enum(...)` and unions of `z.literal(...)` strings
+become a `select`, and anything else falls back to a JSON textarea. Set
+`fields[key].multiline: true` to switch a string into a textarea, or
+`fields[key].asJson: true` to force the JSON widget. `optional()`/`nullable()`
+wrappers mark a field non-required, `default(...)` prefills it, and
+`describe(...)` populates the helper text.
+
+Behavior at run time:
+
+- Each run produces a single synthetic case `<evalId>-manual` whose `input` is
+  the validated submission. `cases` and `manualInput` cannot coexist; the
+  runner emits a discovery issue if both are declared.
+- The web UI's "Run" button opens the modal; multi-eval runs ("Run all") skip
+  manual-input evals with a notice — run them individually.
+- The CLI takes `--input '<json>'` for one targeted manual-input eval, or
+  `--input-file <path>` pointing at a JSON object keyed by eval key (or eval
+  id). Missing or invalid input fails the run before the child process starts.
+- Server validation runs against the authored Zod schema. The web UI surfaces
+  the field-keyed errors inline in the modal.
+
 ### Eval time
 
 By default, every eval's wall clock starts at
@@ -577,7 +634,9 @@ token formatting, dollar formatting for `costUsd`, and duration formatting for
 `llmDurationMs`, while default stats and LLM usage charts are appended after
 authored config. Default usage columns, stats, and charts use
 `hideIfNoValue: true`, so the UI stays quiet until matching LLM/API span data
-exists.
+exists. Default LLM usage charts render cost, input tokens, and output tokens
+separately and use `dedupeConsecutiveValues: true` to skip repeated adjacent
+points such as cached reruns with unchanged chart values.
 `apiCalls` is counted from spans matched by `apiCalls.kinds`. Cost defaults use
 `llmCalls.pricing`, exactly like the LLM calls tab. `totalTokens` is always
 input + output tokens, and `llmDurationMs` sums the elapsed durations of matched
@@ -913,6 +972,7 @@ charts: [
   {
     heading: 'Cost per run',
     hideIfNoValue: true,
+    dedupeConsecutiveValues: true,
     type: 'area',
     metrics: [
       { source: 'column', key: 'costUsd', aggregate: 'sum', color: 'warning' },
@@ -933,6 +993,8 @@ Each chart declares:
 - `heading` (optional) — label shown above the chart.
 - `hideIfNoValue` — hide the chart when none of its plotted series or tooltip
   extras has a numeric value in the rendered history window.
+- `dedupeConsecutiveValues` — skip consecutive history points when all plotted
+  series and tooltip extras match the previous kept point.
 - `axis` (`'left' | 'right'`) per metric enables a dual-axis chart.
 - `yDomain` — per-axis `{ min, max }`. Omit for automatic scaling.
 - `color` — semantic token: `accent | accentDim | success | error | warning | cost | textMuted`.

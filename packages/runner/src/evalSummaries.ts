@@ -2,6 +2,7 @@ import type {
   AgentEvalsConfig,
   CreateRunRequest,
   EvalSummary,
+  ManualInputDescriptor,
 } from '@agent-evals/shared';
 import { deriveEvalFreshness } from './freshness.ts';
 import type { GitWorktreeState } from './gitState.ts';
@@ -17,7 +18,11 @@ type EvalSummaryMeta = Pick<
   | 'caseCount'
   | 'stats'
   | 'charts'
-> & { sourceFingerprint: string | null };
+> & {
+  sourceFingerprint: string | null;
+  manualInputDescriptor?: ManualInputDescriptor;
+  requiresManualInput?: boolean;
+};
 
 /** Build the API/UI summary payload for one discovered eval. */
 export function buildEvalSummary(params: {
@@ -28,7 +33,12 @@ export function buildEvalSummary(params: {
   lastRunStatus: EvalSummary['lastRunStatus'];
 }): EvalSummary {
   const { meta, config, gitState, latestRun, lastRunStatus } = params;
-  const { sourceFingerprint, ...summaryMeta } = meta;
+  const {
+    sourceFingerprint,
+    manualInputDescriptor,
+    requiresManualInput,
+    ...summaryMeta
+  } = meta;
   const freshness = deriveEvalFreshness({
     latestRun,
     gitState,
@@ -36,7 +46,7 @@ export function buildEvalSummary(params: {
     staleAfterDays: config.staleAfterDays ?? 14,
   });
 
-  return {
+  const summary: EvalSummary = {
     ...summaryMeta,
     stale: freshness.stale,
     outdated: freshness.outdated,
@@ -46,6 +56,10 @@ export function buildEvalSummary(params: {
     currentCommitSha: gitState.commitSha,
     lastRunStatus,
   };
+  if (manualInputDescriptor && requiresManualInput) {
+    summary.manualInput = manualInputDescriptor;
+  }
+  return summary;
 }
 
 /** Resolve which eval keys a run request should mark as the latest run. */

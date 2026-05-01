@@ -18,6 +18,13 @@ export const createRunRequestSchema = z.object({
    * its default read-through / write-on-miss mode.
    */
   cache: z.object({ mode: cacheModeSchema.default('use') }).optional(),
+  /**
+   * Manual-input values keyed by eval `key` (workspace-relative file path
+   * plus authored eval id). Required for any targeted eval that declares
+   * `manualInput` in its definition; the server validates each entry against
+   * the eval's authored Zod schema before starting the run.
+   */
+  manualInputs: z.record(z.string(), z.unknown()).optional(),
 });
 /** Request payload accepted by the run creation endpoint. */
 export type CreateRunRequest = z.infer<typeof createRunRequestSchema>;

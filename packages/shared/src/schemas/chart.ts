@@ -106,6 +106,11 @@ export const evalChartConfigSchema = z.object({
    * the rendered history window.
    */
   hideIfNoValue: z.boolean().optional(),
+  /**
+   * Drop consecutive history points whose plotted metrics and tooltip extras
+   * have the same values as the previous kept point.
+   */
+  dedupeConsecutiveValues: z.boolean().optional(),
   type: evalChartTypeSchema,
   /** At least one series must be declared. */
   metrics: z.array(evalChartMetricSchema).min(1),

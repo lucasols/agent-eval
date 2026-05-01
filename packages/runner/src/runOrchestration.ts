@@ -15,6 +15,7 @@ import type {
   EvalChartsConfig,
   EvalStatsConfig,
   EvalSummary,
+  ManualInputDescriptor,
   RunManifest,
   RunSummary,
   SseEnvelope,
@@ -35,6 +36,7 @@ import { validateCharts } from './chartValidation.ts';
 import { buildDeclaredColumnDefs, mergeColumnDefs } from './columnBuilder.ts';
 import { resolveEvalDefaultConfig } from './defaultConfig.ts';
 import { loadEvalModule } from './evalModuleLoader.ts';
+import { parseManualInputValues } from './manualInput/walker.ts';
 import { runWithModuleIsolation } from './moduleIsolation.ts';
 import {
   filterEvalCases,
@@ -57,6 +59,18 @@ export type EvalMeta = {
   caseCount: number | null;
   stats?: EvalStatsConfig;
   charts?: EvalChartsConfig;
+  /**
+   * Wire-format descriptor for the eval's manual-input modal. Present only
+   * when the eval declares `manualInput` and the schema-walker accepts the
+   * authored Zod schema.
+   */
+  manualInputDescriptor?: ManualInputDescriptor;
+  /**
+   * Whether the eval requires a manual-input submission before any run can
+   * start. Distinct from `manualInputDescriptor` so the UI/CLI can flag this
+   * even if descriptor construction failed (the eval still cannot run).
+   */
+  requiresManualInput?: boolean;
 };
 
 export type RunState = {
@@ -399,18 +413,58 @@ export async function executeRun({
         await runWithModuleIsolation(moduleIsolation, async () => {
           await runInEvalRuntimeScope('cases', async () => {
             await entry.use(async (evalDef) => {
-              const evalCases = await runWithEvalClock(
-                evalDef.startTime,
-                async () =>
-                  typeof evalDef.cases === 'function'
-                    ? await evalDef.cases()
-                    : (evalDef.cases ?? []),
-                { freezeTime: evalDef.freezeTime },
-              );
-              const runnableCases = resolveRunnableEvalCases({
-                cases: evalCases,
-                evalId: evalMeta.id,
-              });
+              if (evalDef.manualInput && evalDef.cases !== undefined) {
+                throw new Error(
+                  `Eval "${evalMeta.id}" cannot declare both "cases" and "manualInput". Remove one of them.`,
+                );
+              }
+
+              let manualInputCase: { id: string; input: unknown } | null = null;
+              if (evalDef.manualInput) {
+                const rawValue = request.manualInputs?.[evalMeta.key];
+                if (rawValue === undefined) {
+                  throw new Error(
+                    `Eval "${evalMeta.id}" requires manual input. Provide it via the run modal in the web UI or "--input" / "--input-file" on the CLI.`,
+                  );
+                }
+                const parsed = parseManualInputValues(
+                  evalDef.manualInput,
+                  rawValue,
+                );
+                if (parsed.error) {
+                  const formatted = parsed.error.issues
+                    .map((issue) =>
+                      issue.path
+                        ? `${issue.path}: ${issue.message}`
+                        : issue.message,
+                    )
+                    .join('; ');
+                  throw new Error(
+                    `Invalid manual input for eval "${evalMeta.id}": ${formatted}`,
+                  );
+                }
+                manualInputCase = {
+                  id: `${evalMeta.id}-manual`,
+                  input: parsed.value,
+                };
+              }
+
+              const evalCases = manualInputCase
+                ? [manualInputCase]
+                : await runWithEvalClock(
+                    evalDef.startTime,
+                    async () =>
+                      typeof evalDef.cases === 'function'
+                        ? await evalDef.cases()
+                        : (evalDef.cases ?? []),
+                    { freezeTime: evalDef.freezeTime },
+                  );
+              const runnableCases = manualInputCase
+                ? evalCases
+                : resolveRunnableEvalCases({
+                    cases: evalCases,
+                    evalId: evalMeta.id,
+                  });
               const duplicateCaseIds = findDuplicateCaseIds(runnableCases);
               if (duplicateCaseIds.length > 0) {
                 throw new Error(
