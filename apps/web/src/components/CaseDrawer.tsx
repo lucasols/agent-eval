@@ -23,6 +23,7 @@ import {
   summarizeCellValue,
 } from '#src/components/FormattedCellValue';
 import { IconButton } from '#src/components/IconButton';
+import { InputViewer } from '#src/components/InputViewer';
 import { JsonViewer } from '#src/components/JsonViewer';
 import { LlmCallRow } from '#src/components/LlmCallRow';
 import { MenuButton } from '#src/components/MenuButton';
@@ -546,7 +547,7 @@ export function CaseDrawer() {
       </TabBar>
 
       <TabContent>
-        {activeTab === 'input' ? <JsonViewer value={d.input} /> : null}
+        {activeTab === 'input' ? <InputViewer value={d.input} /> : null}
 
         {activeTab === 'output' ? (
           hasOutputValue ? (
