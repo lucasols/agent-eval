@@ -47,6 +47,18 @@ export const runsRoutes = new Hono()
   .post('/', zValidator('json', createRunRequestSchema), async (c) => {
     const body = c.req.valid('json');
     const runner = getRunnerInstance();
+    const configReload = runner.getConfigReloadState();
+    if (configReload.status !== 'idle') {
+      return c.json(
+        {
+          code: 'CONFIG_RELOAD_PENDING',
+          error:
+            'agent-evals.config.ts changed and the app is reloading before new runs can start.',
+          configReload,
+        },
+        409,
+      );
+    }
     const validation = runner.validateManualInputs(body);
     if (!validation.ok) {
       return c.json(

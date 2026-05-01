@@ -27,6 +27,7 @@ import { createFsCacheStore, type FsCacheStore } from './cacheStore.ts';
 import { validateCharts } from './chartValidation.ts';
 import { buildDeclaredColumnDefs, normalizeScoreDef } from './columnBuilder.ts';
 import { loadConfig } from './config.ts';
+import { createConfigReloadController } from './configReload.ts';
 import { resolveEvalDefaultConfig } from './defaultConfig.ts';
 import { parseEvalDiscovery } from './discovery.ts';
 import { loadEvalModule } from './evalModuleLoader.ts';
@@ -93,6 +94,12 @@ export function createRunner({
   let runHistoryWatcher: FSWatcher | undefined;
   let discoveryRefreshTimer: ReturnType<typeof setTimeout> | undefined;
   let runHistoryRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+  const configReload = createConfigReloadController({
+    getActiveRunCount,
+    closeRunnerWatchers: closeWatchers,
+    loadRunnerState,
+    emitToDiscoveryListeners,
+  });
 
   function toWorkspaceRelativePath(filePath: string): string {
     return relative(workspaceRoot, filePath).replaceAll('\\', '/');
@@ -119,29 +126,7 @@ export function createRunner({
 
   const runner: EvalRunner = {
     async init() {
-      config = await loadConfig();
-      workspaceRoot = config.workspaceRoot ?? process.cwd();
-      localStateDir = resolve(workspaceRoot, '.agent-evals');
-      llmCallsConfig = resolveLlmCallsConfig(config.llmCalls);
-      apiCallsConfig = resolveApiCallsConfig(config.apiCalls);
-
-      await mkdir(localStateDir, { recursive: true });
-      await mkdir(join(localStateDir, 'runs'), { recursive: true });
-
-      cacheStore = createFsCacheStore({
-        workspaceRoot,
-        dir: config.cache?.dir,
-        maxEntriesPerNamespace:
-          config.cache?.maxEntriesPerNamespace ??
-          config.cache?.maxEntriesPerEval,
-        maxEntriesByNamespace: config.cache?.maxEntriesByNamespace,
-      });
-
-      await loadPersistedRuns();
-      await runner.refreshDiscovery();
-      if (watchForChanges) {
-        await setupWatcher();
-      }
+      await loadRunnerState();
     },
     async listCache() {
       return cacheStore.list();
@@ -337,6 +322,9 @@ export function createRunner({
     },
     getDiscoveryIssues() {
       return discoveryIssues;
+    },
+    getConfigReloadState() {
+      return configReload.currentState();
     },
     async refreshDiscovery() {
       const patterns = config.include;
@@ -619,21 +607,7 @@ export function createRunner({
     },
 
     async close() {
-      if (discoveryRefreshTimer !== undefined) {
-        clearTimeout(discoveryRefreshTimer);
-        discoveryRefreshTimer = undefined;
-      }
-      if (runHistoryRefreshTimer !== undefined) {
-        clearTimeout(runHistoryRefreshTimer);
-        runHistoryRefreshTimer = undefined;
-      }
-
-      const watchers = [discoveryWatcher, runHistoryWatcher].filter(
-        (watcher): watcher is FSWatcher => watcher !== undefined,
-      );
-      discoveryWatcher = undefined;
-      runHistoryWatcher = undefined;
-      await Promise.all(watchers.map((watcher) => watcher.close()));
+      await Promise.all([closeWatchers(), configReload.close()]);
     },
 
     getWorkspaceRoot() {
@@ -656,6 +630,48 @@ export function createRunner({
       return resolveArtifactPath(join(localStateDir, 'runs'), artifactId_);
     },
   };
+
+  async function loadRunnerState(): Promise<void> {
+    config = await loadConfig();
+    workspaceRoot = config.workspaceRoot ?? process.cwd();
+    localStateDir = resolve(workspaceRoot, '.agent-evals');
+    llmCallsConfig = resolveLlmCallsConfig(config.llmCalls);
+    apiCallsConfig = resolveApiCallsConfig(config.apiCalls);
+
+    await mkdir(localStateDir, { recursive: true });
+    await mkdir(join(localStateDir, 'runs'), { recursive: true });
+
+    cacheStore = createFsCacheStore({
+      workspaceRoot,
+      dir: config.cache?.dir,
+      maxEntriesPerNamespace:
+        config.cache?.maxEntriesPerNamespace ?? config.cache?.maxEntriesPerEval,
+      maxEntriesByNamespace: config.cache?.maxEntriesByNamespace,
+    });
+
+    await loadPersistedRuns();
+    await runner.refreshDiscovery();
+    if (watchForChanges) {
+      await setupWatcher();
+    }
+  }
+
+  async function closeWatchers(): Promise<void> {
+    if (discoveryRefreshTimer !== undefined) {
+      clearTimeout(discoveryRefreshTimer);
+      discoveryRefreshTimer = undefined;
+    }
+    if (runHistoryRefreshTimer !== undefined) {
+      clearTimeout(runHistoryRefreshTimer);
+      runHistoryRefreshTimer = undefined;
+    }
+    const watchers = [discoveryWatcher, runHistoryWatcher].filter(
+      (watcher): watcher is FSWatcher => watcher !== undefined,
+    );
+    discoveryWatcher = undefined;
+    runHistoryWatcher = undefined;
+    await Promise.all(watchers.map((watcher) => watcher.close()));
+  }
 
   async function setupWatcher() {
     const watchRoots = getWatchRootsForIncludePatterns({
@@ -688,7 +704,7 @@ export function createRunner({
     watcher.on('addDir', scheduleRefresh);
     watcher.on('unlinkDir', scheduleRefresh);
 
-    await setupRunHistoryWatcher();
+    await Promise.all([setupRunHistoryWatcher(), configReload.setupWatcher()]);
 
     await watcherReady;
   }
@@ -722,6 +738,11 @@ export function createRunner({
     });
   }
 
+  function getActiveRunCount(): number {
+    return [...runs.values()].filter((run) => run.manifest.status === 'running')
+      .length;
+  }
+
   function emitDiscoveryEvent() {
     const lastRunStatuses = getLastRunStatuses({
       runs: runs.values(),
@@ -744,6 +765,13 @@ export function createRunner({
       timestamp: new Date().toISOString(),
       payload: runner.getEvals(),
     };
+    for (const listener of discoveryListeners) {
+      listener(event);
+    }
+    void configReload.reloadIfPendingAndIdle();
+  }
+
+  function emitToDiscoveryListeners(event: SseEnvelope): void {
     for (const listener of discoveryListeners) {
       listener(event);
     }

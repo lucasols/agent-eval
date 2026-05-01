@@ -259,6 +259,15 @@ function buildField(
     return Result.ok({ ...base, kind: 'json', rows });
   }
 
+  if (override?.asFile === true) {
+    return Result.ok({
+      ...base,
+      kind: 'file',
+      accept: override.accept,
+      maxSizeBytes: override.maxSizeBytes,
+    });
+  }
+
   const overrideOptions = normaliseSelectOptions(override?.options);
   if (overrideOptions) {
     return Result.ok({ ...base, kind: 'select', options: overrideOptions });

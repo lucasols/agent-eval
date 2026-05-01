@@ -3,6 +3,7 @@ import type {
   CacheListItem,
   CaseDetail,
   CaseRow,
+  ConfigReloadState,
   CreateRunRequest,
   DiscoveryIssue,
   EvalSummary,
@@ -26,6 +27,8 @@ export type EvalRunner = {
   getEval(id: string): EvalSummary | undefined;
   /** Return discovery errors that should be shown before running evals. */
   getDiscoveryIssues(): DiscoveryIssue[];
+  /** Return current config-reload state for the long-running app server. */
+  getConfigReloadState(): ConfigReloadState;
   /** Re-scan configured eval files and emit a discovery update to listeners. */
   refreshDiscovery(): Promise<void>;
   startRun(

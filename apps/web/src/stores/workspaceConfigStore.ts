@@ -1,6 +1,8 @@
 import {
+  configReloadStateSchema,
   DEFAULT_API_CALLS_CONFIG,
   DEFAULT_LLM_CALLS_CONFIG,
+  type ConfigReloadState,
   type ResolvedApiCallsConfig,
   type ResolvedLlmCallsConfig,
 } from '@agent-evals/shared';
@@ -104,6 +106,7 @@ const workspaceInfoSchema = z.object({
   packageManager: z.enum(['npm', 'pnpm', 'yarn', 'bun']),
   llmCalls: llmCallsConfigSchema,
   apiCalls: apiCallsConfigSchema,
+  configReload: configReloadStateSchema,
 });
 
 type WorkspaceConfigState = {
@@ -111,10 +114,17 @@ type WorkspaceConfigState = {
   packageManager: PackageManager;
   llmCalls: ResolvedLlmCallsConfig;
   apiCalls: ResolvedApiCallsConfig;
+  configReload: ConfigReloadState;
   hasLoaded: boolean;
 };
 
 const DEFAULT_PACKAGE_MANAGER: PackageManager = 'pnpm';
+const DEFAULT_CONFIG_RELOAD_STATE: ConfigReloadState = {
+  status: 'idle',
+  activeRunCount: 0,
+  lastChangedAt: null,
+  lastReloadedAt: null,
+};
 
 /**
  * Holds workspace-level configuration the UI fetches once on app boot from
@@ -129,9 +139,15 @@ export const workspaceConfigStore = new Store<WorkspaceConfigState>({
     packageManager: DEFAULT_PACKAGE_MANAGER,
     llmCalls: DEFAULT_LLM_CALLS_CONFIG,
     apiCalls: DEFAULT_API_CALLS_CONFIG,
+    configReload: DEFAULT_CONFIG_RELOAD_STATE,
     hasLoaded: false,
   },
 });
+
+/** Update config-reload state from the app-wide event stream. */
+export function setConfigReloadState(configReload: ConfigReloadState): void {
+  workspaceConfigStore.setPartialState({ configReload });
+}
 
 /**
  * Fetch `/api/workspace` and update {@link workspaceConfigStore} with the
@@ -164,6 +180,7 @@ export async function fetchWorkspaceConfig(): Promise<void> {
     packageManager: parseResult.value.packageManager,
     llmCalls: parseResult.value.llmCalls,
     apiCalls: parseResult.value.apiCalls,
+    configReload: parseResult.value.configReload,
     hasLoaded: true,
   });
 }

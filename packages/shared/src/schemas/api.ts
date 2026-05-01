@@ -1,6 +1,25 @@
 import { z } from 'zod/v4';
 import { cacheModeSchema } from './cache.ts';
 
+/** Lifecycle state for an app config reload triggered by `agent-evals.config.ts`. */
+export const configReloadStatusSchema = z.enum([
+  'idle',
+  'pending',
+  'reloading',
+]);
+/** Status for config reloads in the long-running app server. */
+export type ConfigReloadStatus = z.infer<typeof configReloadStatusSchema>;
+
+/** UI/API-visible state for config reloads in `agent-evals app`. */
+export const configReloadStateSchema = z.object({
+  status: configReloadStatusSchema,
+  activeRunCount: z.number().int().min(0),
+  lastChangedAt: z.string().nullable(),
+  lastReloadedAt: z.string().nullable(),
+});
+/** UI/API-visible state for config reloads in `agent-evals app`. */
+export type ConfigReloadState = z.infer<typeof configReloadStateSchema>;
+
 /** Schema for the API request that starts a new eval run. */
 export const createRunRequestSchema = z.object({
   target: z.object({

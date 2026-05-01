@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -47,7 +48,9 @@ export async function loadConfig(): Promise<AgentEvalsConfig> {
   }
 
   try {
-    const imported: unknown = await import(pathToFileURL(configPath).href);
+    const configUrl = pathToFileURL(configPath);
+    configUrl.searchParams.set('v', randomUUID());
+    const imported: unknown = await import(configUrl.href);
     const configModule = configModuleSchema.parse(imported);
     const userConfig = configModule.default ?? configModule.config;
 

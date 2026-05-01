@@ -2,6 +2,7 @@ import { z } from 'zod/v4';
 
 export const sseEventTypeSchema = z.enum([
   'discovery.updated',
+  'config.reload',
   'run.started',
   'run.summary',
   'case.started',

@@ -3,17 +3,31 @@ import type {
   ManualInputDescriptor,
   ManualInputFieldDescriptor,
 } from '@agent-evals/shared';
-import { useMemo, useState, type SyntheticEvent } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type SyntheticEvent,
+} from 'react';
 import { styled } from 'vindur';
 import { Button } from '#src/components/Button';
 import { ManualInputField } from '#src/components/ManualInputFields';
 import { Modal } from '#src/components/Modal';
 import type { ManualInputStartRunFailure } from '#src/stores/runStore';
 import { colors } from '#src/style/colors';
-import { stack } from '#src/style/helpers';
+import { inline, stack } from '#src/style/helpers';
+import {
+  isManualInputFileValue,
+  readFileAsManualInputValue,
+} from '#src/utils/manualInputFile';
 
 const Form = styled.form`
   ${stack({ gap: 14 })}
+`;
+
+const FooterActions = styled.div`
+  ${inline({ align: 'center', gap: 8 })}
 `;
 
 const FormError = styled.p`
@@ -36,6 +50,14 @@ function defaultValueFor(descriptor: ManualInputFieldDescriptor): unknown {
   if (descriptor.defaultValue !== undefined) return descriptor.defaultValue;
   if (descriptor.kind === 'boolean') return false;
   if (descriptor.kind === 'number') return undefined;
+  if (descriptor.kind === 'file') return null;
+  if (descriptor.kind === 'select' && descriptor.required) {
+    // Required selects render without an empty option, so the browser shows
+    // the first option even though our state would otherwise be `''`. Seed
+    // the draft with that value so submitting unchanged passes validation.
+    const firstOption = descriptor.options[0];
+    if (firstOption) return firstOption.value;
+  }
   return '';
 }
 
@@ -111,6 +133,19 @@ function validateValues(
       } else {
         values[field.key] = raw;
       }
+    } else if (field.kind === 'file') {
+      if (isManualInputFileValue(raw)) {
+        if (
+          typeof field.maxSizeBytes === 'number' &&
+          raw.size > field.maxSizeBytes
+        ) {
+          fieldErrors.push('File exceeds the maximum allowed size');
+        } else {
+          values[field.key] = raw;
+        }
+      } else if (field.required) {
+        fieldErrors.push('Required');
+      }
     } else {
       // text + multiline
       if (isEmpty(raw)) {
@@ -172,6 +207,83 @@ export function ManualInputModal({
     }
   }
 
+  function setFieldError(key: string, message: string | null) {
+    setClientErrors((prev) => {
+      const next = { ...prev };
+      if (message === null) {
+        delete next[key];
+      } else {
+        next[key] = [message];
+      }
+      return next;
+    });
+  }
+
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const fileFields = descriptor.fields.filter(
+      (field): field is Extract<ManualInputFieldDescriptor, { kind: 'file' }> =>
+        field.kind === 'file',
+    );
+    if (fileFields.length === 0) return;
+
+    function isEditableElement(element: EventTarget | null): boolean {
+      if (!(element instanceof HTMLElement)) return false;
+      const tag = element.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+        return true;
+      }
+      return element.isContentEditable;
+    }
+
+    async function handleDocumentPaste(event: ClipboardEvent) {
+      if (isEditableElement(event.target)) return;
+      const data = event.clipboardData;
+      if (!data || data.files.length === 0) return;
+      const file = data.files[0];
+      if (!file) return;
+      const target =
+        fileFields.find(
+          (field) => !isManualInputFileValue(draftRef.current[field.key]),
+        ) ?? fileFields[0];
+      if (!target) return;
+      event.preventDefault();
+      if (
+        typeof target.maxSizeBytes === 'number' &&
+        file.size > target.maxSizeBytes
+      ) {
+        setClientErrors((prev) => ({
+          ...prev,
+          [target.key]: ['File exceeds the maximum allowed size'],
+        }));
+        return;
+      }
+      const result = await readFileAsManualInputValue(file);
+      if (result.error) {
+        setClientErrors((prev) => ({
+          ...prev,
+          [target.key]: [`Could not read file: ${result.error.message}`],
+        }));
+        return;
+      }
+      setDraft((prev) => ({ ...prev, [target.key]: result.value }));
+      setClientErrors((prev) => {
+        const next = { ...prev };
+        delete next[target.key];
+        return next;
+      });
+    }
+
+    const listener = (event: ClipboardEvent) => {
+      void handleDocumentPaste(event);
+    };
+    document.addEventListener('paste', listener);
+    return () => document.removeEventListener('paste', listener);
+  }, [isOpen, descriptor.fields]);
+
   async function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const validation = validateValues(descriptor, draft);
@@ -181,6 +293,11 @@ export function ManualInputModal({
     }
     setClientErrors({});
     await onSubmit(validation.values);
+  }
+
+  function handleClear() {
+    setDraft(buildInitialValues(descriptor));
+    setClientErrors({});
   }
 
   const formLevelError = serverFieldErrors.__form__?.join(' ') ?? '';
@@ -196,18 +313,28 @@ export function ManualInputModal({
           <Button
             variant="ghost"
             type="button"
-            onClick={onCancel}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            type="submit"
-            form="manual-input-form"
+            onClick={handleClear}
             disabled={isSubmitting}
           >
-            {isSubmitting ? 'Starting…' : (descriptor.submitLabel ?? 'Run')}
+            Clear
           </Button>
+          <FooterActions>
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={onCancel}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              type="submit"
+              form="manual-input-form"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Starting…' : (descriptor.submitLabel ?? 'Run')}
+            </Button>
+          </FooterActions>
         </>
       }
     >
@@ -227,6 +354,7 @@ export function ManualInputModal({
               value={draft[field.key]}
               onChange={(value) => setField(field.key, value)}
               errors={errors}
+              onFieldError={(message) => setFieldError(field.key, message)}
             />
           );
         })}

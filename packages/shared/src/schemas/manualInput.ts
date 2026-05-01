@@ -87,6 +87,22 @@ export const manualInputJsonFieldSchema = manualInputFieldBaseSchema.extend({
 });
 
 /**
+ * File / image upload widget descriptor. The widget supports clicking to
+ * pick a file, drag-and-drop onto the dropzone, and pasting an image from
+ * the system clipboard. The submitted value is encoded as a `data:` URL.
+ */
+export const manualInputFileFieldSchema = manualInputFieldBaseSchema.extend({
+  kind: z.literal('file'),
+  /**
+   * Browser `accept` attribute (e.g. `image/*`, `image/png,image/jpeg`,
+   * `.pdf`). When omitted the picker accepts any file type.
+   */
+  accept: z.string().optional(),
+  /** Optional client-side maximum file size in bytes. */
+  maxSizeBytes: z.number().int().positive().optional(),
+});
+
+/**
  * Discriminated union of all supported manual-input widget kinds. The web UI
  * dispatches to the matching field component based on `kind`.
  */
@@ -97,6 +113,7 @@ export const manualInputFieldDescriptorSchema = z.discriminatedUnion('kind', [
   manualInputBooleanFieldSchema,
   manualInputSelectFieldSchema,
   manualInputJsonFieldSchema,
+  manualInputFileFieldSchema,
 ]);
 /** Single field descriptor rendered by the manual-input modal. */
 export type ManualInputFieldDescriptor = z.infer<

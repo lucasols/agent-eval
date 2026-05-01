@@ -1,7 +1,14 @@
 import type { ManualInputFieldDescriptor } from '@agent-evals/shared';
+import { useId, useRef, useState, type DragEvent } from 'react';
 import { css, styled } from 'vindur';
 import { colors } from '#src/style/colors';
-import { stack, inline, transition } from '#src/style/helpers';
+import { centerContent, stack, inline, transition } from '#src/style/helpers';
+import {
+  formatFileSize,
+  isManualInputFileValue,
+  readFileAsManualInputValue,
+  type ManualInputFileValue,
+} from '#src/utils/manualInputFile';
 
 const FieldRow = styled.label`
   ${stack({ gap: 6 })}
@@ -83,11 +90,103 @@ const ErrorList = styled.ul`
   list-style: none;
 `;
 
+const HiddenFileInput = styled.input`
+  display: none;
+`;
+
+const Dropzone = styled.div<{ isActive: boolean }>`
+  ${stack({ gap: 8, align: 'stretch' })}
+  ${centerContent};
+  padding: 16px;
+  border: 1px dashed ${colors.borderStrong.var};
+  border-radius: 8px;
+  background: ${colors.bgElevated.var};
+  color: ${colors.textMuted.var};
+  cursor: pointer;
+  text-align: center;
+  ${transition({ property: 'background, border-color' })}
+
+  &:hover {
+    background: ${colors.surfaceHover.var};
+    border-color: ${colors.accent.var};
+  }
+
+  &.isActive {
+    background: ${colors.accent.alpha(0.08)};
+    border-color: ${colors.accent.var};
+    color: ${colors.text.var};
+  }
+`;
+
+const DropzoneHint = styled.span`
+  font-size: 12px;
+  color: ${colors.textMuted.var};
+`;
+
+const FilePreview = styled.div`
+  ${stack({ gap: 8 })}
+  padding: 12px;
+  border: 1px solid ${colors.border.var};
+  border-radius: 8px;
+  background: ${colors.bg.var};
+`;
+
+const FilePreviewHeader = styled.div`
+  ${inline({ justify: 'space-between', align: 'center', gap: 12 })}
+`;
+
+const FilePreviewMeta = styled.div`
+  ${stack({ gap: 2 })}
+  min-width: 0;
+`;
+
+const FilePreviewName = styled.span`
+  font-weight: 500;
+  color: ${colors.text.var};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const FilePreviewSub = styled.span`
+  font-size: 12px;
+  color: ${colors.textMuted.var};
+`;
+
+const FilePreviewActions = styled.div`
+  ${inline({ align: 'center', gap: 8 })}
+`;
+
+const FilePreviewButton = styled.button`
+  border: none;
+  background: transparent;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: ${colors.textMuted.var};
+  cursor: pointer;
+  ${transition({ property: 'background, color' })}
+
+  &:hover {
+    background: ${colors.surfaceHover.var};
+    color: ${colors.text.var};
+  }
+`;
+
+const ImageThumb = styled.img`
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: 6px;
+  object-fit: contain;
+  background: ${colors.surface.var};
+`;
+
 type FieldProps = {
   descriptor: ManualInputFieldDescriptor;
   value: unknown;
   onChange: (value: unknown) => void;
   errors: string[];
+  onFieldError?: (message: string | null) => void;
 };
 
 function FieldShell({
@@ -135,12 +234,189 @@ function asBoolean(value: unknown): boolean {
   return value === true;
 }
 
+function asFileValue(value: unknown): ManualInputFileValue | null {
+  return isManualInputFileValue(value) ? value : null;
+}
+
+type FileFieldDescriptor = Extract<
+  ManualInputFieldDescriptor,
+  { kind: 'file' }
+>;
+
+type FileFieldProps = {
+  descriptor: FileFieldDescriptor;
+  value: unknown;
+  onChange: (value: unknown) => void;
+  onError: (message: string | null) => void;
+};
+
+function FileFieldInput({
+  descriptor,
+  value,
+  onChange,
+  onError,
+}: FileFieldProps) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const dropzoneId = useId();
+  const fileValue = asFileValue(value);
+  const [isDragging, setIsDragging] = useState(false);
+
+  function reportError(message: string | null) {
+    onError(message);
+  }
+
+  async function applyFile(file: File) {
+    if (
+      typeof descriptor.maxSizeBytes === 'number' &&
+      file.size > descriptor.maxSizeBytes
+    ) {
+      reportError(
+        `File is too large (${formatFileSize(file.size)}). Max allowed is ${formatFileSize(descriptor.maxSizeBytes)}.`,
+      );
+      return;
+    }
+    const result = await readFileAsManualInputValue(file);
+    if (result.error) {
+      reportError(`Could not read file: ${result.error.message}`);
+      return;
+    }
+    reportError(null);
+    onChange(result.value);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+    const file = event.dataTransfer.files[0];
+    if (!file) return;
+    void applyFile(file);
+  }
+
+  function handleDragOver(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    if (!isDragging) setIsDragging(true);
+  }
+
+  function handleDragLeave() {
+    setIsDragging(false);
+  }
+
+  function handlePaste(event: React.ClipboardEvent<HTMLDivElement>) {
+    const items = event.clipboardData.files;
+    if (items.length === 0) return;
+    const file = items[0];
+    if (!file) return;
+    event.preventDefault();
+    void applyFile(file);
+  }
+
+  function openPicker() {
+    inputRef.current?.click();
+  }
+
+  function clearFile() {
+    onChange(null);
+    reportError(null);
+    if (inputRef.current) inputRef.current.value = '';
+  }
+
+  const acceptHint = descriptor.accept ? ` (${descriptor.accept})` : '';
+
+  if (fileValue) {
+    const isImage = fileValue.mimeType.startsWith('image/');
+    return (
+      <FilePreview>
+        <FilePreviewHeader>
+          <FilePreviewMeta>
+            <FilePreviewName title={fileValue.name}>
+              {fileValue.name || 'Pasted file'}
+            </FilePreviewName>
+            <FilePreviewSub>
+              {fileValue.mimeType || 'application/octet-stream'} ·{' '}
+              {formatFileSize(fileValue.size)}
+            </FilePreviewSub>
+          </FilePreviewMeta>
+          <FilePreviewActions>
+            <FilePreviewButton
+              type="button"
+              onClick={openPicker}
+            >
+              Replace
+            </FilePreviewButton>
+            <FilePreviewButton
+              type="button"
+              onClick={clearFile}
+            >
+              Remove
+            </FilePreviewButton>
+          </FilePreviewActions>
+        </FilePreviewHeader>
+        {isImage ? (
+          <ImageThumb
+            src={fileValue.dataUrl}
+            alt={fileValue.name}
+          />
+        ) : null}
+        <HiddenFileInput
+          ref={inputRef}
+          type="file"
+          accept={descriptor.accept}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) void applyFile(file);
+          }}
+        />
+      </FilePreview>
+    );
+  }
+
+  return (
+    <Dropzone
+      isActive={isDragging}
+      id={dropzoneId}
+      role="button"
+      tabIndex={0}
+      onClick={openPicker}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openPicker();
+        }
+      }}
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onPaste={handlePaste}
+    >
+      <span>
+        Click to upload, drop a file here, or paste an image
+        {acceptHint}
+      </span>
+      <DropzoneHint>
+        {descriptor.maxSizeBytes
+          ? `Max size: ${formatFileSize(descriptor.maxSizeBytes)}`
+          : ''}
+      </DropzoneHint>
+      <HiddenFileInput
+        ref={inputRef}
+        type="file"
+        accept={descriptor.accept}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void applyFile(file);
+        }}
+      />
+    </Dropzone>
+  );
+}
+
 /** Render one descriptor field as the matching widget. */
 export function ManualInputField({
   descriptor,
   value,
   onChange,
   errors,
+  onFieldError,
 }: FieldProps) {
   if (descriptor.kind === 'text') {
     return (
@@ -239,6 +515,21 @@ export function ManualInputField({
             </option>
           ))}
         </SelectInput>
+      </FieldShell>
+    );
+  }
+  if (descriptor.kind === 'file') {
+    return (
+      <FieldShell
+        descriptor={descriptor}
+        errors={errors}
+      >
+        <FileFieldInput
+          descriptor={descriptor}
+          value={value}
+          onChange={onChange}
+          onError={(message) => onFieldError?.(message)}
+        />
       </FieldShell>
     );
   }

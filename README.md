@@ -70,7 +70,7 @@ pnpm add -D @ls-stack/agent-eval
    });
    ```
 
-3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). Use the sidebar status counts to filter visible evals by one or more states. On an eval page, filter the runs table by applicable result or recent-activity buckets, share that filter through the URL, and clear the currently filtered saved runs when needed. Each eval's actions menu can copy matching CLI run and debug commands using the workspace package manager.
+3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). Use the sidebar status counts to filter visible evals by one or more states. On an eval page, filter the runs table by applicable result or recent-activity buckets, share that filter through the URL, and clear the currently filtered saved runs when needed. Each eval's actions menu can copy matching CLI run and debug commands using the workspace package manager. The app watches `agent-evals.config.ts` and reloads config in place when idle; if the file changes during a run, the UI shows a pending banner and new runs are blocked until the current run finishes and the reload applies.
 
 4. **Or use the CLI**:
 
@@ -317,6 +317,53 @@ become a `select`, and anything else falls back to a JSON textarea. Set
 `fields[key].asJson: true` to force the JSON widget. `optional()`/`nullable()`
 wrappers mark a field non-required, `default(...)` prefills it, and
 `describe(...)` populates the helper text.
+
+#### File and image inputs
+
+Mark a field with `{ asFile: true }` to render a file/image upload widget. The
+widget supports clicking to pick a file, dragging onto the dropzone, and
+pasting an image directly from the system clipboard. Use the
+`manualInputFileValueSchema` helper as the field's Zod type so the runtime
+value stays type-safe end-to-end:
+
+```ts
+import {
+  defineEval,
+  manualInputFileValueSchema,
+  z,
+} from '@ls-stack/agent-eval';
+
+const inputSchema = z.object({
+  image: manualInputFileValueSchema,
+  caption: z.string().max(120).optional(),
+});
+
+defineEval<z.infer<typeof inputSchema>>({
+  id: 'image-analyzer',
+  manualInput: {
+    schema: inputSchema,
+    fields: {
+      image: {
+        asFile: true,
+        accept: 'image/*',
+        maxSizeBytes: 5 * 1024 * 1024,
+        label: 'Image',
+      },
+    },
+  },
+  execute: ({ input, setOutput }) => {
+    // input.image is { name, mimeType, size, dataUrl }
+    setOutput('mimeType', input.image.mimeType);
+  },
+});
+```
+
+The submitted value carries `{ name, mimeType, size, dataUrl }`. `dataUrl` is
+a base64 `data:` URL — decode it (e.g. `Buffer.from(payload, 'base64')`) when
+your eval needs the raw bytes. Use `accept` to constrain the picker (e.g.
+`image/*`, `.pdf`) and `maxSizeBytes` to enforce a client-side size cap. From
+the CLI, supply the same JSON object inline through `--input` or via
+`--input-file`.
 
 Behavior at run time:
 

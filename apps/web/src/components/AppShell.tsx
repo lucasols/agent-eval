@@ -1,5 +1,8 @@
-import { useEffect } from 'react';
+import { configReloadStateSchema } from '@agent-evals/shared';
+import { useEffect, useState } from 'react';
+import { resultify } from 't-result';
 import { styled } from 'vindur';
+import { z } from 'zod/v4';
 import { CaseDrawer } from '#src/components/CaseDrawer';
 import { EmptyState } from '#src/components/EmptyState';
 import { FolderView } from '#src/components/FolderView';
@@ -18,7 +21,11 @@ import {
   selectionStore,
   syncSelectionFromSearchParams,
 } from '#src/stores/selectionStore';
-import { fetchWorkspaceConfig } from '#src/stores/workspaceConfigStore';
+import {
+  fetchWorkspaceConfig,
+  setConfigReloadState,
+  workspaceConfigStore,
+} from '#src/stores/workspaceConfigStore';
 import { colors } from '#src/style/colors';
 import { inline, stack } from '#src/style/helpers';
 import { collectEvalsInFolder } from '#src/utils/buildEvalTree';
@@ -60,7 +67,21 @@ const DiscoveryIssueBanner = styled.div`
   line-height: 1.4;
 `;
 
+const ConfigReloadBanner = styled.div`
+  padding: 10px 16px;
+  border-bottom: 1px solid ${colors.warning.alpha(0.24)};
+  background: ${colors.warning.alpha(0.08)};
+  color: ${colors.warning.var};
+  font-size: 13px;
+  line-height: 1.4;
+`;
+
+const configReloadEnvelopeSchema = z.object({
+  payload: configReloadStateSchema,
+});
+
 export function AppShell() {
+  const [showReloadApplied, setShowReloadApplied] = useState(false);
   const searchParams = useSearchParams();
   const search = searchParams.toString();
   const { selectedCaseId, selectedRunId } = runStore.useSelectorRC((s) => ({
@@ -98,8 +119,33 @@ export function AppShell() {
       void fetchEvals();
       void refetchHistory();
     });
+    let appliedNoticeTimer: ReturnType<typeof setTimeout> | undefined;
+    eventSource.addEventListener('config.reload', (event) => {
+      const parsedJson = resultify((): unknown => JSON.parse(event.data));
+      if (parsedJson.error) return;
+      const parsed = configReloadEnvelopeSchema.safeParse(parsedJson.value);
+      if (!parsed.success) return;
+      const configReload = parsed.data.payload;
+      setConfigReloadState(configReload);
+      if (
+        configReload.status !== 'idle' ||
+        configReload.lastReloadedAt === null
+      ) {
+        return;
+      }
+
+      void fetchWorkspaceConfig();
+      void fetchEvals();
+      void refetchHistory();
+      setShowReloadApplied(true);
+      if (appliedNoticeTimer !== undefined) clearTimeout(appliedNoticeTimer);
+      appliedNoticeTimer = setTimeout(() => {
+        setShowReloadApplied(false);
+      }, 3000);
+    });
 
     return () => {
+      if (appliedNoticeTimer !== undefined) clearTimeout(appliedNoticeTimer);
       eventSource.close();
     };
   }, []);
@@ -109,7 +155,7 @@ export function AppShell() {
       <Sidebar />
       <MainPanel sideDrawerOpen={sideDrawerOpen}>
         <MainContentFrame sideDrawerOpen={sideDrawerOpen}>
-          <MainContent />
+          <MainContent showReloadApplied={showReloadApplied} />
         </MainContentFrame>
       </MainPanel>
       {selectedCaseId ? <CaseDrawer /> : null}
@@ -118,9 +164,12 @@ export function AppShell() {
   );
 }
 
-function MainContent() {
+function MainContent({ showReloadApplied }: { showReloadApplied: boolean }) {
   const { selection } = selectionStore.useSelectorRC((s) => ({
     selection: s.selection,
+  }));
+  const { configReload } = workspaceConfigStore.useSelectorRC((s) => ({
+    configReload: s.configReload,
   }));
   const { evals, discoveryIssues } = evalsStore.useSelectorRC((s) => ({
     evals: s.evals,
@@ -133,6 +182,20 @@ function MainContent() {
         {discoveryIssues.map((issue) => issue.message).join(' ')}
       </DiscoveryIssueBanner>
     ) : null;
+  const configReloadBanner =
+    configReload.status === 'pending' ? (
+      <ConfigReloadBanner>
+        Config changed. Reload will apply after{' '}
+        {String(configReload.activeRunCount)} running{' '}
+        {configReload.activeRunCount === 1 ? 'run finishes' : 'runs finish'}.
+      </ConfigReloadBanner>
+    ) : configReload.status === 'reloading' ? (
+      <ConfigReloadBanner>
+        Config changed. Reloading app config.
+      </ConfigReloadBanner>
+    ) : showReloadApplied ? (
+      <ConfigReloadBanner>Config reloaded.</ConfigReloadBanner>
+    ) : null;
 
   if (selection.kind === 'eval') {
     const ev = evals.find((e) => e.key === selection.id);
@@ -140,6 +203,7 @@ function MainContent() {
     return (
       <>
         {issueBanner}
+        {configReloadBanner}
         <SingleEvalView evalSummary={ev} />
       </>
     );
@@ -150,6 +214,7 @@ function MainContent() {
   return (
     <>
       {issueBanner}
+      {configReloadBanner}
       <FolderView
         folderPath={folderPath}
         evals={inFolder}

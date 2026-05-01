@@ -1,6 +1,7 @@
 import {
   caseDetailSchema,
   caseRowSchema,
+  configReloadStateSchema,
   runManifestSchema,
   runSummarySchema,
   type CacheMode,
@@ -18,6 +19,7 @@ import {
 } from '#src/hooks/useSearchParams';
 import { evalsStore, fetchEvals } from '#src/stores/evalsStore';
 import { refetchHistory } from '#src/stores/historyStore';
+import { workspaceConfigStore } from '#src/stores/workspaceConfigStore';
 
 const createRunResponseSchema = z.object({
   manifest: runManifestSchema,
@@ -250,6 +252,11 @@ const manualInputValidationErrorBodySchema = z.object({
   error: z.literal('Manual input validation failed'),
   failures: z.array(manualInputValidationFailureSchema),
 });
+const configReloadPendingErrorBodySchema = z.object({
+  code: z.literal('CONFIG_RELOAD_PENDING'),
+  error: z.string(),
+  configReload: configReloadStateSchema,
+});
 
 /** Per-eval manual-input failure surfaced from a 400 `POST /api/runs` response. */
 export type ManualInputStartRunFailure = z.infer<
@@ -260,6 +267,7 @@ export type ManualInputStartRunFailure = z.infer<
 export type StartRunResult =
   | { status: 'started' }
   | { status: 'cancelled' }
+  | { status: 'config-reload-pending'; message: string }
   | { status: 'manual-input-error'; failures: ManualInputStartRunFailure[] }
   | { status: 'error'; message: string };
 
@@ -285,6 +293,13 @@ export async function startRun(
   target: RunTarget,
   options: StartRunOptions = {},
 ): Promise<StartRunResult> {
+  if (workspaceConfigStore.state.configReload.status !== 'idle') {
+    return {
+      status: 'config-reload-pending',
+      message: 'Config is reloading. Try again after it finishes.',
+    };
+  }
+
   if (!confirmLargeAppRun(target)) return { status: 'cancelled' };
 
   const { trials } = runStore.state;
@@ -320,6 +335,18 @@ export async function startRun(
       return {
         status: 'manual-input-error',
         failures: validationParse.data.failures,
+      };
+    }
+    const configReloadParse = configReloadPendingErrorBodySchema.safeParse(
+      jsonResult.value,
+    );
+    if (configReloadParse.success) {
+      workspaceConfigStore.setPartialState({
+        configReload: configReloadParse.data.configReload,
+      });
+      return {
+        status: 'config-reload-pending',
+        message: configReloadParse.data.error,
       };
     }
     return {

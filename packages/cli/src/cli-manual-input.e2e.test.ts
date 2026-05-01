@@ -111,6 +111,51 @@ describe('CLI manualInput', () => {
     });
   });
 
+  test('runs the image-analyzer eval with a file value supplied via --input', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const tinyPngDataUrl =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+      const result = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'manual-input-image-analyzer',
+        '--input',
+        JSON.stringify({
+          image: {
+            name: 'tiny.png',
+            mimeType: 'image/png',
+            size: 67,
+            dataUrl: tinyPngDataUrl,
+          },
+          caption: 'a single pixel',
+        }),
+      ]);
+
+      expect(result.exitCode).toBe(0);
+      const artifacts = await readSingleRunArtifacts(workspacePath);
+      expect(
+        normalizeSnapshotValue(workspacePath, {
+          columns: artifacts.cases[0]?.columns,
+          status: artifacts.cases[0]?.status,
+        }),
+      ).toMatchInlineSnapshot(`
+        {
+          "columns": {
+            "byteHead": "89 50 4e 47 0d 0a 1a 0a",
+            "fileName": "tiny.png",
+            "isImage": true,
+            "llmTurns": 0,
+            "mimeType": "image/png",
+            "reply": "Got "tiny.png" (image/png, 68 bytes) — caption: "a single pixel".",
+            "sizeBytes": 68,
+            "toolCalls": 0,
+          },
+          "status": "pass",
+        }
+      `);
+    });
+  });
+
   test('reads --input-file as a JSON map keyed by eval id or eval key', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const inputFilePath = join(workspacePath, 'manual-input.json');

@@ -189,6 +189,23 @@ export type ManualInputFieldOverride = {
    */
   asJson?: boolean;
   /**
+   * Force the file/image upload widget. The runtime value will be a
+   * {@link ManualInputFileValue} carrying the original file name, mime type,
+   * size in bytes, and the file contents as a base64 `data:` URL. The field's
+   * Zod schema should accept that shape — use {@link manualInputFileValueSchema}.
+   */
+  asFile?: boolean;
+  /**
+   * Browser `accept` attribute for the file picker (e.g. `image/*`,
+   * `image/png,image/jpeg`, `.pdf`). Only used when `asFile` is true.
+   */
+  accept?: string;
+  /**
+   * Optional maximum file size in bytes enforced client-side before the value
+   * is sent to the server. Only used when `asFile` is true.
+   */
+  maxSizeBytes?: number;
+  /**
    * Override the inferred default value. Useful when the schema has no
    * `.default()` but you want the modal to prefill a starting value.
    */
@@ -198,6 +215,22 @@ export type ManualInputFieldOverride = {
    * (used as both value and label) or a `{ value, label }` pair.
    */
   options?: Array<string | { value: string; label?: string }>;
+};
+
+/**
+ * Runtime shape produced by the manual-input file widget. The base64 payload
+ * is encoded as a `data:` URL so it can flow through JSON request bodies and
+ * be persisted alongside other case input fields.
+ */
+export type ManualInputFileValue = {
+  /** Original file name as reported by the browser. */
+  name: string;
+  /** Detected MIME type (`''` when the browser could not determine one). */
+  mimeType: string;
+  /** File size in bytes. */
+  size: number;
+  /** Base64-encoded `data:` URL carrying the file contents. */
+  dataUrl: string;
 };
 
 /**

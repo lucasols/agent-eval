@@ -1,6 +1,7 @@
 export { defineEval, getEvalRegistry } from './defineEval.ts';
 export { evalExpect, type EvalExpectation } from './evalExpect.ts';
 export { z } from 'zod/v4';
+export { manualInputFileValueSchema } from './manualInputFile.ts';
 export { repoFile } from './repoFile.ts';
 export {
   setEvalOutput,
@@ -93,6 +94,7 @@ export type {
   EvalManualInputConfig,
   ManualInputFieldOverride,
   ManualInputFieldsConfig,
+  ManualInputFileValue,
   EvalCacheConfig,
   EvalDefinition,
   EvalStartTime,

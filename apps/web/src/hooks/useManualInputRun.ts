@@ -57,7 +57,10 @@ export function useManualInputRun(evalSummary: EvalSummary) {
       );
       return;
     }
-    if (result.status === 'error') {
+    if (
+      result.status === 'error' ||
+      result.status === 'config-reload-pending'
+    ) {
       setServerFailure({
         evalKey: evalSummary.key,
         evalId: evalSummary.id,

@@ -28,6 +28,10 @@ display rules), read the TypeScript declarations shipped with the package:
   for targeted CLI runs. Set `allowCliRunAll: true` in
   `agent-evals.config.ts` to opt into run-all CLI behavior. The web UI can
   still run grouped evals and confirms before starting more than five.
+- `agent-evals app` watches `agent-evals.config.ts` and reloads config in
+  place when the runner is idle. If config changes during an active run, the UI
+  shows a pending reload banner and blocks new runs until the current run
+  reaches a terminal state and the reload applies.
 
 Assume that enumerated tables in this document may lag behind the types —
 treat the types as source of truth when they disagree.
@@ -263,6 +267,12 @@ shapes fall back to a JSON textarea). The CLI accepts `--input '<json>'` for a
 single targeted eval or `--input-file <path>` mapping eval keys/ids to inputs.
 Each run produces one synthetic case `<evalId>-manual` with the validated
 submission; mixing `manualInput` with `cases` is rejected at discovery time.
+
+For file or image fields, set `{ asFile: true, accept?, maxSizeBytes? }` and
+type the field with `manualInputFileValueSchema`. The widget supports click,
+drag-and-drop, and clipboard paste (so a screenshot capture flows in
+directly). The runtime value carries `{ name, mimeType, size, dataUrl }` —
+`dataUrl` is a base64 `data:` URL; decode it when bytes are needed.
 
 ## Scoring
 

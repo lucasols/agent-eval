@@ -220,6 +220,41 @@ describe('buildManualInputDescriptor', () => {
     ]);
   });
 
+  test('emits a file kind descriptor when override.asFile is true', () => {
+    const fileSchema = z.object({
+      name: z.string(),
+      mimeType: z.string(),
+      size: z.number(),
+      dataUrl: z.string(),
+    });
+    const result = buildManualInputDescriptor({
+      schema: z.object({ image: fileSchema }),
+      fields: {
+        image: {
+          asFile: true,
+          accept: 'image/*',
+          maxSizeBytes: 5_000_000,
+          label: 'Upload image',
+          description: 'Drop, paste, or click to upload',
+        },
+      },
+    });
+    if (result.error) throw result.error;
+    expect(result.value.fields[0]).toMatchInlineSnapshot(`
+      {
+        "accept": "image/*",
+        "defaultValue": undefined,
+        "description": "Drop, paste, or click to upload",
+        "key": "image",
+        "kind": "file",
+        "label": "Upload image",
+        "maxSizeBytes": 5000000,
+        "placeholder": undefined,
+        "required": true,
+      }
+    `);
+  });
+
   test('forwards modal-level title, description, and submitLabel', () => {
     const result = buildManualInputDescriptor({
       schema: z.object({ name: z.string() }),

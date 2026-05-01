@@ -137,8 +137,12 @@ export {
   type SseEventType,
 } from './schemas/sse.ts';
 export {
+  configReloadStateSchema,
+  configReloadStatusSchema,
   createRunRequestSchema,
   updateManualScoreRequestSchema,
+  type ConfigReloadState,
+  type ConfigReloadStatus,
   type CreateRunRequest,
   type UpdateManualScoreRequest,
 } from './schemas/api.ts';
