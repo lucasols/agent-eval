@@ -6,7 +6,8 @@ import type {
   SerializedCacheSpan,
 } from '@agent-evals/shared';
 
-const serializedCacheValueMarker = '__agentEvalsCacheSerialization';
+const serializedCacheValueMarker = '__aecs';
+const legacySerializedCacheValueMarker = '__agentEvalsCacheSerialization';
 const jsonSafeCacheValueVersion = 'json-safe-v1';
 const packedNumberArrayMinLength = 128;
 const compressedStringMinBytes = 16 * 1024;
@@ -44,6 +45,19 @@ type JsonSafeSerializedCacheValue = {
 /** JSON-safe persisted representation for one rich cached value. */
 export type SerializedCacheValue = JsonSafeSerializedCacheValue;
 
+/** Options controlling how rich cache values are persisted as JSON-safe data. */
+export type CacheSerializationOptions = {
+  /**
+   * Preserve JavaScript `undefined` values with explicit tagged wrappers.
+   *
+   * Disabled by default so undefined object fields, array items, map entries,
+   * and set items are omitted instead of being written to cache files.
+   */
+  preserveUndefined?: boolean;
+};
+
+type CacheSerializationConfig = { preserveUndefined: boolean };
+
 function isRecordLike(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -53,7 +67,7 @@ function isJsonSafeSerializedCacheValue(
 ): value is JsonSafeSerializedCacheValue {
   return (
     isRecordLike(value) &&
-    value[serializedCacheValueMarker] === jsonSafeCacheValueVersion &&
+    serializationMarkerValue(value) === jsonSafeCacheValueVersion &&
     typeof value.type === 'string'
   );
 }
@@ -68,16 +82,34 @@ function jsonSafeValue(
 }
 
 function hasSerializationMarkerKey(value: object): boolean {
-  return Object.hasOwn(value, serializedCacheValueMarker);
+  return (
+    Object.hasOwn(value, serializedCacheValueMarker) ||
+    Object.hasOwn(value, legacySerializedCacheValueMarker)
+  );
+}
+
+function serializationMarkerValue(value: Record<string, unknown>): unknown {
+  return (
+    value[serializedCacheValueMarker] ?? value[legacySerializedCacheValueMarker]
+  );
 }
 
 /**
  * Serialize one cached value while keeping plain JSON as plain JSON.
  *
- * Rich runtime values use small tagged wrappers.
+ * Rich runtime values use small tagged wrappers. Undefined values are omitted
+ * by default; pass `preserveUndefined: true` to round-trip them explicitly.
  */
-export async function serializeCacheValue(value: unknown): Promise<unknown> {
-  return serializeJsonSafeValue(value, new WeakSet(), 0);
+export async function serializeCacheValue(
+  value: unknown,
+  options: CacheSerializationOptions | undefined = undefined,
+): Promise<unknown> {
+  return serializeJsonSafeValue(
+    value,
+    new WeakSet(),
+    0,
+    normalizeCacheSerializationOptions(options),
+  );
 }
 
 /** Revive one cached value, while preserving legacy JSON-round-tripped data. */
@@ -86,23 +118,35 @@ export function deserializeCacheValue(value: unknown): unknown {
 }
 
 /** Clone one value through the same serialization path used for cache data. */
-export async function cloneCacheValue(value: unknown): Promise<unknown> {
-  return deserializeCacheValue(await serializeCacheValue(value));
+export async function cloneCacheValue(
+  value: unknown,
+  options: CacheSerializationOptions | undefined = undefined,
+): Promise<unknown> {
+  return deserializeCacheValue(await serializeCacheValue(value, options));
+}
+
+function normalizeCacheSerializationOptions(
+  options: CacheSerializationOptions | undefined,
+): CacheSerializationConfig {
+  return { preserveUndefined: options?.preserveUndefined === true };
 }
 
 async function serializeJsonSafeValue(
   value: unknown,
   refs: WeakSet<object>,
   depth: number,
+  config: CacheSerializationConfig,
 ): Promise<unknown> {
-  if (value === undefined) return jsonSafeValue('Undefined');
+  if (value === undefined) {
+    return config.preserveUndefined ? jsonSafeValue('Undefined') : undefined;
+  }
   if (typeof value === 'bigint')
     return jsonSafeValue('BigInt', value.toString());
   if (typeof value === 'number') return serializeNumber(value);
   if (typeof value === 'string') return serializeString(value, depth);
   if (value instanceof Date) return jsonSafeValue('Date', value.toISOString());
-  if (value instanceof Map) return serializeMap(value, refs, depth);
-  if (value instanceof Set) return serializeSet(value, refs, depth);
+  if (value instanceof Map) return serializeMap(value, refs, depth, config);
+  if (value instanceof Set) return serializeSet(value, refs, depth, config);
   if (value instanceof RegExp) {
     return jsonSafeValue('RegExp', {
       flags: value.flags,
@@ -133,7 +177,7 @@ async function serializeJsonSafeValue(
   if (value instanceof ArrayBuffer) {
     return jsonSafeValue('ArrayBuffer', bytesToBase64(new Uint8Array(value)));
   }
-  if (value instanceof Error) return serializeError(value, refs, depth);
+  if (value instanceof Error) return serializeError(value, refs, depth, config);
   if (!value || typeof value !== 'object') return value;
 
   if (refs.has(value)) {
@@ -156,7 +200,13 @@ async function serializeJsonSafeValue(
 
     const items: unknown[] = [];
     for (const item of value) {
-      items.push(await serializeJsonSafeValue(item, refs, depth + 1));
+      const serializedItem = await serializeJsonSafeValue(
+        item,
+        refs,
+        depth + 1,
+        config,
+      );
+      if (serializedItem !== undefined) items.push(serializedItem);
     }
     refs.delete(value);
     return compressNestedJsonValue(items, depth) ?? items;
@@ -164,10 +214,15 @@ async function serializeJsonSafeValue(
 
   const entries: [string, unknown][] = [];
   for (const [key, entryValue] of Object.entries(value)) {
-    entries.push([
-      key,
-      await serializeJsonSafeValue(entryValue, refs, depth + 1),
-    ]);
+    const serializedEntryValue = await serializeJsonSafeValue(
+      entryValue,
+      refs,
+      depth + 1,
+      config,
+    );
+    if (serializedEntryValue !== undefined) {
+      entries.push([key, serializedEntryValue]);
+    }
   }
   refs.delete(value);
 
@@ -276,6 +331,7 @@ async function serializeMap(
   value: Map<unknown, unknown>,
   refs: WeakSet<object>,
   depth: number,
+  config: CacheSerializationConfig,
 ): Promise<unknown> {
   if (refs.has(value)) {
     throw new Error('Circular cache values are not supported');
@@ -284,10 +340,21 @@ async function serializeMap(
   refs.add(value);
   const entries: unknown[] = [];
   for (const [key, entryValue] of value.entries()) {
-    entries.push([
-      await serializeJsonSafeValue(key, refs, depth + 1),
-      await serializeJsonSafeValue(entryValue, refs, depth + 1),
-    ]);
+    const serializedKey = await serializeJsonSafeValue(
+      key,
+      refs,
+      depth + 1,
+      config,
+    );
+    const serializedEntryValue = await serializeJsonSafeValue(
+      entryValue,
+      refs,
+      depth + 1,
+      config,
+    );
+    if (serializedKey !== undefined && serializedEntryValue !== undefined) {
+      entries.push([serializedKey, serializedEntryValue]);
+    }
   }
   refs.delete(value);
   return jsonSafeValue('Map', entries);
@@ -297,6 +364,7 @@ async function serializeSet(
   value: Set<unknown>,
   refs: WeakSet<object>,
   depth: number,
+  config: CacheSerializationConfig,
 ): Promise<unknown> {
   if (refs.has(value)) {
     throw new Error('Circular cache values are not supported');
@@ -305,7 +373,13 @@ async function serializeSet(
   refs.add(value);
   const items: unknown[] = [];
   for (const item of value.values()) {
-    items.push(await serializeJsonSafeValue(item, refs, depth + 1));
+    const serializedItem = await serializeJsonSafeValue(
+      item,
+      refs,
+      depth + 1,
+      config,
+    );
+    if (serializedItem !== undefined) items.push(serializedItem);
   }
   refs.delete(value);
   return jsonSafeValue('Set', items);
@@ -315,6 +389,7 @@ async function serializeError(
   value: Error,
   refs: WeakSet<object>,
   depth: number,
+  config: CacheSerializationConfig,
 ): Promise<unknown> {
   if (refs.has(value)) {
     throw new Error('Circular cache values are not supported');
@@ -324,15 +399,20 @@ async function serializeError(
   const props: [string, unknown][] = [];
   for (const [key, entryValue] of Object.entries(value)) {
     if (key === 'cause') continue;
-    props.push([
-      key,
-      await serializeJsonSafeValue(entryValue, refs, depth + 1),
-    ]);
+    const serializedEntryValue = await serializeJsonSafeValue(
+      entryValue,
+      refs,
+      depth + 1,
+      config,
+    );
+    if (serializedEntryValue !== undefined) {
+      props.push([key, serializedEntryValue]);
+    }
   }
   const serialized = jsonSafeValue('Error', {
     cause:
       'cause' in value
-        ? await serializeJsonSafeValue(value.cause, refs, depth + 1)
+        ? await serializeJsonSafeValue(value.cause, refs, depth + 1, config)
         : undefined,
     message: value.message,
     name: value.name,
@@ -547,10 +627,12 @@ function deserializeError(value: unknown): unknown {
 
 async function serializeRecordValues(
   record: Record<string, unknown>,
+  config: CacheSerializationConfig,
 ): Promise<Record<string, unknown>> {
   const entries: [string, unknown][] = [];
   for (const [key, value] of Object.entries(record)) {
-    entries.push([key, await serializeCacheValue(value)]);
+    const serializedValue = await serializeCacheValue(value, config);
+    if (serializedValue !== undefined) entries.push([key, serializedValue]);
   }
   return Object.fromEntries(entries);
 }
@@ -568,19 +650,20 @@ function deserializeRecordValues(
 
 async function serializeCacheRecordingOp(
   op: CacheRecordingOp,
+  config: CacheSerializationConfig,
 ): Promise<CacheRecordingOp> {
   switch (op.kind) {
     case 'setOutput':
     case 'appendOutput':
-      return { ...op, value: await serializeCacheValue(op.value) };
+      return { ...op, value: await serializeCacheValue(op.value, config) };
     case 'mergeOutput':
-      return { ...op, patch: await serializeRecordValues(op.patch) };
+      return { ...op, patch: await serializeRecordValues(op.patch, config) };
     case 'incrementOutput':
       return op;
     case 'checkpoint':
-      return { ...op, data: await serializeCacheValue(op.data) };
+      return { ...op, data: await serializeCacheValue(op.data, config) };
     case 'subSpan':
-      return { ...op, span: await serializeCacheSpan(op.span) };
+      return { ...op, span: await serializeCacheSpan(op.span, config) };
   }
 }
 
@@ -602,14 +685,17 @@ function deserializeCacheRecordingOp(op: CacheRecordingOp): CacheRecordingOp {
 
 async function serializeCacheSpan(
   span: SerializedCacheSpan,
+  config: CacheSerializationConfig,
 ): Promise<SerializedCacheSpan> {
   return {
     ...span,
     attributes:
       span.attributes === undefined
         ? undefined
-        : await serializeRecordValues(span.attributes),
-    children: await Promise.all(span.children.map(serializeCacheSpan)),
+        : await serializeRecordValues(span.attributes, config),
+    children: await Promise.all(
+      span.children.map((child) => serializeCacheSpan(child, config)),
+    ),
   };
 }
 
@@ -624,15 +710,27 @@ function deserializeCacheSpan(span: SerializedCacheSpan): SerializedCacheSpan {
   };
 }
 
-/** Serialize all rich values captured in a cache recording before persistence. */
+/**
+ * Serialize all rich values captured in a cache recording before persistence.
+ *
+ * Undefined values are omitted by default; pass `preserveUndefined: true` to
+ * retain the legacy explicit undefined wrappers in the recording payload.
+ */
 export async function serializeCacheRecording(
   recording: CacheRecording,
+  options: CacheSerializationOptions | undefined = undefined,
 ): Promise<CacheRecording> {
+  const config = normalizeCacheSerializationOptions(options);
   return {
     ...recording,
-    returnValue: await serializeCacheValue(recording.returnValue),
-    finalAttributes: await serializeRecordValues(recording.finalAttributes),
-    ops: await Promise.all(recording.ops.map(serializeCacheRecordingOp)),
+    returnValue: await serializeCacheValue(recording.returnValue, config),
+    finalAttributes: await serializeRecordValues(
+      recording.finalAttributes,
+      config,
+    ),
+    ops: await Promise.all(
+      recording.ops.map((op) => serializeCacheRecordingOp(op, config)),
+    ),
   };
 }
 

@@ -111,7 +111,6 @@ export async function runCase<
   startTime: number;
   cacheAdapter: CacheAdapter | null;
   cacheMode: CacheMode;
-  codeFingerprint: string;
   moduleIsolation: { key: string; workspaceRoot: string } | undefined;
   evalFilePath: string;
   evalFileRelativePath?: string;
@@ -132,7 +131,6 @@ export async function runCase<
     startTime,
     cacheAdapter,
     cacheMode,
-    codeFingerprint,
     moduleIsolation,
     evalFilePath,
     evalFileRelativePath = evalFilePath,
@@ -171,7 +169,7 @@ export async function runCase<
       idPrefix: scopedIdPrefix,
       waitForBackgroundJobs: evalDef.waitForBackgroundJobs !== false,
       cacheContext: cacheAdapter
-        ? { adapter: cacheAdapter, mode: cacheMode, evalId, codeFingerprint }
+        ? { adapter: cacheAdapter, mode: cacheMode, evalId }
         : undefined,
       startTime: evalDef.startTime,
       freezeTime: evalDef.freezeTime,
@@ -309,7 +307,6 @@ export async function runCase<
                 adapter: cacheAdapter,
                 mode: cacheMode,
                 evalId: `${evalId}__score__${key}`,
-                codeFingerprint,
               }
             : undefined,
           startTime: scoreStartTime,

@@ -24,7 +24,8 @@ import {
 import { resultify } from 't-result';
 
 const defaultMaxEntriesPerNamespace = 100;
-const cacheSerializationMarker = '__agentEvalsCacheSerialization';
+const cacheSerializationMarker = '__aecs';
+const legacyCacheSerializationMarker = '__agentEvalsCacheSerialization';
 const supportedCacheSerializationVersion = 'json-safe-v1';
 
 /** Filter accepted by `FsCacheStore.clear` to narrow the set of entries removed. */
@@ -183,7 +184,6 @@ export function createFsCacheStore(options: {
             spanName: entry.spanName,
             spanKind: entry.spanKind,
             storedAt: entry.storedAt,
-            codeFingerprint: entry.codeFingerprint,
             sizeBytes: Buffer.byteLength(JSON.stringify(entry), 'utf8'),
           });
         }
@@ -367,11 +367,16 @@ function usesSupportedCacheSerialization(value: unknown): boolean {
     return value.every(usesSupportedCacheSerialization);
   }
   if (!isRecordLike(value)) return true;
-  if (
-    Object.hasOwn(value, cacheSerializationMarker) &&
-    value[cacheSerializationMarker] !== supportedCacheSerializationVersion
-  ) {
-    return false;
+  for (const marker of [
+    cacheSerializationMarker,
+    legacyCacheSerializationMarker,
+  ]) {
+    if (
+      Object.hasOwn(value, marker) &&
+      value[marker] !== supportedCacheSerializationVersion
+    ) {
+      return false;
+    }
   }
   return Object.values(value).every(usesSupportedCacheSerialization);
 }
@@ -438,7 +443,6 @@ async function writeDebugKeyEntry(params: {
       operationType: debugKey.operationType,
       operationName: debugKey.operationName,
       storedAt: entry.storedAt,
-      codeFingerprint: debugKey.codeFingerprint,
       rawKey: debugKey.rawKey,
     };
     const prunedEntries = pruneDebugKeyEntries(

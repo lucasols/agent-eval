@@ -38,6 +38,7 @@ export {
   deserializeCacheValue,
   serializeCacheRecording,
   serializeCacheValue,
+  type CacheSerializationOptions,
   type SerializedCacheValue,
 } from './cacheSerialization.ts';
 export {

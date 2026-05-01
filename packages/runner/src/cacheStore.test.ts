@@ -43,7 +43,6 @@ function cacheEntry(params: {
     spanName: 'expensive-op',
     spanKind: 'llm',
     storedAt: params.storedAt ?? '2026-04-29T00:00:00.000Z',
-    codeFingerprint: 'source-fingerprint',
     recording: { returnValue: { ok: true }, finalAttributes: {}, ops: [] },
   };
 }
@@ -86,7 +85,6 @@ describe('filesystem cache store raw-key debug storage', () => {
       rawKey: { prompt: 'refund please', model: 'gpt-4o-mini' },
       operationType: 'span',
       operationName: 'expensive-op',
-      codeFingerprint: 'source-fingerprint',
     });
 
     const cacheFile = await readCacheFile(workspacePath);
@@ -139,7 +137,6 @@ describe('filesystem cache store raw-key debug storage', () => {
       rawKey: { prompt: 'refund please', model: 'gpt-4o-mini' },
       operationType: 'span',
       operationName: 'expensive-op',
-      codeFingerprint: 'source-fingerprint',
     });
 
     const rawDebugFile = await readFile(
@@ -170,7 +167,7 @@ describe('filesystem cache store raw-key debug storage', () => {
     const store = createFsCacheStore({ workspaceRoot: workspacePath });
     const entry = cacheEntry({ key: 'unsupported-key' });
     entry.recording.returnValue = {
-      __agentEvalsCacheSerialization: 'unsupported-v1',
+      __aecs: 'unsupported-v1',
       value: { ok: true },
     };
 
@@ -192,7 +189,6 @@ describe('filesystem cache store raw-key debug storage', () => {
         rawKey: { prompt: 'serializable' },
         operationType: 'span',
         operationName: 'expensive-op',
-        codeFingerprint: 'source-fingerprint',
       },
     );
     await store.write(
@@ -201,7 +197,6 @@ describe('filesystem cache store raw-key debug storage', () => {
         rawKey: { unsupported: 1n },
         operationType: 'span',
         operationName: 'expensive-op',
-        codeFingerprint: 'source-fingerprint',
       },
     );
 
@@ -223,7 +218,6 @@ describe('filesystem cache store raw-key debug storage', () => {
         rawKey: { prompt: 'first' },
         operationType: 'span',
         operationName: 'expensive-op',
-        codeFingerprint: 'source-fingerprint',
       },
     );
     await store.write(
@@ -232,7 +226,6 @@ describe('filesystem cache store raw-key debug storage', () => {
         rawKey: { prompt: 'second' },
         operationType: 'span',
         operationName: 'expensive-op',
-        codeFingerprint: 'source-fingerprint',
       },
     );
 
@@ -267,13 +260,11 @@ describe('filesystem cache store raw-key debug storage', () => {
       rawKey: { candidate: 'losing' },
       operationType: 'span',
       operationName: 'expensive-op',
-      codeFingerprint: 'source-fingerprint',
     });
     await winning.write(cacheEntry({ key: 'winning-key' }), {
       rawKey: { candidate: 'winning' },
       operationType: 'span',
       operationName: 'expensive-op',
-      codeFingerprint: 'source-fingerprint',
     });
 
     await winning.commit();

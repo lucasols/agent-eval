@@ -71,7 +71,6 @@ export const cacheListItemSchema = z.object({
   spanName: z.string().optional(),
   spanKind: traceSpanKindSchema.optional(),
   storedAt: z.string(),
-  codeFingerprint: z.string(),
   sizeBytes: z.number(),
 });
 /** Summary row for a single cache entry. */
@@ -168,7 +167,6 @@ export const cacheEntrySchema = z.object({
   spanName: z.string().optional(),
   spanKind: traceSpanKindSchema.optional(),
   storedAt: z.string(),
-  codeFingerprint: z.string(),
   recording: cacheRecordingSchema,
 });
 /** Persisted cache file contents. */
@@ -182,7 +180,6 @@ export const cacheDebugKeyEntrySchema = z.object({
   operationType: cacheOperationTypeSchema,
   operationName: z.string(),
   storedAt: z.string(),
-  codeFingerprint: z.string(),
   rawKey: z.unknown(),
 });
 /** Debug-only raw cache key entry. May contain sensitive prompt/input data. */

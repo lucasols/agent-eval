@@ -1,7 +1,8 @@
 import { deserializeCacheValue, serializeCacheValue } from '@agent-evals/sdk';
 import { expect, test } from 'vitest';
 
-const serializationMarker = '__agentEvalsCacheSerialization';
+const serializationMarker = '__aecs';
+const legacySerializationMarker = '__agentEvalsCacheSerialization';
 
 test('keeps root arrays plain while packing nested number arrays', async () => {
   const embedding = Array.from(
@@ -90,7 +91,6 @@ test('round trips rich cache values with small JSON-safe tags', async () => {
     notANumber: NaN,
     pattern: /refund/giu,
     url: new URL('https://example.com/path?q=1'),
-    value: undefined,
   });
   if (isRichRoundTripValue(deserialized)) {
     expect(deserialized.map.get('tier')).toBe('gold');
@@ -98,6 +98,61 @@ test('round trips rich cache values with small JSON-safe tags', async () => {
   } else {
     throw new Error('Expected rich cache value to round trip');
   }
+});
+
+test('omits undefined values instead of writing undefined tags', async () => {
+  const value = {
+    items: [undefined, 'kept', { missing: undefined, present: true }],
+    map: new Map<unknown, unknown>([
+      ['present', 'value'],
+      ['missing', undefined],
+    ]),
+    missing: undefined,
+    nested: { missing: undefined, present: 1 },
+    set: new Set([undefined, 'present']),
+  };
+
+  const serialized = await serializeCacheValue(value);
+  const deserialized = deserializeCacheValue(serialized);
+
+  expect(JSON.stringify(serialized)).not.toContain('"Undefined"');
+  expect(deserialized).toMatchObject({
+    items: ['kept', { present: true }],
+    nested: { present: 1 },
+  });
+  if (isUndefinedOmissionValue(deserialized)) {
+    expect(Object.hasOwn(deserialized, 'missing')).toBe(false);
+    expect(Object.hasOwn(deserialized.nested, 'missing')).toBe(false);
+    expect(deserialized.map.has('missing')).toBe(false);
+    expect([...deserialized.set]).toEqual(['present']);
+  } else {
+    throw new Error('Expected rich cache value to round trip');
+  }
+});
+
+test('preserves undefined values when explicitly requested', async () => {
+  const value = {
+    items: [undefined, 'kept'],
+    missing: undefined,
+    nested: { missing: undefined, present: 1 },
+  };
+
+  const serialized = await serializeCacheValue(value, {
+    preserveUndefined: true,
+  });
+  const deserialized = deserializeCacheValue(serialized);
+
+  expect(JSON.stringify(serialized)).toContain('"Undefined"');
+  expect(deserialized).toEqual(value);
+});
+
+test('deserializes legacy long-form cache serialization markers', () => {
+  expect(
+    deserializeCacheValue({
+      [legacySerializationMarker]: 'json-safe-v1',
+      type: 'Undefined',
+    }),
+  ).toBeUndefined();
 });
 
 test('escapes user objects that contain the cache serialization marker', async () => {
@@ -121,6 +176,25 @@ function isRichRoundTripValue(
     value !== null &&
     'map' in value &&
     value.map instanceof Map &&
+    'set' in value &&
+    value.set instanceof Set
+  );
+}
+
+function isUndefinedOmissionValue(
+  value: unknown,
+): value is Record<string, unknown> & {
+  map: Map<unknown, unknown>;
+  nested: Record<string, unknown>;
+  set: Set<unknown>;
+} {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'map' in value &&
+    value.map instanceof Map &&
+    'nested' in value &&
+    isRecordLike(value.nested) &&
     'set' in value &&
     value.set instanceof Set
   );

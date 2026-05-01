@@ -363,17 +363,17 @@ export async function executeRun({
 
     for (const evalMeta of targetEvals) {
       const evalFilePath = evalMeta.sourceFilePath;
-      let codeFingerprint = '';
+      let sourceFingerprint = '';
       try {
         const source = await readFile(evalFilePath, 'utf-8');
-        codeFingerprint = getSourceFingerprint(source);
+        sourceFingerprint = getSourceFingerprint(source);
       } catch {
-        codeFingerprint = '';
+        sourceFingerprint = '';
       }
-      if (codeFingerprint.length > 0) {
+      if (sourceFingerprint.length > 0) {
         runState.manifest.evalSourceFingerprints[evalMeta.key] =
-          codeFingerprint;
-        evalMeta.sourceFingerprint = codeFingerprint;
+          sourceFingerprint;
+        evalMeta.sourceFingerprint = sourceFingerprint;
       } else {
         delete runState.manifest.evalSourceFingerprints[evalMeta.key];
         evalMeta.sourceFingerprint = null;
@@ -383,7 +383,7 @@ export async function executeRun({
         const registry = getEvalRegistry();
         await runWithModuleIsolation(moduleIsolation, async () => {
           await runInEvalRuntimeScope('env', async () => {
-            await loadEvalModule(evalFilePath, codeFingerprint);
+            await loadEvalModule(evalFilePath, sourceFingerprint);
           });
         });
 
@@ -505,7 +505,6 @@ export async function executeRun({
                           bufferedCacheStore ??
                           (cacheEnabled ? cacheStore : null),
                         cacheMode,
-                        codeFingerprint,
                         moduleIsolation,
                         evalFilePath,
                         evalFileRelativePath: evalMeta.filePath,

@@ -60,6 +60,7 @@ export {
   type EvalDefinition,
   type EvalStartTime,
   type DefaultConfigKey,
+  type CacheSerializationOptions,
   type CacheKeyHashInput,
   type CacheKeyHashOptions,
   type SerializedCacheValue,

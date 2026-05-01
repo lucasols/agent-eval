@@ -132,15 +132,9 @@ export function createTraceCache(generateSpanId: () => string): {
           operationType: 'value',
           operationName: info.name,
           storedAt: new Date(getRealDateNowMs()).toISOString(),
-          codeFingerprint: cacheCtx.codeFingerprint,
           recording: await serializeCacheRecording(recording),
         },
-        {
-          rawKey: info.key,
-          operationType: 'value',
-          operationName: info.name,
-          codeFingerprint: cacheCtx.codeFingerprint,
-        },
+        { rawKey: info.key, operationType: 'value', operationName: info.name },
       );
     }
 

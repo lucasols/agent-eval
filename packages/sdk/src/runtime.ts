@@ -31,7 +31,6 @@ export type CacheDebugKeyWrite = {
   rawKey: unknown;
   operationType: CacheOperationType;
   operationName: string;
-  codeFingerprint: string;
 };
 
 /**
@@ -58,8 +57,6 @@ export type CacheScopeContext = {
   adapter: CacheAdapter;
   mode: CacheMode;
   evalId: string;
-  /** Hash of the eval source file, stored as cache metadata for inspection. */
-  codeFingerprint: string;
 };
 
 /** Active recording frame captured while a cached operation body executes. */

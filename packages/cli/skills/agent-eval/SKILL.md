@@ -382,8 +382,8 @@ Mental model:
   (no surrounding span), the ref is recorded on the case detail's `cacheRefs`
   array.
 - Cache identity is the namespace plus the authored key. Source-file
-  fingerprints are stored as metadata for inspection, but do not participate in
-  cache-key hashing.
+  fingerprints are tracked for run freshness separately, but do not participate
+  in cache-key hashing.
 - Cached spans require an explicit `cache.namespace`; value caches default to
   `${evalId}__${name}` and can be overridden with `namespace`. Matching
   namespaces share entries across operations/evals that use the same authored
@@ -407,10 +407,13 @@ Mental model:
   user inputs, or other sensitive data, should be gitignored, and is not needed
   for cache reuse. The UI Cache tab shows the raw key when it is available and
   can be filtered to hits or new entries added by cache misses/refreshes.
-- Cached payloads use advance serialization/deserialization with the Web API plugin set, so return values and
-  recorded SDK effects preserve richer built-ins such as `Date`, `Map`, `Set`,
-  typed arrays, `URL`, `Headers`, `Blob`, and `File` on hits. Cache keys still
-  use the deterministic key-hashing rules above.
+- Cached payloads use advanced serialization/deserialization with the Web API
+  plugin set, so return values and recorded SDK effects preserve richer
+  built-ins such as `Date`, `Map`, `Set`, typed arrays, `URL`, `Headers`,
+  `Blob`, and `File` on hits. Undefined values are omitted by default instead
+  of being written to cache files; direct serializer callers can pass
+  `{ preserveUndefined: true }` when explicit undefined wrappers are needed.
+  Cache keys still use the deterministic key-hashing rules above.
 - Cache mode per run is controlled by CLI flags (see `agent-evals run --help`).
 
 ## Artifacts

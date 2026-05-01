@@ -18,7 +18,6 @@ async function runClockCase(evalDef: Parameters<typeof runCase>[0]['evalDef']) {
     startTime: Date.now(),
     cacheAdapter: null,
     cacheMode: 'use',
-    codeFingerprint: 'fingerprint',
     moduleIsolation: undefined,
     evalFilePath: '/repo/evals/clock.eval.ts',
     workspaceRoot: '/repo',

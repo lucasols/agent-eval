@@ -399,14 +399,7 @@ test('revives rich cached values with Seroval while using the existing cache key
           },
         );
       },
-      {
-        cacheContext: {
-          adapter,
-          mode: 'use',
-          evalId: 'rich-cache-eval',
-          codeFingerprint: 'source-fingerprint',
-        },
-      },
+      { cacheContext: { adapter, mode: 'use', evalId: 'rich-cache-eval' } },
     );
   }
 
