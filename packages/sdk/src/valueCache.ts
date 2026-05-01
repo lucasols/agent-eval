@@ -53,8 +53,10 @@ export function createTraceCache(generateSpanId: () => string): {
       { serializeFileBytes: info.serializeFileBytes === true },
     );
     const activeSpan = scope.activeSpanStack.at(-1);
+    const canRead = cacheCtx.mode === 'use' && cacheCtx.read !== false;
+    const canStore = cacheCtx.mode !== 'bypass' && cacheCtx.store !== false;
 
-    if (cacheCtx.mode === 'use') {
+    if (canRead) {
       const hit = await cacheCtx.adapter.lookup(namespace, keyHash);
       if (hit) {
         const storedAt = hit.storedAt;
@@ -78,6 +80,16 @@ export function createTraceCache(generateSpanId: () => string): {
         namespace,
         key: keyHash,
         status: 'miss',
+        ...(canStore ? {} : { stored: false }),
+      });
+    } else if (cacheCtx.mode === 'use' && canStore) {
+      recordCacheRef(scope, activeSpan, {
+        type: 'value',
+        name: info.name,
+        namespace,
+        key: keyHash,
+        status: 'miss',
+        read: false,
       });
     } else if (cacheCtx.mode === 'refresh') {
       recordCacheRef(scope, activeSpan, {
@@ -86,6 +98,7 @@ export function createTraceCache(generateSpanId: () => string): {
         namespace,
         key: keyHash,
         status: 'refresh',
+        ...(canStore ? {} : { stored: false }),
       });
     } else {
       recordCacheRef(scope, activeSpan, {
@@ -114,7 +127,7 @@ export function createTraceCache(generateSpanId: () => string): {
 
     appendSubSpanOps(scope, frame);
 
-    if (cacheCtx.mode !== 'bypass') {
+    if (canStore) {
       const finalAttributes = diffNonCacheAttributes(
         beforeAttributes,
         await snapshotNonCacheAttributes(activeSpan),

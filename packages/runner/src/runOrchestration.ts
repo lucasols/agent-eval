@@ -426,6 +426,8 @@ export async function executeRun({
 
               const defaultConfig = resolveEvalDefaultConfig({
                 evalDef,
+                globalColumns: config.columns,
+                globalStats: config.stats,
                 globalRemove: config.removeDefaultConfig,
               });
               const declaredColumnDefs = buildDeclaredColumnDefs(
@@ -496,6 +498,8 @@ export async function executeRun({
                         evalKey: evalMeta.key,
                         evalCase,
                         globalTraceDisplay,
+                        globalColumns: config.columns,
+                        globalDeriveFromTracing: config.deriveFromTracing,
                         llmCallsConfig,
                         apiCallsConfig,
                         globalRemoveDefaultConfig: config.removeDefaultConfig,

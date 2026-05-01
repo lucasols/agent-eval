@@ -1,8 +1,5 @@
 import { defineEval, evalTracer } from '@ls-stack/agent-eval';
-import {
-  getTraceCounts,
-  sharedTraceDisplay,
-} from '../../../src/evals/exampleEvalUtils.ts';
+import { sharedTraceDisplay } from '../../../src/evals/exampleEvalUtils.ts';
 import {
   runReceiptAuditWorkflow,
   type ReceiptAuditInput,
@@ -47,8 +44,6 @@ defineEval<ReceiptAuditInput>({
       format: 'number',
       numberFormat: { prefix: '$', minDecimalPlaces: 4, maxDecimalPlaces: 4 },
     },
-    toolCalls: { label: 'Tool Calls' },
-    llmTurns: { label: 'LLM Turns' },
   },
   traceDisplay: sharedTraceDisplay,
   execute: async ({ input }) => {
@@ -58,7 +53,6 @@ defineEval<ReceiptAuditInput>({
     );
     await runReceiptAuditWorkflow(input);
   },
-  deriveFromTracing: ({ trace }) => getTraceCounts(trace),
   scores: {
     receiptVerified: {
       label: 'Receipt Verified',
@@ -92,14 +86,11 @@ defineEval<ReceiptFraudReviewInput>({
       format: 'number',
       numberFormat: { prefix: '$', minDecimalPlaces: 4, maxDecimalPlaces: 4 },
     },
-    toolCalls: { label: 'Tool Calls' },
-    llmTurns: { label: 'LLM Turns' },
   },
   traceDisplay: sharedTraceDisplay,
   execute: async ({ input }) => {
     await runReceiptFraudReviewWorkflow(input);
   },
-  deriveFromTracing: ({ trace }) => getTraceCounts(trace),
   scores: {
     riskEscalated: {
       label: 'Risk Escalated',

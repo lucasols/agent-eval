@@ -376,6 +376,77 @@ defineEval({
     }
   });
 
+  test('applies global columns and stats during discovery', async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), 'agent-evals-runner-global-display-config-'),
+    );
+    createdWorkspaces.push(workspacePath);
+
+    await mkdir(join(workspacePath, 'evals'), { recursive: true });
+    await writeFile(
+      join(workspacePath, 'agent-evals.config.ts'),
+      `export default {
+  include: ['evals/**/*.eval.ts'],
+  removeDefaultConfig: true,
+  columns: {
+    globalMetric: { label: 'Global Metric', format: 'number' },
+    sharedMetric: { label: 'Global Shared' },
+  },
+  stats: [
+    { kind: 'cases' },
+    { kind: 'column', key: 'globalMetric', aggregate: 'avg' },
+  ],
+};
+`,
+    );
+    await writeFile(
+      join(workspacePath, 'evals', 'global-display.eval.ts'),
+      `import { defineEval } from '@agent-evals/sdk';
+
+defineEval({
+  id: 'global-display-eval',
+  columns: {
+    sharedMetric: { label: 'Eval Shared', format: 'markdown' },
+    evalMetric: { label: 'Eval Metric' },
+  },
+  stats: [{ kind: 'duration' }],
+  execute: () => {},
+});
+`,
+    );
+
+    const previousCwd = process.cwd();
+    process.chdir(workspacePath);
+
+    try {
+      const runner = createRunner({ watchForChanges: false });
+      await runner.init();
+
+      expect(runner.getEval('global-display-eval')?.columnDefs).toEqual([
+        {
+          key: 'globalMetric',
+          label: 'Global Metric',
+          kind: 'number',
+          format: 'number',
+        },
+        {
+          key: 'sharedMetric',
+          label: 'Eval Shared',
+          kind: 'string',
+          format: 'markdown',
+        },
+        { key: 'evalMetric', label: 'Eval Metric', kind: 'string' },
+      ]);
+      expect(runner.getEval('global-display-eval')?.stats).toEqual([
+        { kind: 'cases' },
+        { kind: 'column', key: 'globalMetric', aggregate: 'avg' },
+        { kind: 'duration' },
+      ]);
+    } finally {
+      process.chdir(previousCwd);
+    }
+  });
+
   test('adds default columns, stats, and charts during discovery', async () => {
     const workspacePath = await mkdtemp(
       join(tmpdir(), 'agent-evals-runner-default-llm-config-'),

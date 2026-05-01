@@ -30,17 +30,11 @@ function sampleReviewConfidence(seed: string): number {
 
 export const refundWorkflowSharedConfig: Pick<
   EvalDefinition<WorkflowInput, RefundWorkflowOutputs>,
-  | 'outputsSchema'
-  | 'columns'
-  | 'traceDisplay'
-  | 'execute'
-  | 'deriveFromTracing'
-  | 'scores'
+  'outputsSchema' | 'columns' | 'traceDisplay' | 'execute' | 'scores'
 > = {
   outputsSchema: refundWorkflowOutputsSchema,
   columns: {
     response: { label: 'Response', format: 'markdown' },
-    toolCalls: { label: 'Tool Calls' },
     reviewConfidence: { label: 'Review Confidence' },
   },
   traceDisplay: {
@@ -87,9 +81,6 @@ export const refundWorkflowSharedConfig: Pick<
   execute: async ({ input }) => {
     await triggerWorkflow(input);
   },
-  deriveFromTracing: ({ trace }) => ({
-    toolCalls: trace.findSpansByKind('tool').length,
-  }),
   scores: {
     mentionsRefund: {
       label: 'Mentions Refund',

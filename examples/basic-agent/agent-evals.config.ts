@@ -22,6 +22,14 @@ export const config: AgentEvalsConfig = {
       },
     ],
   },
+  columns: {
+    toolCalls: { label: 'Tool Calls' },
+    llmTurns: { label: 'LLM Turns' },
+  },
+  deriveFromTracing: {
+    toolCalls: ({ trace }) => trace.findSpansByKind('tool').length,
+    llmTurns: ({ trace }) => trace.findSpansByKind('llm').length,
+  },
   llmCalls: {
     derivedAttributes: {
       'usage.billableTokens': ({ get }) => {

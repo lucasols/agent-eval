@@ -56,6 +56,10 @@ export const traceCacheRefSchema = z.object({
   namespace: z.string(),
   key: z.string(),
   status: cacheStatusSchema,
+  /** Whether this ref attempted to read from cache. Defaults to true. */
+  read: z.boolean().optional(),
+  /** Whether this ref wrote a persisted cache entry. Defaults to true for misses/refreshes. */
+  stored: z.boolean().optional(),
   storedAt: z.string().optional(),
   age: z.number().optional(),
 });

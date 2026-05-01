@@ -1,19 +1,9 @@
-import type { EvalDefinition, EvalTraceTree } from '@ls-stack/agent-eval';
+import type { EvalDefinition } from '@ls-stack/agent-eval';
 
 const USD_TO_BRL = 5.7;
 
 export function getResponseText(value: unknown): string {
   return typeof value === 'string' ? value : '';
-}
-
-export function getTraceCounts(trace: EvalTraceTree): {
-  llmTurns: number;
-  toolCalls: number;
-} {
-  return {
-    toolCalls: trace.findSpansByKind('tool').length,
-    llmTurns: trace.findSpansByKind('llm').length,
-  };
 }
 
 export const sharedTraceDisplay: NonNullable<

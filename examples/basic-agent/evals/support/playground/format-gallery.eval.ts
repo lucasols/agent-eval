@@ -21,6 +21,7 @@ const attachmentText = readFileSync(
 defineEval({
   id: 'format-gallery',
   title: 'Format Gallery',
+  cache: { read: false, store: false },
   startTime: '2024-01-02T03:04:05.000Z',
   freezeTime: true,
   cases: [

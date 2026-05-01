@@ -16,9 +16,9 @@ This skill covers the mental model and conventions. For exhaustive field lists
 display rules), read the TypeScript declarations shipped with the package:
 
 - `AgentEvalsConfig`, `EvalDefinition`, `EvalCase`, `EvalOutputs`,
-  `EvalColumnOverride`, `EvalScoreDef`, `EvalManualScoreDef`,
-  `EvalTraceTree`, `TraceSpanInfo`, and `z` are exported from
-  `@ls-stack/agent-eval`.
+  `EvalColumnOverride`, `EvalDeriveConfig`, `EvalScoreDef`,
+  `EvalManualScoreDef`, `EvalTraceTree`, `TraceSpanInfo`, and `z` are exported
+  from `@ls-stack/agent-eval`.
 - `.d.ts` files land in `node_modules/@ls-stack/agent-eval/dist/`.
 - CLI surface: `agent-evals --help` and `agent-evals <command> --help`.
   Unknown help targets exit non-zero instead of falling back to global help.
@@ -269,7 +269,16 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   `defineEval` generic, `outputsSchema` is required.
 - `columns` overrides the display for output and score keys (label, format,
   alignment, visibility). The set of supported formats is declared by the
-  `ColumnFormat` union and `EvalColumnOverride` in the types.
+  `ColumnFormat` union and `EvalColumnOverride` in the types. Global
+  `columns` in `agent-evals.config.ts` apply to every eval; eval-level
+  `columns` override matching global keys.
+- `deriveFromTracing` can be authored globally in `agent-evals.config.ts` or
+  locally on one eval. Prefer the keyed map form for shared metrics:
+  `deriveFromTracing: { toolCalls: ({ trace }) => trace.findSpansByKind('tool').length }`.
+  The older object-returning function form remains supported. Global
+  derivations run first; runtime outputs are never overwritten, and eval-level
+  derivations only fill keys still missing after global derivations. In keyed
+  form, return `undefined` to omit one output for that case.
 - `traceDisplay` promotes selected span attributes into the trace tree and
   detail pane; it supports aggregation across subtrees (`scope`, `mode`) and
   user-defined `transform(...)` for derived views (e.g. currency conversion).
@@ -319,7 +328,8 @@ cacheCreationInputTokens` so cache details are not double-counted.
   are still captured.
 
 Stats rows and history charts on the eval card can be authored via `stats` /
-`charts` on the eval definition. Usage stats and LLM usage charts are added by
+`charts` on the eval definition. Global `stats` in `agent-evals.config.ts`
+render before eval-level stats. Usage stats and LLM usage charts are added by
 default unless removed with `removeDefaultConfig`. Column stats can override
 `format` and `numberFormat`, otherwise they inherit from the matching column.
 Number formats use `maxDecimalPlaces` to cap decimals and `minDecimalPlaces`
@@ -388,6 +398,12 @@ Mental model:
   `${evalId}__${name}` and can be overridden with `namespace`. Matching
   namespaces share entries across operations/evals that use the same authored
   key.
+- Per eval, `cache: { read?: boolean; store?: boolean }` controls whether
+  authored cached operations may read or persist entries. Both default to
+  `true`. Use `read: false` to always execute instead of replaying hits, and
+  `store: false` to allow reads while preventing misses/refreshes from writing
+  cache or raw-key debug files. Run-level bypass/refresh controls still take
+  precedence.
 - Authored eval ids are unique within one eval file. The exact eval identity is
   the workspace-relative file path plus eval id, so the same id can be reused in
   different files. Case ids must be unique within one eval; duplicate case ids
@@ -407,6 +423,8 @@ Mental model:
   user inputs, or other sensitive data, should be gitignored, and is not needed
   for cache reuse. The UI Cache tab shows the raw key when it is available and
   can be filtered to hits or new entries added by cache misses/refreshes.
+  Misses/refreshes with `cache.store: false` are shown as non-stored activity
+  without fetch/delete controls.
 - Cached payloads use advanced serialization/deserialization with the Web API
   plugin set, so return values and recorded SDK effects preserve richer
   built-ins such as `Date`, `Map`, `Set`, typed arrays, `URL`, `Headers`,

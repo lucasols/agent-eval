@@ -1,8 +1,11 @@
 import { z } from 'zod/v4';
 import {
+  columnFormatSchema,
   numberDisplayOptionsSchema,
+  type ColumnFormat,
   type NumberDisplayOptions,
 } from './display.ts';
+import { evalStatsConfigSchema, type EvalStatsConfig } from './eval.ts';
 import {
   traceDisplayInputConfigSchema,
   type EvalTraceSpan,
@@ -37,6 +40,122 @@ export const removeDefaultConfigSchema = z.union([
 ]);
 /** Removal config for built-in eval-level outputs and UI metadata. */
 export type RemoveDefaultConfig = z.infer<typeof removeDefaultConfigSchema>;
+
+/** Single authored eval case with its stable identifier and input payload. */
+export type EvalCase<TInput = unknown> = {
+  id: string;
+  input: TInput;
+  tags?: string[];
+};
+
+/** Query helpers built from the flattened trace recorded for one eval case. */
+export type EvalTraceTree = {
+  spans: EvalTraceSpan[];
+  rootSpans: EvalTraceSpan[];
+  findSpan: (name: string) => EvalTraceSpan | undefined;
+  findSpansByKind: (kind: string) => EvalTraceSpan[];
+  flattenDfs: () => EvalTraceSpan[];
+  checkpoints: Map<string, unknown>;
+};
+
+/** Context passed to `deriveFromTracing` after execution has completed. */
+export type EvalDeriveContext<TInput = unknown> = {
+  trace: EvalTraceTree;
+  input: TInput;
+  case: EvalCase<TInput>;
+};
+
+type MaybePromise<T> = T | Promise<T>;
+
+/** Function that derives one output value for a configured output key. */
+export type EvalDeriveValueFn<TInput = unknown> = (
+  ctx: EvalDeriveContext<TInput>,
+) => MaybePromise<unknown>;
+
+/** Keyed `deriveFromTracing` config where each key derives one output value. */
+export type EvalDeriveMap<TInput = unknown> = Record<
+  string,
+  EvalDeriveValueFn<TInput>
+>;
+
+/** Object-returning `deriveFromTracing` callback. */
+export type EvalDeriveFn<TInput = unknown> = (
+  ctx: EvalDeriveContext<TInput>,
+) => Record<string, unknown> | Promise<Record<string, unknown>>;
+
+/** Trace-derived output config accepted globally and on eval definitions. */
+export type EvalDeriveConfig<TInput = unknown> =
+  | EvalDeriveMap<TInput>
+  | EvalDeriveFn<TInput>;
+
+const evalDeriveValueFnSchema = z.custom<EvalDeriveValueFn>(
+  (value) => typeof value === 'function',
+  { message: 'Expected a derive output function' },
+);
+
+/** Schema for keyed or object-returning trace-derived output config. */
+export const evalDeriveConfigSchema: z.ZodType<EvalDeriveConfig> = z.union([
+  z.custom<EvalDeriveFn>((value) => typeof value === 'function', {
+    message: 'Expected a deriveFromTracing function',
+  }),
+  z.record(z.string().min(1), evalDeriveValueFnSchema),
+]);
+
+/** UI overrides for a derived or scored column emitted by an eval. */
+export type EvalColumnOverride = {
+  /** Display label shown for the column in tables and detail views. */
+  label?: string;
+  /**
+   * Presentation preset for the value.
+   *
+   * Use this to control how the UI renders the cell and infer table behavior,
+   * for example `number`, `boolean`, `duration`, `markdown`, `json`, or
+   * file/media previews.
+   */
+  format?: ColumnFormat;
+  /**
+   * Extra options for `format: 'number'`.
+   *
+   * Use this to add a prefix or suffix, control minimum and maximum decimal
+   * places, or switch to compact notation such as `1.2K`.
+   */
+  numberFormat?: NumberDisplayOptions;
+  /**
+   * Hides the column from the runs table while keeping it available in detail
+   * views and raw output data.
+   */
+  hideInTable?: boolean;
+  /** Horizontal alignment used when rendering the column cells. */
+  align?: 'left' | 'center' | 'right';
+  /**
+   * Maximum number of stars used when `format: 'stars'`.
+   *
+   * Values are still stored as normalized `0..1` numbers; the UI maps the
+   * selected star count evenly across that range.
+   */
+  maxStars?: number;
+};
+
+/** Column override map keyed by output or score field name. */
+export type EvalColumns = Record<string, EvalColumnOverride>;
+
+/** Schema for UI overrides on derived or scored columns. */
+export const evalColumnOverrideSchema: z.ZodType<EvalColumnOverride> = z.object(
+  {
+    label: z.string().optional(),
+    format: columnFormatSchema.optional(),
+    numberFormat: numberDisplayOptionsSchema.optional(),
+    hideInTable: z.boolean().optional(),
+    align: z.enum(['left', 'center', 'right']).optional(),
+    maxStars: z.number().int().min(2).optional(),
+  },
+);
+
+/** Schema for column override maps keyed by output or score field name. */
+export const evalColumnsSchema: z.ZodType<EvalColumns> = z.record(
+  z.string(),
+  evalColumnOverrideSchema,
+);
 
 /** Render formats supported by an LLM-call metric in the UI. */
 export const llmCallMetricFormatSchema = z.enum([
@@ -610,6 +729,29 @@ export type AgentEvalsConfig = {
    */
   traceDisplay?: TraceDisplayInputConfig;
   /**
+   * Workspace-wide output columns applied to every eval.
+   *
+   * Eval-level `columns` with the same key take precedence. Built-in default
+   * columns are still added first unless removed with `removeDefaultConfig`.
+   */
+  columns?: EvalColumns;
+  /**
+   * Workspace-wide trace-derived outputs applied to every eval case.
+   *
+   * Prefer the keyed map form for shared metrics:
+   * `{ toolCalls: ({ trace }) => trace.findSpansByKind('tool').length }`.
+   * The object-returning function form is also supported. Derived outputs
+   * only fill keys that were not already recorded by eval execution.
+   */
+  deriveFromTracing?: EvalDeriveConfig;
+  /**
+   * Workspace-wide stats prepended to every eval's stats row.
+   *
+   * Eval-level stats render after these, and built-in default stats are
+   * appended last unless removed with `removeDefaultConfig`.
+   */
+  stats?: EvalStatsConfig;
+  /**
    * Configuration for the "LLM calls" tab in the case-run drawer.
    *
    * Determines which trace spans are treated as LLM calls (`kinds`), how
@@ -717,6 +859,9 @@ export const agentEvalsConfigSchema = z.object({
   staleAfterDays: z.number().optional(),
   allowCliRunAll: z.boolean().optional(),
   traceDisplay: traceDisplayInputConfigSchema.optional(),
+  columns: evalColumnsSchema.optional(),
+  deriveFromTracing: evalDeriveConfigSchema.optional(),
+  stats: evalStatsConfigSchema.optional(),
   llmCalls: llmCallsConfigSchema.optional(),
   removeDefaultConfig: removeDefaultConfigSchema.optional(),
   apiCalls: apiCallsConfigSchema.optional(),

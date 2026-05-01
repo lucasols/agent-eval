@@ -189,9 +189,11 @@ export function CacheHitRow({ entry }: { entry: CacheActivityEntry }) {
   const [expanded, setExpanded] = useState(false);
   const [fetchState, setFetchState] = useState<FetchState>({ status: 'idle' });
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const canLoadEntry = entry.stored;
 
   async function loadEntry() {
     if (
+      !canLoadEntry ||
       fetchState.status === 'loading' ||
       fetchState.status === 'loaded' ||
       fetchState.status === 'deleted'
@@ -228,6 +230,7 @@ export function CacheHitRow({ entry }: { entry: CacheActivityEntry }) {
   }
 
   const deleteAction = useActionFn(async () => {
+    if (!canLoadEntry) return;
     if (!window.confirm('Delete this cached entry?')) return;
     setDeleteError(null);
     const deleteResult = await resultify(() =>
@@ -252,7 +255,7 @@ export function CacheHitRow({ entry }: { entry: CacheActivityEntry }) {
       return;
     }
     setExpanded(true);
-    void loadEntry();
+    if (canLoadEntry) void loadEntry();
   }
 
   const ageLabel = entry.age !== undefined ? formatDuration(entry.age) : null;
@@ -292,6 +295,7 @@ export function CacheHitRow({ entry }: { entry: CacheActivityEntry }) {
             <span>created</span>
           ) : null}
           {entry.status === 'refresh' ? <span>refreshed</span> : null}
+          {!entry.stored ? <span>not stored</span> : null}
           <span>{truncateKey(entry.key)}</span>
         </HeaderMeta>
       </HeaderButton>
@@ -321,6 +325,12 @@ export function CacheHitRow({ entry }: { entry: CacheActivityEntry }) {
 
           {fetchState.status === 'loading' ? (
             <StatusMessage>Loading cached value…</StatusMessage>
+          ) : null}
+
+          {!entry.stored ? (
+            <StatusMessage>
+              This cache operation executed without storing an entry.
+            </StatusMessage>
           ) : null}
 
           {fetchState.status === 'error' ? (
@@ -374,22 +384,24 @@ export function CacheHitRow({ entry }: { entry: CacheActivityEntry }) {
               ) : null}
             </>
           ) : null}
-          <BodyActions>
-            <Button
-              variant="danger"
-              leftIcon={<Trash2 />}
-              disabled={
-                fetchState.status === 'deleted' || deleteAction.isInProgress
-              }
-              onClick={() => {
-                void deleteAction.call();
-              }}
-            >
-              {fetchState.status === 'deleted'
-                ? 'Deleted'
-                : 'Delete cache entry'}
-            </Button>
-          </BodyActions>
+          {entry.stored ? (
+            <BodyActions>
+              <Button
+                variant="danger"
+                leftIcon={<Trash2 />}
+                disabled={
+                  fetchState.status === 'deleted' || deleteAction.isInProgress
+                }
+                onClick={() => {
+                  void deleteAction.call();
+                }}
+              >
+                {fetchState.status === 'deleted'
+                  ? 'Deleted'
+                  : 'Delete cache entry'}
+              </Button>
+            </BodyActions>
+          ) : null}
         </Body>
       ) : null}
     </Card>
@@ -398,6 +410,7 @@ export function CacheHitRow({ entry }: { entry: CacheActivityEntry }) {
 
 function getStatusLabel(entry: CacheActivityEntry): string {
   if (entry.status === 'hit') return 'HIT';
+  if (entry.action === 'notStored') return 'NOT STORED';
   if (entry.status === 'refresh') return 'REFRESHED';
   return 'ADDED';
 }

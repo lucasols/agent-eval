@@ -1,6 +1,5 @@
 import type {
-  ColumnFormat,
-  NumberDisplayOptions,
+  EvalCase,
   EvalChartAggregate,
   EvalChartAxis,
   EvalChartBuiltinMetric,
@@ -10,10 +9,17 @@ import type {
   EvalChartsConfig,
   EvalChartTooltipExtra,
   EvalChartType,
+  EvalColumnOverride,
+  EvalColumns,
+  EvalDeriveConfig,
+  EvalDeriveContext,
+  EvalDeriveFn,
+  EvalDeriveMap,
+  EvalDeriveValueFn,
   EvalStatAggregate,
   EvalStatItem,
   EvalStatsConfig,
-  EvalTraceSpan,
+  EvalTraceTree,
   DefaultConfigKey,
   TraceDisplayInputConfig,
 } from '@agent-evals/shared';
@@ -29,14 +35,20 @@ export type {
   EvalChartsConfig,
   EvalChartTooltipExtra,
   EvalChartType,
+  EvalCase,
+  EvalColumnOverride,
+  EvalColumns,
+  EvalDeriveConfig,
+  EvalDeriveContext,
+  EvalDeriveFn,
+  EvalDeriveMap,
+  EvalDeriveValueFn,
   EvalStatAggregate,
   EvalStatItem,
   EvalStatsConfig,
+  EvalTraceTree,
   DefaultConfigKey,
 };
-
-/** Single authored eval case with its stable identifier and input payload. */
-export type EvalCase<TInput> = { id: string; input: TInput; tags?: string[] };
 
 /** Runtime output values collected from output helpers and `deriveFromTracing`. */
 export type EvalOutputs = Record<string, unknown>;
@@ -57,52 +69,22 @@ export type EvalStartTime = Date | number | string;
 export type EvalOutputsSchema<TOutputs extends EvalOutputs> =
   z.ZodType<TOutputs>;
 
-/** UI overrides for a derived or scored column emitted by an eval. */
-export type EvalColumnOverride = {
-  /** Display label shown for the column in tables and detail views. */
-  label?: string;
+/** Per-eval controls for SDK operation caching. */
+export type EvalCacheConfig = {
   /**
-   * Presentation preset for the value.
+   * Whether cached spans and value caches may read existing persisted entries.
    *
-   * Use this to control how the UI renders the cell and infer table behavior,
-   * for example `number`, `boolean`, `duration`, `markdown`, `json`, or
-   * file/media previews.
+   * Defaults to `true`. Set to `false` when this eval should always execute
+   * cached operations instead of replaying previous results.
    */
-  format?: ColumnFormat;
+  read?: boolean;
   /**
-   * Extra options for `format: 'number'`.
+   * Whether cached spans and value caches may persist entries after execution.
    *
-   * Use this to add a prefix or suffix, control minimum and maximum decimal
-   * places, or switch to compact notation such as `1.2K`.
+   * Defaults to `true`. Set to `false` when this eval may reuse existing cache
+   * entries but must not create or refresh stored cache files.
    */
-  numberFormat?: NumberDisplayOptions;
-  /**
-   * Hides the column from the runs table while keeping it available in detail
-   * views and raw output data.
-   */
-  hideInTable?: boolean;
-  /** Horizontal alignment used when rendering the column cells. */
-  align?: 'left' | 'center' | 'right';
-  /**
-   * Maximum number of stars used when `format: 'stars'`.
-   *
-   * Values are still stored as normalized `0..1` numbers; the UI maps the
-   * selected star count evenly across that range.
-   */
-  maxStars?: number;
-};
-
-/** Column override map keyed by output or score field name. */
-export type EvalColumns = Record<string, EvalColumnOverride>;
-
-/** Query helpers built from the flattened trace recorded for one eval case. */
-export type EvalTraceTree = {
-  spans: EvalTraceSpan[];
-  rootSpans: EvalTraceSpan[];
-  findSpan: (name: string) => EvalTraceSpan | undefined;
-  findSpansByKind: (kind: string) => EvalTraceSpan[];
-  flattenDfs: () => EvalTraceSpan[];
-  checkpoints: Map<string, unknown>;
+  store?: boolean;
 };
 
 /** Type-safe output writer passed to an eval's `execute` function. */
@@ -136,13 +118,6 @@ export type EvalExecuteContext<
    * `outputsSchema` before computed scores run.
    */
   setOutput: EvalSetOutput<TOutputs>;
-};
-
-/** Context passed to `deriveFromTracing` after execution has completed. */
-export type EvalDeriveContext<TInput> = {
-  trace: EvalTraceTree;
-  input: TInput;
-  case: EvalCase<TInput>;
 };
 
 /** Context passed to score functions after outputs have been collected. */
@@ -222,6 +197,14 @@ type EvalDefinitionBase<
   id: string;
   title?: string;
   /**
+   * Per-eval cache controls. Both `read` and `store` default to `true`.
+   *
+   * `read: false` skips cache lookups for this eval. `store: false` prevents
+   * new or refreshed entries from being written while still allowing reads
+   * unless `read` is also disabled.
+   */
+  cache?: EvalCacheConfig;
+  /**
    * Authored cases for this eval.
    *
    * When omitted or resolved to an empty array, the runner still executes the
@@ -263,9 +246,7 @@ type EvalDefinitionBase<
    */
   freezeTime?: boolean;
   execute: (ctx: EvalExecuteContext<TInput, TOutputs>) => Promise<void> | void;
-  deriveFromTracing?: (
-    ctx: EvalDeriveContext<TInput>,
-  ) => Partial<TOutputs> | Promise<Partial<TOutputs>>;
+  deriveFromTracing?: EvalDeriveConfig<TInput>;
   scores?: Record<string, EvalScoreDef<TInput, TOutputs>>;
   /**
    * Score columns whose values are entered in the web UI after a run.

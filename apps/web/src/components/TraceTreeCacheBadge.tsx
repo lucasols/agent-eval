@@ -42,6 +42,7 @@ type TraceCacheBadgeProps = { span: EvalTraceSpan };
 
 export function TraceCacheBadge({ span }: TraceCacheBadgeProps) {
   const status = span.attributes?.['cache.status'];
+  const stored = span.attributes?.['cache.stored'];
   if (
     status !== 'hit' &&
     status !== 'miss' &&
@@ -58,6 +59,7 @@ export function TraceCacheBadge({ span }: TraceCacheBadgeProps) {
       bypass={status === 'bypass'}
     >
       cache {status}
+      {stored === false ? ' not stored' : ''}
     </CacheBadge>
   );
 }

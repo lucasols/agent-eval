@@ -497,6 +497,8 @@ export function createRunner({
             discoveredEntry?.use((evalDef) => {
               const defaultConfig = resolveEvalDefaultConfig({
                 evalDef,
+                globalColumns: config.columns,
+                globalStats: config.stats,
                 globalRemove: config.removeDefaultConfig,
               });
               columnDefs = buildDeclaredColumnDefs(

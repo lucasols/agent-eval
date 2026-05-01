@@ -9,6 +9,7 @@ import {
 } from '@agent-evals/sdk';
 import type {
   CacheAdapter,
+  EvalCaseScope,
   EvalDefinition,
   EvalOutputs,
 } from '@agent-evals/sdk';
@@ -18,6 +19,9 @@ import type {
   CaseDetail,
   CaseRow,
   CellValue,
+  EvalDeriveConfig,
+  EvalColumns,
+  EvalTraceTree,
   RemoveDefaultConfig,
   ResolvedApiCallsConfig,
   ResolvedLlmCallsConfig,
@@ -94,6 +98,83 @@ async function callWithUnknownResult(
   return await Reflect.apply(fn, undefined, args);
 }
 
+async function callUnknownFunction(
+  fn: unknown,
+  args: unknown[],
+): Promise<unknown> {
+  if (typeof fn !== 'function') {
+    throw new Error('Expected a function');
+  }
+  return await Reflect.apply(fn, undefined, args);
+}
+
+function assignDerivedOutputs(params: {
+  outputs: Record<string, unknown>;
+  derived: Record<string, unknown>;
+}): void {
+  for (const [key, value] of Object.entries(params.derived)) {
+    if (key in params.outputs) continue;
+    params.outputs[key] = value;
+  }
+}
+
+async function resolveDeriveFromTracingConfig<TInput>(params: {
+  deriveFromTracing: EvalDeriveConfig<TInput>;
+  traceTree: EvalTraceTree;
+  evalCase: { id: string; input: unknown; tags?: string[] };
+}): Promise<Record<string, unknown>> {
+  const ctx = {
+    trace: params.traceTree,
+    input: params.evalCase.input,
+    case: params.evalCase,
+  };
+  if (typeof params.deriveFromTracing === 'function') {
+    const derived = await callUnknownFunction(params.deriveFromTracing, [ctx]);
+    if (!isRecord(derived)) {
+      throw new Error('deriveFromTracing must return an object');
+    }
+    return derived;
+  }
+
+  const derived: Record<string, unknown> = {};
+  for (const [key, compute] of Object.entries(params.deriveFromTracing)) {
+    const value = await callUnknownFunction(compute, [ctx]);
+    if (value !== undefined) {
+      derived[key] = value;
+    }
+  }
+  return derived;
+}
+
+async function runDeriveFromTracingConfig<TInput>(params: {
+  deriveFromTracing: EvalDeriveConfig<TInput> | undefined;
+  scope: EvalCaseScope;
+  traceTree: EvalTraceTree;
+  evalCase: { id: string; input: unknown; tags?: string[] };
+}): Promise<void> {
+  if (params.deriveFromTracing === undefined) return;
+  const { deriveFromTracing } = params;
+
+  try {
+    const derived = await runInExistingEvalScope(
+      params.scope,
+      'derive',
+      async () =>
+        await resolveDeriveFromTracingConfig({
+          deriveFromTracing,
+          traceTree: params.traceTree,
+          evalCase: params.evalCase,
+        }),
+    );
+    assignDerivedOutputs({ outputs: params.scope.outputs, derived });
+  } catch (e) {
+    const message = `deriveFromTracing threw: ${e instanceof Error ? e.message : String(e)}`;
+    params.scope.assertionFailures.push(
+      toAssertionFailure(message, e instanceof Error ? e : undefined),
+    );
+  }
+}
+
 export async function runCase<
   TInput,
   TOutputs extends EvalOutputs = EvalOutputs,
@@ -104,6 +185,8 @@ export async function runCase<
   evalKey?: string;
   evalCase: { id: string; input: TRunInput; tags?: string[] };
   globalTraceDisplay: TraceDisplayInputConfig | undefined;
+  globalColumns?: EvalColumns;
+  globalDeriveFromTracing?: EvalDeriveConfig<TRunInput>;
   llmCallsConfig?: ResolvedLlmCallsConfig;
   apiCallsConfig?: ResolvedApiCallsConfig;
   globalRemoveDefaultConfig?: RemoveDefaultConfig;
@@ -124,6 +207,8 @@ export async function runCase<
     evalKey = evalId,
     evalCase,
     globalTraceDisplay,
+    globalColumns,
+    globalDeriveFromTracing,
     llmCallsConfig = resolveLlmCallsConfig(undefined),
     apiCallsConfig = resolveApiCallsConfig(undefined),
     globalRemoveDefaultConfig,
@@ -169,7 +254,13 @@ export async function runCase<
       idPrefix: scopedIdPrefix,
       waitForBackgroundJobs: evalDef.waitForBackgroundJobs !== false,
       cacheContext: cacheAdapter
-        ? { adapter: cacheAdapter, mode: cacheMode, evalId }
+        ? {
+            adapter: cacheAdapter,
+            mode: cacheMode,
+            evalId,
+            read: evalDef.cache?.read,
+            store: evalDef.cache?.store,
+          }
         : undefined,
       startTime: evalDef.startTime,
       freezeTime: evalDef.freezeTime,
@@ -201,32 +292,19 @@ export async function runCase<
     );
   }
 
-  if (!nonAssertError && evalDef.deriveFromTracing) {
-    const { deriveFromTracing } = evalDef;
-    try {
-      const derived = await runInExistingEvalScope(
-        scope,
-        'derive',
-        async () => {
-          return await callWithUnknownResult(deriveFromTracing, [
-            { trace: traceTree, input: evalCase.input, case: evalCase },
-          ]);
-        },
-      );
-      if (!isRecord(derived)) {
-        throw new Error('deriveFromTracing must return an object');
-      }
-      for (const [key, value] of Object.entries(derived)) {
-        if (!(key in scope.outputs)) {
-          scope.outputs[key] = value;
-        }
-      }
-    } catch (e) {
-      const message = `deriveFromTracing threw: ${e instanceof Error ? e.message : String(e)}`;
-      scope.assertionFailures.push(
-        toAssertionFailure(message, e instanceof Error ? e : undefined),
-      );
-    }
+  if (!nonAssertError) {
+    await runDeriveFromTracingConfig({
+      deriveFromTracing: globalDeriveFromTracing,
+      scope,
+      traceTree,
+      evalCase,
+    });
+    await runDeriveFromTracingConfig({
+      deriveFromTracing: evalDef.deriveFromTracing,
+      scope,
+      traceTree,
+      evalCase,
+    });
   }
 
   if (!nonAssertError) {
@@ -307,6 +385,8 @@ export async function runCase<
                 adapter: cacheAdapter,
                 mode: cacheMode,
                 evalId: `${evalId}__score__${key}`,
+                read: evalDef.cache?.read,
+                store: evalDef.cache?.store,
               }
             : undefined,
           startTime: scoreStartTime,
@@ -378,6 +458,7 @@ export async function runCase<
 
   const columns: Record<string, CellValue> = {};
   const columnOverrides = mergeDefaultColumns({
+    globalColumns,
     columns: evalDef.columns,
     globalRemove: globalRemoveDefaultConfig,
     evalRemove: evalDef.removeDefaultConfig,

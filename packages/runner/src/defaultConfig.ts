@@ -121,20 +121,25 @@ export function getActiveDefaultConfigKeys(params: {
 }
 
 export function mergeDefaultColumns(params: {
+  globalColumns: EvalColumns | undefined;
   columns: EvalColumns | undefined;
   globalRemove: RemoveDefaultConfig;
   evalRemove: RemoveDefaultConfig;
 }): EvalColumns | undefined {
   const activeKeys = getActiveDefaultConfigKeys(params);
-  if (activeKeys.length === 0) return params.columns;
+  if (activeKeys.length === 0) {
+    const merged = { ...params.globalColumns, ...params.columns };
+    return Object.keys(merged).length > 0 ? merged : undefined;
+  }
 
   const defaults = Object.fromEntries(
     activeKeys.map((key) => [key, DEFAULT_COLUMNS[key]]),
   ) satisfies EvalColumns;
-  return { ...defaults, ...params.columns };
+  return { ...defaults, ...params.globalColumns, ...params.columns };
 }
 
 export function appendDefaultStats(params: {
+  globalStats: EvalStatsConfig | undefined;
   stats: EvalStatsConfig | undefined;
   globalRemove: RemoveDefaultConfig;
   evalRemove: RemoveDefaultConfig;
@@ -179,7 +184,11 @@ export function appendDefaultStats(params: {
     });
   }
 
-  const merged = [...(params.stats ?? []), ...defaults];
+  const merged = [
+    ...(params.globalStats ?? []),
+    ...(params.stats ?? []),
+    ...defaults,
+  ];
   return merged.length > 0 ? merged : undefined;
 }
 
@@ -273,6 +282,8 @@ export function resolveEvalDefaultConfig<
   TOutputs extends EvalOutputs,
 >(params: {
   evalDef: EvalDefinition<TInput, TOutputs>;
+  globalColumns: EvalColumns | undefined;
+  globalStats: EvalStatsConfig | undefined;
   globalRemove: RemoveDefaultConfig;
 }): {
   columns: EvalColumns | undefined;
@@ -282,11 +293,13 @@ export function resolveEvalDefaultConfig<
   const evalRemove = params.evalDef.removeDefaultConfig;
   return {
     columns: mergeDefaultColumns({
+      globalColumns: params.globalColumns,
       columns: params.evalDef.columns,
       globalRemove: params.globalRemove,
       evalRemove,
     }),
     stats: appendDefaultStats({
+      globalStats: params.globalStats,
       stats: params.evalDef.stats,
       globalRemove: params.globalRemove,
       evalRemove,

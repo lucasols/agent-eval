@@ -11,16 +11,19 @@ import type { EvalTraceSpan } from '../schemas/trace.ts';
  *
  * `action === 'hit'` rows reused an existing persisted cache entry.
  * `action === 'added'` rows came from a miss or refresh that wrote a persisted
- * cache entry during the run. `origin === 'caseRoot'` rows came from
- * `evalTracer.cache(...)` calls made directly from the case body (no
- * surrounding `traceSpan`), which would otherwise be invisible.
+ * cache entry during the run. `action === 'notStored'` rows executed a cached
+ * operation but did not persist it because storage was disabled for that eval
+ * scope. `origin === 'caseRoot'` rows came from `evalTracer.cache(...)` calls
+ * made directly from the case body (no surrounding `traceSpan`), which would
+ * otherwise be invisible.
  */
 export type CacheActivityEntry = {
   id: string;
   source: 'span' | 'value';
   origin: 'span' | 'caseRoot';
-  action: 'hit' | 'added';
+  action: 'hit' | 'added' | 'notStored';
   status: 'hit' | 'miss' | 'refresh';
+  stored: boolean;
   name: string;
   namespace: string;
   key: string;
@@ -51,6 +54,12 @@ function readNumber(attributes: unknown, key: string): number | undefined {
   return typeof value === 'number' && Number.isFinite(value)
     ? value
     : undefined;
+}
+
+function readBoolean(attributes: unknown, key: string): boolean | undefined {
+  if (!isRecord(attributes)) return undefined;
+  const value = attributes[key];
+  return typeof value === 'boolean' ? value : undefined;
 }
 
 function readArray(attributes: unknown, key: string): unknown[] {
@@ -89,12 +98,16 @@ export function extractCacheEntries(
       const namespace = readString(span.attributes, 'cache.namespace');
       if (key !== undefined && namespace !== undefined) {
         const isHit = status === 'hit';
+        const stored = isHit
+          ? true
+          : readBoolean(span.attributes, 'cache.stored') !== false;
         entries.push({
           id: span.id,
           source: 'span',
           origin: 'span',
-          action: isHit ? 'hit' : 'added',
+          action: isHit ? 'hit' : stored ? 'added' : 'notStored',
           status,
+          stored,
           name: span.name,
           namespace,
           key,
@@ -114,12 +127,14 @@ export function extractCacheEntries(
       const ref = parsed.data;
       if (ref.status === 'bypass') continue;
       const isHit = ref.status === 'hit';
+      const stored = isHit ? true : ref.stored !== false;
       entries.push({
         id: `${span.id}:value:${String(index)}`,
         source: 'value',
         origin: 'span',
-        action: isHit ? 'hit' : 'added',
+        action: isHit ? 'hit' : stored ? 'added' : 'notStored',
         status: ref.status,
+        stored,
         name: ref.name,
         namespace: ref.namespace,
         key: ref.key,
@@ -133,12 +148,14 @@ export function extractCacheEntries(
   for (const [index, ref] of caseCacheRefs.entries()) {
     if (ref.status === 'bypass') continue;
     const isHit = ref.status === 'hit';
+    const stored = isHit ? true : ref.stored !== false;
     entries.push({
       id: `case:value:${String(index)}`,
       source: 'value',
       origin: 'caseRoot',
-      action: isHit ? 'hit' : 'added',
+      action: isHit ? 'hit' : stored ? 'added' : 'notStored',
       status: ref.status,
+      stored,
       name: ref.name,
       namespace: ref.namespace,
       key: ref.key,

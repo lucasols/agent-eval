@@ -57,6 +57,20 @@ export type CacheScopeContext = {
   adapter: CacheAdapter;
   mode: CacheMode;
   evalId: string;
+  /**
+   * Whether cache lookups are allowed for this eval scope. Defaults to `true`.
+   *
+   * Run-level `bypass` and `refresh` modes still take precedence and skip
+   * reads even when this is enabled.
+   */
+  read?: boolean;
+  /**
+   * Whether cache writes are allowed for this eval scope. Defaults to `true`.
+   *
+   * Run-level `bypass` still takes precedence and skips writes even when this
+   * is enabled.
+   */
+  store?: boolean;
 };
 
 /** Active recording frame captured while a cached operation body executes. */

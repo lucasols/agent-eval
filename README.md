@@ -199,6 +199,9 @@ build also bundles the web UI assets used by `agent-evals app`.
 | `staleAfterDays`      | `number?`                       | Days before a mismatched-commit latest run is marked outdated (default: `14`)           |
 | `allowCliRunAll`      | `boolean?`                      | Allow unfiltered `agent-evals run` to run every eval (default: `false`)                 |
 | `traceDisplay`        | `TraceDisplayConfig?`           | Global trace attribute display config for the UI                                        |
+| `columns`             | `EvalColumns?`                  | Global column display overrides applied to every eval                                   |
+| `deriveFromTracing`   | `EvalDeriveConfig?`             | Global trace-derived outputs applied to every eval case                                 |
+| `stats`               | `EvalStatsConfig?`              | Global stats prepended to every eval card                                               |
 | `llmCalls`            | `LlmCallsConfig?`               | LLM calls tab config for the case-run drawer (kinds, attribute paths, pricing, metrics) |
 | `removeDefaultConfig` | `true \| DefaultConfigKey[]?`   | Remove built-in eval-level outputs, columns, stats, and charts                          |
 | `apiCalls`            | `ApiCallsConfig?`               | API calls tab config for the case-run drawer (kinds, attribute paths, custom metrics)   |
@@ -236,6 +239,7 @@ export const config: AgentEvalsConfig = {
 | ----------------------- | ---------- | ------------------------------------------------------------------------------- |
 | `id`                    | yes        | Eval id, unique within one eval file                                            |
 | `title`                 |            | Display title (defaults to a humanized version of `id`)                         |
+| `cache`                 |            | Per-eval cache controls: `{ read?: boolean; store?: boolean }`                  |
 | `cases`                 | yes        | `EvalCase[]` or `() => Promise<EvalCase[]>` (async loader for dynamic datasets) |
 | `execute`               | yes        | `async ({ input }) => { ... }`                                                  |
 | `outputsSchema`         | `TOutputs` | Zod schema that validates and types collected outputs before scoring            |
@@ -266,7 +270,9 @@ different files; the runner treats the exact eval identity as
 Duplicate eval ids inside one file and duplicate case ids inside one eval are
 reported as errors.
 
-`columns` populates your custom columns.
+`columns` populates your custom columns. Global `columns` from
+`agent-evals.config.ts` apply to every eval, and eval-level `columns` override
+global metadata for matching keys.
 
 ### Eval time
 
@@ -796,12 +802,39 @@ Long custom column text is truncated in the runs table and reveals the full valu
 Use `hideInTable: true` for rich outputs that should stay in the case detail view
 without taking up space in the runs table.
 
+### Trace-derived outputs
+
+Use `deriveFromTracing` to derive outputs after execution spans are complete.
+The recommended keyed form is concise and works both globally in
+`agent-evals.config.ts` and locally on one `defineEval(...)`:
+
+```ts
+deriveFromTracing: {
+  toolCalls: ({ trace }) => trace.findSpansByKind('tool').length,
+  llmTurns: ({ trace }) => trace.findSpansByKind('llm').length,
+}
+```
+
+The previous function form is still supported:
+
+```ts
+deriveFromTracing: ({ trace }) => ({
+  toolCalls: trace.findSpansByKind('tool').length,
+});
+```
+
+Global derivations run before eval-level derivations. Neither form overwrites
+outputs already recorded during execution, and eval-level derivations only fill
+keys still missing after global derivations. In keyed form, return `undefined`
+to omit that output for one case.
+
 ### Stats row
 
 The eval page can show a stats row at the top of each eval card. Set `stats` to
 declare authored stats, including score and numeric output columns. Usage
 defaults are appended automatically unless removed with
-`removeDefaultConfig`:
+`removeDefaultConfig`. Global `stats` from `agent-evals.config.ts` render before
+eval-level stats:
 
 ```ts
 stats: [
@@ -957,16 +990,19 @@ nested spans, checkpoints, output helper calls, and active span attributes
 changed by the callback.
 
 The case-run drawer adds a **Cache** tab whenever a case run produced cache
-hits or wrote new cache entries. Use the selector to show all cache activity,
-only hits, or only new entries added by misses/refreshes. It lists every span-
-and value-cache entry (including spanless ones tagged "case root") with
+hits, wrote new cache entries, or executed cached operations with storage
+disabled. Use the selector to show all cache activity, only hits, or only new
+entries added by misses/refreshes. It lists every span- and value-cache entry
+(including spanless ones tagged "case root") with
 namespace, status, age when available, stored-at timestamp when known, and
 truncated key. Each row expands to fetch the persisted entry from
 `GET /api/cache/:namespace/:key` and render its cached `returnValue` (and any
 replayed span attributes) inline. When raw-key debug metadata is available, the
 expanded row also shows the authored cache key. Use the row's delete action to
 remove that single persisted cache entry. Bypasses remain visible inline as
-per-span badges in the **Trace** tab because they do not write cache entries.
+per-span badges in the **Trace** tab because they do not write cache entries;
+non-stored misses/refreshes are shown as cache activity without fetch/delete
+actions.
 
 ### Cache controls
 
@@ -985,6 +1021,23 @@ containing the same four run modes plus a danger-toned "Clear cache for this
 eval". While a run is active, eval cards, folder headers, and the run drawer
 show **Stop** to cancel the whole in-flight run by terminating its isolated
 run process.
+
+Per eval, use `cache.read` and `cache.store` to control whether authored cached
+operations may read or persist entries:
+
+```ts
+defineEval({
+  id: 'non-persistent-eval',
+  cache: { read: true, store: false },
+  // ...
+});
+```
+
+Both default to `true`. `read: false` skips lookups for that eval. `store: false`
+lets the eval reuse hits when reads are enabled, but misses and refreshes
+execute without writing cache or raw-key debug files. Run-level controls still
+take precedence: `--no-cache` skips reads and writes, and `--refresh-cache`
+skips reads but only writes when `store !== false`.
 
 Server API (`/api/cache`):
 
@@ -1020,7 +1073,8 @@ Server API (`/api/cache`):
   bytes. Add `serializeFileBytes: true` to a cached span or
   `evalTracer.cache(...)` call when byte-level cache invalidation is required.
 - Modes: `bypass` never reads or writes; `refresh` skips the read and always
-  writes; `use` reads on hit and writes on miss.
+  writes unless the eval has `cache.store: false`; `use` reads on hit and
+  writes on miss unless disabled by the eval's `cache.read` or `cache.store`.
 - Multi-trial runs isolate cache writes per trial attempt and only flush the
   winning trial's writes into the shared cache, so later trials in the same run
   never reuse cache entries produced by earlier sibling trials.

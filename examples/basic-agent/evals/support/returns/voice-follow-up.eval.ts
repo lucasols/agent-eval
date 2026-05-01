@@ -1,8 +1,5 @@
 import { defineEval } from '@ls-stack/agent-eval';
-import {
-  getTraceCounts,
-  sharedTraceDisplay,
-} from '../../../src/evals/exampleEvalUtils.ts';
+import { sharedTraceDisplay } from '../../../src/evals/exampleEvalUtils.ts';
 import {
   runVoiceReturnFollowUpWorkflow,
   type VoiceReturnFollowUpInput,
@@ -43,14 +40,11 @@ defineEval<VoiceReturnFollowUpInput>({
       format: 'number',
       numberFormat: { prefix: '$', minDecimalPlaces: 4, maxDecimalPlaces: 4 },
     },
-    toolCalls: { label: 'Tool Calls' },
-    llmTurns: { label: 'LLM Turns' },
   },
   traceDisplay: sharedTraceDisplay,
   execute: async ({ input }) => {
     await runVoiceReturnFollowUpWorkflow(input);
   },
-  deriveFromTracing: ({ trace }) => getTraceCounts(trace),
   scores: {
     followUpPrepared: {
       label: 'Follow-up Prepared',

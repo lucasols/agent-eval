@@ -639,13 +639,15 @@ async function traceSpanInternal(
         { namespace, key: cacheOpts.key },
         { serializeFileBytes: cacheOpts.serializeFileBytes === true },
       );
+      const canRead = ctx.mode === 'use' && ctx.read !== false;
+      const canStore = ctx.mode !== 'bypass' && ctx.store !== false;
 
       mergeSpanAttributes(spanRecord, {
         'cache.key': keyHash,
         'cache.namespace': namespace,
       });
 
-      if (ctx.mode === 'use') {
+      if (canRead) {
         const hit = await ctx.adapter.lookup(namespace, keyHash);
         if (hit) {
           const storedAt = hit.storedAt;
@@ -666,9 +668,20 @@ async function traceSpanInternal(
           );
           return recording.returnValue;
         }
-        mergeSpanAttributes(spanRecord, { 'cache.status': 'miss' });
+        mergeSpanAttributes(spanRecord, {
+          'cache.status': 'miss',
+          ...(canStore ? {} : { 'cache.stored': false }),
+        });
+      } else if (ctx.mode === 'use' && canStore) {
+        mergeSpanAttributes(spanRecord, {
+          'cache.status': 'miss',
+          'cache.read': false,
+        });
       } else if (ctx.mode === 'refresh') {
-        mergeSpanAttributes(spanRecord, { 'cache.status': 'refresh' });
+        mergeSpanAttributes(spanRecord, {
+          'cache.status': 'refresh',
+          ...(canStore ? {} : { 'cache.stored': false }),
+        });
       } else {
         mergeSpanAttributes(spanRecord, { 'cache.status': 'bypass' });
       }
@@ -690,7 +703,7 @@ async function traceSpanInternal(
       appendSubSpanOps(scope, frame);
       finishSpanWithoutThrownError(spanRecord, realStartedAt);
 
-      if (ctx.mode !== 'bypass') {
+      if (canStore) {
         const recording: CacheRecording = {
           returnValue: bodyResult,
           finalAttributes: stripCacheAttributes(spanRecord.attributes),

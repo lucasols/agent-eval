@@ -303,6 +303,157 @@ describe('CLI operation caching', () => {
     });
   });
 
+  test('eval cache read/store controls can read hits, skip stores, and write without reads', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const evalPath = resolve(workspacePath, 'evals/refund-workflow.eval.ts');
+      const evalSource = await readFile(evalPath, 'utf8');
+
+      const primed = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'refund-workflow',
+        '--case',
+        'simple-text',
+      ]);
+      expect(primed.exitCode).toBe(0);
+
+      const cacheFiles = await readCacheDir(workspacePath);
+      const cacheFilePath = resolve(
+        workspacePath,
+        '.agent-evals/cache',
+        requireDefined(cacheFiles[0], 'primed cache file'),
+      );
+      const primedEntry = await readSingleCacheEntry(cacheFilePath);
+
+      await writeFile(
+        evalPath,
+        evalSource.replace(
+          "title: 'Refund Workflow',",
+          "title: 'Refund Workflow',\n  cache: { read: true, store: false },",
+        ),
+      );
+      await resetRunsDirectory(workspacePath);
+
+      const readOnlyHit = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'refund-workflow',
+        '--case',
+        'simple-text',
+      ]);
+      expect(readOnlyHit.exitCode).toBe(0);
+
+      const hitArtifacts = await readSingleRunArtifacts(workspacePath);
+      const hitSpan = findLlmSpan(
+        hitArtifacts.traces['simple-text.json'] ?? [],
+        'plan-refund',
+      );
+      expect(getCacheStatus(hitSpan)).toBe('hit');
+      expect(await readSingleCacheEntry(cacheFilePath)).toMatchObject({
+        key: primedEntry.key,
+        storedAt: primedEntry.storedAt,
+      });
+
+      await rm(resolve(workspacePath, '.agent-evals/cache'), {
+        recursive: true,
+        force: true,
+      });
+      await rm(resolve(workspacePath, '.agent-evals/cache-debug'), {
+        recursive: true,
+        force: true,
+      });
+      await resetRunsDirectory(workspacePath);
+
+      const readOnlyMiss = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'refund-workflow',
+        '--case',
+        'simple-text',
+      ]);
+      expect(readOnlyMiss.exitCode).toBe(0);
+
+      const missArtifacts = await readSingleRunArtifacts(workspacePath);
+      const missSpan = findLlmSpan(
+        missArtifacts.traces['simple-text.json'] ?? [],
+        'plan-refund',
+      );
+      expect(missSpan.attributes).toMatchObject({
+        'cache.status': 'miss',
+        'cache.stored': false,
+      });
+      expect(await readCacheDir(workspacePath)).toEqual([]);
+      expect(await readCacheDebugDir(workspacePath)).toEqual([]);
+
+      await writeFile(
+        evalPath,
+        evalSource.replace(
+          "title: 'Refund Workflow',",
+          "title: 'Refund Workflow',\n  cache: { read: false, store: true },",
+        ),
+      );
+      await resetRunsDirectory(workspacePath);
+
+      const writeOnlyFirst = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'refund-workflow',
+        '--case',
+        'simple-text',
+      ]);
+      expect(writeOnlyFirst.exitCode).toBe(0);
+
+      const writeOnlyFirstArtifacts =
+        await readSingleRunArtifacts(workspacePath);
+      const writeOnlyFirstSpan = findLlmSpan(
+        writeOnlyFirstArtifacts.traces['simple-text.json'] ?? [],
+        'plan-refund',
+      );
+      expect(writeOnlyFirstSpan.attributes).toMatchObject({
+        'cache.status': 'miss',
+        'cache.read': false,
+      });
+      const writeOnlyFiles = await readCacheDir(workspacePath);
+      expect(writeOnlyFiles).toEqual(['refund-workflow.json']);
+      const writeOnlyCachePath = resolve(
+        workspacePath,
+        '.agent-evals/cache',
+        requireDefined(writeOnlyFiles[0], 'write-only cache file'),
+      );
+      const writeOnlyFirstEntry =
+        await readSingleCacheEntry(writeOnlyCachePath);
+
+      await resetRunsDirectory(workspacePath);
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 10));
+
+      const writeOnlySecond = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'refund-workflow',
+        '--case',
+        'simple-text',
+      ]);
+      expect(writeOnlySecond.exitCode).toBe(0);
+
+      const writeOnlySecondArtifacts =
+        await readSingleRunArtifacts(workspacePath);
+      const writeOnlySecondSpan = findLlmSpan(
+        writeOnlySecondArtifacts.traces['simple-text.json'] ?? [],
+        'plan-refund',
+      );
+      expect(writeOnlySecondSpan.attributes).toMatchObject({
+        'cache.status': 'miss',
+        'cache.read': false,
+      });
+      const writeOnlySecondEntry =
+        await readSingleCacheEntry(writeOnlyCachePath);
+      expect(writeOnlySecondEntry.key).toBe(writeOnlyFirstEntry.key);
+      expect(writeOnlySecondEntry.storedAt).not.toBe(
+        writeOnlyFirstEntry.storedAt,
+      );
+    });
+  }, 15_000);
+
   test('cache list shows entries and cache clear removes them', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const primed = await runExampleCli(workspacePath, [

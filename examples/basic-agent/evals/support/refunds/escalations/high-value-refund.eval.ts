@@ -1,8 +1,5 @@
 import { defineEval } from '@ls-stack/agent-eval';
-import {
-  getTraceCounts,
-  sharedTraceDisplay,
-} from '../../../../src/evals/exampleEvalUtils.ts';
+import { sharedTraceDisplay } from '../../../../src/evals/exampleEvalUtils.ts';
 import {
   runHighValueRefundWorkflow,
   type HighValueRefundInput,
@@ -32,14 +29,11 @@ defineEval<HighValueRefundInput>({
       format: 'number',
       numberFormat: { prefix: '$', minDecimalPlaces: 4, maxDecimalPlaces: 4 },
     },
-    toolCalls: { label: 'Tool Calls' },
-    llmTurns: { label: 'LLM Turns' },
   },
   traceDisplay: sharedTraceDisplay,
   execute: async ({ input }) => {
     await runHighValueRefundWorkflow(input);
   },
-  deriveFromTracing: ({ trace }) => getTraceCounts(trace),
   scores: {
     financeEscalated: {
       label: 'Finance Escalated',
