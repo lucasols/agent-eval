@@ -22,6 +22,7 @@ import {
   tabularNums,
   transition,
 } from '#src/style/helpers';
+import { getVisibleRunTableColumns } from '#src/utils/columnVisibility';
 import {
   formatDuration,
   formatNumericCellValue,
@@ -353,13 +354,10 @@ export function EvalRunsTable({
     return <Empty>{emptyMessage}</Empty>;
   }
 
-  const scoreColumns = columnDefs.filter((c) => c.isScore === true);
-  const otherCustomColumns = columnDefs.filter(
-    (c) =>
-      !c.hideInTable &&
-      c.isScore !== true &&
-      runs.some((r) => r.cases.some((row) => row.columns[c.key] !== undefined)),
-  );
+  const { scoreColumns, otherCustomColumns } = getVisibleRunTableColumns({
+    columnDefs,
+    runs,
+  });
   const totalCols = 3 + scoreColumns.length + otherCustomColumns.length;
 
   return (

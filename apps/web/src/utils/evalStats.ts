@@ -20,6 +20,7 @@ export type EvalStatDisplay = {
   label: string;
   aggregateLabel: string | undefined;
   value: string;
+  hasValue: boolean;
   accent: boolean;
 };
 
@@ -35,6 +36,7 @@ export function computeStatDisplay(
         ctx.evalSummary.caseCount !== null
           ? String(ctx.evalSummary.caseCount)
           : EM_DASH,
+      hasValue: ctx.evalSummary.caseCount !== null,
       accent: false,
     };
   }
@@ -47,6 +49,7 @@ export function computeStatDisplay(
         s && s.totalCases > 0
           ? `${String(s.passedCases)}/${String(s.totalCases)}`
           : EM_DASH,
+      hasValue: s !== null && s.totalCases > 0,
       accent: stat.accent ?? false,
     };
   }
@@ -55,6 +58,7 @@ export function computeStatDisplay(
       label: 'Duration',
       aggregateLabel: undefined,
       value: formatDuration(ctx.latestSummary?.totalDurationMs ?? null),
+      hasValue: ctx.latestSummary !== null,
       accent: false,
     };
   }
@@ -75,6 +79,7 @@ function computeColumnStat(
       label,
       aggregateLabel,
       value: EM_DASH,
+      hasValue: false,
       accent: stat.accent ?? false,
     };
   }
@@ -83,6 +88,7 @@ function computeColumnStat(
     label,
     aggregateLabel,
     value: formatNumericCellValue(effectiveDef, aggregated),
+    hasValue: true,
     accent: stat.accent ?? false,
   };
 }

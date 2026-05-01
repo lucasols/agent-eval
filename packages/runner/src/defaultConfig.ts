@@ -50,56 +50,70 @@ export const DEFAULT_COLUMNS: Record<DefaultConfigKey, EvalColumnOverride> = {
     format: 'number',
     numberFormat: countNumberFormat,
     align: 'right',
+    hideIfNoValue: true,
   },
   costUsd: {
     label: 'Cost',
     format: 'number',
     numberFormat: costNumberFormat,
     align: 'right',
+    hideIfNoValue: true,
   },
   llmTurns: {
     label: 'LLM Turns',
     format: 'number',
     numberFormat: countNumberFormat,
     align: 'right',
+    hideIfNoValue: true,
   },
   inputTokens: {
     label: 'Input Tokens',
     format: 'number',
     numberFormat: tokenNumberFormat,
     align: 'right',
+    hideIfNoValue: true,
   },
   outputTokens: {
     label: 'Output Tokens',
     format: 'number',
     numberFormat: tokenNumberFormat,
     align: 'right',
+    hideIfNoValue: true,
   },
   totalTokens: {
     label: 'Total Tokens',
     format: 'number',
     numberFormat: tokenNumberFormat,
     align: 'right',
+    hideIfNoValue: true,
   },
   cachedInputTokens: {
     label: 'Cached Input Tokens',
     format: 'number',
     numberFormat: tokenNumberFormat,
     align: 'right',
+    hideIfNoValue: true,
   },
   cacheCreationInputTokens: {
     label: 'Cache Write Tokens',
     format: 'number',
     numberFormat: tokenNumberFormat,
     align: 'right',
+    hideIfNoValue: true,
   },
   reasoningTokens: {
     label: 'Reasoning Tokens',
     format: 'number',
     numberFormat: tokenNumberFormat,
     align: 'right',
+    hideIfNoValue: true,
   },
-  llmDurationMs: { label: 'LLM Duration', format: 'duration', align: 'right' },
+  llmDurationMs: {
+    label: 'LLM Duration',
+    format: 'duration',
+    align: 'right',
+    hideIfNoValue: true,
+  },
 };
 
 function resolveRemovedKeys(
@@ -154,6 +168,7 @@ export function appendDefaultStats(params: {
       label: 'API Calls',
       aggregate: 'avg',
       numberFormat: countNumberFormat,
+      hideIfNoValue: true,
     });
   }
   if (activeKeys.has('costUsd')) {
@@ -163,6 +178,7 @@ export function appendDefaultStats(params: {
       label: 'LLM Cost',
       aggregate: 'avg',
       numberFormat: costNumberFormat,
+      hideIfNoValue: true,
     });
   }
   if (activeKeys.has('totalTokens')) {
@@ -172,6 +188,7 @@ export function appendDefaultStats(params: {
       label: 'Tokens',
       aggregate: 'avg',
       numberFormat: tokenNumberFormat,
+      hideIfNoValue: true,
     });
   }
   if (activeKeys.has('llmTurns')) {
@@ -181,6 +198,7 @@ export function appendDefaultStats(params: {
       label: 'LLM Turns',
       aggregate: 'avg',
       numberFormat: countNumberFormat,
+      hideIfNoValue: true,
     });
   }
 
@@ -203,6 +221,7 @@ export function appendDefaultCharts(params: {
   if (activeKeys.has('costUsd')) {
     defaults.push({
       heading: 'LLM Cost',
+      hideIfNoValue: true,
       type: 'area',
       metrics: [
         {
@@ -258,6 +277,7 @@ export function appendDefaultCharts(params: {
   if (tokenMetrics.length > 0) {
     defaults.push({
       heading: 'LLM Tokens',
+      hideIfNoValue: true,
       type: 'bar',
       metrics: tokenMetrics,
       tooltipExtras: activeKeys.has('totalTokens')

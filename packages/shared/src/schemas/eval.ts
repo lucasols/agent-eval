@@ -25,14 +25,27 @@ export const evalStatAggregateSchema = z.enum([
 /** Reducer used to collapse a column's per-case values into a single stat. */
 export type EvalStatAggregate = z.infer<typeof evalStatAggregateSchema>;
 
+const hideIfNoValueShape = {
+  /**
+   * Hide this stat in the UI when the current run has no displayable value.
+   * Missing values, `null`, and empty strings count as no value; `0` remains
+   * visible.
+   */
+  hideIfNoValue: z.boolean().optional(),
+};
+
 /**
  * One entry in the EvalCard stats row. Built-in kinds use latest run totals;
  * `column` aggregates a score or numeric output column across the latest run.
  */
 export const evalStatItemSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('cases') }),
-  z.object({ kind: z.literal('passRate'), accent: z.boolean().optional() }),
-  z.object({ kind: z.literal('duration') }),
+  z.object({ kind: z.literal('cases'), ...hideIfNoValueShape }),
+  z.object({
+    kind: z.literal('passRate'),
+    accent: z.boolean().optional(),
+    ...hideIfNoValueShape,
+  }),
+  z.object({ kind: z.literal('duration'), ...hideIfNoValueShape }),
   z.object({
     kind: z.literal('column'),
     key: z.string(),
@@ -42,6 +55,7 @@ export const evalStatItemSchema = z.discriminatedUnion('kind', [
     /** Number presentation options applied when `format: 'number'`. */
     numberFormat: numberDisplayOptionsSchema.optional(),
     accent: z.boolean().optional(),
+    ...hideIfNoValueShape,
   }),
 ]);
 /** Single stat rendered in the EvalCard stats row. */

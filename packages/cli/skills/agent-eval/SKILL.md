@@ -271,7 +271,10 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   alignment, visibility). The set of supported formats is declared by the
   `ColumnFormat` union and `EvalColumnOverride` in the types. Global
   `columns` in `agent-evals.config.ts` apply to every eval; eval-level
-  `columns` override matching global keys.
+  `columns` override matching global keys. Use `hideIfNoValue: true` to hide a
+  column from the runs table when every rendered row is missing the value,
+  `null`, or an empty string; `0` and `false` still count as values, and the
+  value remains available in case details and raw output data.
 - `deriveFromTracing` can be authored globally in `agent-evals.config.ts` or
   locally on one eval. Prefer the keyed map form for shared metrics:
   `deriveFromTracing: { toolCalls: ({ trace }) => trace.findSpansByKind('tool').length }`.
@@ -303,8 +306,10 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   before `outputsSchema` and scores run: `apiCalls`, `costUsd`, `llmTurns`,
   `inputTokens`, `outputTokens`, `totalTokens`, `cachedInputTokens`,
   `cacheCreationInputTokens`, `reasoningTokens`, and `llmDurationMs`. Authored
-  outputs and column overrides win. `totalTokens` is input + output only; cache
-  read/write tokens stay separate and affect `costUsd` at their own rates.
+  outputs and column overrides win. Default usage columns, stats, and charts
+  use `hideIfNoValue: true`, so the UI hides them until matching LLM/API span
+  data exists. `totalTokens` is input + output only; cache read/write tokens
+  stay separate and affect `costUsd` at their own rates.
   Derived base input cost uses `inputTokens - cachedInputTokens -
 cacheCreationInputTokens` so cache details are not double-counted.
   `cacheCreationInputTokens` is the total cache-write count; optional
@@ -334,7 +339,9 @@ default unless removed with `removeDefaultConfig`. Column stats can override
 `format` and `numberFormat`, otherwise they inherit from the matching column.
 Number formats use `maxDecimalPlaces` to cap decimals and `minDecimalPlaces`
 to pad trailing zeroes. Without `maxDecimalPlaces`, they render up to 3 decimal
-places.
+places. Stats and charts support `hideIfNoValue: true`; stats hide when they
+would otherwise render an empty value, and charts hide when no plotted metric or
+tooltip extra has a numeric value in the rendered history window.
 Their shapes live in the types; no need to memorize the option set.
 
 ## Cached operations

@@ -125,6 +125,12 @@ export type EvalColumnOverride = {
    * views and raw output data.
    */
   hideInTable?: boolean;
+  /**
+   * Hides the column from the runs table when none of the rendered rows have a
+   * value. Missing values, `null`, and empty strings count as no value; `0` and
+   * `false` remain visible.
+   */
+  hideIfNoValue?: boolean;
   /** Horizontal alignment used when rendering the column cells. */
   align?: 'left' | 'center' | 'right';
   /**
@@ -146,6 +152,7 @@ export const evalColumnOverrideSchema: z.ZodType<EvalColumnOverride> = z.object(
     format: columnFormatSchema.optional(),
     numberFormat: numberDisplayOptionsSchema.optional(),
     hideInTable: z.boolean().optional(),
+    hideIfNoValue: z.boolean().optional(),
     align: z.enum(['left', 'center', 'right']).optional(),
     maxStars: z.number().int().min(2).optional(),
   },

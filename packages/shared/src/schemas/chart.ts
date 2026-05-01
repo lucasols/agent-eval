@@ -101,6 +101,11 @@ export type EvalChartTooltipExtra = z.infer<typeof evalChartTooltipExtraSchema>;
 export const evalChartConfigSchema = z.object({
   /** Optional heading shown above the chart frame in the UI. */
   heading: z.string().optional(),
+  /**
+   * Hide this chart in the UI when none of its metrics has a numeric value in
+   * the rendered history window.
+   */
+  hideIfNoValue: z.boolean().optional(),
   type: evalChartTypeSchema,
   /** At least one series must be declared. */
   metrics: z.array(evalChartMetricSchema).min(1),

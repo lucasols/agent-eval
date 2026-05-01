@@ -1,13 +1,21 @@
-import type { CaseRow, RunManifest } from '@agent-evals/shared';
+import type {
+  CaseRow,
+  ColumnDef,
+  EvalChartConfig,
+  RunManifest,
+} from '@agent-evals/shared';
 import { describe, expect, test } from 'vitest';
+import { chartHasNumericValue } from '../../../apps/web/src/utils/chartVisibility.ts';
 import {
   buildEvalDebugCliCommand,
   buildEvalRunCliCommand,
 } from '../../../apps/web/src/utils/cliCommand.ts';
+import { getVisibleRunTableColumns } from '../../../apps/web/src/utils/columnVisibility.ts';
 import {
   buildEvalScopedRunRows,
   scopeRunCases,
 } from '../../../apps/web/src/utils/evalRuns.ts';
+import { shouldShowStatDisplay } from '../../../apps/web/src/utils/statVisibility.ts';
 
 describe('eval run rows ui', () => {
   test('builds package-manager-specific eval run commands', () => {
@@ -193,5 +201,105 @@ describe('eval run rows ui', () => {
         evalKey: 'evals%2Frefund-workflow.eval.ts#refund-workflow',
       }),
     ]);
+  });
+
+  test('hides run table columns with no UI value only when configured', () => {
+    const columns: ColumnDef[] = [
+      { key: 'missing', label: 'Missing', kind: 'string' },
+      { key: 'empty', label: 'Empty', kind: 'string', hideIfNoValue: true },
+      { key: 'zero', label: 'Zero', kind: 'number', hideIfNoValue: true },
+      {
+        key: 'falseValue',
+        label: 'False',
+        kind: 'boolean',
+        hideIfNoValue: true,
+      },
+      {
+        key: 'pendingScore',
+        label: 'Pending Score',
+        kind: 'number',
+        isScore: true,
+        hideIfNoValue: true,
+      },
+      {
+        key: 'score',
+        label: 'Score',
+        kind: 'number',
+        isScore: true,
+        hideIfNoValue: true,
+      },
+    ];
+    const rows = getVisibleRunTableColumns({
+      columnDefs: columns,
+      runs: [
+        {
+          cases: [
+            {
+              caseId: 'case-1',
+              evalId: 'eval-1',
+              status: 'pass',
+              durationMs: 1,
+              columns: {
+                missing: null,
+                empty: '',
+                zero: 0,
+                falseValue: false,
+                pendingScore: null,
+                score: 0,
+              },
+              trial: 0,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(rows.otherCustomColumns.map((column) => column.key)).toEqual([
+      'missing',
+      'zero',
+      'falseValue',
+    ]);
+    expect(rows.scoreColumns.map((column) => column.key)).toEqual(['score']);
+  });
+
+  test('reports whether stats and charts have values for hide-if-empty rendering', () => {
+    const chartConfig: EvalChartConfig = {
+      type: 'line',
+      hideIfNoValue: true,
+      metrics: [{ source: 'column', key: 'quality', aggregate: 'avg' }],
+    };
+
+    expect(
+      shouldShowStatDisplay(
+        {
+          kind: 'column',
+          key: 'quality',
+          aggregate: 'avg',
+          hideIfNoValue: true,
+        },
+        { hasValue: false },
+      ),
+    ).toBe(false);
+    expect(
+      shouldShowStatDisplay(
+        {
+          kind: 'column',
+          key: 'quality',
+          aggregate: 'avg',
+          hideIfNoValue: true,
+        },
+        { hasValue: true },
+      ),
+    ).toBe(true);
+    expect(
+      chartHasNumericValue(chartConfig, [
+        { values: { 'column:quality:avg': null } },
+      ]),
+    ).toBe(false);
+    expect(
+      chartHasNumericValue(chartConfig, [
+        { values: { 'column:quality:avg': 0 } },
+      ]),
+    ).toBe(true);
   });
 });

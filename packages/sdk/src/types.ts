@@ -268,8 +268,8 @@ type EvalDefinitionBase<
    * column across the latest run's cases — `key` must match one of the eval's
    * score or column keys, and only finite numeric values participate in the
    * reduction. When no case has a numeric value for the key the stat renders
-   * an em dash. `label`, `format`, and `numberFormat` default to the matching
-   * `ColumnDef`.
+   * an em dash, or hides when `hideIfNoValue` is true. `label`, `format`, and
+   * `numberFormat` default to the matching `ColumnDef`.
    */
   stats?: EvalStatsConfig;
   /**
@@ -284,7 +284,8 @@ type EvalDefinitionBase<
    * the run summary. Column metrics aggregate a score or numeric output column
    * across the run using an `aggregate` reducer (`avg`, `sum`, `min`, `max`,
    * `latest`, `passThresholdRate`). `passThresholdRate` requires a score column
-   * with `passThreshold`.
+   * with `passThreshold`. Set `hideIfNoValue` to hide a chart until at least
+   * one metric has a numeric value in the rendered history window.
    */
   charts?: EvalChartsConfig;
   /**

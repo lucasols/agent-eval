@@ -58,6 +58,7 @@ import {
 } from '#src/style/helpers';
 import { getDisplayFolderSegments } from '#src/utils/buildEvalTree';
 import { buildChartPoints } from '#src/utils/chartData';
+import { chartHasNumericValue } from '#src/utils/chartVisibility';
 import {
   buildEvalDebugCliCommand,
   buildEvalRunCliCommand,
@@ -65,6 +66,7 @@ import {
 import { buildEvalScopedRunRows } from '#src/utils/evalRuns';
 import { computeStatDisplay } from '#src/utils/evalStats';
 import { getFreshnessTooltip } from '#src/utils/freshness';
+import { shouldShowStatDisplay } from '#src/utils/statVisibility';
 
 type EvalCardProps = { evalSummary: EvalSummary; mode: 'single' | 'stacked' };
 
@@ -390,9 +392,6 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const searchParams = useSearchParams();
 
   const charts = evalSummary.charts ?? [];
-  const chartLabels = charts.map(
-    (chart, index) => chart.heading ?? `Chart ${String(index + 1)}`,
-  );
   const {
     allRunRows,
     visibleRunRows,
@@ -452,15 +451,32 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   ]);
 
   const stats = evalSummary.stats ?? [];
-  const statDisplays = stats.map((stat) =>
-    computeStatDisplay(stat, { evalSummary, latestSummary, latestCases }),
+  const statDisplays = stats
+    .map((stat) => ({
+      stat,
+      display: computeStatDisplay(stat, {
+        evalSummary,
+        latestSummary,
+        latestCases,
+      }),
+    }))
+    .filter(({ stat, display }) => shouldShowStatDisplay(stat, display))
+    .map(({ display }) => display);
+  const visibleCharts = charts
+    .map((config, index) => ({ config, data: perChartData[index] ?? [] }))
+    .filter(
+      ({ config, data }) =>
+        config.hideIfNoValue !== true || chartHasNumericValue(config, data),
+    );
+  const chartLabels = visibleCharts.map(
+    ({ config }, index) => config.heading ?? `Chart ${String(index + 1)}`,
   );
 
   const isRunning =
     currentRun?.manifest.status === 'running' &&
     runTargetsEvalLocal(currentRun.manifest.target, evalSummary.key);
   const hasScoreHistory =
-    isSingle && charts.length > 0 && completedRunCount > 1;
+    isSingle && visibleCharts.length > 0 && completedRunCount > 1;
   const displayStatus = getEvalDisplayStatus({
     freshnessStatus: evalSummary.freshnessStatus,
     stale: evalSummary.stale,
@@ -825,11 +841,11 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
               </SectionLabel>
               {scoreHistoryCollapsed
                 ? null
-                : charts.map((config, i) => (
+                : visibleCharts.map(({ config, data }, i) => (
                     <EvalRunsChart
                       key={`chart-${i}`}
                       config={config}
-                      data={perChartData[i] ?? []}
+                      data={data}
                       columnDefs={evalSummary.columnDefs}
                     />
                   ))}

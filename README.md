@@ -575,7 +575,9 @@ Authored outputs with the same key are never overwritten. Authored `columns`,
 `stats`, and `charts` also remain authoritative; default columns use compact
 token formatting, dollar formatting for `costUsd`, and duration formatting for
 `llmDurationMs`, while default stats and LLM usage charts are appended after
-authored config.
+authored config. Default usage columns, stats, and charts use
+`hideIfNoValue: true`, so the UI stays quiet until matching LLM/API span data
+exists.
 `apiCalls` is counted from spans matched by `apiCalls.kinds`. Cost defaults use
 `llmCalls.pricing`, exactly like the LLM calls tab. `totalTokens` is always
 input + output tokens, and `llmDurationMs` sums the elapsed durations of matched
@@ -792,7 +794,7 @@ manualScores: {
 ```ts
 columns: {
   locale: { label: 'Locale' },
-  toolCalls: { label: 'Tool Calls', format: 'number' },
+  toolCalls: { label: 'Tool Calls', format: 'number', hideIfNoValue: true },
   previewCard: { label: 'Preview Card', format: 'image', hideInTable: true },
 }
 ```
@@ -801,6 +803,10 @@ Populate values in `deriveFromTracing(...)` and/or from runtime outputs.
 Long custom column text is truncated in the runs table and reveals the full value on hover.
 Use `hideInTable: true` for rich outputs that should stay in the case detail view
 without taking up space in the runs table.
+Use `hideIfNoValue: true` to hide a column from the runs table when every
+rendered row is missing the value, `null`, or an empty string; `0` and `false`
+still count as values. The column remains available in case details and raw
+outputs.
 
 ### Trace-derived outputs
 
@@ -845,6 +851,7 @@ stats: [
     key: 'matchesGoldAnswer',
     aggregate: 'avg',
     format: 'percent',
+    hideIfNoValue: true,
   },
   {
     kind: 'column',
@@ -869,6 +876,8 @@ Supported kinds:
   `avg | min | max | sum | last`. `label`, `format`, and `numberFormat`
   default to the matching column definition. Only finite numeric values
   participate; if none exist the stat renders an em dash.
+- `hideIfNoValue` — hide the stat instead of rendering an em dash when the
+  current run has no value.
 
 ### History charts
 
@@ -903,6 +912,7 @@ charts: [
   },
   {
     heading: 'Cost per run',
+    hideIfNoValue: true,
     type: 'area',
     metrics: [
       { source: 'column', key: 'costUsd', aggregate: 'sum', color: 'warning' },
@@ -921,6 +931,8 @@ Each chart declares:
   `passThresholdRate` requires a score column with `passThreshold` — it
   reports the fraction of cases whose value met the threshold.
 - `heading` (optional) — label shown above the chart.
+- `hideIfNoValue` — hide the chart when none of its plotted series or tooltip
+  extras has a numeric value in the rendered history window.
 - `axis` (`'left' | 'right'`) per metric enables a dual-axis chart.
 - `yDomain` — per-axis `{ min, max }`. Omit for automatic scaling.
 - `color` — semantic token: `accent | accentDim | success | error | warning | cost | textMuted`.

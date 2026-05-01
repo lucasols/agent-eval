@@ -513,6 +513,10 @@ defineEval({
           maxDecimalPlaces: 2,
         },
       });
+      expect(summary?.columnDefs[0]).toMatchObject({
+        key: 'apiCalls',
+        hideIfNoValue: true,
+      });
       expect(summary?.stats).toEqual([
         { kind: 'cases' },
         {
@@ -521,6 +525,7 @@ defineEval({
           label: 'API Calls',
           aggregate: 'avg',
           numberFormat: { minDecimalPlaces: 0, maxDecimalPlaces: 0 },
+          hideIfNoValue: true,
         },
         {
           kind: 'column',
@@ -528,6 +533,7 @@ defineEval({
           label: 'LLM Cost',
           aggregate: 'avg',
           numberFormat: { prefix: '$', maxDecimalPlaces: 4 },
+          hideIfNoValue: true,
         },
         {
           kind: 'column',
@@ -535,6 +541,7 @@ defineEval({
           label: 'Tokens',
           aggregate: 'avg',
           numberFormat: { notation: 'compact' },
+          hideIfNoValue: true,
         },
         {
           kind: 'column',
@@ -542,6 +549,7 @@ defineEval({
           label: 'LLM Turns',
           aggregate: 'avg',
           numberFormat: { minDecimalPlaces: 0, maxDecimalPlaces: 0 },
+          hideIfNoValue: true,
         },
       ]);
       expect(summary?.charts).toEqual([
@@ -552,6 +560,7 @@ defineEval({
         },
         {
           heading: 'LLM Cost',
+          hideIfNoValue: true,
           type: 'area',
           metrics: [
             {
@@ -566,6 +575,7 @@ defineEval({
         },
         {
           heading: 'LLM Tokens',
+          hideIfNoValue: true,
           type: 'bar',
           metrics: [
             {
