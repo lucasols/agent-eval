@@ -194,7 +194,18 @@ type EvalDefinitionBase<
   TInput = unknown,
   TOutputs extends EvalOutputs = EvalOutputs,
 > = {
+  /**
+   * Stable eval identifier within the authored eval file.
+   *
+   * The runner combines this value with the workspace-relative file path to
+   * form the eval key used for targeting, persisted runs, and UI navigation.
+   */
   id: string;
+  /**
+   * Human-readable eval name shown in the CLI and web UI.
+   *
+   * When omitted, consumers fall back to `id`.
+   */
   title?: string;
   /**
    * Per-eval cache controls. Both `read` and `store` default to `true`.
@@ -211,6 +222,13 @@ type EvalDefinitionBase<
    * eval once using a synthetic case with empty object input.
    */
   cases?: EvalCase<TInput>[] | (() => Promise<EvalCase<TInput>[]>);
+  /**
+   * Output and score column display overrides for this eval.
+   *
+   * Use this to label, format, group, hide, or otherwise customize columns
+   * produced by default config, output helpers, `deriveFromTracing`, scores,
+   * or manual scores.
+   */
   columns?: EvalColumns;
   /**
    * Per-eval trace attribute display rules for the UI.
@@ -245,8 +263,30 @@ type EvalDefinitionBase<
    * elapsed time from the configured `startTime`.
    */
   freezeTime?: boolean;
+  /**
+   * Run one eval case.
+   *
+   * The callback receives the authored case input and a typed `setOutput`
+   * helper. It may record outputs, run assertions, start traced work, and
+   * return either synchronously or asynchronously. Thrown errors fail the
+   * active case and skip later computed scores for that case.
+   */
   execute: (ctx: EvalExecuteContext<TInput, TOutputs>) => Promise<void> | void;
+  /**
+   * Derive additional output fields from the case trace after `execute`.
+   *
+   * Prefer the keyed map form when each key has one derivation. The
+   * object-returning callback form is also supported. Derived values only fill
+   * keys not already recorded during execution.
+   */
   deriveFromTracing?: EvalDeriveConfig<TInput>;
+  /**
+   * Computed score columns for each case.
+   *
+   * Each key becomes a persisted score column. A score can be a bare callback
+   * or an object with UI metadata and an optional `passThreshold`; thresholds
+   * fail a case only when the computed value is strictly below the threshold.
+   */
   scores?: Record<string, EvalScoreDef<TInput, TOutputs>>;
   /**
    * Score columns whose values are entered in the web UI after a run.

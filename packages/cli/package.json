@@ -42,7 +42,9 @@
       ]
     },
     "dts": {
-      "eager": true
+      "eager": true,
+      "entry": "src/index.ts",
+      "tsconfig": "tsconfig.build.json"
     },
     "entry": [
       "src/index.ts",
