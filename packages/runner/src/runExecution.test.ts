@@ -48,9 +48,8 @@ async function runDefaultUsageCase(overrides: RunCaseOverrides = {}) {
     evalCase: { id: 'case-one', input: {} },
     globalTraceDisplay: undefined,
     llmCallsConfig: resolveLlmCallsConfig({
-      pricing: [
-        {
-          model: 'gpt-4o-mini',
+      pricing: {
+        'gpt-4o-mini': {
           provider: 'openai',
           inputUsdPerMillion: 2,
           outputUsdPerMillion: 10,
@@ -58,7 +57,7 @@ async function runDefaultUsageCase(overrides: RunCaseOverrides = {}) {
           cacheCreationInputUsdPerMillion: 2.5,
           reasoningUsdPerMillion: 20,
         },
-      ],
+      },
     }),
     trial: 0,
     startTime: Date.now(),

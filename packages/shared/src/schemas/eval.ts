@@ -122,6 +122,12 @@ export type CaseRow = z.infer<typeof caseRowSchema>;
 
 /** Structured assertion failure metadata captured for one case run. */
 export const assertionFailureSchema = z.object({
+  /**
+   * Error class or category label rendered alongside the message (e.g.
+   * `EvalAssertionError`, `OutputsSchemaError`). Optional for legacy entries
+   * and synthetic failures without an originating Error.
+   */
+  name: z.string().optional(),
   /** Human-readable assertion failure message shown in the UI and artifacts. */
   message: z.string(),
   /** Stack trace captured from the originating error when available. */

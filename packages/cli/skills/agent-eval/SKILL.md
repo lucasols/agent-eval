@@ -280,12 +280,16 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   attribute paths. `latencyMs` is time to first token; duration, total tokens,
   tokens/sec, and USD costs are derived. Override `kinds` to broaden the filter,
   override `attributes.<field>` for non-default primitive span shapes, configure
-  `pricing` to derive USD costs from token counts by model/provider, add
-  `derivedAttributes` to persist computed values back onto matching LLM spans
-  before trace consumers run, and add entries to `metrics` to surface arbitrary
-  user metrics (`format: 'string' | 'number' | 'duration' | 'json' |
-'boolean'`, `placements: ['header' | 'body']`). `derivedAttributes` keys are
-  dot-paths under `span.attributes`; return `undefined` to skip one span.
+  model-keyed `pricing` to derive USD costs from token counts, with nested
+  `providers` entries for provider-specific rates, add `derivedAttributes` to
+  persist computed values back onto matching LLM spans before trace consumers
+  run, and add entries to `metrics` to surface arbitrary user metrics
+  (`format: 'string' | 'number' | 'duration' | 'json' | 'boolean'`,
+  `placements: ['header' | 'body']`). `derivedAttributes` keys are dot-paths
+  under `span.attributes`; return `undefined` to skip one span. For saved runs,
+  the case drawer more menu can recalculate configured LLM/API derived
+  attributes for one case and persist the updated trace artifacts without
+  re-running the eval.
 - Default usage config derives missing eval outputs from matching LLM/API spans
   before `outputsSchema` and scores run: `apiCalls`, `costUsd`, `llmTurns`,
   `inputTokens`, `outputTokens`, `totalTokens`, `cachedInputTokens`,

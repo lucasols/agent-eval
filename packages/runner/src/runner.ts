@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
-import { dirname, resolve, join, relative } from 'node:path';
+import { resolve, join, relative } from 'node:path';
 import { getEvalRegistry } from '@agent-evals/sdk';
 import type {
   EvalSummary,
@@ -43,6 +43,10 @@ import { buildEvalSummary, setLatestRunInfoMap } from './evalSummaries.ts';
 import { readGitWorktreeState } from './gitState.ts';
 import { resolveArtifactPath } from './outputArtifacts.ts';
 import {
+  recalculateDerivedAttributesForCase as recalculateDerivedAttributesForRunCase,
+  type RecalculateDerivedAttributesResult,
+} from './recalculateDerivedAttributes.ts';
+import {
   killRunChild,
   startRunChild,
   type RunnerRunState,
@@ -66,6 +70,7 @@ import {
   type PersistedRunSnapshot,
 } from './runPersistence.ts';
 import { getTargetEvalKeys } from './targeting.ts';
+import { getWatchRootsForIncludePatterns } from './watchRoots.ts';
 
 /** Imperative runner interface used by the server and CLI. */
 export type EvalRunner = {
@@ -147,6 +152,11 @@ export type EvalRunner = {
    * eval. Accepts the exact eval key, with a legacy fallback for unique eval ids.
    */
   recomputeStatusesForEval(evalKey: string): Promise<{ updatedRuns: number }>;
+  /** Recalculate configured LLM/API derived attributes for one persisted case trace. */
+  recalculateDerivedAttributesForCase(params: {
+    runId: string;
+    caseId: string;
+  }): Promise<RecalculateDerivedAttributesResult>;
   /**
    * Delete terminal persisted runs that touch one eval from memory and disk.
    * Accepts the exact eval key, with a legacy fallback for unique eval ids.
@@ -176,66 +186,6 @@ export type EvalRunner = {
 };
 
 type CreateRunnerOptions = { watchForChanges?: boolean };
-
-const globMagicCharacters = new Set([
-  '*',
-  '?',
-  '[',
-  ']',
-  '{',
-  '}',
-  '(',
-  ')',
-  '!',
-  '+',
-  '@',
-]);
-
-function hasGlobMagic(value: string): boolean {
-  for (const char of value) {
-    if (globMagicCharacters.has(char)) return true;
-  }
-  return false;
-}
-
-function getWatchRootForIncludePattern(params: {
-  pattern: string;
-  workspaceRoot: string;
-}): string {
-  const normalizedPattern = params.pattern.replaceAll('\\', '/');
-  const segments = normalizedPattern.split('/').filter((part) => part !== '');
-  const firstGlobSegmentIndex = segments.findIndex(hasGlobMagic);
-
-  if (firstGlobSegmentIndex === -1) {
-    return dirname(resolve(params.workspaceRoot, params.pattern));
-  }
-
-  if (firstGlobSegmentIndex === 0) return params.workspaceRoot;
-
-  return resolve(
-    params.workspaceRoot,
-    segments.slice(0, firstGlobSegmentIndex).join('/'),
-  );
-}
-
-function getWatchRootsForIncludePatterns(params: {
-  patterns: string[];
-  workspaceRoot: string;
-}): string[] {
-  const roots = new Set<string>();
-
-  for (const pattern of params.patterns) {
-    roots.add(
-      getWatchRootForIncludePattern({
-        pattern,
-        workspaceRoot: params.workspaceRoot,
-      }),
-    );
-  }
-
-  if (roots.size === 0) return [params.workspaceRoot];
-  return [...roots];
-}
 
 /** Create an in-memory eval runner bound to the current workspace config. */
 export function createRunner({
@@ -353,6 +303,19 @@ export function createRunner({
 
       emitDiscoveryEvent();
       return { updatedRuns };
+    },
+    async recalculateDerivedAttributesForCase({ runId, caseId }) {
+      const run = runs.get(runId);
+      if (!run) return { updated: false, reason: 'Run not found' };
+      return recalculateDerivedAttributesForRunCase({
+        run,
+        caseId,
+        llmCallsConfig,
+        apiCallsConfig,
+        traceDisplayConfig: config.traceDisplay,
+        evals,
+        persistCaseDetail,
+      });
     },
     async cleanRunsForEval(evalKey) {
       const evalMeta = resolveEvalMeta(evalKey);

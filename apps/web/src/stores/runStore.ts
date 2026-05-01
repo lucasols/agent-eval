@@ -29,6 +29,10 @@ const updateManualScoreResponseSchema = z.object({
   run: createRunResponseSchema,
   caseDetail: caseDetailSchema,
 });
+const recalculateDerivedAttributesResponseSchema = z.object({
+  updated: z.literal(true),
+  caseDetail: caseDetailSchema,
+});
 
 const runSummaryEnvelopeSchema = z.object({ payload: runSummarySchema });
 const caseRowEnvelopeSchema = z.object({ payload: caseRowSchema });
@@ -656,6 +660,35 @@ export async function updateManualScore(params: {
   }
   if (runStore.state.selectedRunId === params.runId) {
     await fetchRunDetail(params.runId);
+  }
+}
+
+export async function recalculateDerivedAttributesForCase(params: {
+  runId: string;
+  caseId: string;
+}): Promise<void> {
+  const result = await resultify(() =>
+    fetch(
+      `/api/runs/${encodeURIComponent(params.runId)}/cases/${encodeURIComponent(params.caseId)}/actions/recalculate-derived-attributes`,
+      { method: 'POST' },
+    ),
+  );
+  if (result.error) return;
+  if (!result.value.ok) return;
+
+  const jsonResult = await resultify(() => result.value.json());
+  const parseResult = jsonResult.error
+    ? null
+    : recalculateDerivedAttributesResponseSchema.safeParse(jsonResult.value);
+  if (!parseResult?.success) return;
+
+  if (
+    runStore.state.selectedCaseRunId === params.runId &&
+    runStore.state.selectedCaseId === params.caseId
+  ) {
+    runStore.setPartialState({
+      selectedCaseDetail: parseResult.data.caseDetail,
+    });
   }
 }
 

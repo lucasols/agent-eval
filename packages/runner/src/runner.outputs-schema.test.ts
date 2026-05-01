@@ -107,8 +107,8 @@ defineEval({
         startedRun.manifest.id,
         'invalid-output',
       );
-      expect(invalidDetail?.assertionFailures[0]?.message).toContain(
-        'outputsSchema validation failed',
+      expect(invalidDetail?.assertionFailures[0]?.name).toBe(
+        'OutputsSchemaError',
       );
       expect(invalidDetail?.assertionFailures[0]?.message).toContain(
         'response: Invalid input: expected string, received number',

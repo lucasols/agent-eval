@@ -7,6 +7,7 @@ import {
   type ColumnDef,
   type RunLogPhase,
 } from '@agent-evals/shared';
+import { useActionFn } from '@ls-stack/react-utils/useActionFn';
 import { Maximize2, Minimize2, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { styled } from 'vindur';
@@ -24,7 +25,9 @@ import {
 import { IconButton } from '#src/components/IconButton';
 import { JsonViewer } from '#src/components/JsonViewer';
 import { LlmCallRow } from '#src/components/LlmCallRow';
+import { MenuButton } from '#src/components/MenuButton';
 import { ResizeHandle } from '#src/components/ResizeHandle';
+import type { SplitButtonMenuEntry } from '#src/components/SplitButton';
 import { StatusBadge } from '#src/components/StatusBadge';
 import { TraceTree } from '#src/components/TraceTree';
 import { useResizableWidth } from '#src/hooks/useResizableWidth';
@@ -35,7 +38,11 @@ import {
 import { useWindowWidth } from '#src/hooks/useWindowWidth';
 import { evalsStore } from '#src/stores/evalsStore';
 import { layoutStore } from '#src/stores/layoutStore';
-import { closeCase, runStore } from '#src/stores/runStore';
+import {
+  closeCase,
+  recalculateDerivedAttributesForCase,
+  runStore,
+} from '#src/stores/runStore';
 import { workspaceConfigStore } from '#src/stores/workspaceConfigStore';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
@@ -112,7 +119,7 @@ const HeaderKicker = styled.span`
 `;
 
 const HeaderTitleRow = styled.div`
-  ${inline({ gap: 10, align: 'center' })}
+  ${inline({ justify: 'space-between', align: 'center', gap: 10 })}
   min-width: 0;
 `;
 
@@ -278,6 +285,10 @@ const FailureMessage = styled.div`
   line-height: 1.5;
 `;
 
+const FailureName = styled.span`
+  font-weight: 600;
+`;
+
 const LlmCallsList = styled.div`
   ${stack({ gap: 8 })}
 `;
@@ -363,9 +374,12 @@ export function CaseDrawer() {
     'all',
   );
   const [cacheFilter, setCacheFilter] = useState<CacheFilter>('all');
-  const { selectedCaseDetail } = runStore.useSelectorRC((s) => ({
-    selectedCaseDetail: s.selectedCaseDetail,
-  }));
+  const { selectedCaseDetail, selectedCaseRunId, selectedCaseId } =
+    runStore.useSelectorRC((s) => ({
+      selectedCaseDetail: s.selectedCaseDetail,
+      selectedCaseRunId: s.selectedCaseRunId,
+      selectedCaseId: s.selectedCaseId,
+    }));
   const { evals } = evalsStore.useSelectorRC((s) => ({ evals: s.evals }));
   const { sidebarWidth } = layoutStore.useSelectorRC((s) => ({
     sidebarWidth: s.sidebarWidth,
@@ -407,6 +421,14 @@ export function CaseDrawer() {
       setWidth(maxWidth);
     }
   }
+
+  const recalculateDerivedAttributesAction = useActionFn(async () => {
+    if (selectedCaseRunId === null || selectedCaseId === null) return;
+    await recalculateDerivedAttributesForCase({
+      runId: selectedCaseRunId,
+      caseId: selectedCaseId,
+    });
+  });
 
   if (!selectedCaseDetail) {
     return (
@@ -451,6 +473,16 @@ export function CaseDrawer() {
   if (d.assertionFailures.length > 0) tabs.push('failures');
   if (d.error) tabs.push('error');
   const activeTab = resolveActiveTab(searchParams.get('caseTab'), tabs);
+  const menuEntries: SplitButtonMenuEntry[] = [
+    {
+      id: 'recalculate-derived-attributes',
+      label: 'Recalculate derived attributes',
+      description: 'Update this saved trace from the current call config.',
+      onSelect: () => {
+        void recalculateDerivedAttributesAction.call();
+      },
+    },
+  ];
 
   return (
     <DrawerRoot
@@ -489,6 +521,11 @@ export function CaseDrawer() {
             <CaseId>{d.caseId}</CaseId>
             <StatusBadge status={d.status} />
           </HeaderLeft>
+          <MenuButton
+            menu={menuEntries}
+            disabled={recalculateDerivedAttributesAction.isInProgress}
+            aria-label="Case actions"
+          />
         </HeaderTitleRow>
       </Header>
 
@@ -676,7 +713,16 @@ export function CaseDrawer() {
           <FailureList>
             {d.assertionFailures.map((failure, i) => (
               <FailureItem key={`${failure.message}-${String(i)}`}>
-                <FailureMessage>{failure.message}</FailureMessage>
+                <FailureMessage>
+                  {failure.name !== undefined ? (
+                    <>
+                      <FailureName>{failure.name}:</FailureName>{' '}
+                      {failure.message}
+                    </>
+                  ) : (
+                    failure.message
+                  )}
+                </FailureMessage>
                 {failure.stack ? (
                   <CollapsibleDetails>
                     <ErrorStack>{failure.stack}</ErrorStack>

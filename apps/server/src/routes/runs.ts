@@ -115,6 +115,22 @@ export const runsRoutes = new Hono()
     }
     return c.json(caseDetail, 200);
   })
+  .post(
+    '/:runId/cases/:caseId/actions/recalculate-derived-attributes',
+    async (c) => {
+      const runId = c.req.param('runId');
+      const caseId = c.req.param('caseId');
+      const runner = getRunnerInstance();
+      const result = await runner.recalculateDerivedAttributesForCase({
+        runId,
+        caseId,
+      });
+      if (!result.updated) {
+        return c.json({ error: result.reason, updated: false }, 404);
+      }
+      return c.json(result, 200);
+    },
+  )
   .patch(
     '/:runId/cases/:caseId/manual-scores/:scoreKey',
     zValidator('json', updateManualScoreRequestSchema),

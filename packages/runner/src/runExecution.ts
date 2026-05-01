@@ -256,7 +256,11 @@ export async function runCase<
       scope.outputs = { ...scope.outputs, ...parsedOutputs.data };
     } else {
       scope.assertionFailures.push(
-        toAssertionFailure(formatOutputsSchemaError(parsedOutputs.error)),
+        toAssertionFailure(
+          formatOutputsSchemaError(parsedOutputs.error),
+          undefined,
+          'OutputsSchemaError',
+        ),
       );
     }
   }
@@ -468,16 +472,23 @@ function formatOutputsSchemaError(error: z.ZodError): string {
     return `${path}: ${issue.message}`;
   });
   if (issueLines.length === 0) {
-    return 'outputsSchema validation failed';
+    return 'outputs did not match the configured schema';
   }
-  return `outputsSchema validation failed:\n${issueLines.join('\n')}`;
+  return issueLines.join('\n');
 }
 
 function toAssertionFailure(
   message: string,
   error: Error | undefined = undefined,
+  nameOverride: string | undefined = undefined,
 ): AssertionFailure {
-  return error?.stack
-    ? { message, stack: stripTerminalControlCodes(error.stack) }
-    : { message };
+  const name = nameOverride ?? error?.name;
+  const stack = error?.stack
+    ? stripTerminalControlCodes(error.stack)
+    : undefined;
+  return {
+    ...(name !== undefined ? { name } : {}),
+    message,
+    ...(stack !== undefined ? { stack } : {}),
+  };
 }

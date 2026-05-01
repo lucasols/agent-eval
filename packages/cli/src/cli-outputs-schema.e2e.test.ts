@@ -60,9 +60,7 @@ defineEval({
       expect(caseRow?.columns.mentionsRefund).toBeUndefined();
 
       const detail = artifacts.caseDetails['invalid-output.json'];
-      expect(detail?.assertionFailures[0]?.message).toContain(
-        'outputsSchema validation failed',
-      );
+      expect(detail?.assertionFailures[0]?.name).toBe('OutputsSchemaError');
       expect(detail?.assertionFailures[0]?.message).toContain(
         'response: Invalid input: expected string, received number',
       );

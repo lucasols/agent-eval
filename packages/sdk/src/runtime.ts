@@ -863,9 +863,15 @@ function toAssertionFailure(
   message: string,
   error: Error | undefined = undefined,
 ): AssertionFailure {
-  return error?.stack
-    ? { message, stack: stripTerminalControlCodes(error.stack) }
-    : { message };
+  const name = error?.name;
+  const stack = error?.stack
+    ? stripTerminalControlCodes(error.stack)
+    : undefined;
+  return {
+    ...(name !== undefined ? { name } : {}),
+    message,
+    ...(stack !== undefined ? { stack } : {}),
+  };
 }
 
 /**

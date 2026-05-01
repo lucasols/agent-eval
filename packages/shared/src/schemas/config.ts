@@ -170,18 +170,9 @@ export const apiCallMetricSchema = z.object({
 export type ApiCallMetric = z.infer<typeof apiCallMetricSchema>;
 
 /**
- * Schema for one model/provider pricing entry used to derive LLM-call costs
- * from token counts.
+ * Schema for pricing rates used to derive LLM-call costs from token counts.
  */
-export const llmCallPricingSchema = z.object({
-  /** Exact model name read from the configured `attributes.model` path. */
-  model: z.string().min(1),
-  /**
-   * Optional provider discriminator read from `attributes.provider`. When set,
-   * the entry only applies to calls from that provider; provider-specific
-   * entries take precedence over generic entries for the same model.
-   */
-  provider: z.string().min(1).optional(),
+export const llmCallPricingRateSchema = z.object({
   /** USD per one million non-cached input tokens. */
   inputUsdPerMillion: z.number().nonnegative().optional(),
   /** USD per one million output tokens. */
@@ -195,8 +186,32 @@ export const llmCallPricingSchema = z.object({
   /** USD per one million reasoning tokens when reported separately. */
   reasoningUsdPerMillion: z.number().nonnegative().optional(),
 });
-/** Model/provider pricing entry authored in `agent-evals.config.ts`. */
+
+/** Token pricing rates authored in `agent-evals.config.ts`. */
+export type LlmCallPricingRate = z.infer<typeof llmCallPricingRateSchema>;
+
+/**
+ * Schema for one model's pricing config. The object key is the exact model
+ * name. Use `providers` when a model has provider-specific rates in addition
+ * to, or instead of, generic model rates.
+ */
+export const llmCallPricingSchema = llmCallPricingRateSchema.extend({
+  /**
+   * Optional provider discriminator read from `attributes.provider`. When set,
+   * the top-level entry only applies to calls from that provider.
+   */
+  provider: z.string().min(1).optional(),
+  /**
+   * Provider-specific pricing for the model. Provider entries take precedence
+   * over generic rates for the same model.
+   */
+  providers: z.record(z.string().min(1), llmCallPricingRateSchema).optional(),
+});
+/** Model pricing config authored in `agent-evals.config.ts`. */
 export type LlmCallPricing = z.infer<typeof llmCallPricingSchema>;
+
+/** Model-keyed pricing registry authored in `agent-evals.config.ts`. */
+export type LlmCallPricingRegistry = Record<string, LlmCallPricing>;
 
 /** Schema for the global LLM calls config block in `agent-evals.config.ts`. */
 export const llmCallsConfigSchema = z.object({
@@ -238,10 +253,10 @@ export const llmCallsConfigSchema = z.object({
     .record(z.string().min(1), callDerivedAttributeSchema)
     .optional(),
   /**
-   * Model/provider pricing registry used to calculate LLM-call costs from
-   * token counts. Built-in LLM cost fields are only derived from this registry.
+   * Model-keyed pricing registry used to calculate LLM-call costs from token
+   * counts. Built-in LLM cost fields are only derived from this registry.
    */
-  pricing: z.array(llmCallPricingSchema).optional(),
+  pricing: z.record(z.string().min(1), llmCallPricingSchema).optional(),
   /** Custom user-defined metrics surfaced on each LLM call. */
   metrics: z.array(llmCallMetricSchema).optional(),
 });
@@ -449,6 +464,54 @@ function resolveApiCallMetric(metric: ApiCallMetric): ResolvedApiCallMetric {
   };
 }
 
+function hasPricingRates(pricing: LlmCallPricingRate): boolean {
+  return (
+    pricing.inputUsdPerMillion !== undefined ||
+    pricing.outputUsdPerMillion !== undefined ||
+    pricing.cachedInputUsdPerMillion !== undefined ||
+    pricing.cacheCreationInputUsdPerMillion !== undefined ||
+    pricing.cacheCreationInput1hUsdPerMillion !== undefined ||
+    pricing.reasoningUsdPerMillion !== undefined
+  );
+}
+
+function copyPricingRates(
+  pricing: LlmCallPricingRate,
+): Omit<ResolvedLlmCallPricing, 'model' | 'provider'> {
+  return {
+    inputUsdPerMillion: pricing.inputUsdPerMillion,
+    outputUsdPerMillion: pricing.outputUsdPerMillion,
+    cachedInputUsdPerMillion: pricing.cachedInputUsdPerMillion,
+    cacheCreationInputUsdPerMillion: pricing.cacheCreationInputUsdPerMillion,
+    cacheCreationInput1hUsdPerMillion:
+      pricing.cacheCreationInput1hUsdPerMillion,
+    reasoningUsdPerMillion: pricing.reasoningUsdPerMillion,
+  };
+}
+
+function resolveLlmCallPricingEntries(
+  model: string,
+  pricing: LlmCallPricing,
+): ResolvedLlmCallPricing[] {
+  const entries: ResolvedLlmCallPricing[] = [];
+
+  if (hasPricingRates(pricing)) {
+    entries.push({
+      model,
+      provider: pricing.provider,
+      ...copyPricingRates(pricing),
+    });
+  }
+
+  for (const [provider, providerPricing] of Object.entries(
+    pricing.providers ?? {},
+  )) {
+    entries.push({ model, provider, ...copyPricingRates(providerPricing) });
+  }
+
+  return entries;
+}
+
 /**
  * Resolve the user-authored LLM-calls config to a fully-defaulted shape used
  * by the UI to derive the LLM calls tab.
@@ -459,7 +522,7 @@ function resolveApiCallMetric(metric: ApiCallMetric): ResolvedApiCallMetric {
  * - Missing `metrics[].format` defaults to `'string'`.
  * - Missing `metrics[].placements` defaults to `['body']`.
  * - Missing `pricing` defaults to an empty registry; built-in costs are only
- *   derived from configured pricing and token counts.
+ *   derived from configured model-keyed pricing and token counts.
  */
 export function resolveLlmCallsConfig(
   input: LlmCallsConfigInput | undefined,
@@ -475,16 +538,9 @@ export function resolveLlmCallsConfig(
     },
     derivedAttributes: resolveDerivedAttributes(input?.derivedAttributes),
     metrics: (input?.metrics ?? []).map(resolveLlmCallMetric),
-    pricing: (input?.pricing ?? []).map((p) => ({
-      model: p.model,
-      provider: p.provider,
-      inputUsdPerMillion: p.inputUsdPerMillion,
-      outputUsdPerMillion: p.outputUsdPerMillion,
-      cachedInputUsdPerMillion: p.cachedInputUsdPerMillion,
-      cacheCreationInputUsdPerMillion: p.cacheCreationInputUsdPerMillion,
-      cacheCreationInput1hUsdPerMillion: p.cacheCreationInput1hUsdPerMillion,
-      reasoningUsdPerMillion: p.reasoningUsdPerMillion,
-    })),
+    pricing: Object.entries(input?.pricing ?? {}).flatMap(([model, pricing]) =>
+      resolveLlmCallPricingEntries(model, pricing),
+    ),
   };
 }
 
@@ -558,7 +614,7 @@ export type AgentEvalsConfig = {
    *
    * Determines which trace spans are treated as LLM calls (`kinds`), how
    * structured fields like `model` and `usage.inputTokens` are read from
-   * span attributes, which pricing table derives built-in costs, and which
+   * span attributes, which pricing registry derives built-in costs, and which
    * custom user-defined metrics are surfaced on each call. All fields are
    * optional and fall back to the documented defaults; the LLM calls tab is
    * shown automatically when at least one matching span exists in a case run.
@@ -573,10 +629,13 @@ export type AgentEvalsConfig = {
    *   metrics: [
    *     { label: 'Retries', path: 'retryCount', format: 'number' },
    *   ],
-   *   pricing: [
-   *     { model: 'gpt-4o-mini', provider: 'openai',
-   *       inputUsdPerMillion: 0.15, outputUsdPerMillion: 0.6 },
-   *   ],
+   *   pricing: {
+   *     'gpt-4o-mini': {
+   *       provider: 'openai',
+   *       inputUsdPerMillion: 0.15,
+   *       outputUsdPerMillion: 0.6,
+   *     },
+   *   },
    * }
    * ```
    */

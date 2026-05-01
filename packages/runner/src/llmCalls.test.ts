@@ -85,14 +85,13 @@ test('resolveLlmCallsConfig passes through tooltip on metrics', () => {
 
 test('resolveLlmCallsConfig resolves pricing registry entries', () => {
   const resolved = resolveLlmCallsConfig({
-    pricing: [
-      {
-        model: 'gpt-4o-mini',
+    pricing: {
+      'gpt-4o-mini': {
         provider: 'openai',
         inputUsdPerMillion: 0.15,
         outputUsdPerMillion: 0.6,
       },
-    ],
+    },
   });
 
   expect(resolved.pricing).toEqual([
@@ -209,9 +208,8 @@ test('extractLlmCalls ignores explicit span costs and derives totals', () => {
 
 test('extractLlmCalls derives costs from pricing registry when span costs are missing', () => {
   const config = resolveLlmCallsConfig({
-    pricing: [
-      {
-        model: 'claude-sonnet',
+    pricing: {
+      'claude-sonnet': {
         provider: 'anthropic',
         inputUsdPerMillion: 3,
         outputUsdPerMillion: 15,
@@ -220,7 +218,7 @@ test('extractLlmCalls derives costs from pricing registry when span costs are mi
         cacheCreationInput1hUsdPerMillion: 6,
         reasoningUsdPerMillion: 60,
       },
-    ],
+    },
   });
 
   const spans: EvalTraceSpan[] = [
@@ -252,13 +250,9 @@ test('extractLlmCalls derives costs from pricing registry when span costs are mi
 
 test('extractLlmCalls ignores explicit span costs when pricing is configured', () => {
   const config = resolveLlmCallsConfig({
-    pricing: [
-      {
-        model: 'gpt-4o-mini',
-        inputUsdPerMillion: 100,
-        outputUsdPerMillion: 100,
-      },
-    ],
+    pricing: {
+      'gpt-4o-mini': { inputUsdPerMillion: 100, outputUsdPerMillion: 100 },
+    },
   });
 
   const spans: EvalTraceSpan[] = [
@@ -281,15 +275,15 @@ test('extractLlmCalls ignores explicit span costs when pricing is configured', (
 
 test('extractLlmCalls uses provider-specific pricing before generic pricing', () => {
   const config = resolveLlmCallsConfig({
-    pricing: [
-      { model: 'shared-model', inputUsdPerMillion: 1, outputUsdPerMillion: 1 },
-      {
-        model: 'shared-model',
-        provider: 'provider-b',
-        inputUsdPerMillion: 2,
-        outputUsdPerMillion: 3,
+    pricing: {
+      'shared-model': {
+        inputUsdPerMillion: 1,
+        outputUsdPerMillion: 1,
+        providers: {
+          'provider-b': { inputUsdPerMillion: 2, outputUsdPerMillion: 3 },
+        },
       },
-    ],
+    },
   });
 
   const calls = extractLlmCalls(
@@ -319,7 +313,7 @@ test('extractLlmCalls uses provider-specific pricing before generic pricing', ()
 
 test('extractLlmCalls does not derive total cost from incomplete pricing', () => {
   const config = resolveLlmCallsConfig({
-    pricing: [{ model: 'gpt-4o-mini', inputUsdPerMillion: 1 }],
+    pricing: { 'gpt-4o-mini': { inputUsdPerMillion: 1 } },
   });
 
   const calls = extractLlmCalls(
@@ -343,7 +337,7 @@ test('extractLlmCalls does not derive total cost from incomplete pricing', () =>
 
 test('extractLlmCalls derives zero cost for zero-token calls', () => {
   const config = resolveLlmCallsConfig({
-    pricing: [{ model: 'gpt-4o-mini', inputUsdPerMillion: 1 }],
+    pricing: { 'gpt-4o-mini': { inputUsdPerMillion: 1 } },
   });
 
   const calls = extractLlmCalls(
@@ -554,9 +548,7 @@ test('extractLlmCalls supports overridden attribute paths', () => {
       inputTokens: 'usage.prompt_tokens',
       outputTokens: 'usage.completion_tokens',
     },
-    pricing: [
-      { model: 'o1-mini', inputUsdPerMillion: 1, outputUsdPerMillion: 2 },
-    ],
+    pricing: { 'o1-mini': { inputUsdPerMillion: 1, outputUsdPerMillion: 2 } },
   });
 
   const spans = [
