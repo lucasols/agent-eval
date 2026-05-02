@@ -3,6 +3,7 @@ import {
   type LlmCallCostBreakdown,
   type LlmCallEntry,
   type LlmCostScenario,
+  type NumberDisplayOptions,
   type ResolvedLlmCallCostCurrency,
 } from '@agent-evals/shared';
 import { styled } from 'vindur';
@@ -128,6 +129,52 @@ function ConvertedCostValue({
   return <>{formatConvertedCost(value, currency)}</>;
 }
 
+const TOOLTIP_USD_NUMBER_FORMAT = {
+  prefix: '$',
+  maxDecimalPlaces: 10,
+} satisfies NumberDisplayOptions;
+
+const TOOLTIP_RATE_NUMBER_FORMAT = {
+  prefix: '$',
+  maxDecimalPlaces: 8,
+} satisfies NumberDisplayOptions;
+
+function buildUsdCostTooltip(
+  tokens: number | null,
+  cost: number | null,
+): string | undefined {
+  if (tokens === null || tokens === 0) return undefined;
+  if (cost === null) {
+    return `${formatExactTokens(tokens)} tokens — no pricing configured for this model`;
+  }
+  if (cost === 0) {
+    return `${formatExactTokens(tokens)} tokens · billed at $0/1M in this scenario`;
+  }
+  const ratePerMillion = (cost / tokens) * 1_000_000;
+  return `${formatExactTokens(tokens)} × ${formatNumber(
+    ratePerMillion,
+    TOOLTIP_RATE_NUMBER_FORMAT,
+  )}/1M = ${formatNumber(cost, TOOLTIP_USD_NUMBER_FORMAT)}`;
+}
+
+function buildConvertedCostTooltip(
+  costUsd: number | null,
+  currency: ResolvedLlmCallCostCurrency,
+): string | undefined {
+  if (costUsd === null || costUsd === 0) return undefined;
+  const tooltipCurrencyFormat = {
+    ...resolveCurrencyNumberFormat(currency),
+    maxDecimalPlaces: 10,
+  } satisfies NumberDisplayOptions;
+  return `${formatNumber(costUsd, TOOLTIP_USD_NUMBER_FORMAT)} × ${currency.code} ${formatNumber(
+    currency.usdToCurrencyRate,
+    { maxDecimalPlaces: 8 },
+  )}/USD = ${formatNumber(
+    costUsd * currency.usdToCurrencyRate,
+    tooltipCurrencyFormat,
+  )}`;
+}
+
 type BreakdownItem = {
   key: string;
   label: string;
@@ -233,14 +280,24 @@ export function LlmCallBreakdownTable({
             </BreakdownLabelCell>
             <BreakdownValue>{formatTokenCount(item.tokens)}</BreakdownValue>
             <BreakdownValue>
-              <UsdCostValue value={item.cost} />
+              <Tooltip content={buildUsdCostTooltip(item.tokens, item.cost)}>
+                <span>
+                  <UsdCostValue value={item.cost} />
+                </span>
+              </Tooltip>
             </BreakdownValue>
             {costCurrencies.map((currency, index) => (
               <BreakdownValue key={`${currency.code}-${String(index)}`}>
-                <ConvertedCostValue
-                  value={item.cost}
-                  currency={currency}
-                />
+                <Tooltip
+                  content={buildConvertedCostTooltip(item.cost, currency)}
+                >
+                  <span>
+                    <ConvertedCostValue
+                      value={item.cost}
+                      currency={currency}
+                    />
+                  </span>
+                </Tooltip>
               </BreakdownValue>
             ))}
           </BreakdownRow>
