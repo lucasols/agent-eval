@@ -14,6 +14,7 @@ import {
   buildLlmCallBreakdownItems,
   LlmCallBreakdownTable,
 } from '#src/components/LlmCallBreakdownTable';
+import { formatCostScenarioLabel } from '#src/components/LlmCostScenarioToolbar';
 import { StatusBadge } from '#src/components/StatusBadge';
 import { Tooltip } from '#src/components/Tooltip';
 import { colors } from '#src/style/colors';
@@ -518,7 +519,9 @@ export function LlmCallRow({
             isSimulated ? (
               <BreakdownColumns>
                 <BreakdownColumn>
-                  <BreakdownColumnLabel>Simulated</BreakdownColumnLabel>
+                  <BreakdownColumnLabel>
+                    Simulated · {formatCostScenarioLabel(scenario)}
+                  </BreakdownColumnLabel>
                   <LlmCallBreakdownTable
                     entry={entry}
                     costCurrencies={costCurrencies}

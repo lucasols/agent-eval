@@ -53,6 +53,22 @@ export function parseCostScenario(value: string): LlmCostScenario {
   }
 }
 
+/** Human-readable label used in dropdowns and breakdown column titles. */
+export function formatCostScenarioLabel(scenario: LlmCostScenario): string {
+  switch (scenario) {
+    case 'noCache':
+      return 'Without caching';
+    case 'withBaseCaching':
+      return 'Warmed cache (reads only)';
+    case 'withBaseCachingWrite':
+      return 'First call · base cache write';
+    case 'withExtendedCachingWrite':
+      return 'First call · extended cache write';
+    case 'actual':
+      return 'Actual';
+  }
+}
+
 /**
  * Toolbar rendered above the LLM calls list with a single dropdown that
  * selects the active cost-simulation scenario. When a non-actual scenario is
@@ -76,14 +92,16 @@ export function LlmCostScenarioToolbar({
           onChange(parseCostScenario(e.target.value));
         }}
       >
-        <option value="actual">Actual</option>
-        <option value="noCache">Without caching</option>
-        <option value="withBaseCaching">Warmed cache (reads only)</option>
+        <option value="actual">{formatCostScenarioLabel('actual')}</option>
+        <option value="noCache">{formatCostScenarioLabel('noCache')}</option>
+        <option value="withBaseCaching">
+          {formatCostScenarioLabel('withBaseCaching')}
+        </option>
         <option value="withBaseCachingWrite">
-          First call · base cache write
+          {formatCostScenarioLabel('withBaseCachingWrite')}
         </option>
         <option value="withExtendedCachingWrite">
-          First call · extended cache write
+          {formatCostScenarioLabel('withExtendedCachingWrite')}
         </option>
       </ToolbarSelect>
     </Toolbar>
