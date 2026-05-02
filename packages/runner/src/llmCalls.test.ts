@@ -460,6 +460,90 @@ test('extractLlmCalls reads metrics from derived attributes', () => {
   ]);
 });
 
+test('applyDerivedCallAttributes supports object-returning derived attributes', () => {
+  const config = resolveLlmCallsConfig({
+    derivedAttributes: ({ get }) => {
+      const inputTokens = get('usage.inputTokens');
+      const outputTokens = get('usage.outputTokens');
+      const cachedInputTokens = get('usage.cachedInputTokens');
+      if (typeof inputTokens !== 'number') return undefined;
+      if (typeof outputTokens !== 'number') return undefined;
+      const cachedTokens =
+        typeof cachedInputTokens === 'number' ? cachedInputTokens : 0;
+      const billableTokens = inputTokens + outputTokens - cachedTokens;
+
+      return {
+        'usage.billableTokens': billableTokens,
+        'usage.billableOutputShare':
+          billableTokens === 0 ? undefined : outputTokens / billableTokens,
+      };
+    },
+  });
+
+  const spansWithDerivedAttributes = applyDerivedCallAttributes({
+    spans: [
+      llmSpan({
+        attributes: {
+          usage: { inputTokens: 150, outputTokens: 50, cachedInputTokens: 40 },
+        },
+      }),
+    ],
+    llmCallsConfig: config,
+    apiCallsConfig: { ...DEFAULT_API_CALLS_CONFIG, kinds: [] },
+  });
+
+  expect(spansWithDerivedAttributes[0]?.attributes?.usage).toEqual({
+    inputTokens: 150,
+    outputTokens: 50,
+    cachedInputTokens: 40,
+    billableTokens: 160,
+    billableOutputShare: 0.3125,
+  });
+});
+
+test('applyDerivedCallAttributes lets keyed attributes read earlier derived attributes', () => {
+  const config = resolveLlmCallsConfig({
+    derivedAttributes: {
+      'usage.promptAndCompletionTokens': ({ get }) => {
+        const inputTokens = get('usage.inputTokens');
+        const outputTokens = get('usage.outputTokens');
+        if (typeof inputTokens !== 'number') return undefined;
+        if (typeof outputTokens !== 'number') return undefined;
+        return inputTokens + outputTokens;
+      },
+      'usage.billableTokens': ({ get }) => {
+        const totalTokens = get('usage.promptAndCompletionTokens');
+        const cachedInputTokens = get('usage.cachedInputTokens');
+        if (typeof totalTokens !== 'number') return undefined;
+        return (
+          totalTokens -
+          (typeof cachedInputTokens === 'number' ? cachedInputTokens : 0)
+        );
+      },
+    },
+  });
+
+  const spansWithDerivedAttributes = applyDerivedCallAttributes({
+    spans: [
+      llmSpan({
+        attributes: {
+          usage: { inputTokens: 150, outputTokens: 50, cachedInputTokens: 40 },
+        },
+      }),
+    ],
+    llmCallsConfig: config,
+    apiCallsConfig: { ...DEFAULT_API_CALLS_CONFIG, kinds: [] },
+  });
+
+  expect(spansWithDerivedAttributes[0]?.attributes?.usage).toEqual({
+    inputTokens: 150,
+    outputTokens: 50,
+    cachedInputTokens: 40,
+    promptAndCompletionTokens: 200,
+    billableTokens: 160,
+  });
+});
+
 test('extractLlmCalls derives tokens per second after latency', () => {
   const calls = extractLlmCalls(
     [

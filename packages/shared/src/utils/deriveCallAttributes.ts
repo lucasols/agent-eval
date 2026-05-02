@@ -41,9 +41,32 @@ function applyDerivedAttributesForKind(params: {
   let attributes = params.span.attributes;
 
   for (const derivedAttribute of params.derivedAttributes) {
+    const span = { ...params.span, attributes };
+
+    if (derivedAttribute.computeMany !== undefined) {
+      const values = (() => {
+        try {
+          return derivedAttribute.computeMany({
+            attributes,
+            span,
+            get: (path) => getNestedAttribute(attributes, path),
+          });
+        } catch {
+          return undefined;
+        }
+      })();
+      if (!isRecord(values)) continue;
+
+      for (const [path, value] of Object.entries(values)) {
+        if (value === undefined) continue;
+        attributes = mergeNestedAttribute(attributes, path, value);
+      }
+      continue;
+    }
+
+    if (derivedAttribute.path === undefined) continue;
     if (derivedAttribute.compute === undefined) continue;
 
-    const span = { ...params.span, attributes };
     const value = (() => {
       try {
         return derivedAttribute.compute({

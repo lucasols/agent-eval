@@ -345,8 +345,10 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   persist computed values back onto matching LLM spans before trace consumers
   run, and add entries to `metrics` to surface arbitrary user metrics
   (`format: 'string' | 'number' | 'duration' | 'json' | 'boolean'`,
-  `placements: ['header' | 'body']`). `derivedAttributes` keys are dot-paths
-  under `span.attributes`; return `undefined` to skip one span. For saved runs,
+  `placements: ['header' | 'body']`). `derivedAttributes` can be a keyed map
+  for one-off fields or one callback that returns multiple path/value pairs.
+  Derived keys are dot-paths under `span.attributes`; return `undefined` to
+  skip one span or one returned key. For saved runs,
   the case drawer more menu can recalculate configured LLM/API derived
   attributes for one case and persist the updated trace artifacts without
   re-running the eval.
@@ -374,9 +376,10 @@ cacheCreationInputTokens` so cache details are not double-counted.
   and `'fetch'` spans with `method`, `url`, `statusCode`, `request`,
   `response`, `requestBody`, `responseBody`, `headers`, `durationMs`, and
   `error` read from conventional attribute paths. Override `kinds` or
-  `attributes.<field>` for external tracers, add `derivedAttributes` for
-  computed persisted API span attributes, and add `metrics` with the same
-  formats and placements as LLM-call metrics.
+  `attributes.<field>` for external tracers, add `derivedAttributes` as a
+  keyed map or object-returning callback for computed persisted API span
+  attributes, and add `metrics` with the same formats and placements as
+  LLM-call metrics.
 - `runLogs` (in `agent-evals.config.ts`) controls case log capture. Use
   `runLogs: { captureConsole: false }` to keep console output in the terminal
   without persisting console calls to case details. Manual `evalLog(...)` calls

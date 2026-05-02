@@ -102,6 +102,7 @@ const DEFAULT_COLOR_ROTATION: EvalChartColor[] = [
   'success',
   'error',
 ];
+const MAX_BAR_SIZE = 18;
 
 function resolveColor(color: EvalChartColor): string {
   return colors[color].var;
@@ -345,6 +346,7 @@ function renderSeries(params: {
         name={key}
         yAxisId={yAxisId}
         fill={color}
+        maxBarSize={MAX_BAR_SIZE}
         isAnimationActive={false}
       />
     );

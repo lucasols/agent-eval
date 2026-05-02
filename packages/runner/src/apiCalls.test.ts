@@ -219,6 +219,35 @@ test('extractApiCalls reads metrics from derived attributes', () => {
   ).toMatchObject([{ label: 'Payload Bytes', rawValue: 42, format: 'number' }]);
 });
 
+test('applyDerivedCallAttributes supports object-returning API derived attributes', () => {
+  const config = resolveApiCallsConfig({
+    derivedAttributes: ({ get }) => {
+      const requestBytes = get('payload.requestBytes');
+      const responseBytes = get('payload.responseBytes');
+      if (typeof requestBytes !== 'number') return undefined;
+      if (typeof responseBytes !== 'number') return undefined;
+      const payloadBytes = requestBytes + responseBytes;
+
+      return { payloadBytes, 'payload.kilobytes': payloadBytes / 1024 };
+    },
+  });
+
+  const spansWithDerivedAttributes = applyDerivedCallAttributes({
+    spans: [
+      apiSpan({
+        attributes: { payload: { requestBytes: 256, responseBytes: 768 } },
+      }),
+    ],
+    llmCallsConfig: { ...DEFAULT_LLM_CALLS_CONFIG, kinds: [] },
+    apiCallsConfig: config,
+  });
+
+  expect(spansWithDerivedAttributes[0]?.attributes).toMatchObject({
+    payloadBytes: 1024,
+    payload: { requestBytes: 256, responseBytes: 768, kilobytes: 1 },
+  });
+});
+
 test('extractApiCalls keeps rows with missing optional attributes', () => {
   const [call] = extractApiCalls(
     [apiSpan({ attributes: {} })],

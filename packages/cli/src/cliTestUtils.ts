@@ -9,6 +9,7 @@ import {
   runManifestSchema,
   runSummarySchema,
   traceSpanSchema,
+  type EvalTraceSpan,
 } from '@agent-evals/shared';
 import { z } from 'zod/v4';
 
@@ -268,6 +269,76 @@ export function summarizeTrace(
   }));
 }
 
+export function requireCase<TCase extends { caseId: string }>(
+  cases: TCase[],
+  caseId: string,
+): TCase {
+  const caseRow = cases.find((entry) => entry.caseId === caseId);
+  if (caseRow === undefined) {
+    throw new Error(`Expected case ${caseId}`);
+  }
+  return caseRow;
+}
+
+export function requireCaseDetail<TCaseDetail extends { caseId: string }>(
+  caseDetails: Record<string, TCaseDetail>,
+  caseId: string,
+): TCaseDetail {
+  const caseDetail = caseDetails[`${encodeURIComponent(caseId)}.json`];
+  if (caseDetail === undefined) {
+    throw new Error(`Expected case detail ${caseId}`);
+  }
+  return caseDetail;
+}
+
+export function requireTrace(
+  traces: Record<string, EvalTraceSpan[]>,
+  traceFileName: string,
+): EvalTraceSpan[] {
+  const trace = traces[traceFileName];
+  if (trace === undefined) {
+    throw new Error(`Expected trace ${traceFileName}`);
+  }
+  return trace;
+}
+
+export function requireSpan(
+  trace: EvalTraceSpan[],
+  name: string,
+): EvalTraceSpan {
+  const span = trace.find((entry) => entry.name === name);
+  if (span === undefined) {
+    throw new Error(`Expected span ${name}`);
+  }
+  return span;
+}
+
+export function readDisplayString(
+  value: unknown,
+  key: string,
+): string | undefined {
+  if (!isRecord(value) || !(key in value)) {
+    return undefined;
+  }
+
+  const displayValue = value[key];
+  return typeof displayValue === 'string'
+    ? displayValue.replaceAll('\u00A0', ' ')
+    : undefined;
+}
+
+export function getDurationMs(span: EvalTraceSpan): number {
+  if (span.endedAt === null) {
+    throw new Error(`Expected completed span ${span.name}`);
+  }
+
+  return new Date(span.endedAt).getTime() - new Date(span.startedAt).getTime();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
 function parseJson<T>(schema: { parse(value: unknown): T }, text: string): T {
   const parsed: unknown = JSON.parse(text);
   return schema.parse(parsed);
@@ -279,10 +350,6 @@ async function readJsonFile<T>(
 ): Promise<T> {
   const text = await readFile(filePath, 'utf8');
   return parseJson(schema, text);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 function normalizeDynamicString(workspacePath: string, value: string): string {

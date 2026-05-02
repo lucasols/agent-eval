@@ -31,7 +31,7 @@ const llmCallsConfigSchema: z.ZodType<ResolvedLlmCallsConfig> = z.object({
     reasoning: z.string(),
     toolCalls: z.string(),
   }),
-  derivedAttributes: z.array(z.object({ path: z.string() })),
+  derivedAttributes: z.array(z.object({ path: z.string().optional() })),
   metrics: z.array(
     z.object({
       label: z.string(),
@@ -79,7 +79,7 @@ const apiCallsConfigSchema: z.ZodType<ResolvedApiCallsConfig> = z.object({
     durationMs: z.string(),
     error: z.string(),
   }),
-  derivedAttributes: z.array(z.object({ path: z.string() })),
+  derivedAttributes: z.array(z.object({ path: z.string().optional() })),
   metrics: z.array(
     z.object({
       label: z.string(),

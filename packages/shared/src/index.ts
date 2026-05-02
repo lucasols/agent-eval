@@ -207,6 +207,8 @@ export {
   type ApiCallMetric,
   type CallDerivedAttribute,
   type CallDerivedAttributeContext,
+  type CallDerivedAttributesConfig,
+  type CallDerivedAttributesFn,
   type ResolvedCallDerivedAttribute,
   type LlmCallMetricFormat,
   type ApiCallMetricFormat,

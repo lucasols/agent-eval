@@ -630,19 +630,22 @@ llmCalls: {
   // Persist derived attributes onto matching LLM spans. These run before
   // deriveFromTracing, traceDisplay, default outputs, and metrics read the
   // trace, so the new values can be reused anywhere span attributes are read.
-  derivedAttributes: {
-    'usage.billableTokens': ({ get }) => {
-      const inputTokens = get('usage.inputTokens');
-      const outputTokens = get('usage.outputTokens');
-      const cachedInputTokens = get('usage.cachedInputTokens');
-      if (typeof inputTokens !== 'number') return undefined;
-      if (typeof outputTokens !== 'number') return undefined;
-      return (
-        inputTokens +
-        outputTokens -
-        (typeof cachedInputTokens === 'number' ? cachedInputTokens : 0)
-      );
-    },
+  derivedAttributes: ({ get }) => {
+    const inputTokens = get('usage.inputTokens');
+    const outputTokens = get('usage.outputTokens');
+    const cachedInputTokens = get('usage.cachedInputTokens');
+    if (typeof inputTokens !== 'number') return undefined;
+    if (typeof outputTokens !== 'number') return undefined;
+    const billableTokens =
+      inputTokens +
+      outputTokens -
+      (typeof cachedInputTokens === 'number' ? cachedInputTokens : 0);
+
+    return {
+      'usage.billableTokens': billableTokens,
+      'usage.billableOutputShare':
+        billableTokens === 0 ? undefined : outputTokens / billableTokens,
+    };
   },
   // Surface arbitrary user metrics on each call. `placements` defaults to
   // `['body']`; include `'header'` to also show a chip on the collapsed row.
@@ -650,16 +653,23 @@ llmCalls: {
     { label: 'Retries', path: 'retryCount', format: 'number' },
     { label: 'Temperature', path: 'params.temperature', format: 'number' },
     { label: 'Billable Tokens', path: 'usage.billableTokens', format: 'number' },
+    {
+      label: 'Billable Output Share',
+      path: 'usage.billableOutputShare',
+      format: 'number',
+    },
     { label: 'Streamed', path: 'streamed', format: 'boolean' },
   ],
 }
 ```
 
+`derivedAttributes` can be an object-returning callback, as shown above, or a
+keyed map for one-off fields (`{ 'usage.billableTokens': ({ get }) => ... }`).
 Derived attribute keys are dot-paths under `span.attributes`; return
-`undefined` to skip writing a value for one span. Custom metrics support
-`'string' | 'number' | 'duration' | 'json' | 'boolean'` formats. Use `tooltip`
-to add a hover description for compact labels. The tab is hidden automatically
-for cases with no matching spans.
+`undefined` to skip writing a value for one span or one returned key. Custom
+metrics support `'string' | 'number' | 'duration' | 'json' | 'boolean'`
+formats. Use `tooltip` to add a hover description for compact labels. The tab
+is hidden automatically for cases with no matching spans.
 
 ### Default usage outputs
 
@@ -758,14 +768,17 @@ apiCalls: {
     statusCode: 'http.status_code',
     durationMs: 'timing.totalMs',
   },
-  derivedAttributes: {
-    payloadBytes: ({ get }) => {
-      const requestBytes = get('payload.requestBytes');
-      const responseBytes = get('payload.responseBytes');
-      if (typeof requestBytes !== 'number') return undefined;
-      if (typeof responseBytes !== 'number') return undefined;
-      return requestBytes + responseBytes;
-    },
+  derivedAttributes: ({ get }) => {
+    const requestBytes = get('payload.requestBytes');
+    const responseBytes = get('payload.responseBytes');
+    if (typeof requestBytes !== 'number') return undefined;
+    if (typeof responseBytes !== 'number') return undefined;
+    const payloadBytes = requestBytes + responseBytes;
+
+    return {
+      payloadBytes,
+      'payload.kilobytes': payloadBytes / 1024,
+    };
   },
   metrics: [
     {
@@ -775,6 +788,7 @@ apiCalls: {
       placements: ['header', 'body'],
     },
     { label: 'Payload', path: 'payloadBytes', format: 'number' },
+    { label: 'Payload KB', path: 'payload.kilobytes', format: 'number' },
   ],
 }
 ```
@@ -785,7 +799,7 @@ artifacts without re-running the eval.
 
 API-call `derivedAttributes` follow the same rules as LLM-call derived
 attributes. Custom metrics support the same `'string' | 'number' | 'duration' |
-`'json'`|`'boolean'`formats and`['header' | 'body']` placements as LLM-call
+`'json' | 'boolean'`formats and`['header' | 'body']` placements as LLM-call
 metrics. The tab is hidden automatically for cases with no matching API spans.
 
 ### Scorers

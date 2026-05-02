@@ -1,8 +1,13 @@
-import type { EvalTraceSpan } from '@agent-evals/shared';
 import { describe, expect, test } from 'vitest';
 import {
+  getDurationMs,
   normalizeSnapshotValue,
   readSingleRunArtifacts,
+  readDisplayString,
+  requireCase,
+  requireCaseDetail,
+  requireSpan,
+  requireTrace,
   runExampleCli,
   summarizeTrace,
   withIsolatedExampleWorkspace,
@@ -37,7 +42,9 @@ describe('CLI eval features', () => {
               "caseId": "mocked-customer-lookup",
               "columns": {
                 "appliedSegment": "vip",
+                "llmTurns": 0,
                 "response": "Priority refund approved for vip-100: Please refund the duplicate charge",
+                "toolCalls": 0,
                 "usedVipSegment": 1,
               },
               "status": "pass",
@@ -244,6 +251,7 @@ describe('CLI eval features', () => {
       ).toBe(false);
       expect(withImagePlan.attributes?.model).toBe('gpt-4o-mini');
       expect(withImagePlan.attributes?.usage).toEqual({
+        billableOutputShare: 0.29411764705882354,
         billableTokens: 170,
         cacheCreationInputTokens: 80,
         cachedInputTokens: 30,
@@ -311,6 +319,7 @@ describe('CLI eval features', () => {
                 },
                 "parentId": "<span-id>",
                 "usage": {
+                  "billableOutputShare": 0.29411764705882354,
                   "billableTokens": 170,
                   "cacheCreationInputTokens": 80,
                   "cachedInputTokens": 30,
@@ -380,6 +389,7 @@ describe('CLI eval features', () => {
                 },
                 "parentId": "<span-id>",
                 "usage": {
+                  "billableOutputShare": 0.29411764705882354,
                   "billableTokens": 170,
                   "cacheCreationInputTokens": 80,
                   "cachedInputTokens": 30,
@@ -449,6 +459,7 @@ describe('CLI eval features', () => {
                 },
                 "parentId": "<span-id>",
                 "usage": {
+                  "billableOutputShare": 0.29411764705882354,
                   "billableTokens": 170,
                   "cacheCreationInputTokens": 80,
                   "cachedInputTokens": 30,
@@ -550,6 +561,7 @@ describe('CLI eval features', () => {
         "confidence": 0.93,
         "generatedAt": "<timestamp>",
         "handlingCostUsd": 1.25,
+        "llmTurns": 0,
         "previewCard": {
           "artifactId": "<run-id>__all-column-formats__t0__previewCard__previewCard.svg",
           "fileName": "previewCard.svg",
@@ -563,6 +575,7 @@ describe('CLI eval features', () => {
         "reviewTimeMs": 1450,
         "reviewerDecision": null,
         "reviewerQuality": null,
+        "toolCalls": 0,
         "toolResult": {
           "matchedReceipt": true,
           "nextStep": "send-refund-confirmation",
@@ -628,8 +641,11 @@ describe('CLI eval features', () => {
       expect(silentPassCase.status).toBe('pass');
       expect(silentAssertionCase.status).toBe('fail');
 
-      expect(silentPassCase.columns).toEqual({});
-      expect(silentAssertionCase.columns).toEqual({});
+      expect(silentPassCase.columns).toEqual({ llmTurns: 0, toolCalls: 0 });
+      expect(silentAssertionCase.columns).toEqual({
+        llmTurns: 0,
+        toolCalls: 0,
+      });
       expect(
         requireTrace(artifacts.traces, 'silent-pass-demo-no-output.json'),
       ).toEqual([]);
@@ -717,8 +733,10 @@ describe('CLI eval features', () => {
             {
               "caseId": "score-threshold-miss",
               "columns": {
+                "llmTurns": 0,
                 "matchesGoldAnswer": 0,
                 "response": "Borderline result for: Review the refund summary against the gold answer.",
+                "toolCalls": 0,
               },
               "evalId": "score-threshold-demo",
               "status": "fail",
@@ -726,20 +744,28 @@ describe('CLI eval features', () => {
             {
               "caseId": "assertion-failure-visible-output",
               "columns": {
+                "llmTurns": 0,
                 "response": "Missing audit note for ticket T-441.",
+                "toolCalls": 0,
               },
               "evalId": "assertion-failure-demo",
               "status": "fail",
             },
             {
               "caseId": "silent-pass-demo-no-output",
-              "columns": {},
+              "columns": {
+                "llmTurns": 0,
+                "toolCalls": 0,
+              },
               "evalId": "silent-pass-demo",
               "status": "pass",
             },
             {
               "caseId": "silent-assertion-no-output",
-              "columns": {},
+              "columns": {
+                "llmTurns": 0,
+                "toolCalls": 0,
+              },
               "evalId": "silent-assertion-demo",
               "status": "fail",
             },
@@ -764,67 +790,3 @@ describe('CLI eval features', () => {
     });
   });
 });
-
-function requireCase<TCase extends { caseId: string }>(
-  cases: TCase[],
-  caseId: string,
-): TCase {
-  const caseRow = cases.find((entry) => entry.caseId === caseId);
-  if (caseRow === undefined) {
-    throw new Error(`Expected case ${caseId}`);
-  }
-  return caseRow;
-}
-
-function requireCaseDetail<TCaseDetail extends { caseId: string }>(
-  caseDetails: Record<string, TCaseDetail>,
-  caseId: string,
-): TCaseDetail {
-  const caseDetail = caseDetails[`${encodeURIComponent(caseId)}.json`];
-  if (caseDetail === undefined) {
-    throw new Error(`Expected case detail ${caseId}`);
-  }
-  return caseDetail;
-}
-
-function requireTrace(
-  traces: Record<string, EvalTraceSpan[]>,
-  traceFileName: string,
-): EvalTraceSpan[] {
-  const trace = traces[traceFileName];
-  if (trace === undefined) {
-    throw new Error(`Expected trace ${traceFileName}`);
-  }
-  return trace;
-}
-
-function requireSpan(trace: EvalTraceSpan[], name: string): EvalTraceSpan {
-  const span = trace.find((entry) => entry.name === name);
-  if (span === undefined) {
-    throw new Error(`Expected span ${name}`);
-  }
-  return span;
-}
-
-function readDisplayString(value: unknown, key: string): string | undefined {
-  if (!isRecord(value) || !(key in value)) {
-    return undefined;
-  }
-
-  const displayValue = value[key];
-  return typeof displayValue === 'string'
-    ? displayValue.replaceAll('\u00A0', ' ')
-    : undefined;
-}
-
-function getDurationMs(span: EvalTraceSpan): number {
-  if (span.endedAt === null) {
-    throw new Error(`Expected completed span ${span.name}`);
-  }
-
-  return new Date(span.endedAt).getTime() - new Date(span.startedAt).getTime();
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}

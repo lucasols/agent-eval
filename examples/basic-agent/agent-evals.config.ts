@@ -31,19 +31,22 @@ export const config: AgentEvalsConfig = {
     llmTurns: ({ trace }) => trace.findSpansByKind('llm').length,
   },
   llmCalls: {
-    derivedAttributes: {
-      'usage.billableTokens': ({ get }) => {
-        const inputTokens = get('usage.inputTokens');
-        const outputTokens = get('usage.outputTokens');
-        const cachedInputTokens = get('usage.cachedInputTokens');
-        if (typeof inputTokens !== 'number') return undefined;
-        if (typeof outputTokens !== 'number') return undefined;
-        return (
-          inputTokens +
-          outputTokens -
-          (typeof cachedInputTokens === 'number' ? cachedInputTokens : 0)
-        );
-      },
+    derivedAttributes: ({ get }) => {
+      const inputTokens = get('usage.inputTokens');
+      const outputTokens = get('usage.outputTokens');
+      const cachedInputTokens = get('usage.cachedInputTokens');
+      if (typeof inputTokens !== 'number') return undefined;
+      if (typeof outputTokens !== 'number') return undefined;
+      const billableTokens =
+        inputTokens +
+        outputTokens -
+        (typeof cachedInputTokens === 'number' ? cachedInputTokens : 0);
+
+      return {
+        'usage.billableTokens': billableTokens,
+        'usage.billableOutputShare':
+          billableTokens === 0 ? undefined : outputTokens / billableTokens,
+      };
     },
     pricing: {
       'gpt-4o-mini': {
@@ -103,6 +106,13 @@ export const config: AgentEvalsConfig = {
         label: 'Billable Tokens',
         path: 'usage.billableTokens',
         format: 'number',
+        placements: ['body'],
+      },
+      {
+        label: 'Billable Output Share',
+        path: 'usage.billableOutputShare',
+        format: 'number',
+        numberFormat: { minDecimalPlaces: 2, maxDecimalPlaces: 2 },
         placements: ['body'],
       },
     ],

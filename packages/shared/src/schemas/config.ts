@@ -194,13 +194,13 @@ export type ApiCallMetricPlacement = z.infer<
   typeof apiCallMetricPlacementSchema
 >;
 
-/** Context passed to an LLM/API-call derived attribute function. */
+/** Context passed to LLM/API-call derived attribute functions. */
 export type CallDerivedAttributeContext = {
-  /** Raw attributes from the matching trace span. */
+  /** Current attributes from the matching trace span. */
   attributes: Record<string, unknown> | undefined;
   /** Matching trace span. */
   span: EvalTraceSpan;
-  /** Dot-path helper for reading from `span.attributes`. */
+  /** Dot-path helper for reading from the current span attributes. */
   get: (path: string) => unknown;
 };
 
@@ -212,20 +212,50 @@ export type CallDerivedAttribute = (
   ctx: CallDerivedAttributeContext,
 ) => unknown;
 
+/**
+ * Runner-side function used to derive multiple span attributes from a matching
+ * LLM/API-call span. Returned object keys are dot-paths under
+ * `span.attributes`; `undefined` values are skipped.
+ */
+export type CallDerivedAttributesFn = (
+  ctx: CallDerivedAttributeContext,
+) => Record<string, unknown> | undefined;
+
+/** Authored LLM/API-call derived-attributes config. */
+export type CallDerivedAttributesConfig =
+  | Record<string, CallDerivedAttribute>
+  | CallDerivedAttributesFn;
+
 const callDerivedAttributeSchema = z.custom<CallDerivedAttribute>(
   (value) => typeof value === 'function',
   { message: 'Expected a derived attribute function' },
 );
 
+const callDerivedAttributesFnSchema = z.custom<CallDerivedAttributesFn>(
+  (value) => typeof value === 'function',
+  { message: 'Expected a derived attributes function' },
+);
+
+const callDerivedAttributesConfigSchema: z.ZodType<CallDerivedAttributesConfig> =
+  z.union([
+    z.record(z.string().min(1), callDerivedAttributeSchema),
+    callDerivedAttributesFnSchema,
+  ]);
+
 /** One resolved derived span attribute rule. */
 export type ResolvedCallDerivedAttribute = {
-  /** Dot-path where the derived value is persisted on `span.attributes`. */
-  path: string;
+  /** Dot-path where one derived value is persisted on `span.attributes`. */
+  path?: string;
   /**
-   * Function that derives the persisted value for each matching span. Omitted
+   * Function that derives one persisted value for each matching span. Omitted
    * after this config is serialized to the browser.
    */
   compute?: CallDerivedAttribute;
+  /**
+   * Function that derives multiple persisted values for each matching span.
+   * Omitted after this config is serialized to the browser.
+   */
+  computeMany?: CallDerivedAttributesFn;
 };
 
 /**
@@ -372,12 +402,11 @@ export const llmCallsConfigSchema = z.object({
   /**
    * Derived attributes persisted onto every matching LLM span before
    * `deriveFromTracing`, default outputs, trace display, and call metrics read
-   * the trace. Keys are dot-paths under `span.attributes`; return `undefined`
-   * to skip writing the attribute for one span.
+   * the trace. Use a keyed map for one-off fields, or one callback returning a
+   * path/value object for multiple fields. Keys are dot-paths under
+   * `span.attributes`; return `undefined` to skip one span or one returned key.
    */
-  derivedAttributes: z
-    .record(z.string().min(1), callDerivedAttributeSchema)
-    .optional(),
+  derivedAttributes: callDerivedAttributesConfigSchema.optional(),
   /**
    * Model-keyed pricing registry used to calculate LLM-call costs from token
    * counts. Built-in LLM cost fields are only derived from this registry.
@@ -414,13 +443,12 @@ export const apiCallsConfigSchema = z.object({
     .optional(),
   /**
    * Derived attributes persisted onto every matching API span before trace
-   * display and call metrics read the trace. Keys are dot-paths under
-   * `span.attributes`; return `undefined` to skip writing the attribute for
-   * one span.
+   * display and call metrics read the trace. Use a keyed map for one-off
+   * fields, or one callback returning a path/value object for multiple fields.
+   * Keys are dot-paths under `span.attributes`; return `undefined` to skip one
+   * span or one returned key.
    */
-  derivedAttributes: z
-    .record(z.string().min(1), callDerivedAttributeSchema)
-    .optional(),
+  derivedAttributes: callDerivedAttributesConfigSchema.optional(),
   /** Custom user-defined metrics surfaced on each API call. */
   metrics: z.array(apiCallMetricSchema).optional(),
 });
@@ -560,12 +588,11 @@ export const DEFAULT_API_CALLS_CONFIG: ResolvedApiCallsConfig = {
 };
 
 function resolveDerivedAttributes(
-  input: Record<string, CallDerivedAttribute> | undefined,
+  input: CallDerivedAttributesConfig | undefined,
 ): ResolvedCallDerivedAttribute[] {
-  return Object.entries(input ?? {}).map(([path, compute]) => ({
-    path,
-    compute,
-  }));
+  if (input === undefined) return [];
+  if (typeof input === 'function') return [{ computeMany: input }];
+  return Object.entries(input).map(([path, compute]) => ({ path, compute }));
 }
 
 function resolveLlmCallMetric(metric: LlmCallMetric): ResolvedLlmCallMetric {
