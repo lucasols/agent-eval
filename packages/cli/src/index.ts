@@ -1,9 +1,19 @@
-export { createRunner, type EvalRunner } from '@agent-evals/runner';
+export {
+  cleanupStagedManualInputFiles,
+  createRunner,
+  isManualInputFileValue,
+  materializeManualInputFiles,
+  stageManualInputFile,
+  stageManualInputFileFromPath,
+  type EvalRunner,
+  type MaterializeManualInputFilesResult,
+} from '@agent-evals/runner';
 export {
   defineEval,
   z,
   getEvalRegistry,
   manualInputFileValueSchema,
+  readManualInputFile,
   repoFile,
   setEvalOutput,
   appendToEvalOutput,
@@ -66,6 +76,7 @@ export {
   type ManualInputFieldOverride,
   type ManualInputFieldsConfig,
   type ManualInputFileValue,
+  type ReadManualInputFileResult,
   type EvalCacheConfig,
   type EvalDefinition,
   type EvalStartTime,

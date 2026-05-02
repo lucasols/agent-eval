@@ -34,6 +34,10 @@ import { loadEvalModule } from './evalModuleLoader.ts';
 import { buildEvalSummary, setLatestRunInfoMap } from './evalSummaries.ts';
 import { readGitWorktreeState } from './gitState.ts';
 import { resolveManualInputDiscovery } from './manualInput/discovery.ts';
+import {
+  cleanupStagedManualInputFiles,
+  materializeManualInputFiles,
+} from './manualInput/files.ts';
 import { validateManualInputsForRequest } from './manualInput/validation.ts';
 import { resolveArtifactPath } from './outputArtifacts.ts';
 import { recalculateDerivedAttributesForCase as recalculateDerivedAttributesForRunCase } from './recalculateDerivedAttributes.ts';
@@ -71,6 +75,10 @@ export type {
 export type { EvalRunner } from './runnerTypes.ts';
 
 type CreateRunnerOptions = { watchForChanges?: boolean };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 /** Create an in-memory eval runner bound to the current workspace config. */
 export function createRunner({
@@ -492,11 +500,33 @@ export function createRunner({
         childTerminalReceived: false,
       };
 
+      await mkdir(runDir, { recursive: true });
+      await mkdir(join(runDir, 'traces'), { recursive: true });
+      await mkdir(join(runDir, 'artifacts'), { recursive: true });
+      await mkdir(join(runDir, 'case-details'), { recursive: true });
+
+      const materializedRequest = { ...request };
+      if (request.manualInputs !== undefined) {
+        const materialized = await materializeManualInputFiles({
+          workspaceRoot,
+          runId,
+          runDir,
+          value: request.manualInputs,
+        });
+        if (materialized.error !== null) {
+          throw new Error(materialized.error);
+        }
+        if (!isRecord(materialized.value)) {
+          throw new Error('Materialized manual inputs must be an object');
+        }
+        materializedRequest.manualInputs = materialized.value;
+      }
+
       runs.set(runId, runState);
       setLatestRunInfoMap({
         latestRunInfoMap,
         evalIds: getTargetEvalKeys({
-          request,
+          request: materializedRequest,
           sortedEvals: getSortedEvalMetas(),
         }),
         info: {
@@ -507,18 +537,13 @@ export function createRunner({
         },
       });
 
-      await mkdir(runDir, { recursive: true });
-      await mkdir(join(runDir, 'traces'), { recursive: true });
-      await mkdir(join(runDir, 'artifacts'), { recursive: true });
-      await mkdir(join(runDir, 'case-details'), { recursive: true });
-
       await writeFile(
         join(runDir, 'run.json'),
         JSON.stringify(manifest, null, 2),
       );
 
       const childContext: RunChildContext = {
-        request,
+        request: materializedRequest,
         workspaceRoot,
         runDir,
         manifest,
@@ -640,6 +665,7 @@ export function createRunner({
 
     await mkdir(localStateDir, { recursive: true });
     await mkdir(join(localStateDir, 'runs'), { recursive: true });
+    await cleanupStagedManualInputFiles(workspaceRoot);
 
     cacheStore = createFsCacheStore({
       workspaceRoot,

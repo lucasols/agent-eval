@@ -271,8 +271,12 @@ submission; mixing `manualInput` with `cases` is rejected at discovery time.
 For file or image fields, set `{ asFile: true, accept?, maxSizeBytes? }` and
 type the field with `manualInputFileValueSchema`. The widget supports click,
 drag-and-drop, and clipboard paste (so a screenshot capture flows in
-directly). The runtime value carries `{ name, mimeType, size, dataUrl }` —
-`dataUrl` is a base64 `data:` URL; decode it when bytes are needed.
+directly). The runtime value carries `{ name, mimeType, sizeBytes, sha256,
+path }`, where `path` is a workspace-relative run artifact. Use
+`readManualInputFile(value)` when bytes, `Blob`, `File`, text, or parsed JSON
+are needed. In CLI runs, provide path objects such as
+`{ "image": { "path": "./screenshot.png" } }`; the CLI stages the file before
+starting the run.
 
 ## Scoring
 

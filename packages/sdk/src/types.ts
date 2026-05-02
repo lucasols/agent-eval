@@ -191,8 +191,9 @@ export type ManualInputFieldOverride = {
   /**
    * Force the file/image upload widget. The runtime value will be a
    * {@link ManualInputFileValue} carrying the original file name, mime type,
-   * size in bytes, and the file contents as a base64 `data:` URL. The field's
-   * Zod schema should accept that shape — use {@link manualInputFileValueSchema}.
+   * size in bytes, content hash, and workspace-relative artifact path. The
+   * field's Zod schema should accept that shape — use
+   * {@link manualInputFileValueSchema}.
    */
   asFile?: boolean;
   /**
@@ -218,9 +219,9 @@ export type ManualInputFieldOverride = {
 };
 
 /**
- * Runtime shape produced by the manual-input file widget. The base64 payload
- * is encoded as a `data:` URL so it can flow through JSON request bodies and
- * be persisted alongside other case input fields.
+ * Runtime shape produced by the manual-input file widget. File bytes are
+ * persisted as a real workspace-relative artifact so run inputs stay readable
+ * and coding agents can inspect uploaded files directly on disk.
  */
 export type ManualInputFileValue = {
   /** Original file name as reported by the browser. */
@@ -228,9 +229,11 @@ export type ManualInputFileValue = {
   /** Detected MIME type (`''` when the browser could not determine one). */
   mimeType: string;
   /** File size in bytes. */
-  size: number;
-  /** Base64-encoded `data:` URL carrying the file contents. */
-  dataUrl: string;
+  sizeBytes: number;
+  /** SHA-256 hash of the persisted file bytes, encoded as lowercase hex. */
+  sha256: string;
+  /** Workspace-relative path to the persisted file artifact. */
+  path: string;
 };
 
 /**

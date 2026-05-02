@@ -224,8 +224,9 @@ describe('buildManualInputDescriptor', () => {
     const fileSchema = z.object({
       name: z.string(),
       mimeType: z.string(),
-      size: z.number(),
-      dataUrl: z.string(),
+      sizeBytes: z.number(),
+      sha256: z.string(),
+      path: z.string(),
     });
     const result = buildManualInputDescriptor({
       schema: z.object({ image: fileSchema }),

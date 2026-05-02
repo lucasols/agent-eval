@@ -141,6 +141,7 @@ export async function readSingleRunArtifacts(
   caseDetails: Record<string, ReturnType<typeof caseDetailSchema.parse>>;
   manifest: ReturnType<typeof runManifestSchema.parse>;
   summary: ReturnType<typeof runSummarySchema.parse>;
+  artifactFiles: string[];
   traceFiles: string[];
   traces: Record<string, ReturnType<typeof traceCollectionSchema.parse>>;
 }> {
@@ -185,6 +186,8 @@ export async function readSingleRunArtifacts(
 
   const traceDirectoryPath = resolve(runPath, 'traces');
   const traceFiles = (await readdir(traceDirectoryPath)).sort();
+  const artifactDirectoryPath = resolve(runPath, 'artifacts');
+  const artifactFiles = (await readdir(artifactDirectoryPath)).sort();
   const traces = Object.fromEntries(
     await Promise.all(
       traceFiles.map(async (traceFileName) => {
@@ -197,7 +200,15 @@ export async function readSingleRunArtifacts(
     ),
   );
 
-  return { cases, caseDetails, manifest, summary, traceFiles, traces };
+  return {
+    cases,
+    caseDetails,
+    manifest,
+    summary,
+    artifactFiles,
+    traceFiles,
+    traces,
+  };
 }
 
 export function normalizeTextSnapshot(

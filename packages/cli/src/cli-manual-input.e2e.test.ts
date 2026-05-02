@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import {
@@ -113,20 +113,21 @@ describe('CLI manualInput', () => {
 
   test('runs the image-analyzer eval with a file value supplied via --input', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
-      const tinyPngDataUrl =
-        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+      const tinyPngPath = join(workspacePath, 'tiny.png');
+      await writeFile(
+        tinyPngPath,
+        Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+          'base64',
+        ),
+      );
       const result = await runExampleCli(workspacePath, [
         'run',
         '--eval',
         'manual-input-image-analyzer',
         '--input',
         JSON.stringify({
-          image: {
-            name: 'tiny.png',
-            mimeType: 'image/png',
-            size: 67,
-            dataUrl: tinyPngDataUrl,
-          },
+          image: { path: './tiny.png' },
           caption: 'a single pixel',
         }),
       ]);
@@ -135,11 +136,16 @@ describe('CLI manualInput', () => {
       const artifacts = await readSingleRunArtifacts(workspacePath);
       expect(
         normalizeSnapshotValue(workspacePath, {
+          artifactFiles: artifacts.artifactFiles,
           columns: artifacts.cases[0]?.columns,
+          input: Object.values(artifacts.caseDetails)[0]?.input,
           status: artifacts.cases[0]?.status,
         }),
       ).toMatchInlineSnapshot(`
         {
+          "artifactFiles": [
+            "<run-id>__manual-input__63ef318d96b5__tiny.png",
+          ],
           "columns": {
             "byteHead": "89 50 4e 47 0d 0a 1a 0a",
             "fileName": "tiny.png",
@@ -150,9 +156,34 @@ describe('CLI manualInput', () => {
             "sizeBytes": 68,
             "toolCalls": 0,
           },
+          "input": {
+            "caption": "a single pixel",
+            "image": {
+              "mimeType": "image/png",
+              "name": "tiny.png",
+              "path": ".agent-evals/runs/<run-id>/artifacts/<run-id>__manual-input__63ef318d96b5__tiny.png",
+              "sha256": "63ef318d96b5d0d0ceba6e04a4e622b1158335cdc67c49e27839132c6f655058",
+              "sizeBytes": 68,
+            },
+          },
           "status": "pass",
         }
       `);
+      const [artifactFile] = artifacts.artifactFiles;
+      expect(artifactFile).toBeDefined();
+      if (artifactFile === undefined) return;
+      await expect(
+        readFile(
+          join(
+            workspacePath,
+            '.agent-evals',
+            'runs',
+            artifacts.manifest.id,
+            'artifacts',
+            artifactFile,
+          ),
+        ),
+      ).resolves.toHaveLength(68);
     });
   });
 

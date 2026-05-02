@@ -1,18 +1,28 @@
+import { readFile, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Hono } from 'hono';
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, onTestFinished, test, vi } from 'vitest';
+import { manualInputFilesRoutes } from './manualInputFiles.ts';
 import { runsRoutes } from './runs.ts';
 
 const mockRunner = vi.hoisted(() => ({
   getConfigReloadState: vi.fn(),
   validateManualInputs: vi.fn(),
   startRun: vi.fn(),
+  getWorkspaceRoot: vi.fn(),
 }));
 
 vi.mock('../runner.ts', () => ({ getRunnerInstance: () => mockRunner }));
 
 const app = new Hono().route('/runs', runsRoutes);
+const uploadApp = new Hono().route(
+  '/manual-input-files',
+  manualInputFilesRoutes,
+);
 
 beforeEach(() => {
+  mockRunner.getWorkspaceRoot.mockReturnValue(process.cwd());
   mockRunner.getConfigReloadState.mockReturnValue({
     status: 'idle',
     activeRunCount: 0,
@@ -46,6 +56,49 @@ beforeEach(() => {
       errorMessage: null,
     },
     cases: [],
+  });
+});
+
+describe('manual input file upload route', () => {
+  test('stages uploaded files as workspace-relative manual input values', async () => {
+    const workspacePath = await mkdtemp(join(tmpdir(), 'agent-evals-upload-'));
+    onTestFinished(async () => {
+      await rm(workspacePath, { force: true, recursive: true });
+    });
+    mockRunner.getWorkspaceRoot.mockReturnValue(workspacePath);
+    const form = new FormData();
+    form.set(
+      'file',
+      new Blob([new Uint8Array([1, 2, 3])], {
+        type: 'application/octet-stream',
+      }),
+      'sample.bin',
+    );
+
+    const response = await uploadApp.request('/manual-input-files', {
+      method: 'POST',
+      body: form,
+    });
+
+    const body: unknown = await response.json();
+    expect(response.status, JSON.stringify(body)).toBe(201);
+    expect(body).not.toHaveProperty('dataUrl');
+    if (typeof body !== 'object' || body === null || !('path' in body)) {
+      throw new Error('Expected upload response to include path');
+    }
+    expect(body).toMatchObject({
+      name: 'sample.bin',
+      mimeType: 'application/octet-stream',
+      sizeBytes: 3,
+    });
+    const path = body.path;
+    if (typeof path !== 'string') {
+      throw new Error('Expected upload path to be a string');
+    }
+    expect(path).toContain('.agent-evals/manual-input-uploads/');
+    await expect(readFile(join(workspacePath, path))).resolves.toEqual(
+      Buffer.from([1, 2, 3]),
+    );
   });
 });
 

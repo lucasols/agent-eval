@@ -5,8 +5,9 @@ import { colors } from '#src/style/colors';
 import { centerContent, stack, inline, transition } from '#src/style/helpers';
 import {
   formatFileSize,
+  getManualInputFileUrl,
   isManualInputFileValue,
-  readFileAsManualInputValue,
+  uploadFileAsManualInputValue,
   type ManualInputFileValue,
 } from '#src/utils/manualInputFile';
 
@@ -275,7 +276,7 @@ function FileFieldInput({
       );
       return;
     }
-    const result = await readFileAsManualInputValue(file);
+    const result = await uploadFileAsManualInputValue(file);
     if (result.error) {
       reportError(`Could not read file: ${result.error.message}`);
       return;
@@ -333,7 +334,7 @@ function FileFieldInput({
             </FilePreviewName>
             <FilePreviewSub>
               {fileValue.mimeType || 'application/octet-stream'} ·{' '}
-              {formatFileSize(fileValue.size)}
+              {formatFileSize(fileValue.sizeBytes)}
             </FilePreviewSub>
           </FilePreviewMeta>
           <FilePreviewActions>
@@ -353,7 +354,7 @@ function FileFieldInput({
         </FilePreviewHeader>
         {isImage ? (
           <ImageThumb
-            src={fileValue.dataUrl}
+            src={getManualInputFileUrl(fileValue)}
             alt={fileValue.name}
           />
         ) : null}

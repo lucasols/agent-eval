@@ -5,6 +5,7 @@ import { colors } from '#src/style/colors';
 import { inline, kicker, stack, transition } from '#src/style/helpers';
 import {
   formatFileSize,
+  getManualInputFileUrl,
   isManualInputFileValue,
   type ManualInputFileValue,
 } from '#src/utils/manualInputFile';
@@ -122,11 +123,11 @@ function FilePreview({ entry }: { entry: FileEntry }) {
           <FileName title={file.name}>{file.name || 'Pasted file'}</FileName>
           <FileSub>
             {file.mimeType || 'application/octet-stream'} ·{' '}
-            {formatFileSize(file.size)}
+            {formatFileSize(file.sizeBytes)}
           </FileSub>
         </FileMeta>
         <DownloadLink
-          href={file.dataUrl}
+          href={getManualInputFileUrl(file)}
           download={downloadName}
         >
           <Download size={14} />
@@ -135,7 +136,7 @@ function FilePreview({ entry }: { entry: FileEntry }) {
       </FileHeader>
       {isImage ? (
         <ImageThumb
-          src={file.dataUrl}
+          src={getManualInputFileUrl(file)}
           alt={file.name}
         />
       ) : null}
@@ -145,7 +146,7 @@ function FilePreview({ entry }: { entry: FileEntry }) {
 
 /**
  * Render a case input. Top-level fields whose value is a manual-input file
- * (`{ name, mimeType, size, dataUrl }`) are previewed as images or labelled
+ * (`{ name, mimeType, sizeBytes, sha256, path }`) are previewed as images or labelled
  * file cards with a download link; the remaining fields fall back to the
  * standard JSON viewer.
  */

@@ -330,6 +330,7 @@ value stays type-safe end-to-end:
 import {
   defineEval,
   manualInputFileValueSchema,
+  readManualInputFile,
   z,
 } from '@ls-stack/agent-eval';
 
@@ -351,19 +352,22 @@ defineEval<z.infer<typeof inputSchema>>({
       },
     },
   },
-  execute: ({ input, setOutput }) => {
-    // input.image is { name, mimeType, size, dataUrl }
+  async execute({ input, setOutput }) {
+    // input.image is { name, mimeType, sizeBytes, sha256, path }
+    const image = await readManualInputFile(input.image);
+    setOutput('byteLength', image.bytes.byteLength);
     setOutput('mimeType', input.image.mimeType);
   },
 });
 ```
 
-The submitted value carries `{ name, mimeType, size, dataUrl }`. `dataUrl` is
-a base64 `data:` URL — decode it (e.g. `Buffer.from(payload, 'base64')`) when
-your eval needs the raw bytes. Use `accept` to constrain the picker (e.g.
-`image/*`, `.pdf`) and `maxSizeBytes` to enforce a client-side size cap. From
-the CLI, supply the same JSON object inline through `--input` or via
-`--input-file`.
+The submitted value carries `{ name, mimeType, sizeBytes, sha256, path }`.
+`path` points to a real workspace-relative run artifact, so agents can inspect
+uploaded files directly on disk. Use `readManualInputFile(value)` when eval code
+needs bytes, a `Blob`, a `File`, text, or parsed JSON. Use `accept` to constrain
+the picker (e.g. `image/*`, `.pdf`) and `maxSizeBytes` to enforce a client-side
+size cap. From the CLI, supply a path object inline through `--input` or via
+`--input-file`, for example `{ "image": { "path": "./screenshot.png" } }`.
 
 Behavior at run time:
 

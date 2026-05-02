@@ -1,5 +1,9 @@
 import { readFile } from 'node:fs/promises';
-import type { EvalRunner } from '@agent-evals/runner';
+import {
+  isManualInputFileValue,
+  stageManualInputFileFromPath,
+  type EvalRunner,
+} from '@agent-evals/runner';
 import type { EvalSummary } from '@agent-evals/shared';
 import { resultify } from 't-result';
 
@@ -23,6 +27,17 @@ export type CollectManualInputsResult =
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isPathInputObject(
+  value: unknown,
+): value is { path: string; name?: string; mimeType?: string } {
+  if (!isPlainObject(value)) return false;
+  return (
+    typeof value.path === 'string' &&
+    (value.name === undefined || typeof value.name === 'string') &&
+    (value.mimeType === undefined || typeof value.mimeType === 'string')
+  );
 }
 
 function escapeRegex(value: string): string {
@@ -99,6 +114,64 @@ async function readInputFileMap(
   return { error: null, value: parseResult.value };
 }
 
+async function normalizeManualInputFileValue(params: {
+  workspaceRoot: string;
+  evalId: string;
+  fieldKey: string;
+  value: unknown;
+}): Promise<{ error: string; value: null } | { error: null; value: unknown }> {
+  if (isManualInputFileValue(params.value)) {
+    return { error: null, value: params.value };
+  }
+  if (!isPathInputObject(params.value)) {
+    return { error: null, value: params.value };
+  }
+  const pathInput = params.value;
+
+  const staged = await resultify(() =>
+    stageManualInputFileFromPath({
+      workspaceRoot: params.workspaceRoot,
+      path: pathInput.path,
+      name: pathInput.name,
+      mimeType: pathInput.mimeType,
+    }),
+  );
+  if (staged.error) {
+    return {
+      error: `Failed to stage file input "${params.fieldKey}" for eval "${params.evalId}": ${staged.error.message}`,
+      value: null,
+    };
+  }
+  return { error: null, value: staged.value };
+}
+
+async function normalizeManualInputValue(params: {
+  workspaceRoot: string;
+  evalSummary: EvalSummary;
+  value: unknown;
+}): Promise<{ error: string; value: null } | { error: null; value: unknown }> {
+  const descriptor = params.evalSummary.manualInput;
+  if (!descriptor || !isPlainObject(params.value)) {
+    return { error: null, value: params.value };
+  }
+
+  const next: Record<string, unknown> = { ...params.value };
+  for (const field of descriptor.fields) {
+    if (field.kind !== 'file') continue;
+    const normalized = await normalizeManualInputFileValue({
+      workspaceRoot: params.workspaceRoot,
+      evalId: params.evalSummary.id,
+      fieldKey: field.key,
+      value: next[field.key],
+    });
+    if (normalized.error !== null) {
+      return { error: normalized.error, value: null };
+    }
+    next[field.key] = normalized.value;
+  }
+  return { error: null, value: next };
+}
+
 /**
  * Resolve the `manualInputs` payload to send with `runner.startRun`.
  *
@@ -111,6 +184,7 @@ export async function collectManualInputs(params: {
   args: ManualInputCliArgs;
 }): Promise<CollectManualInputsResult> {
   const { runner, args } = params;
+  const workspaceRoot = runner.getWorkspaceRoot();
 
   const targetedManualInputEvals = runner
     .getEvals()
@@ -158,7 +232,15 @@ export async function collectManualInputs(params: {
     if (onlyEval === undefined) {
       return { error: null, value: undefined };
     }
-    return { error: null, value: { [onlyEval.key]: parsedResult.value } };
+    const normalized = await normalizeManualInputValue({
+      workspaceRoot,
+      evalSummary: onlyEval,
+      value: parsedResult.value,
+    });
+    if (normalized.error !== null) {
+      return { error: normalized.error, value: null };
+    }
+    return { error: null, value: { [onlyEval.key]: normalized.value } };
   }
 
   if (args.inputFilePath !== undefined) {
@@ -183,7 +265,15 @@ export async function collectManualInputs(params: {
           value: null,
         };
       }
-      map[evalSummary.key] = value;
+      const normalized = await normalizeManualInputValue({
+        workspaceRoot,
+        evalSummary,
+        value,
+      });
+      if (normalized.error !== null) {
+        return { error: normalized.error, value: null };
+      }
+      map[evalSummary.key] = normalized.value;
     }
     return { error: null, value: map };
   }

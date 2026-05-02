@@ -89,7 +89,7 @@ export const manualInputJsonFieldSchema = manualInputFieldBaseSchema.extend({
 /**
  * File / image upload widget descriptor. The widget supports clicking to
  * pick a file, drag-and-drop onto the dropzone, and pasting an image from
- * the system clipboard. The submitted value is encoded as a `data:` URL.
+ * the system clipboard. The submitted value references a staged file artifact.
  */
 export const manualInputFileFieldSchema = manualInputFieldBaseSchema.extend({
   kind: z.literal('file'),

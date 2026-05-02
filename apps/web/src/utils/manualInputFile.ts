@@ -8,8 +8,9 @@ import { Result, resultify } from 't-result';
 export type ManualInputFileValue = {
   name: string;
   mimeType: string;
-  size: number;
-  dataUrl: string;
+  sizeBytes: number;
+  sha256: string;
+  path: string;
 };
 
 /** True when `value` looks like the wire-format payload of a file widget. */
@@ -21,43 +22,53 @@ export function isManualInputFileValue(
   return (
     typeof candidate.name === 'string' &&
     typeof candidate.mimeType === 'string' &&
-    typeof candidate.size === 'number' &&
-    typeof candidate.dataUrl === 'string'
+    typeof candidate.sizeBytes === 'number' &&
+    typeof candidate.sha256 === 'string' &&
+    typeof candidate.path === 'string'
   );
 }
 
 /**
- * Read a `File` object as a base64 `data:` URL and assemble the wire-format
- * value the manual-input file widget expects. The returned `Result` carries
- * the underlying `FileReader` error so callers can surface it inline.
+ * Upload a `File` object into the workspace staging area and return the
+ * artifact-backed manual-input file value expected by the run API.
  */
-export async function readFileAsManualInputValue(
+export async function uploadFileAsManualInputValue(
   file: File,
 ): Promise<Result<ManualInputFileValue, Error>> {
-  const reader = new FileReader();
-  const dataUrlResult = await new Promise<Result<string, Error>>((resolve) => {
-    reader.onload = () => {
-      const value = reader.result;
-      if (typeof value !== 'string') {
-        resolve(Result.err(new Error('FileReader returned a non-string')));
-        return;
-      }
-      resolve(Result.ok(value));
-    };
-    reader.onerror = () => {
-      const err = reader.error ?? new Error('FileReader failed');
-      resolve(Result.err(err));
-    };
-    const started = resultify(() => reader.readAsDataURL(file));
-    if (started.error) resolve(started.errorResult());
-  });
-  if (dataUrlResult.error) return dataUrlResult.errorResult();
-  return Result.ok({
-    name: file.name,
-    mimeType: file.type,
-    size: file.size,
-    dataUrl: dataUrlResult.value,
-  });
+  const formData = new FormData();
+  formData.set('file', file);
+  const responseResult = await resultify(() =>
+    fetch('/api/manual-input-files', { method: 'POST', body: formData }),
+  );
+  if (responseResult.error) return responseResult.errorResult();
+
+  const jsonResult = await resultify(
+    async (): Promise<unknown> => await responseResult.value.json(),
+  );
+  if (jsonResult.error) return jsonResult.errorResult();
+  if (!responseResult.value.ok) {
+    const message =
+      typeof jsonResult.value === 'object' &&
+      jsonResult.value !== null &&
+      'error' in jsonResult.value &&
+      typeof jsonResult.value.error === 'string'
+        ? jsonResult.value.error
+        : 'File upload failed';
+    return Result.err(new Error(message));
+  }
+  if (!isManualInputFileValue(jsonResult.value)) {
+    return Result.err(new Error('Server returned an invalid file value'));
+  }
+  return Result.ok(jsonResult.value);
+}
+
+/** Build a browser URL for a staged or persisted manual-input file. */
+export function getManualInputFileUrl(value: ManualInputFileValue): string {
+  const params = new URLSearchParams({ path: value.path });
+  if (value.mimeType) {
+    params.set('mimeType', value.mimeType);
+  }
+  return `/api/repo-file?${params.toString()}`;
 }
 
 /** Format bytes as a human-readable string (e.g. `1.4 MB`, `820 KB`). */

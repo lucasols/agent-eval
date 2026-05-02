@@ -19,7 +19,7 @@ import { colors } from '#src/style/colors';
 import { inline, stack } from '#src/style/helpers';
 import {
   isManualInputFileValue,
-  readFileAsManualInputValue,
+  uploadFileAsManualInputValue,
 } from '#src/utils/manualInputFile';
 
 const Form = styled.form`
@@ -137,7 +137,7 @@ function validateValues(
       if (isManualInputFileValue(raw)) {
         if (
           typeof field.maxSizeBytes === 'number' &&
-          raw.size > field.maxSizeBytes
+          raw.sizeBytes > field.maxSizeBytes
         ) {
           fieldErrors.push('File exceeds the maximum allowed size');
         } else {
@@ -261,7 +261,7 @@ export function ManualInputModal({
         }));
         return;
       }
-      const result = await readFileAsManualInputValue(file);
+      const result = await uploadFileAsManualInputValue(file);
       if (result.error) {
         setClientErrors((prev) => ({
           ...prev,
