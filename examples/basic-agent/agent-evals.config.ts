@@ -1,5 +1,7 @@
 import type { AgentEvalsConfig } from '@ls-stack/agent-eval';
 
+const USD_TO_BRL = 5.7;
+
 export const config: AgentEvalsConfig = {
   include: ['evals/**/*.eval.ts'],
   defaultTrials: 1,
@@ -82,6 +84,14 @@ export const config: AgentEvalsConfig = {
         outputUsdPerMillion: 10,
       },
     },
+    costCurrencies: [
+      {
+        code: 'BRL',
+        label: 'Brazilian real',
+        usdToCurrencyRate: USD_TO_BRL,
+        numberFormat: { prefix: 'R$ ', maxDecimalPlaces: 4 },
+      },
+    ],
     metrics: [
       {
         label: 'Retries',

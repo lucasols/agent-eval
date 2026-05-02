@@ -108,6 +108,28 @@ test('resolveLlmCallsConfig resolves pricing registry entries', () => {
   ]);
 });
 
+test('resolveLlmCallsConfig resolves custom cost currencies', () => {
+  const resolved = resolveLlmCallsConfig({
+    costCurrencies: [
+      {
+        code: 'BRL',
+        label: 'Brazilian real',
+        usdToCurrencyRate: 5.7,
+        numberFormat: { prefix: 'R$ ', maxDecimalPlaces: 4 },
+      },
+    ],
+  });
+
+  expect(resolved.costCurrencies).toEqual([
+    {
+      code: 'BRL',
+      label: 'Brazilian real',
+      usdToCurrencyRate: 5.7,
+      numberFormat: { prefix: 'R$ ', maxDecimalPlaces: 4 },
+    },
+  ]);
+});
+
 function llmSpan(overrides: Partial<EvalTraceSpan> = {}): EvalTraceSpan {
   return {
     id: 'span-1',

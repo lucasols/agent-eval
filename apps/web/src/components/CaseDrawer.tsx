@@ -599,6 +599,7 @@ export function CaseDrawer() {
                 <LlmCallRow
                   key={entry.id}
                   entry={entry}
+                  costCurrencies={llmCallsConfig.costCurrencies}
                 />
               ))}
             </LlmCallsList>

@@ -63,6 +63,23 @@ const llmCallsConfigSchema: z.ZodType<ResolvedLlmCallsConfig> = z.object({
       reasoningUsdPerMillion: z.number().optional(),
     }),
   ),
+  costCurrencies: z.array(
+    z.object({
+      code: z.string(),
+      label: z.string().optional(),
+      usdToCurrencyRate: z.number(),
+      numberFormat: z
+        .object({
+          notation: z.enum(['standard', 'compact']).optional(),
+          compactDisplay: z.enum(['short', 'long']).optional(),
+          prefix: z.string().optional(),
+          suffix: z.string().optional(),
+          minDecimalPlaces: z.number().int().min(0).optional(),
+          maxDecimalPlaces: z.number().int().min(0).optional(),
+        })
+        .optional(),
+    }),
+  ),
 });
 
 const apiCallsConfigSchema: z.ZodType<ResolvedApiCallsConfig> = z.object({

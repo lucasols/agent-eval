@@ -369,6 +369,24 @@ export type LlmCallPricing = z.infer<typeof llmCallPricingSchema>;
 /** Model-keyed pricing registry authored in `agent-evals.config.ts`. */
 export type LlmCallPricingRegistry = Record<string, LlmCallPricing>;
 
+/**
+ * Schema for extra currencies displayed in the LLM calls breakdown table.
+ * Costs are still derived in USD, then multiplied by `usdToCurrencyRate`.
+ */
+export const llmCallCostCurrencySchema = z.object({
+  /** Currency code or short display token, such as `BRL` or `EUR`. */
+  code: z.string().min(1),
+  /** Optional display label for tooltips and future UI surfaces. */
+  label: z.string().min(1).optional(),
+  /** Multiplier used to convert one USD to this currency. */
+  usdToCurrencyRate: z.number().nonnegative(),
+  /** Number presentation options for the converted value. */
+  numberFormat: numberDisplayOptionsSchema.optional(),
+});
+
+/** Extra LLM-call cost currency authored in `agent-evals.config.ts`. */
+export type LlmCallCostCurrency = z.infer<typeof llmCallCostCurrencySchema>;
+
 /** Schema for the global LLM calls config block in `agent-evals.config.ts`. */
 export const llmCallsConfigSchema = z.object({
   /** Span kinds treated as LLM calls. Defaults to `['llm']`. */
@@ -412,6 +430,11 @@ export const llmCallsConfigSchema = z.object({
    * counts. Built-in LLM cost fields are only derived from this registry.
    */
   pricing: z.record(z.string().min(1), llmCallPricingSchema).optional(),
+  /**
+   * Additional currencies shown as columns in the LLM calls breakdown table.
+   * These do not change persisted `costUsd` outputs, stats, or charts.
+   */
+  costCurrencies: z.array(llmCallCostCurrencySchema).optional(),
   /** Custom user-defined metrics surfaced on each LLM call. */
   metrics: z.array(llmCallMetricSchema).optional(),
 });
@@ -490,6 +513,7 @@ export type ResolvedLlmCallsConfig = {
   derivedAttributes: ResolvedCallDerivedAttribute[];
   metrics: ResolvedLlmCallMetric[];
   pricing: ResolvedLlmCallPricing[];
+  costCurrencies: ResolvedLlmCallCostCurrency[];
 };
 
 /** Resolved API-calls config sent to the UI with all defaults applied. */
@@ -543,6 +567,14 @@ export type ResolvedLlmCallPricing = {
   reasoningUsdPerMillion?: number;
 };
 
+/** Fully-resolved extra currency used by the LLM calls tab. */
+export type ResolvedLlmCallCostCurrency = {
+  code: string;
+  label?: string;
+  usdToCurrencyRate: number;
+  numberFormat?: NumberDisplayOptions;
+};
+
 /** Default LLM-calls config the UI uses before the workspace fetch resolves. */
 export const DEFAULT_LLM_CALLS_CONFIG: ResolvedLlmCallsConfig = {
   kinds: ['llm'],
@@ -566,6 +598,7 @@ export const DEFAULT_LLM_CALLS_CONFIG: ResolvedLlmCallsConfig = {
   derivedAttributes: [],
   metrics: [],
   pricing: [],
+  costCurrencies: [],
 };
 
 /** Default API-calls config the UI uses before the workspace fetch resolves. */
@@ -665,6 +698,17 @@ function resolveLlmCallPricingEntries(
   return entries;
 }
 
+function resolveLlmCallCostCurrency(
+  currency: LlmCallCostCurrency,
+): ResolvedLlmCallCostCurrency {
+  return {
+    code: currency.code,
+    label: currency.label,
+    usdToCurrencyRate: currency.usdToCurrencyRate,
+    numberFormat: currency.numberFormat,
+  };
+}
+
 /**
  * Resolve the user-authored LLM-calls config to a fully-defaulted shape used
  * by the UI to derive the LLM calls tab.
@@ -676,6 +720,8 @@ function resolveLlmCallPricingEntries(
  * - Missing `metrics[].placements` defaults to `['body']`.
  * - Missing `pricing` defaults to an empty registry; built-in costs are only
  *   derived from configured model-keyed pricing and token counts.
+ * - Missing `costCurrencies` defaults to an empty list; extra currencies only
+ *   affect the expanded LLM calls breakdown table.
  */
 export function resolveLlmCallsConfig(
   input: LlmCallsConfigInput | undefined,
@@ -693,6 +739,9 @@ export function resolveLlmCallsConfig(
     metrics: (input?.metrics ?? []).map(resolveLlmCallMetric),
     pricing: Object.entries(input?.pricing ?? {}).flatMap(([model, pricing]) =>
       resolveLlmCallPricingEntries(model, pricing),
+    ),
+    costCurrencies: (input?.costCurrencies ?? []).map(
+      resolveLlmCallCostCurrency,
     ),
   };
 }
@@ -812,6 +861,9 @@ export type AgentEvalsConfig = {
    *       outputUsdPerMillion: 0.6,
    *     },
    *   },
+   *   costCurrencies: [
+   *     { code: 'BRL', usdToCurrencyRate: 5.7, numberFormat: { prefix: 'R$ ' } },
+   *   ],
    * }
    * ```
    */

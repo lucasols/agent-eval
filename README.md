@@ -592,7 +592,7 @@ Use `key` when you want to display the same source attribute more than once, suc
 
 The case-run drawer surfaces a dedicated **LLM calls** tab that derives a focused list from the trace whenever a case run produced at least one matching span. By default, every span with `kind: 'llm'` is treated as an LLM call and the tab reads `model`, `latencyMs`, `usage.inputTokens`, `usage.outputTokens`, `usage.cachedInputTokens`, `usage.cacheCreationInputTokens`, `usage.cacheCreationInput1hTokens`, `usage.reasoningTokens`, `steps`, `finishReason`, `provider`, `input`, `output`, `reasoning`, and `toolCalls` from the span's attributes. `latencyMs` is time to first token; the full elapsed span time is shown separately as duration. Total tokens, tokens/sec, and USD costs are derived rather than read from span attributes. Each row is collapsed by default; clicking expands it to show a per-token-type tokens + cost breakdown table, latency, duration, tokens/sec, finish reason, input/output JSON, reasoning text, tool calls, and any custom metrics.
 
-The expanded breakdown table includes separate **Cache write** and **Cache read** rows so providers like Anthropic — which charge a premium for cache creation (1.25× / 2× the base input rate) and a deep discount on cache reads (0.1×) — show up correctly. Configure `llmCalls.pricing` once in `agent-evals.config.ts` as an object keyed by exact model names and the UI derives USD costs from token counts, with nested `providers` entries taking precedence for matching `provider` attributes. Cache read/write tokens are reported separately and contribute to USD cost; when deriving the base input cost, the runner subtracts cache read/write tokens from `inputTokens` so those tokens are not billed twice. `cacheCreationInputTokens` is treated as the total cache-write count; optional `cacheCreationInput1hTokens` only splits that total so 1-hour cache writes can use `cacheCreationInput1hUsdPerMillion` while the remaining write tokens use `cacheCreationInputUsdPerMillion`. `totalTokens` is always input + output tokens because cache read/write counts are subsets of those categories. Built-in LLM costs only come from `llmCalls.pricing`; span cost attributes such as `costUsd` are ignored by the LLM calls tab and default usage outputs.
+The expanded breakdown table includes separate **Cache write** and **Cache read** rows so providers like Anthropic — which charge a premium for cache creation (1.25× / 2× the base input rate) and a deep discount on cache reads (0.1×) — show up correctly. Configure `llmCalls.pricing` once in `agent-evals.config.ts` as an object keyed by exact model names and the UI derives USD costs from token counts, with nested `providers` entries taking precedence for matching `provider` attributes. Cache read/write tokens are reported separately and contribute to USD cost; when deriving the base input cost, the runner subtracts cache read/write tokens from `inputTokens` so those tokens are not billed twice. `cacheCreationInputTokens` is treated as the total cache-write count; optional `cacheCreationInput1hTokens` only splits that total so 1-hour cache writes can use `cacheCreationInput1hUsdPerMillion` while the remaining write tokens use `cacheCreationInputUsdPerMillion`. `totalTokens` is always input + output tokens because cache read/write counts are subsets of those categories. Built-in LLM costs only come from `llmCalls.pricing`; span cost attributes such as `costUsd` are ignored by the LLM calls tab and default usage outputs. Add `llmCalls.costCurrencies` when you want the expanded breakdown table to show converted cost columns next to USD; these conversions only affect that table and do not change persisted `costUsd` outputs, stats, or charts.
 
 Override the defaults globally from `agent-evals.config.ts`:
 
@@ -627,6 +627,15 @@ llmCalls: {
       reasoningUsdPerMillion: 4.4,
     },
   },
+  // Display local currency columns in the expanded LLM calls breakdown table.
+  costCurrencies: [
+    {
+      code: 'BRL',
+      label: 'Brazilian real',
+      usdToCurrencyRate: 5.7,
+      numberFormat: { prefix: 'R$ ', maxDecimalPlaces: 4 },
+    },
+  ],
   // Persist derived attributes onto matching LLM spans. These run before
   // deriveFromTracing, traceDisplay, default outputs, and metrics read the
   // trace, so the new values can be reused anywhere span attributes are read.

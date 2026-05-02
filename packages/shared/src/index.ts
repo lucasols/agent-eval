@@ -173,6 +173,7 @@ export {
   apiCallsConfigSchema,
   runLogsConfigSchema,
   llmCallPricingRateSchema,
+  llmCallCostCurrencySchema,
   llmCallMetricSchema,
   llmCallPricingSchema,
   llmCallMetricFormatSchema,
@@ -201,6 +202,7 @@ export {
   type ApiCallsConfigInput,
   type RunLogsConfigInput,
   type LlmCallPricingRate,
+  type LlmCallCostCurrency,
   type LlmCallMetric,
   type LlmCallPricing,
   type LlmCallPricingRegistry,
@@ -218,6 +220,7 @@ export {
   type ResolvedApiCallsConfig,
   type ResolvedLlmCallMetric,
   type ResolvedLlmCallPricing,
+  type ResolvedLlmCallCostCurrency,
   type ResolvedApiCallMetric,
 } from './schemas/config.ts';
 export {

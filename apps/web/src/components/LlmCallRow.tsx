@@ -1,4 +1,9 @@
-import type { LlmCallEntry, LlmCallMetricValue } from '@agent-evals/shared';
+import type {
+  LlmCallEntry,
+  LlmCallMetricValue,
+  NumberDisplayOptions,
+  ResolvedLlmCallCostCurrency,
+} from '@agent-evals/shared';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { styled } from 'vindur';
@@ -10,6 +15,10 @@ import { inline, kicker, monoFont, stack } from '#src/style/helpers';
 import { formatDuration, formatNumber } from '#src/utils/formatters';
 
 const EM_DASH = '—';
+const USD_COST_NUMBER_FORMAT = {
+  prefix: '$',
+  maxDecimalPlaces: 4,
+} satisfies NumberDisplayOptions;
 
 const Card = styled.div`
   ${stack({ gap: 0 })}
@@ -129,41 +138,52 @@ const MetricRowValue = styled.span`
   word-break: break-word;
 `;
 
-const BreakdownTable = styled.div`
-  ${stack({ gap: 0 })}
+const BreakdownTable = styled.table`
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
   border: 1px solid ${colors.border.var};
   border-radius: var(--radius-md);
   overflow: hidden;
 `;
 
-const BreakdownHeader = styled.div`
+const BreakdownHeader = styled.tr`
   ${kicker};
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 16px;
-  padding: 8px 12px;
   background: ${colors.surface.var};
   color: ${colors.textMuted.var};
   font-size: 9.5px;
   letter-spacing: 0.04em;
 `;
 
-const BreakdownRow = styled.div`
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 16px;
+const BreakdownHeaderCell = styled.th`
   padding: 8px 12px;
-  align-items: baseline;
-  border-top: 1px solid ${colors.border.var};
+  text-align: left;
+  font-weight: 600;
+
+  &:not(:first-child) {
+    text-align: right;
+  }
+`;
+
+const BreakdownRow = styled.tr`
   font-size: 12px;
+
+  & > td {
+    border-top: 1px solid ${colors.border.var};
+  }
+`;
+
+const BreakdownLabelCell = styled.td`
+  padding: 8px 12px;
 `;
 
 const BreakdownLabel = styled.span`
   color: ${colors.text.var};
 `;
 
-const BreakdownValue = styled.span`
+const BreakdownValue = styled.td`
   ${monoFont};
+  padding: 8px 12px;
   color: ${colors.text.var};
   text-align: right;
   min-width: 56px;
@@ -172,10 +192,6 @@ const BreakdownValue = styled.span`
 const BreakdownTotalRow = styled(BreakdownRow)`
   background: ${colors.surface.var};
   font-weight: 600;
-`;
-
-const BreakdownColumnHeader = styled.span`
-  text-align: right;
 `;
 
 const BreakdownDim = styled.span`
@@ -327,9 +343,25 @@ function StepsSection({ steps }: { steps: unknown[] }) {
   );
 }
 
+function resolveCurrencyNumberFormat(
+  currency: ResolvedLlmCallCostCurrency,
+): NumberDisplayOptions {
+  return currency.numberFormat ?? { prefix: `${currency.code} ` };
+}
+
+function formatConvertedCost(
+  costUsd: number,
+  currency: ResolvedLlmCallCostCurrency,
+): string {
+  return formatNumber(
+    costUsd * currency.usdToCurrencyRate,
+    resolveCurrencyNumberFormat(currency),
+  );
+}
+
 function formatCostChip(cost: number | null): string {
   if (cost === null) return '';
-  return formatNumber(cost, { prefix: '$' });
+  return formatNumber(cost, USD_COST_NUMBER_FORMAT);
 }
 
 const compactTokenFormatter = new Intl.NumberFormat(undefined, {
@@ -400,8 +432,32 @@ function formatTokenCount(value: number | null): string {
   return value === null ? EM_DASH : formatNumber(value);
 }
 
-function formatCostValue(value: number | null): string {
-  return value === null ? EM_DASH : formatNumber(value, { prefix: '$' });
+function CurrencyHeader({
+  currency,
+}: {
+  currency: ResolvedLlmCallCostCurrency;
+}) {
+  return (
+    <Tooltip content={currency.label}>
+      <span>{currency.code}</span>
+    </Tooltip>
+  );
+}
+
+function UsdCostValue({ value }: { value: number | null }) {
+  if (value === null) return <BreakdownDim>{EM_DASH}</BreakdownDim>;
+  return <>{formatNumber(value, USD_COST_NUMBER_FORMAT)}</>;
+}
+
+function ConvertedCostValue({
+  value,
+  currency,
+}: {
+  value: number | null;
+  currency: ResolvedLlmCallCostCurrency;
+}) {
+  if (value === null) return <BreakdownDim>{EM_DASH}</BreakdownDim>;
+  return <>{formatConvertedCost(value, currency)}</>;
 }
 
 function computeBaseInputTokens(entry: LlmCallEntry): number | null {
@@ -420,7 +476,13 @@ type BreakdownItem = {
 
 type BreakdownItemWithTooltip = BreakdownItem & { tooltip?: string };
 
-function TokenBreakdownTable({ entry }: { entry: LlmCallEntry }) {
+function TokenBreakdownTable({
+  entry,
+  costCurrencies,
+}: {
+  entry: LlmCallEntry;
+  costCurrencies: ResolvedLlmCallCostCurrency[];
+}) {
   const items: BreakdownItemWithTooltip[] = [
     {
       key: 'input',
@@ -480,43 +542,75 @@ function TokenBreakdownTable({ entry }: { entry: LlmCallEntry }) {
 
   return (
     <BreakdownTable>
-      <BreakdownHeader>
-        <span>Token type</span>
-        <BreakdownColumnHeader>Tokens</BreakdownColumnHeader>
-        <BreakdownColumnHeader>Cost</BreakdownColumnHeader>
-      </BreakdownHeader>
-      {visible.map((item) => (
-        <BreakdownRow key={item.key}>
-          <Tooltip content={item.tooltip}>
-            <BreakdownLabel>{item.label}</BreakdownLabel>
-          </Tooltip>
-          <BreakdownValue>{formatTokenCount(item.tokens)}</BreakdownValue>
-          <BreakdownValue>
-            {item.cost === null ? (
-              <BreakdownDim>{EM_DASH}</BreakdownDim>
-            ) : (
-              formatCostValue(item.cost)
-            )}
-          </BreakdownValue>
-        </BreakdownRow>
-      ))}
-      {entry.totalTokens !== null || entry.costUsd !== null ? (
-        <BreakdownTotalRow>
-          <BreakdownLabel>Total</BreakdownLabel>
-          <BreakdownValue>{formatTokenCount(entry.totalTokens)}</BreakdownValue>
-          <BreakdownValue>
-            {entry.costUsd !== null ? (
-              formatCostValue(entry.costUsd)
-            ) : breakdownCostSum !== null ? (
-              <Tooltip content="Sum of per-token costs above">
-                <span>{formatCostValue(breakdownCostSum)}</span>
+      <thead>
+        <BreakdownHeader>
+          <BreakdownHeaderCell>Token type</BreakdownHeaderCell>
+          <BreakdownHeaderCell>Tokens</BreakdownHeaderCell>
+          <BreakdownHeaderCell>Cost</BreakdownHeaderCell>
+          {costCurrencies.map((currency, index) => (
+            <BreakdownHeaderCell key={`${currency.code}-${String(index)}`}>
+              <CurrencyHeader currency={currency} />
+            </BreakdownHeaderCell>
+          ))}
+        </BreakdownHeader>
+      </thead>
+      <tbody>
+        {visible.map((item) => (
+          <BreakdownRow key={item.key}>
+            <BreakdownLabelCell>
+              <Tooltip content={item.tooltip}>
+                <BreakdownLabel>{item.label}</BreakdownLabel>
               </Tooltip>
-            ) : (
-              <BreakdownDim>{EM_DASH}</BreakdownDim>
-            )}
-          </BreakdownValue>
-        </BreakdownTotalRow>
-      ) : null}
+            </BreakdownLabelCell>
+            <BreakdownValue>{formatTokenCount(item.tokens)}</BreakdownValue>
+            <BreakdownValue>
+              <UsdCostValue value={item.cost} />
+            </BreakdownValue>
+            {costCurrencies.map((currency, index) => (
+              <BreakdownValue key={`${currency.code}-${String(index)}`}>
+                <ConvertedCostValue
+                  value={item.cost}
+                  currency={currency}
+                />
+              </BreakdownValue>
+            ))}
+          </BreakdownRow>
+        ))}
+        {entry.totalTokens !== null || entry.costUsd !== null ? (
+          <BreakdownTotalRow>
+            <BreakdownLabelCell>
+              <BreakdownLabel>Total</BreakdownLabel>
+            </BreakdownLabelCell>
+            <BreakdownValue>
+              {formatTokenCount(entry.totalTokens)}
+            </BreakdownValue>
+            <BreakdownValue>
+              {entry.costUsd !== null ? (
+                <UsdCostValue value={entry.costUsd} />
+              ) : breakdownCostSum !== null ? (
+                <Tooltip content="Sum of per-token costs above">
+                  <span>
+                    <UsdCostValue value={breakdownCostSum} />
+                  </span>
+                </Tooltip>
+              ) : (
+                <BreakdownDim>{EM_DASH}</BreakdownDim>
+              )}
+            </BreakdownValue>
+            {costCurrencies.map((currency, index) => {
+              const cost = entry.costUsd ?? breakdownCostSum;
+              return (
+                <BreakdownValue key={`${currency.code}-${String(index)}`}>
+                  <ConvertedCostValue
+                    value={cost}
+                    currency={currency}
+                  />
+                </BreakdownValue>
+              );
+            })}
+          </BreakdownTotalRow>
+        ) : null}
+      </tbody>
     </BreakdownTable>
   );
 }
@@ -532,7 +626,13 @@ function TokenBreakdownTable({ entry }: { entry: LlmCallEntry }) {
  * attribute resolved to an array) / Tool calls. Span warnings and any captured
  * error render at the bottom.
  */
-export function LlmCallRow({ entry }: { entry: LlmCallEntry }) {
+export function LlmCallRow({
+  entry,
+  costCurrencies,
+}: {
+  entry: LlmCallEntry;
+  costCurrencies: ResolvedLlmCallCostCurrency[];
+}) {
   const [expanded, setExpanded] = useState(false);
 
   const headerMetrics = entry.metrics.filter((m) =>
@@ -613,7 +713,10 @@ export function LlmCallRow({ entry }: { entry: LlmCallEntry }) {
       {expanded ? (
         <Body>
           {showTokenBreakdown || entry.costUsd !== null ? (
-            <TokenBreakdownTable entry={entry} />
+            <TokenBreakdownTable
+              entry={entry}
+              costCurrencies={costCurrencies}
+            />
           ) : null}
 
           {showMetricsSection ? (

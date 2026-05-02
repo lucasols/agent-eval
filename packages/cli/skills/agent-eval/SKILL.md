@@ -341,9 +341,10 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   tokens/sec, and USD costs are derived. Override `kinds` to broaden the filter,
   override `attributes.<field>` for non-default primitive span shapes, configure
   model-keyed `pricing` to derive USD costs from token counts, with nested
-  `providers` entries for provider-specific rates, add `derivedAttributes` to
-  persist computed values back onto matching LLM spans before trace consumers
-  run, and add entries to `metrics` to surface arbitrary user metrics
+  `providers` entries for provider-specific rates, add `costCurrencies` to show
+  converted cost columns in the expanded breakdown table only, add
+  `derivedAttributes` to persist computed values back onto matching LLM spans
+  before trace consumers run, and add entries to `metrics` to surface arbitrary user metrics
   (`format: 'string' | 'number' | 'duration' | 'json' | 'boolean'`,
   `placements: ['header' | 'body']`). `derivedAttributes` can be a keyed map
   for one-off fields or one callback that returns multiple path/value pairs.
