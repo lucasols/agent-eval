@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { styled } from 'vindur';
 import { JsonViewer } from '#src/components/JsonViewer';
+import { useImageLightbox } from '#src/components/useImageLightbox';
 import { colors } from '#src/style/colors';
 import { monoFont } from '#src/style/helpers';
 import {
@@ -133,6 +134,7 @@ const MarkdownValue = styled.div`
 const ImageValue = styled.img`
   max-width: 100%;
   border-radius: var(--radius-md);
+  cursor: zoom-in;
 `;
 
 const AudioValue = styled.audio`
@@ -178,7 +180,7 @@ export function FormattedCellValue({
 
   if (def.format === 'image' && isFileRef(value)) {
     return (
-      <ImageValue
+      <ImageCell
         src={getFileUrl(value)}
         alt={def.label}
       />
@@ -235,6 +237,20 @@ export function FormattedCellValue({
   }
 
   return <TextValue>{String(value)}</TextValue>;
+}
+
+function ImageCell({ src, alt }: { src: string; alt: string }) {
+  const { openImage, lightbox } = useImageLightbox();
+  return (
+    <>
+      <ImageValue
+        src={src}
+        alt={alt}
+        onClick={() => openImage(src, alt)}
+      />
+      {lightbox}
+    </>
+  );
 }
 
 export function summarizeCellValue(

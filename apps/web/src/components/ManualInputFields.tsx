@@ -1,6 +1,7 @@
 import type { ManualInputFieldDescriptor } from '@agent-evals/shared';
 import { useId, useRef, useState, type DragEvent } from 'react';
 import { css, styled } from 'vindur';
+import { useImageLightbox } from '#src/components/useImageLightbox';
 import { colors } from '#src/style/colors';
 import { centerContent, stack, inline, transition } from '#src/style/helpers';
 import {
@@ -180,6 +181,7 @@ const ImageThumb = styled.img`
   border-radius: 6px;
   object-fit: contain;
   background: ${colors.surface.var};
+  cursor: zoom-in;
 `;
 
 type FieldProps = {
@@ -261,6 +263,7 @@ function FileFieldInput({
   const dropzoneId = useId();
   const fileValue = asFileValue(value);
   const [isDragging, setIsDragging] = useState(false);
+  const { openImage, lightbox } = useImageLightbox();
 
   function reportError(message: string | null) {
     onError(message);
@@ -325,6 +328,7 @@ function FileFieldInput({
 
   if (fileValue) {
     const isImage = fileValue.mimeType.startsWith('image/');
+    const fileUrl = getManualInputFileUrl(fileValue);
     return (
       <FilePreview>
         <FilePreviewHeader>
@@ -354,10 +358,12 @@ function FileFieldInput({
         </FilePreviewHeader>
         {isImage ? (
           <ImageThumb
-            src={getManualInputFileUrl(fileValue)}
+            src={fileUrl}
             alt={fileValue.name}
+            onClick={() => openImage(fileUrl, fileValue.name)}
           />
         ) : null}
+        {lightbox}
         <HiddenFileInput
           ref={inputRef}
           type="file"

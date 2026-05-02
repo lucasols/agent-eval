@@ -1,6 +1,7 @@
 import { Download } from 'lucide-react';
 import { styled } from 'vindur';
 import { JsonViewer } from '#src/components/JsonViewer';
+import { useImageLightbox } from '#src/components/useImageLightbox';
 import { colors } from '#src/style/colors';
 import { inline, kicker, stack, transition } from '#src/style/helpers';
 import {
@@ -84,6 +85,7 @@ const ImageThumb = styled.img`
   border-radius: 6px;
   object-fit: contain;
   background: ${colors.surface.var};
+  cursor: zoom-in;
 `;
 
 type InputViewerProps = { value: unknown };
@@ -115,6 +117,8 @@ function FilePreview({ entry }: { entry: FileEntry }) {
   const { key, file } = entry;
   const isImage = file.mimeType.startsWith('image/');
   const downloadName = file.name || `${key}.bin`;
+  const fileUrl = getManualInputFileUrl(file);
+  const { openImage, lightbox } = useImageLightbox();
   return (
     <FileCard>
       <FileHeader>
@@ -127,7 +131,7 @@ function FilePreview({ entry }: { entry: FileEntry }) {
           </FileSub>
         </FileMeta>
         <DownloadLink
-          href={getManualInputFileUrl(file)}
+          href={fileUrl}
           download={downloadName}
         >
           <Download size={14} />
@@ -136,10 +140,12 @@ function FilePreview({ entry }: { entry: FileEntry }) {
       </FileHeader>
       {isImage ? (
         <ImageThumb
-          src={getManualInputFileUrl(file)}
+          src={fileUrl}
           alt={file.name}
+          onClick={() => openImage(fileUrl, file.name || key)}
         />
       ) : null}
+      {lightbox}
     </FileCard>
   );
 }
