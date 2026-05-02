@@ -1,5 +1,14 @@
 {
   "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "#src/*": ["./src/*"],
+      "@agent-evals/runner": ["../runner/dist/index.d.mts"],
+      "@agent-evals/runner/run-child": ["../runner/dist/runChild.d.mts"],
+      "@agent-evals/sdk": ["../sdk/dist/index.d.mts"],
+      "@agent-evals/shared": ["../shared/dist/index.d.mts"]
+    }
+  },
   "include": ["src/index.ts"],
   "exclude": ["src/**/*.test.ts"]
 }

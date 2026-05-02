@@ -25,37 +25,8 @@
     },
     "types": "./dist/index.d.mts"
   },
-  "tsdown": {
-    "clean": true,
-    "copy": [
-      {
-        "from": "../../apps/web/dist/**/*",
-        "to": "dist/web",
-        "flatten": false
-      }
-    ],
-    "deps": {
-      "alwaysBundle": [
-        "@agent-evals/runner",
-        "@agent-evals/sdk",
-        "@agent-evals/shared"
-      ]
-    },
-    "dts": {
-      "eager": true,
-      "entry": "src/index.ts",
-      "tsconfig": "tsconfig.build.json"
-    },
-    "entry": [
-      "src/index.ts",
-      "src/bin.ts",
-      "src/runChild.ts"
-    ],
-    "format": "esm",
-    "platform": "node"
-  },
   "scripts": {
-    "build": "pnpm --filter @agent-evals/web build && tsdown",
+    "build": "pnpm --filter @agent-evals/web build && pnpm --filter @agent-evals/shared build && pnpm --filter @agent-evals/sdk build && pnpm --filter @agent-evals/runner build && tsdown --filter cli-js && tsdown --filter cli-types",
     "test": "vitest run",
     "tsc": "tsgo --noEmit",
     "lint": "tsgo --noEmit && eslint .",
