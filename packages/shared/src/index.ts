@@ -117,8 +117,13 @@ export { getNestedAttribute } from './utils/getNestedAttribute.ts';
 export { applyDerivedCallAttributes } from './utils/deriveCallAttributes.ts';
 export {
   extractLlmCalls,
+  simulateLlmCallCost,
+  simulateTokenAllocation,
+  type LlmCallCostBreakdown,
   type LlmCallEntry,
   type LlmCallMetricValue,
+  type LlmCallSimulatedTokens,
+  type LlmCostScenario,
 } from './utils/extractLlmCalls.ts';
 export {
   extractApiCalls,

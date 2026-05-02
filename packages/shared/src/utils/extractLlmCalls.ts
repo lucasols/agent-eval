@@ -195,6 +195,209 @@ function computeTotalCost({
   return hasReportedTokens ? 0 : null;
 }
 
+/**
+ * Cost-simulation scenarios available in the LLM calls breakdown table.
+ *
+ * - `actual` — Real billed cost recorded on the span.
+ * - `noCache` — Bill every input token at the base input rate, ignoring all
+ *   cache reads and cache writes. Worst case for any prompt that could be
+ *   cached.
+ * - `withBaseCaching` — Steady-state cost on a fully warmed cache: cache
+ *   writes are treated as already paid (free), cache reads keep the cache-read
+ *   discount, and base input keeps the base rate. When the call has no
+ *   caching at all, every input token is billed at the cache-read rate, as if
+ *   the prompt had been warmed by an earlier run. Cache-read pricing is the
+ *   same on the base (5-minute) and extended (1-hour) tiers, so this scenario
+ *   covers the warmed case for both TTLs.
+ * - `withBaseCachingWrite` — First-call cost paying the 5-minute cache write
+ *   premium. When the call already uses caching, every cache write token is
+ *   billed at the 5-minute rate (any extended-cache split is folded into the
+ *   5-minute rate). When the call has no caching at all, every input token is
+ *   billed at the 5-minute cache write rate, as if this were the first call
+ *   warming up the base cache.
+ * - `withExtendedCachingWrite` — First-call cost paying the extended (e.g.
+ *   1-hour) cache write premium. When the call already uses caching, every
+ *   cache write token is billed at the extended rate. When the call has no
+ *   caching at all, every input token is billed at the extended cache write
+ *   rate, as if this were the first call warming up the extended cache.
+ */
+export type LlmCostScenario =
+  | 'actual'
+  | 'noCache'
+  | 'withBaseCaching'
+  | 'withBaseCachingWrite'
+  | 'withExtendedCachingWrite';
+
+/** Per-row cost values returned by {@link simulateLlmCallCost}. */
+export type LlmCallCostBreakdown = {
+  inputCostUsd: number | null;
+  outputCostUsd: number | null;
+  cachedInputCostUsd: number | null;
+  cacheCreationInputCostUsd: number | null;
+  reasoningCostUsd: number | null;
+  totalCostUsd: number | null;
+};
+
+/**
+ * Recompute the LLM-call cost breakdown for a hypothetical billing scenario,
+ * using the call's recorded token counts and the resolved pricing registry.
+ *
+ * The `actual` scenario returns the costs already stored on `entry`. Other
+ * scenarios re-derive each cost component from `pricing` so users can compare
+ * what the same usage would have cost under different cache strategies. When
+ * pricing is missing for the model/provider, simulated cost components fall
+ * back to `null` exactly like the original extractor.
+ */
+export function simulateLlmCallCost({
+  entry,
+  pricing,
+  scenario,
+}: {
+  entry: LlmCallEntry;
+  pricing: ResolvedLlmCallPricing[];
+  scenario: LlmCostScenario;
+}): LlmCallCostBreakdown {
+  if (scenario === 'actual') {
+    return {
+      inputCostUsd: entry.inputCostUsd,
+      outputCostUsd: entry.outputCostUsd,
+      cachedInputCostUsd: entry.cachedInputCostUsd,
+      cacheCreationInputCostUsd: entry.cacheCreationInputCostUsd,
+      reasoningCostUsd: entry.reasoningCostUsd,
+      totalCostUsd: entry.costUsd,
+    };
+  }
+
+  const pricingEntry = pickPricingEntry({
+    pricing,
+    model: entry.model,
+    provider: entry.provider,
+  });
+
+  const outputCostUsd = computeTokenCost(
+    entry.outputTokens,
+    pricingEntry?.outputUsdPerMillion,
+  );
+  const reasoningCostUsd = computeTokenCost(
+    entry.reasoningTokens,
+    pricingEntry?.reasoningUsdPerMillion,
+  );
+
+  const simulatedTokens = simulateTokenAllocation({ entry, scenario });
+  const writeRate =
+    scenario === 'withExtendedCachingWrite'
+      ? pricingEntry?.cacheCreationInput1hUsdPerMillion
+      : pricingEntry?.cacheCreationInputUsdPerMillion;
+
+  const inputCostUsd = computeTokenCost(
+    simulatedTokens.baseInputTokens,
+    pricingEntry?.inputUsdPerMillion,
+  );
+  const cachedInputCostUsd = computeTokenCost(
+    simulatedTokens.cachedInputTokens,
+    pricingEntry?.cachedInputUsdPerMillion,
+  );
+  const cacheCreationInputCostUsd = computeTokenCost(
+    simulatedTokens.cacheCreationInputTokens,
+    writeRate,
+  );
+
+  const totalCostUsd = computeTotalCost({
+    inputTokens: simulatedTokens.baseInputTokens,
+    inputCostUsd,
+    outputTokens: entry.outputTokens,
+    outputCostUsd,
+    cachedInputTokens: simulatedTokens.cachedInputTokens,
+    cachedInputCostUsd,
+    cacheCreationInputTokens: simulatedTokens.cacheCreationInputTokens,
+    cacheCreationInputCostUsd,
+    reasoningTokens: entry.reasoningTokens,
+    reasoningCostUsd,
+  });
+
+  return {
+    inputCostUsd,
+    outputCostUsd,
+    cachedInputCostUsd,
+    cacheCreationInputCostUsd,
+    reasoningCostUsd,
+    totalCostUsd,
+  };
+}
+
+/** Per-row simulated token counts shown in the LLM call breakdown table. */
+export type LlmCallSimulatedTokens = {
+  /** Tokens shown on the `Input` row — base input only (cached + creation are subtracted). */
+  baseInputTokens: number | null;
+  /** Tokens shown on the `Cache read` row. */
+  cachedInputTokens: number | null;
+  /** Tokens shown on the `Cache write` row. */
+  cacheCreationInputTokens: number | null;
+};
+
+/**
+ * Project the call's recorded token allocation onto a hypothetical billing
+ * scenario. Cacheable tokens shift between rows so the breakdown reflects the
+ * simulated billing model: `noCache` folds reads/writes into base input,
+ * `withBaseCaching` (warmed) treats every cacheable token as a cache read, and
+ * the first-call write scenarios treat every cacheable token as a cache write.
+ *
+ * The returned counts are what the UI renders on each row and what
+ * {@link simulateLlmCallCost} prices, so display and totals never drift.
+ */
+export function simulateTokenAllocation({
+  entry,
+  scenario,
+}: {
+  entry: LlmCallEntry;
+  scenario: LlmCostScenario;
+}): LlmCallSimulatedTokens {
+  const baseInputTokens = computeBaseInputTokens({
+    inputTokens: entry.inputTokens,
+    cachedInputTokens: entry.cachedInputTokens,
+    cacheCreationInputTokens: entry.cacheCreationInputTokens,
+  });
+
+  if (scenario === 'actual' || entry.inputTokens === null) {
+    return {
+      baseInputTokens,
+      cachedInputTokens: entry.cachedInputTokens,
+      cacheCreationInputTokens: entry.cacheCreationInputTokens,
+    };
+  }
+
+  const cacheableTokens =
+    (entry.cachedInputTokens ?? 0) + (entry.cacheCreationInputTokens ?? 0);
+  const hasCacheable = cacheableTokens > 0;
+
+  if (scenario === 'noCache') {
+    // All cacheable tokens fold into base input.
+    return {
+      baseInputTokens: entry.inputTokens,
+      cachedInputTokens: 0,
+      cacheCreationInputTokens: 0,
+    };
+  }
+
+  if (scenario === 'withBaseCaching') {
+    // Warmed steady state: no writes, every cacheable token becomes a read.
+    return {
+      baseInputTokens: hasCacheable ? baseInputTokens : 0,
+      cachedInputTokens: hasCacheable ? cacheableTokens : entry.inputTokens,
+      cacheCreationInputTokens: 0,
+    };
+  }
+
+  // First-call write scenarios: no reads, every cacheable token becomes a write.
+  return {
+    baseInputTokens: hasCacheable ? baseInputTokens : 0,
+    cachedInputTokens: 0,
+    cacheCreationInputTokens: hasCacheable
+      ? cacheableTokens
+      : entry.inputTokens,
+  };
+}
+
 function computeDurationMs(span: EvalTraceSpan): number | null {
   if (span.endedAt === null) return null;
   const started = Date.parse(span.startedAt);

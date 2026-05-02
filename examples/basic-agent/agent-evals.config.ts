@@ -56,6 +56,7 @@ export const config: AgentEvalsConfig = {
         outputUsdPerMillion: 10,
         cachedInputUsdPerMillion: 0.25,
         cacheCreationInputUsdPerMillion: 3.125,
+        cacheCreationInput1hUsdPerMillion: 6.25,
       },
       'gpt-4o': {
         provider: 'openai',

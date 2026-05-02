@@ -5,6 +5,7 @@ import {
   type CacheActivityEntry,
   type CellValue,
   type ColumnDef,
+  type LlmCostScenario,
   type RunLogPhase,
 } from '@agent-evals/shared';
 import { useActionFn } from '@ls-stack/react-utils/useActionFn';
@@ -26,6 +27,7 @@ import { IconButton } from '#src/components/IconButton';
 import { InputViewer } from '#src/components/InputViewer';
 import { JsonViewer } from '#src/components/JsonViewer';
 import { LlmCallRow } from '#src/components/LlmCallRow';
+import { LlmCostScenarioToolbar } from '#src/components/LlmCostScenarioToolbar';
 import { MenuButton } from '#src/components/MenuButton';
 import { ResizeHandle } from '#src/components/ResizeHandle';
 import type { SplitButtonMenuEntry } from '#src/components/SplitButton';
@@ -375,6 +377,7 @@ export function CaseDrawer() {
     'all',
   );
   const [cacheFilter, setCacheFilter] = useState<CacheFilter>('all');
+  const [costScenario, setCostScenario] = useState<LlmCostScenario>('actual');
   const { selectedCaseDetail, selectedCaseRunId, selectedCaseId } =
     runStore.useSelectorRC((s) => ({
       selectedCaseDetail: s.selectedCaseDetail,
@@ -594,15 +597,23 @@ export function CaseDrawer() {
 
         {activeTab === 'llmCalls' ? (
           llmCallEntries.length > 0 ? (
-            <LlmCallsList>
-              {llmCallEntries.map((entry) => (
-                <LlmCallRow
-                  key={entry.id}
-                  entry={entry}
-                  costCurrencies={llmCallsConfig.costCurrencies}
-                />
-              ))}
-            </LlmCallsList>
+            <>
+              <LlmCostScenarioToolbar
+                scenario={costScenario}
+                onChange={setCostScenario}
+              />
+              <LlmCallsList>
+                {llmCallEntries.map((entry) => (
+                  <LlmCallRow
+                    key={entry.id}
+                    entry={entry}
+                    costCurrencies={llmCallsConfig.costCurrencies}
+                    scenario={costScenario}
+                    pricing={llmCallsConfig.pricing}
+                  />
+                ))}
+              </LlmCallsList>
+            </>
           ) : (
             <EmptyState
               title="No LLM calls"

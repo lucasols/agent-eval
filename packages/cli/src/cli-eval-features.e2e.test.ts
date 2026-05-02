@@ -161,7 +161,7 @@ describe('CLI eval features', () => {
             "cacheCreationInputTokens": 80,
             "cachedInputTokens": 30,
             "caseId": "simple-text",
-            "costUsd": 0.0008575000000000001,
+            "costUsd": 0.00092,
             "inputTokens": 150,
             "llmTurns": 1,
             "mentionsRefund": 1,
@@ -176,7 +176,7 @@ describe('CLI eval features', () => {
             "cacheCreationInputTokens": 80,
             "cachedInputTokens": 30,
             "caseId": "with-image",
-            "costUsd": 0.0008575000000000001,
+            "costUsd": 0.00092,
             "inputTokens": 150,
             "llmTurns": 1,
             "mentionsRefund": 1,
@@ -191,7 +191,7 @@ describe('CLI eval features', () => {
             "cacheCreationInputTokens": 80,
             "cachedInputTokens": 30,
             "caseId": "with-audio",
-            "costUsd": 0.0008575000000000001,
+            "costUsd": 0.00092,
             "inputTokens": 150,
             "llmTurns": 1,
             "mentionsRefund": 1,
@@ -253,6 +253,7 @@ describe('CLI eval features', () => {
       expect(withImagePlan.attributes?.usage).toEqual({
         billableOutputShare: 0.29411764705882354,
         billableTokens: 170,
+        cacheCreationInput1hTokens: 20,
         cacheCreationInputTokens: 80,
         cachedInputTokens: 30,
         inputTokens: 150,
@@ -321,6 +322,7 @@ describe('CLI eval features', () => {
                 "usage": {
                   "billableOutputShare": 0.29411764705882354,
                   "billableTokens": 170,
+                  "cacheCreationInput1hTokens": 20,
                   "cacheCreationInputTokens": 80,
                   "cachedInputTokens": 30,
                   "inputTokens": 150,
@@ -391,6 +393,7 @@ describe('CLI eval features', () => {
                 "usage": {
                   "billableOutputShare": 0.29411764705882354,
                   "billableTokens": 170,
+                  "cacheCreationInput1hTokens": 20,
                   "cacheCreationInputTokens": 80,
                   "cachedInputTokens": 30,
                   "inputTokens": 150,
@@ -461,6 +464,7 @@ describe('CLI eval features', () => {
                 "usage": {
                   "billableOutputShare": 0.29411764705882354,
                   "billableTokens": 170,
+                  "cacheCreationInput1hTokens": 20,
                   "cacheCreationInputTokens": 80,
                   "cachedInputTokens": 30,
                   "inputTokens": 150,

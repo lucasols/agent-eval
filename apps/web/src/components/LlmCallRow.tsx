@@ -1,24 +1,30 @@
-import type {
-  LlmCallEntry,
-  LlmCallMetricValue,
-  NumberDisplayOptions,
-  ResolvedLlmCallCostCurrency,
+import {
+  simulateLlmCallCost,
+  type LlmCallEntry,
+  type LlmCallMetricValue,
+  type LlmCostScenario,
+  type ResolvedLlmCallCostCurrency,
+  type ResolvedLlmCallPricing,
 } from '@agent-evals/shared';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { styled } from 'vindur';
 import { JsonViewer } from '#src/components/JsonViewer';
+import {
+  buildLlmCallBreakdownItems,
+  LlmCallBreakdownTable,
+} from '#src/components/LlmCallBreakdownTable';
 import { StatusBadge } from '#src/components/StatusBadge';
 import { Tooltip } from '#src/components/Tooltip';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
 import { formatDuration, formatNumber } from '#src/utils/formatters';
-
-const EM_DASH = '—';
-const USD_COST_NUMBER_FORMAT = {
-  prefix: '$',
-  maxDecimalPlaces: 4,
-} satisfies NumberDisplayOptions;
+import {
+  formatCompactTokens,
+  formatExactTokens,
+  LLM_CALL_EM_DASH,
+  LLM_CALL_USD_COST_NUMBER_FORMAT,
+} from '#src/utils/llmCallTokenFormat';
 
 const Card = styled.div`
   ${stack({ gap: 0 })}
@@ -138,64 +144,26 @@ const MetricRowValue = styled.span`
   word-break: break-word;
 `;
 
-const BreakdownTable = styled.table`
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  border: 1px solid ${colors.border.var};
-  border-radius: var(--radius-md);
-  overflow: hidden;
+const BreakdownColumns = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: start;
+
+  @media (max-width: 720px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
-const BreakdownHeader = styled.tr`
+const BreakdownColumn = styled.div`
+  ${stack({ gap: 6 })}
+  min-width: 0;
+`;
+
+const BreakdownColumnLabel = styled.div`
   ${kicker};
-  background: ${colors.surface.var};
   color: ${colors.textMuted.var};
   font-size: 9.5px;
-  letter-spacing: 0.04em;
-`;
-
-const BreakdownHeaderCell = styled.th`
-  padding: 8px 12px;
-  text-align: left;
-  font-weight: 600;
-
-  &:not(:first-child) {
-    text-align: right;
-  }
-`;
-
-const BreakdownRow = styled.tr`
-  font-size: 12px;
-
-  & > td {
-    border-top: 1px solid ${colors.border.var};
-  }
-`;
-
-const BreakdownLabelCell = styled.td`
-  padding: 8px 12px;
-`;
-
-const BreakdownLabel = styled.span`
-  color: ${colors.text.var};
-`;
-
-const BreakdownValue = styled.td`
-  ${monoFont};
-  padding: 8px 12px;
-  color: ${colors.text.var};
-  text-align: right;
-  min-width: 56px;
-`;
-
-const BreakdownTotalRow = styled(BreakdownRow)`
-  background: ${colors.surface.var};
-  font-weight: 600;
-`;
-
-const BreakdownDim = styled.span`
-  color: ${colors.textMuted.var};
 `;
 
 const RawSectionWrapper = styled.div``;
@@ -263,13 +231,13 @@ function safeStringify(value: unknown): string {
   if (typeof value === 'number' || typeof value === 'boolean')
     return String(value);
   if (value === null) return 'null';
-  if (value === undefined) return EM_DASH;
+  if (value === undefined) return LLM_CALL_EM_DASH;
   return JSON.stringify(value);
 }
 
 function formatMetricValue(metric: LlmCallMetricValue): ReactNode {
   const { rawValue, format, numberFormat } = metric;
-  if (rawValue === null) return EM_DASH;
+  if (rawValue === null) return LLM_CALL_EM_DASH;
 
   if (format === 'number') {
     if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
@@ -343,35 +311,9 @@ function StepsSection({ steps }: { steps: unknown[] }) {
   );
 }
 
-function resolveCurrencyNumberFormat(
-  currency: ResolvedLlmCallCostCurrency,
-): NumberDisplayOptions {
-  return currency.numberFormat ?? { prefix: `${currency.code} ` };
-}
-
-function formatConvertedCost(
-  costUsd: number,
-  currency: ResolvedLlmCallCostCurrency,
-): string {
-  return formatNumber(
-    costUsd * currency.usdToCurrencyRate,
-    resolveCurrencyNumberFormat(currency),
-  );
-}
-
 function formatCostChip(cost: number | null): string {
   if (cost === null) return '';
-  return formatNumber(cost, USD_COST_NUMBER_FORMAT);
-}
-
-const compactTokenFormatter = new Intl.NumberFormat(undefined, {
-  notation: 'compact',
-  compactDisplay: 'short',
-  maximumFractionDigits: 1,
-});
-
-function formatCompactTokens(value: number): string {
-  return compactTokenFormatter.format(value);
+  return formatNumber(cost, LLM_CALL_USD_COST_NUMBER_FORMAT);
 }
 
 function HeaderTokenChip({
@@ -388,7 +330,9 @@ function HeaderTokenChip({
   if (!hasDirectional) {
     if (totalTokens === null) return null;
     return (
-      <Tooltip content={`Total tokens · exact: ${formatNumber(totalTokens)}`}>
+      <Tooltip
+        content={`Total tokens · exact: ${formatExactTokens(totalTokens)}`}
+      >
         <TokenChip>
           {formatCompactTokens(totalTokens)}
           <TokenDirection>tok</TokenDirection>
@@ -398,9 +342,9 @@ function HeaderTokenChip({
   }
 
   const exactBreakdown = [
-    inputTokens !== null ? `in ${formatNumber(inputTokens)}` : null,
-    outputTokens !== null ? `out ${formatNumber(outputTokens)}` : null,
-    totalTokens !== null ? `total ${formatNumber(totalTokens)}` : null,
+    inputTokens !== null ? `in ${formatExactTokens(inputTokens)}` : null,
+    outputTokens !== null ? `out ${formatExactTokens(outputTokens)}` : null,
+    totalTokens !== null ? `total ${formatExactTokens(totalTokens)}` : null,
   ]
     .filter((part): part is string => part !== null)
     .join(' · ');
@@ -415,10 +359,14 @@ function HeaderTokenChip({
     >
       <TokenChip>
         <TokenDirection>in</TokenDirection>
-        {inputTokens === null ? EM_DASH : formatCompactTokens(inputTokens)}
+        {inputTokens === null
+          ? LLM_CALL_EM_DASH
+          : formatCompactTokens(inputTokens)}
         <TokenSeparator>·</TokenSeparator>
         <TokenDirection>out</TokenDirection>
-        {outputTokens === null ? EM_DASH : formatCompactTokens(outputTokens)}
+        {outputTokens === null
+          ? LLM_CALL_EM_DASH
+          : formatCompactTokens(outputTokens)}
       </TokenChip>
     </Tooltip>
   );
@@ -426,193 +374,6 @@ function HeaderTokenChip({
 
 function metricKey(metric: LlmCallMetricValue): string {
   return `${metric.label}-${metric.placements.join(',')}`;
-}
-
-function formatTokenCount(value: number | null): string {
-  return value === null ? EM_DASH : formatNumber(value);
-}
-
-function CurrencyHeader({
-  currency,
-}: {
-  currency: ResolvedLlmCallCostCurrency;
-}) {
-  return (
-    <Tooltip content={currency.label}>
-      <span>{currency.code}</span>
-    </Tooltip>
-  );
-}
-
-function UsdCostValue({ value }: { value: number | null }) {
-  if (value === null) return <BreakdownDim>{EM_DASH}</BreakdownDim>;
-  return <>{formatNumber(value, USD_COST_NUMBER_FORMAT)}</>;
-}
-
-function ConvertedCostValue({
-  value,
-  currency,
-}: {
-  value: number | null;
-  currency: ResolvedLlmCallCostCurrency;
-}) {
-  if (value === null) return <BreakdownDim>{EM_DASH}</BreakdownDim>;
-  return <>{formatConvertedCost(value, currency)}</>;
-}
-
-function computeBaseInputTokens(entry: LlmCallEntry): number | null {
-  if (entry.inputTokens === null) return null;
-  const cachedTokens =
-    (entry.cachedInputTokens ?? 0) + (entry.cacheCreationInputTokens ?? 0);
-  return Math.max(entry.inputTokens - cachedTokens, 0);
-}
-
-type BreakdownItem = {
-  key: string;
-  label: string;
-  tokens: number | null;
-  cost: number | null;
-};
-
-type BreakdownItemWithTooltip = BreakdownItem & { tooltip?: string };
-
-function TokenBreakdownTable({
-  entry,
-  costCurrencies,
-}: {
-  entry: LlmCallEntry;
-  costCurrencies: ResolvedLlmCallCostCurrency[];
-}) {
-  const items: BreakdownItemWithTooltip[] = [
-    {
-      key: 'input',
-      label: 'Input',
-      tooltip:
-        'Input tokens billed at the base input rate. Cache read/write tokens are subtracted here and shown on their own rows.',
-      tokens: computeBaseInputTokens(entry),
-      cost: entry.inputCostUsd,
-    },
-    {
-      key: 'cacheCreationInput',
-      label: 'Cache write',
-      tooltip:
-        'Tokens written to the prompt cache. Providers like Anthropic charge a premium for cache creation (e.g. 1.25× / 2× the base input rate).',
-      tokens: entry.cacheCreationInputTokens,
-      cost: entry.cacheCreationInputCostUsd,
-    },
-    {
-      key: 'cacheReadInput',
-      label: 'Cache read',
-      tooltip:
-        'Tokens read from the prompt cache. Typically billed at a deep discount (e.g. 0.1× the base input rate on Anthropic).',
-      tokens: entry.cachedInputTokens,
-      cost: entry.cachedInputCostUsd,
-    },
-    {
-      key: 'output',
-      label: 'Output',
-      tokens: entry.outputTokens,
-      cost: entry.outputCostUsd,
-    },
-    {
-      key: 'reasoning',
-      label: 'Reasoning',
-      tokens: entry.reasoningTokens,
-      cost: entry.reasoningCostUsd,
-    },
-  ];
-
-  const visible = items.filter(
-    (item) => item.tokens !== null || item.cost !== null,
-  );
-
-  if (
-    visible.length === 0 &&
-    entry.totalTokens === null &&
-    entry.costUsd === null
-  ) {
-    return null;
-  }
-
-  let breakdownCostSum: number | null = null;
-  for (const item of visible) {
-    if (item.cost === null) continue;
-    breakdownCostSum = (breakdownCostSum ?? 0) + item.cost;
-  }
-
-  return (
-    <BreakdownTable>
-      <thead>
-        <BreakdownHeader>
-          <BreakdownHeaderCell>Token type</BreakdownHeaderCell>
-          <BreakdownHeaderCell>Tokens</BreakdownHeaderCell>
-          <BreakdownHeaderCell>Cost</BreakdownHeaderCell>
-          {costCurrencies.map((currency, index) => (
-            <BreakdownHeaderCell key={`${currency.code}-${String(index)}`}>
-              <CurrencyHeader currency={currency} />
-            </BreakdownHeaderCell>
-          ))}
-        </BreakdownHeader>
-      </thead>
-      <tbody>
-        {visible.map((item) => (
-          <BreakdownRow key={item.key}>
-            <BreakdownLabelCell>
-              <Tooltip content={item.tooltip}>
-                <BreakdownLabel>{item.label}</BreakdownLabel>
-              </Tooltip>
-            </BreakdownLabelCell>
-            <BreakdownValue>{formatTokenCount(item.tokens)}</BreakdownValue>
-            <BreakdownValue>
-              <UsdCostValue value={item.cost} />
-            </BreakdownValue>
-            {costCurrencies.map((currency, index) => (
-              <BreakdownValue key={`${currency.code}-${String(index)}`}>
-                <ConvertedCostValue
-                  value={item.cost}
-                  currency={currency}
-                />
-              </BreakdownValue>
-            ))}
-          </BreakdownRow>
-        ))}
-        {entry.totalTokens !== null || entry.costUsd !== null ? (
-          <BreakdownTotalRow>
-            <BreakdownLabelCell>
-              <BreakdownLabel>Total</BreakdownLabel>
-            </BreakdownLabelCell>
-            <BreakdownValue>
-              {formatTokenCount(entry.totalTokens)}
-            </BreakdownValue>
-            <BreakdownValue>
-              {entry.costUsd !== null ? (
-                <UsdCostValue value={entry.costUsd} />
-              ) : breakdownCostSum !== null ? (
-                <Tooltip content="Sum of per-token costs above">
-                  <span>
-                    <UsdCostValue value={breakdownCostSum} />
-                  </span>
-                </Tooltip>
-              ) : (
-                <BreakdownDim>{EM_DASH}</BreakdownDim>
-              )}
-            </BreakdownValue>
-            {costCurrencies.map((currency, index) => {
-              const cost = entry.costUsd ?? breakdownCostSum;
-              return (
-                <BreakdownValue key={`${currency.code}-${String(index)}`}>
-                  <ConvertedCostValue
-                    value={cost}
-                    currency={currency}
-                  />
-                </BreakdownValue>
-              );
-            })}
-          </BreakdownTotalRow>
-        ) : null}
-      </tbody>
-    </BreakdownTable>
-  );
 }
 
 /**
@@ -625,13 +386,24 @@ function TokenBreakdownTable({
  * order: Input / Output / Reasoning / Steps (when the configured `steps`
  * attribute resolved to an array) / Tool calls. Span warnings and any captured
  * error render at the bottom.
+ *
+ * `scenario` controls how costs are displayed. `'actual'` uses the recorded
+ * costs as-is. The simulated scenarios (`'noCache'`, `'withBaseCaching'`,
+ * `'withBaseCachingWrite'`, `'withExtendedCachingWrite'`) recompute costs from
+ * the resolved `pricing` so users can compare what the same usage would have
+ * cost under a different cache strategy. The header chip and breakdown total
+ * reflect the active scenario.
  */
 export function LlmCallRow({
   entry,
   costCurrencies,
+  scenario,
+  pricing,
 }: {
   entry: LlmCallEntry;
   costCurrencies: ResolvedLlmCallCostCurrency[];
+  scenario: LlmCostScenario;
+  pricing: ResolvedLlmCallPricing[];
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -642,7 +414,25 @@ export function LlmCallRow({
     m.placements.includes('body'),
   );
 
-  const costLabel = formatCostChip(entry.costUsd);
+  const simulated = simulateLlmCallCost({ entry, pricing, scenario });
+  const actualBreakdown = simulateLlmCallCost({
+    entry,
+    pricing,
+    scenario: 'actual',
+  });
+  const simulatedItems = buildLlmCallBreakdownItems({
+    entry,
+    scenario,
+    simulated,
+  });
+  const actualItems = buildLlmCallBreakdownItems({
+    entry,
+    scenario: 'actual',
+    simulated: actualBreakdown,
+  });
+  const isSimulated = scenario !== 'actual';
+  const headerCost = simulated.totalCostUsd ?? entry.costUsd;
+  const costLabel = formatCostChip(headerCost);
   const latencyLabel =
     entry.latencyMs === null ? null : formatDuration(entry.latencyMs);
   const durationLabel =
@@ -695,7 +485,19 @@ export function LlmCallRow({
             outputTokens={entry.outputTokens}
             totalTokens={entry.totalTokens}
           />
-          {costLabel ? <span>{costLabel}</span> : null}
+          {costLabel ? (
+            isSimulated &&
+            entry.costUsd !== null &&
+            entry.costUsd !== headerCost ? (
+              <Tooltip
+                content={`Simulated · actual: ${formatNumber(entry.costUsd, LLM_CALL_USD_COST_NUMBER_FORMAT)}`}
+              >
+                <span>{costLabel}</span>
+              </Tooltip>
+            ) : (
+              <span>{costLabel}</span>
+            )
+          ) : null}
           {headerMetrics.map((metric) => (
             <Tooltip
               key={metricKey(metric)}
@@ -713,10 +515,38 @@ export function LlmCallRow({
       {expanded ? (
         <Body>
           {showTokenBreakdown || entry.costUsd !== null ? (
-            <TokenBreakdownTable
-              entry={entry}
-              costCurrencies={costCurrencies}
-            />
+            isSimulated ? (
+              <BreakdownColumns>
+                <BreakdownColumn>
+                  <BreakdownColumnLabel>Simulated</BreakdownColumnLabel>
+                  <LlmCallBreakdownTable
+                    entry={entry}
+                    costCurrencies={costCurrencies}
+                    scenario={scenario}
+                    simulated={simulated}
+                    items={simulatedItems}
+                  />
+                </BreakdownColumn>
+                <BreakdownColumn>
+                  <BreakdownColumnLabel>Actual</BreakdownColumnLabel>
+                  <LlmCallBreakdownTable
+                    entry={entry}
+                    costCurrencies={costCurrencies}
+                    scenario="actual"
+                    simulated={actualBreakdown}
+                    items={actualItems}
+                  />
+                </BreakdownColumn>
+              </BreakdownColumns>
+            ) : (
+              <LlmCallBreakdownTable
+                entry={entry}
+                costCurrencies={costCurrencies}
+                scenario={scenario}
+                simulated={simulated}
+                items={simulatedItems}
+              />
+            )
           ) : null}
 
           {showMetricsSection ? (

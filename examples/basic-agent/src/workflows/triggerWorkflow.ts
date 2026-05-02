@@ -41,6 +41,7 @@ export async function triggerWorkflow(
             inputTokens: 150,
             outputTokens: 50,
             cacheCreationInputTokens: 80,
+            cacheCreationInput1hTokens: 20,
             cachedInputTokens: 30,
           };
 
