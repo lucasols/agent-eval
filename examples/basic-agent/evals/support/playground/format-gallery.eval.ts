@@ -140,7 +140,11 @@ defineEval({
       reviewer: { name: 'Avery', queue: 'refund-ops' },
     });
     setEvalOutput('rawToolEvents', [
-      { name: 'receipt-match', status: 'passed' },
+      {
+        name: 'receipt-match',
+        status: 'passed',
+        textWithLineBreaks: 'Matched receipt\nAmount: $15.99',
+      },
       { name: 'queue-routing', status: 'ready' },
     ]);
     setEvalOutput('requiresManualReview', false);
