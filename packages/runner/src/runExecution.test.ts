@@ -187,6 +187,35 @@ test('runCase does not overwrite authored outputs with default usage', async () 
   expect(result.caseDetail.columns.llmTurns).toBe(1);
 });
 
+test('runCase preserves JSON-safe output values without a column override', async () => {
+  const generatedAt = new Date('2024-01-02T03:04:05.000Z');
+  const result = await runDefaultUsageCase({
+    evalDef: {
+      id: 'default-usage-eval',
+      execute: () => {
+        setEvalOutput('jsonObject', {
+          matchedReceipt: true,
+          reviewer: { name: 'Avery', queue: 'refund-ops' },
+        });
+        setEvalOutput('jsonArray', ['draft', { step: 'review' }]);
+        setEvalOutput('generatedAt', generatedAt);
+      },
+    },
+  });
+
+  expect(result.caseDetail.columns.jsonObject).toEqual({
+    matchedReceipt: true,
+    reviewer: { name: 'Avery', queue: 'refund-ops' },
+  });
+  expect(result.caseDetail.columns.jsonArray).toEqual([
+    'draft',
+    { step: 'review' },
+  ]);
+  expect(result.caseDetail.columns.generatedAt).toBe(
+    '2024-01-02T03:04:05.000Z',
+  );
+});
+
 test('runCase supports global and per-eval removal of default usage', async () => {
   const globallyRemoved = await runDefaultUsageCase({
     globalRemoveDefaultConfig: true,
@@ -287,9 +316,10 @@ test('runCase gives execute and score scopes distinct deterministic eval IDs', a
 
   const prefix = 'scoped-id-eval-evals-support-scoped-id-eval-ts-case-one';
 
-  expect(result.caseDetail.columns.generatedIds).toBe(
-    `["${prefix}-1","${prefix}-2"]`,
-  );
+  expect(result.caseDetail.columns.generatedIds).toEqual([
+    `${prefix}-1`,
+    `${prefix}-2`,
+  ]);
   expect(result.caseDetail.columns.quality).toBe(1);
   expect(
     result.caseDetail.scoringTraces?.quality?.trace.map((span) => span.name),

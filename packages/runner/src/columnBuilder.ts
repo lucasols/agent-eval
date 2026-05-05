@@ -194,12 +194,10 @@ export function inferKind(value: unknown): ColumnKind {
 
 /**
  * Coerce an arbitrary runtime value into a serializable `CellValue`.
- * Non-primitive values fall back to `JSON.stringify`.
+ * JSON-safe objects and arrays stay structured so saved run artifacts preserve
+ * the authored output shape. Rich runtime values fall back to `JSON.stringify`.
  */
-export function toCellValue(
-  value: unknown,
-  override: EvalColumnOverride | undefined = undefined,
-): CellValue | undefined {
+export function toCellValue(value: unknown): CellValue | undefined {
   if (value === null) return null;
   if (
     typeof value === 'string' ||
@@ -209,20 +207,21 @@ export function toCellValue(
     return value;
   }
   if (value === undefined) return undefined;
-  if (
-    override?.format === 'image' ||
-    override?.format === 'audio' ||
-    override?.format === 'video' ||
-    override?.format === 'file'
-  ) {
-    const parsed = fileRefSchema.safeParse(value);
-    if (parsed.success) return parsed.data;
-  }
-  if (override?.format === 'json') {
+  const fileRef = fileRefSchema.safeParse(value);
+  if (fileRef.success) return fileRef.data;
+  if (isPlainJsonContainer(value)) {
     const parsed = jsonCellSchema.safeParse(value);
     if (parsed.success) return parsed.data;
   }
+  if (value instanceof Date) return value.toISOString();
   return JSON.stringify(value);
+}
+
+function isPlainJsonContainer(value: unknown): boolean {
+  if (Array.isArray(value)) return true;
+  if (typeof value !== 'object' || value === null) return false;
+  const prototype: unknown = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
 
 function inferKindFromFormat(

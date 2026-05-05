@@ -36,7 +36,7 @@ import {
 } from '@agent-evals/shared';
 import { z } from 'zod/v4';
 import { normalizeScoreDef, toCellValue } from './columnBuilder.ts';
-import { addDefaultOutputs, mergeDefaultColumns } from './defaultConfig.ts';
+import { addDefaultOutputs } from './defaultConfig.ts';
 import { runWithModuleIsolation } from './moduleIsolation.ts';
 import { persistInlineArtifact } from './outputArtifacts.ts';
 import { stripTerminalControlCodes } from './stackFormatting.ts';
@@ -207,7 +207,6 @@ export async function runCase<
     evalKey = evalId,
     evalCase,
     globalTraceDisplay,
-    globalColumns,
     globalDeriveFromTracing,
     llmCallsConfig = resolveLlmCallsConfig(undefined),
     apiCallsConfig = resolveApiCallsConfig(undefined),
@@ -457,12 +456,6 @@ export async function runCase<
   );
 
   const columns: Record<string, CellValue> = {};
-  const columnOverrides = mergeDefaultColumns({
-    globalColumns,
-    columns: evalDef.columns,
-    globalRemove: globalRemoveDefaultConfig,
-    evalRemove: evalDef.removeDefaultConfig,
-  });
   for (const [key, value] of Object.entries(scope.outputs)) {
     const cell = isBlob(value)
       ? await persistInlineArtifact({
@@ -473,7 +466,7 @@ export async function runCase<
           trial,
           value,
         })
-      : toCellValue(value, columnOverrides?.[key]);
+      : toCellValue(value);
     if (cell !== undefined) {
       columns[key] = cell;
     }

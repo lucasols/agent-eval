@@ -230,14 +230,10 @@ test('caches values without creating a cache span and replays SDK effects', asyn
       costUsd: 0.25,
       plannedIso: '2024-01-02T03:04:05.000Z',
       plannedTier: 'gold',
-      plannedDateOutput: '"2024-01-02T03:04:05.000Z"',
-      auditTrail: JSON.stringify(['draft', { step: 'review', activeCalls: 1 }]),
-      scalarTrail: JSON.stringify(['first', 'second']),
-      cacheMetadata: JSON.stringify({
-        source: 'fresh',
-        activeCalls: 1,
-        status: 'ok',
-      }),
+      plannedDateOutput: '2024-01-02T03:04:05.000Z',
+      auditTrail: ['draft', { step: 'review', activeCalls: 1 }],
+      scalarTrail: ['first', 'second'],
+      cacheMetadata: { source: 'fresh', activeCalls: 1, status: 'ok' },
     });
 
     const firstCacheList = await runner.listCache();
@@ -296,14 +292,10 @@ test('caches values without creating a cache span and replays SDK effects', asyn
       costUsd: 0.25,
       plannedIso: '2024-01-02T03:04:05.000Z',
       plannedTier: 'gold',
-      plannedDateOutput: '"2024-01-02T03:04:05.000Z"',
-      auditTrail: JSON.stringify(['draft', { step: 'review', activeCalls: 1 }]),
-      scalarTrail: JSON.stringify(['first', 'second']),
-      cacheMetadata: JSON.stringify({
-        source: 'fresh',
-        activeCalls: 1,
-        status: 'ok',
-      }),
+      plannedDateOutput: '2024-01-02T03:04:05.000Z',
+      auditTrail: ['draft', { step: 'review', activeCalls: 1 }],
+      scalarTrail: ['first', 'second'],
+      cacheMetadata: { source: 'fresh', activeCalls: 1, status: 'ok' },
     });
   } finally {
     process.chdir(previousCwd);

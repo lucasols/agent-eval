@@ -72,12 +72,23 @@ describe('CLI output formats', () => {
         "confidence": 0.93,
         "generatedAt": "<timestamp>",
         "handlingCostUsd": 1.25,
+        "llmTurns": 0,
         "previewCard": {
           "artifactId": "<run-id>__all-column-formats__t0__previewCard__previewCard.svg",
           "fileName": "previewCard.svg",
           "mimeType": "image/svg+xml",
           "source": "run",
         },
+        "rawToolEvents": [
+          {
+            "name": "receipt-match",
+            "status": "passed",
+          },
+          {
+            "name": "queue-routing",
+            "status": "ready",
+          },
+        ],
         "requestCount": 1200,
         "requiresManualReview": false,
         "response": "Prepared **refund package** for order \`A-1024\`.\n\nCustomer note: Please confirm the refund package for my damaged mug.",
@@ -85,6 +96,7 @@ describe('CLI output formats', () => {
         "reviewTimeMs": 1450,
         "reviewerDecision": null,
         "reviewerQuality": null,
+        "toolCalls": 0,
         "toolResult": {
           "matchedReceipt": true,
           "nextStep": "send-refund-confirmation",

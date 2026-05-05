@@ -60,7 +60,7 @@ export function createTraceCache(generateSpanId: () => string): {
       const hit = await cacheCtx.adapter.lookup(namespace, keyHash);
       if (hit) {
         const storedAt = hit.storedAt;
-        const age = Date.now() - new Date(storedAt).getTime();
+        const age = getRealDateNowMs() - new Date(storedAt).getTime();
         recordCacheRef(scope, activeSpan, {
           type: 'value',
           name: info.name,

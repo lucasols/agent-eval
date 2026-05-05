@@ -651,7 +651,7 @@ async function traceSpanInternal(
         const hit = await ctx.adapter.lookup(namespace, keyHash);
         if (hit) {
           const storedAt = hit.storedAt;
-          const age = Date.now() - new Date(storedAt).getTime();
+          const age = getRealDateNowMs() - new Date(storedAt).getTime();
           mergeSpanAttributes(spanRecord, {
             'cache.status': 'hit',
             'cache.storedAt': storedAt,

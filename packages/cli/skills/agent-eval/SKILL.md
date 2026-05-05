@@ -299,10 +299,13 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
 
 - `setEvalOutput(key, value)` writes reviewable data for the case. Values are
   plain data (strings, numbers, booleans, JSON-safe objects) plus native
-  `Blob`/`File` or `FileRef` variants for media columns. Inside `execute`,
-  prefer the context `setOutput(key, value)` helper when writing schema-backed
-  outputs; it is typed from the eval's outputs generic. Keep `setEvalOutput`
-  for shared workflow code that does not receive the execute context.
+  `Blob`/`File` or `FileRef` variants for media columns. Stored output values
+  are not coerced by `columns.format`; column formats only control
+  visualization. Native `Blob`/`File` values are copied to run artifacts
+  because saved run files are JSON. Inside `execute`, prefer the context
+  `setOutput(key, value)` helper when writing schema-backed outputs; it is
+  typed from the eval's outputs generic. Keep `setEvalOutput` for shared
+  workflow code that does not receive the execute context.
 - Use `incrementEvalOutput(key, delta)` for numeric totals,
   `appendToEvalOutput(key, value)` for arrays that preserve existing scalar
   values, and `mergeEvalOutput(key, patch)` for shallow object updates.

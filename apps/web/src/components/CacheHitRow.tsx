@@ -12,7 +12,7 @@ import { Button } from '#src/components/Button';
 import { JsonViewer } from '#src/components/JsonViewer';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
-import { formatDuration, formatTimestamp } from '#src/utils/formatters';
+import { formatTimestamp } from '#src/utils/formatters';
 
 const Card = styled.div`
   ${stack({ gap: 0 })}
@@ -174,6 +174,41 @@ function cacheEntryUrl(entry: CacheActivityEntry): string {
   return `/api/cache/${encodeURIComponent(entry.namespace)}/${encodeURIComponent(entry.key)}`;
 }
 
+function getNonNegativeCacheAge(entry: CacheActivityEntry): number | null {
+  if (entry.storedAt !== undefined) {
+    const storedAtMs = Date.parse(entry.storedAt);
+    if (Number.isFinite(storedAtMs)) {
+      return Math.max(0, Date.now() - storedAtMs);
+    }
+  }
+
+  if (entry.age === undefined || entry.age < 0) return null;
+  return entry.age;
+}
+
+function formatCacheAge(entry: CacheActivityEntry): string | null {
+  const ageMs = getNonNegativeCacheAge(entry);
+  if (ageMs === null) return null;
+  if (ageMs < 60_000) return 'just now';
+
+  const totalMinutes = Math.floor(ageMs / 60_000);
+  if (totalMinutes < 60) return `${String(totalMinutes)}m old`;
+
+  const totalHours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (totalHours < 24) {
+    return minutes === 0
+      ? `${String(totalHours)}h old`
+      : `${String(totalHours)}h ${String(minutes)}m old`;
+  }
+
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
+  return hours === 0
+    ? `${String(days)}d old`
+    : `${String(days)}d ${String(hours)}h old`;
+}
+
 /**
  * Render one cache activity card inside the case-drawer Cache tab.
  *
@@ -258,7 +293,7 @@ export function CacheHitRow({ entry }: { entry: CacheActivityEntry }) {
     if (canLoadEntry) void loadEntry();
   }
 
-  const ageLabel = entry.age !== undefined ? formatDuration(entry.age) : null;
+  const ageLabel = formatCacheAge(entry);
   const storedAt =
     entry.storedAt ??
     (fetchState.status === 'loaded' ? fetchState.entry.storedAt : undefined);
@@ -290,7 +325,7 @@ export function CacheHitRow({ entry }: { entry: CacheActivityEntry }) {
         ) : null}
         <HeaderMeta>
           {fetchState.status === 'deleted' ? <span>deleted</span> : null}
-          {ageLabel !== null ? <span>{ageLabel} old</span> : null}
+          {ageLabel !== null ? <span>{ageLabel}</span> : null}
           {entry.action === 'added' && entry.status === 'miss' ? (
             <span>created</span>
           ) : null}

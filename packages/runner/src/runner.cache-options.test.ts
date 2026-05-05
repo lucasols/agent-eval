@@ -45,6 +45,7 @@ async function runCacheOptionsCase(params: {
   cache?: EvalCacheConfig;
   cacheMode?: 'use' | 'bypass' | 'refresh';
   input?: CacheOptionsInput;
+  startTime?: number;
 }) {
   return await runCase<CacheOptionsInput>({
     evalDef: {
@@ -103,7 +104,7 @@ async function runCacheOptionsCase(params: {
     evalCase: { id: 'case-one', input: params.input ?? { cacheKey: 'same' } },
     globalTraceDisplay: undefined,
     trial: 0,
-    startTime: Date.now(),
+    startTime: params.startTime ?? Date.now(),
     cacheAdapter: params.adapter,
     cacheMode: params.cacheMode ?? 'use',
     moduleIsolation: undefined,
@@ -138,6 +139,13 @@ function getScoreStatus(
   return getOnlyScoreSpan(result).attributes?.['cache.status'];
 }
 
+function expectNonNegativeAge(value: unknown): void {
+  expect(typeof value).toBe('number');
+  if (typeof value === 'number') {
+    expect(value).toBeGreaterThanOrEqual(0);
+  }
+}
+
 function getRootValueRef(
   result: Awaited<ReturnType<typeof runCacheOptionsCase>>,
 ) {
@@ -168,6 +176,26 @@ test('per-eval cache options default to read/write behavior', async () => {
   expect(getSpanStatus(second)).toBe('hit');
   expect(getRootValueRef(second).status).toBe('hit');
   expect(getScoreStatus(second)).toBe('hit');
+});
+
+test('cache hit age ignores shifted eval time', async () => {
+  const store = createCountingCacheAdapter();
+  const calls = { span: 0, value: 0, score: 0 };
+
+  await runCacheOptionsCase({ adapter: store.adapter, calls });
+
+  const hit = await runCacheOptionsCase({
+    adapter: store.adapter,
+    calls,
+    startTime: Date.now() - 30 * 24 * 60 * 60 * 1000,
+  });
+
+  const cachedSpan = hit.caseDetail.trace.find(
+    (span) => span.name === 'cached-span',
+  );
+  expectNonNegativeAge(cachedSpan?.attributes?.['cache.age']);
+  expectNonNegativeAge(getRootValueRef(hit).age);
+  expectNonNegativeAge(getOnlyScoreSpan(hit).attributes?.['cache.age']);
 });
 
 test('per-eval store=false reads hits and leaves misses unstored', async () => {

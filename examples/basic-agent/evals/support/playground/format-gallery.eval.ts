@@ -139,6 +139,10 @@ defineEval({
       nextStep: 'send-refund-confirmation',
       reviewer: { name: 'Avery', queue: 'refund-ops' },
     });
+    setEvalOutput('rawToolEvents', [
+      { name: 'receipt-match', status: 'passed' },
+      { name: 'queue-routing', status: 'ready' },
+    ]);
     setEvalOutput('requiresManualReview', false);
     setEvalOutput(
       'previewCard',
