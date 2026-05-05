@@ -17,6 +17,7 @@ import {
   scopeRunCases,
   type ScopedRunRow,
 } from '../../../apps/web/src/utils/evalRuns.ts';
+import { mergeRunRuntimeColumnDefs } from '../../../apps/web/src/utils/runtimeColumnDefs.ts';
 import { shouldShowStatDisplay } from '../../../apps/web/src/utils/statVisibility.ts';
 
 function createScopedRun(params: {
@@ -310,6 +311,37 @@ describe('eval run rows ui', () => {
       'falseValue',
     ]);
     expect(rows.scoreColumns.map((column) => column.key)).toEqual(['score']);
+  });
+
+  test('infers unconfigured run table columns from case rows', () => {
+    const rows = [
+      {
+        cases: [
+          {
+            caseId: 'case-1',
+            evalId: 'eval-1',
+            status: 'pass' as const,
+            durationMs: 1,
+            columns: {
+              configured: 'ok',
+              rawToolEvents: [{ name: 'receipt-match', status: 'passed' }],
+            },
+            trial: 0,
+          },
+        ],
+      },
+    ];
+
+    const columnDefs = mergeRunRuntimeColumnDefs(
+      [{ key: 'configured', label: 'Configured', kind: 'string' }],
+      rows,
+    );
+    const visible = getVisibleRunTableColumns({ columnDefs, runs: rows });
+
+    expect(visible.otherCustomColumns).toMatchObject([
+      { key: 'configured', label: 'Configured', kind: 'string' },
+      { key: 'rawToolEvents', label: 'Raw tool events', kind: 'string' },
+    ]);
   });
 
   test('reports whether stats and charts have values for hide-if-empty rendering', () => {

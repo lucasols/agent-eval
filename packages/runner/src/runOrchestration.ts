@@ -33,7 +33,7 @@ import {
   type FsCacheStore,
 } from './cacheStore.ts';
 import { validateCharts } from './chartValidation.ts';
-import { buildDeclaredColumnDefs, mergeColumnDefs } from './columnBuilder.ts';
+import { buildDeclaredColumnDefs } from './columnBuilder.ts';
 import { resolveEvalDefaultConfig } from './defaultConfig.ts';
 import { loadEvalModule } from './evalModuleLoader.ts';
 import { parseManualInputValues } from './manualInput/walker.ts';
@@ -96,11 +96,9 @@ type PreparedEvalCase = {
 
 type PreparedEvalRun = {
   evalMeta: EvalMeta;
-  accumulatedColumns: Map<string, ColumnDef>;
   evalCaseRows: CaseRow[];
   preparedCases: PreparedEvalCase[];
   scoreKeys: readonly string[];
-  mergeColumns: (columns: CaseDetail['columns']) => void;
 };
 
 type EvalRunError = { evalId: string; details: string };
@@ -272,7 +270,6 @@ async function finalizePreparedCase(params: {
     getCaseRowCaseKey(winningTrial.caseRow),
     winningTrial.caseDetail,
   );
-  preparedEval.mergeColumns(winningTrial.caseDetail.columns);
 
   if (winningTrial.caseRow.status === 'pass') {
     runState.summary.passedCases++;
@@ -489,9 +486,6 @@ export async function executeRun({
                 evalDef.scores,
                 evalDef.manualScores,
               );
-              const accumulatedColumns = new Map(
-                declaredColumnDefs.map((def) => [def.key, def]),
-              );
               const validatedCharts = validateCharts({
                 charts: defaultConfig.charts,
                 columnDefs: declaredColumnDefs,
@@ -500,6 +494,7 @@ export async function executeRun({
               for (const warning of validatedCharts.warnings) {
                 console.warn(warning);
               }
+              evalMeta.columnDefs = declaredColumnDefs;
               evalMeta.stats = defaultConfig.stats;
               evalMeta.charts = validatedCharts.charts;
 
@@ -513,19 +508,9 @@ export async function executeRun({
               );
               const preparedEval: PreparedEvalRun = {
                 evalMeta,
-                accumulatedColumns,
                 evalCaseRows,
                 preparedCases,
                 scoreKeys: Object.freeze([...scoreKeys, ...manualScoreKeys]),
-                mergeColumns: (columns) => {
-                  mergeColumnDefs(
-                    accumulatedColumns,
-                    columns,
-                    defaultConfig.columns,
-                    evalDef.scores,
-                    evalDef.manualScores,
-                  );
-                },
               };
               preparedEvals.push(preparedEval);
 
@@ -653,10 +638,6 @@ export async function executeRun({
           emitEvent,
         });
       }
-
-      preparedEval.evalMeta.columnDefs = [
-        ...preparedEval.accumulatedColumns.values(),
-      ];
 
       lastRunStatusMap.set(
         preparedEval.evalMeta.key,

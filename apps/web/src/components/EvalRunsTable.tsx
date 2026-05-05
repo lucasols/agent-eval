@@ -28,6 +28,7 @@ import {
   formatNumericCellValue,
   formatTimestamp,
 } from '#src/utils/formatters';
+import { mergeRunRuntimeColumnDefs } from '#src/utils/runtimeColumnDefs';
 
 export type RunRow = {
   manifest: RunManifest;
@@ -354,8 +355,9 @@ export function EvalRunsTable({
     return <Empty>{emptyMessage}</Empty>;
   }
 
+  const effectiveColumnDefs = mergeRunRuntimeColumnDefs(columnDefs, runs);
   const { scoreColumns, otherCustomColumns } = getVisibleRunTableColumns({
-    columnDefs,
+    columnDefs: effectiveColumnDefs,
     runs,
   });
   const totalCols = 3 + scoreColumns.length + otherCustomColumns.length;

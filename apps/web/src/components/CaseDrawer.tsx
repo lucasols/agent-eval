@@ -50,6 +50,10 @@ import { workspaceConfigStore } from '#src/stores/workspaceConfigStore';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
 import { formatNumericCellValue } from '#src/utils/formatters';
+import {
+  getDisplayColumnLabel,
+  mergeRuntimeColumnDefs,
+} from '#src/utils/runtimeColumnDefs';
 
 type Tab =
   | 'input'
@@ -444,8 +448,12 @@ export function CaseDrawer() {
 
   const d = selectedCaseDetail;
   const evalSummary = evals.find((e) => e.key === (d.evalKey ?? d.evalId));
-  const columnDefs = evalSummary?.columnDefs ?? [];
-  const hasOutputValue = columnDefs.some((columnDef) =>
+  const columnDefs = mergeRuntimeColumnDefs(
+    evalSummary?.columnDefs ?? [],
+    d.columns,
+  );
+  const outputColumnDefs = orderOutputColumnDefs(columnDefs, d.columns);
+  const hasOutputValue = outputColumnDefs.some((columnDef) =>
     hasRenderableOutputValue(d.columns[columnDef.key]),
   );
 
@@ -555,7 +563,7 @@ export function CaseDrawer() {
         {activeTab === 'output' ? (
           hasOutputValue ? (
             <OutputLayout>
-              {columnDefs.map((c) => (
+              {outputColumnDefs.map((c) => (
                 <ColumnCell
                   key={c.key}
                   def={c}
@@ -763,9 +771,18 @@ export function CaseDrawer() {
   );
 }
 
-function hasRenderableOutputValue(value: CellValue | undefined): boolean {
-  if (value === undefined || value === null) return false;
-  return true;
+const hasRenderableOutputValue = (value: CellValue | undefined): boolean =>
+  value !== undefined && value !== null;
+
+function orderOutputColumnDefs(
+  columnDefs: ColumnDef[],
+  columns: Record<string, CellValue>,
+): ColumnDef[] {
+  return columnDefs.toSorted(
+    (a, b) =>
+      Number(!hasRenderableOutputValue(columns[a.key])) -
+      Number(!hasRenderableOutputValue(columns[b.key])),
+  );
 }
 
 function filterCacheEntries(
@@ -783,8 +800,7 @@ function filterCacheEntries(
 }
 
 function parseCacheFilter(value: string): CacheFilter {
-  if (value === 'hits' || value === 'added') return value;
-  return 'all';
+  return value === 'hits' || value === 'added' ? value : 'all';
 }
 
 function ColumnCell({
@@ -796,7 +812,7 @@ function ColumnCell({
 }) {
   return (
     <OutputBlock>
-      <OutputLabel>{def.label}</OutputLabel>
+      <OutputLabel>{getDisplayColumnLabel(def)}</OutputLabel>
       <OutputContent>{renderColumnValue(def, value)}</OutputContent>
     </OutputBlock>
   );
