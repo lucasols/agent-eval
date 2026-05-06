@@ -37,6 +37,7 @@
     "@hono/zod-validator": "^0.7.3",
     "@ls-stack/utils": "^3.77.0",
     "chokidar": "^4.0.3",
+    "dayjs": "^1.11.20",
     "glob": "^11.0.2",
     "hono": "^4.9.9",
     "launch-editor": "^2.13.2",

@@ -34,6 +34,7 @@ import {
 } from '#src/components/SplitButton';
 import { StatusBadge } from '#src/components/StatusBadge';
 import { Tooltip } from '#src/components/Tooltip';
+import { useElapsedRunTime } from '#src/hooks/useElapsedRunTime';
 import { useManualInputRun } from '#src/hooks/useManualInputRun';
 import { useSearchParams } from '#src/hooks/useSearchParams';
 import { evalsStore, openEvalInEditor } from '#src/stores/evalsStore';
@@ -389,6 +390,9 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const isRunning =
     currentRun?.manifest.status === 'running' &&
     runTargetsEvalLocal(currentRun.manifest.target, evalSummary.key);
+  const runningElapsedLabel = useElapsedRunTime(
+    isRunning ? currentRun.manifest.startedAt : null,
+  );
   const primaryRunIsTemporary = visibleRunRows[0]?.manifest.temporary === true;
   const hasScoreHistory =
     isSingle && visibleCharts.length > 0 && completedRunCount > 1;
@@ -702,7 +706,14 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
               <TitleRow>
                 <Title large={isSingle}>{getEvalTitle(evalSummary)}</Title>
                 <StatusWrap title={statusTooltip ?? undefined}>
-                  <StatusBadge status={displayStatus} />
+                  <StatusBadge
+                    status={displayStatus}
+                    detail={
+                      displayStatus === 'running'
+                        ? (runningElapsedLabel ?? undefined)
+                        : undefined
+                    }
+                  />
                 </StatusWrap>
               </TitleRow>
               {isSingle ? null : (

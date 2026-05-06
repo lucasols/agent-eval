@@ -179,11 +179,11 @@ real elapsed time. Set `startTime` on a specific `defineEval(...)` to use
 another initial clock value, or set `startTime: 'now'` for that eval to use the
 real current clock. Timers are not faked, so async waits still run normally.
 Set `freezeTime: true` to keep Date APIs frozen until they are moved manually.
-Use `getEvalStartTime()` to read the captured wall-clock start as a `Date`.
-Use `advanceEvalTime(unit, amount)` inside an eval to move the shifted clock
-forward; supported units are `millisecond(s)`, `second(s)`, `minute(s)`,
-`hour(s)`, and `day(s)`. It throws for evals with `startTime: 'now'`, unless
-`freezeTime: true` is also set.
+Use `evalTime.startTime` to read the captured wall-clock start as a Dayjs
+object, and `evalTime.dayjs(...)` to create other Dayjs date objects. Use
+`evalTime.advance(amount, unit)` inside an eval to move the shifted clock
+forward with Dayjs `add(...)` units. It throws for evals with
+`startTime: 'now'`, unless `freezeTime: true` is also set.
 
 For libraries or observability exporters that already emit span lifecycle
 events, use `evalTracer.startSpan(...)`, `evalTracer.updateSpan(...)`,

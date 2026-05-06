@@ -13,6 +13,7 @@ import type {
   RunLogPhase,
   TraceCacheRef,
 } from '@agent-evals/shared';
+import dayjs from 'dayjs';
 import type { CacheSerializationExternalJsonStore } from './cacheSerialization.ts';
 import { stripTerminalControlCodes } from './stackFormatting.ts';
 import type { EvalStartTime } from './types.ts';
@@ -166,19 +167,6 @@ let activeEvalScopeCount = 0;
 let activeEvalRuntimeScopeCount = 0;
 let consoleCaptureEnabled = true;
 
-/** Time unit accepted by `advanceEvalTime(unit, amount)`. */
-export type EvalTimeUnit =
-  | 'millisecond'
-  | 'milliseconds'
-  | 'second'
-  | 'seconds'
-  | 'minute'
-  | 'minutes'
-  | 'hour'
-  | 'hours'
-  | 'day'
-  | 'days';
-
 const defaultEvalStartTimeIso = '2026-04-10T00:00:00.000Z';
 const defaultEvalStartTimeMs = Date.parse(defaultEvalStartTimeIso);
 const realDate = globalThis.__agentEvalsRealDate ?? Date;
@@ -305,19 +293,57 @@ export function getEvalClockStateTimeMs(state: {
   return getEvalClockStateNowMs(state);
 }
 
-/**
- * Return the wall-clock start time captured for the active eval.
- *
- * For `startTime: 'now'`, this is the real time captured when the eval clock
- * context was created.
- */
-export function getEvalStartTime(): Date {
+function getActiveEvalClockState(apiName: string): EvalClockState {
   const state = evalClockStorage.getStore();
   if (state === undefined) {
-    throw new Error('getEvalStartTime() must be called inside an active eval');
+    throw new Error(`${apiName} must be used inside an active eval`);
   }
-  return new realDate(state.startMs);
+  return state;
 }
+
+/**
+ * Eval time helpers for reading and moving the active eval clock.
+ *
+ * `startTime` is a Dayjs object for the wall-clock start captured for the
+ * active eval. For `startTime: 'now'`, it reflects the real time captured when
+ * the eval clock context was created. Dayjs objects are immutable, so
+ * `evalTime.startTime.add(5, 'minutes')` computes a derived time without
+ * moving the active eval clock.
+ */
+export const evalTime: {
+  /** Create a Dayjs object with the same arguments as `dayjs(...)`. */
+  dayjs: typeof dayjs;
+  /** Dayjs wall-clock start captured for the active eval. */
+  readonly startTime: dayjs.Dayjs;
+  /**
+   * Move the active shifted Date clock and return the new current eval time.
+   *
+   * Throws outside an active shifted eval clock. Evals that set
+   * `startTime: 'now'` use the real current clock unless `freezeTime: true` is
+   * also set.
+   */
+  advance: (amount: number, unit: dayjs.ManipulateType) => dayjs.Dayjs;
+} = {
+  dayjs,
+  get startTime() {
+    return dayjs(getActiveEvalClockState('evalTime.startTime').startMs);
+  },
+  advance(amount, unit) {
+    const state = getActiveEvalClockState('evalTime.advance(...)');
+    if (!state.shifted) {
+      throw new Error(
+        'evalTime.advance(...) requires a shifted eval clock. Remove startTime: "now" or set freezeTime: true to use it.',
+      );
+    }
+    if (!Number.isFinite(amount)) {
+      throw new Error('evalTime.advance(...) amount must be a finite number');
+    }
+    const currentMs = getEvalClockStateNowMs(state);
+    const advancedMs = dayjs(currentMs).add(amount, unit).valueOf();
+    state.offsetMs += advancedMs - currentMs;
+    return dayjs(getEvalClockStateNowMs(state));
+  },
+};
 
 function resolveEvalStartTimeMs(startTime: EvalStartTime | undefined): number {
   if (startTime === undefined) return defaultEvalStartTimeMs;
@@ -360,39 +386,6 @@ export async function runWithEvalClock<T>(
     createEvalClockState(startTime, options.freezeTime === true),
     fn,
   );
-}
-
-function getEvalTimeUnitMs(unit: string): number {
-  if (unit === 'millisecond' || unit === 'milliseconds') return 1;
-  if (unit === 'second' || unit === 'seconds') return 1_000;
-  if (unit === 'minute' || unit === 'minutes') return 60_000;
-  if (unit === 'hour' || unit === 'hours') return 3_600_000;
-  if (unit === 'day' || unit === 'days') return 86_400_000;
-  throw new Error(`Unsupported eval time unit "${unit}"`);
-}
-
-/**
- * Advance the active eval's shifted Date clock and return the new time.
- *
- * Throws outside an active shifted eval clock. Evals that set
- * `startTime: 'now'` use the real current clock unless `freezeTime: true` is
- * also set.
- */
-export function advanceEvalTime(unit: EvalTimeUnit, amount: number): Date {
-  const state = evalClockStorage.getStore();
-  if (state === undefined) {
-    throw new Error('advanceEvalTime() must be called inside an active eval');
-  }
-  if (!state.shifted) {
-    throw new Error(
-      'advanceEvalTime() requires a shifted eval clock. Remove startTime: "now" or set freezeTime: true to use it.',
-    );
-  }
-  if (!Number.isFinite(amount)) {
-    throw new Error('advanceEvalTime() amount must be a finite number');
-  }
-  state.offsetMs += getEvalTimeUnitMs(unit) * amount;
-  return new realDate(getEvalClockStateNowMs(state));
 }
 
 /** Return the current eval scope for the active async context, if any. */

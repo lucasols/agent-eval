@@ -2,7 +2,7 @@ import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import { inline, monoFont } from '#src/style/helpers';
 
-type StatusBadgeProps = { status: string };
+type StatusBadgeProps = { status: string; detail?: string };
 
 type Tone =
   | 'pass'
@@ -87,7 +87,7 @@ const Dot = styled.span<{
   }
   &.running {
     background: ${colors.accent.var};
-    animation: pulseDot 1.6s ease-in-out infinite;
+    animation: blinkDot 1s steps(2, start) infinite;
   }
   &.cancelled {
     background: ${colors.warning.var};
@@ -102,13 +102,12 @@ const Dot = styled.span<{
     background: ${colors.accent.var};
   }
 
-  @keyframes pulseDot {
-    0%,
-    100% {
+  @keyframes blinkDot {
+    0% {
       opacity: 1;
     }
     50% {
-      opacity: 0.4;
+      opacity: 0.25;
     }
   }
 `;
@@ -124,7 +123,7 @@ function getTone(status: string): Tone {
   return 'pending';
 }
 
-export function StatusBadge({ status }: StatusBadgeProps) {
+export function StatusBadge({ status, detail }: StatusBadgeProps) {
   const tone = getTone(status);
   return (
     <Badge
@@ -146,6 +145,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
         unscored={tone === 'unscored'}
       />
       {status}
+      {detail ? <> · {detail}</> : null}
     </Badge>
   );
 }

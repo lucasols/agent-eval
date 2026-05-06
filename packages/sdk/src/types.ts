@@ -383,7 +383,7 @@ type EvalDefinitionBase<
    */
   startTime?: EvalStartTime;
   /**
-   * Freeze the eval Date clock at `startTime` until `advanceEvalTime(...)`
+   * Freeze the eval Date clock at `startTime` until `evalTime.advance(...)`
    * moves it manually. Defaults to `false`, so eval time advances with real
    * elapsed time from the configured `startTime`.
    */

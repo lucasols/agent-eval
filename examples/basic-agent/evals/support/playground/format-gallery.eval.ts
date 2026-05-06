@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import {
-  advanceEvalTime,
   defineEval,
   evalLog,
   evalSpan,
+  evalTime,
   evalTracer,
   setEvalOutput,
 } from '@ls-stack/agent-eval';
@@ -164,10 +164,10 @@ defineEval({
     setEvalOutput('handlingCostUsd', 1.25);
     setEvalOutput('requestCount', 1200);
     setEvalOutput('reviewTimeMs', 1450);
-    setEvalOutput('generatedAt', new Date().toISOString());
+    setEvalOutput('generatedAt', evalTime.startTime.toISOString());
     setEvalOutput(
       'reviewQueuedAt',
-      advanceEvalTime('minutes', 15).toISOString(),
+      evalTime.advance(15, 'minutes').toISOString(),
     );
   },
 });

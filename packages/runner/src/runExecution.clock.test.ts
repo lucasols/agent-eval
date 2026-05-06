@@ -1,8 +1,7 @@
 import {
-  advanceEvalTime,
+  evalTime,
   evalSpan,
   evalTracer,
-  getEvalStartTime,
   setEvalOutput,
 } from '@agent-evals/sdk';
 import { expect, test } from 'vitest';
@@ -37,12 +36,20 @@ test('runCase uses a shifted eval clock by default', async () => {
   const result = await runClockCase({
     id: 'clock-eval',
     execute: async () => {
-      setEvalOutput('startTimeIso', getEvalStartTime().toISOString());
+      setEvalOutput('startTimeIso', evalTime.startTime.toISOString());
+      setEvalOutput(
+        'startPlusTwoDaysIso',
+        evalTime.startTime.add(2, 'days').toISOString(),
+      );
+      setEvalOutput(
+        'customDayjsIso',
+        evalTime.dayjs('2024-05-01T00:00:00.000Z').add(1, 'hour').toISOString(),
+      );
       setEvalOutput('dateIso', new Date().toISOString());
       setEvalOutput('dateNow', Date.now());
       await delay(5);
       setEvalOutput('afterDelayNow', Date.now());
-      const advancedAt = advanceEvalTime('minutes', 5);
+      const advancedAt = evalTime.advance(5, 'minutes');
       setEvalOutput('advancedAt', advancedAt.toISOString());
       await evalTracer.span({ kind: 'tool', name: 'dated-step' }, () => {
         evalSpan.setAttribute('insideSpanIso', new Date().toISOString());
@@ -58,6 +65,12 @@ test('runCase uses a shifted eval clock by default', async () => {
   expect(result.caseDetail.columns).toMatchObject({ dateScore: 1 });
   expect(result.caseDetail.columns.startTimeIso).toBe(
     '2026-04-10T00:00:00.000Z',
+  );
+  expect(result.caseDetail.columns.startPlusTwoDaysIso).toBe(
+    '2026-04-12T00:00:00.000Z',
+  );
+  expect(result.caseDetail.columns.customDayjsIso).toBe(
+    '2024-05-01T01:00:00.000Z',
   );
   const dateIso = result.caseDetail.columns.dateIso;
   const dateNow = result.caseDetail.columns.dateNow;
@@ -107,13 +120,16 @@ test('runCase can freeze eval time until it is advanced manually', async () => {
     id: 'clock-eval',
     freezeTime: true,
     execute: async () => {
-      setEvalOutput('startTimeIso', getEvalStartTime().toISOString());
+      setEvalOutput('startTimeIso', evalTime.startTime.toISOString());
       const firstNow = Date.now();
       await delay(5);
       const secondNow = Date.now();
       setEvalOutput('firstNow', firstNow);
       setEvalOutput('secondNow', secondNow);
-      setEvalOutput('advancedAt', advanceEvalTime('seconds', 30).toISOString());
+      setEvalOutput(
+        'advancedAt',
+        evalTime.advance(30, 'seconds').toISOString(),
+      );
       setEvalOutput('thirdNow', Date.now());
     },
   });
@@ -132,7 +148,7 @@ test('runCase uses an eval startTime override when provided', async () => {
     id: 'clock-eval',
     startTime: '2024-01-02T03:04:05.000Z',
     execute: async () => {
-      setEvalOutput('startTimeIso', getEvalStartTime().toISOString());
+      setEvalOutput('startTimeIso', evalTime.startTime.toISOString());
       setEvalOutput('dateIso', new Date().toISOString());
       await evalTracer.span({ kind: 'tool', name: 'dated-step' }, () => {});
     },
@@ -162,7 +178,7 @@ test('runCase can opt an eval back into the real current clock', async () => {
     id: 'clock-eval',
     startTime: 'now',
     execute: () => {
-      setEvalOutput('startTimeMs', getEvalStartTime().getTime());
+      setEvalOutput('startTimeMs', evalTime.startTime.valueOf());
       setEvalOutput('dateNow', Date.now());
     },
   });

@@ -70,7 +70,7 @@ pnpm add -D @ls-stack/agent-eval
    });
    ```
 
-3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). Use the sidebar status counts to filter visible evals by one or more states. On an eval page, the Run chevron can open a case picker for running a selected subset of authored cases; case-picked runs are temporary by default and can be made durable in the modal. The app can also filter the runs table by applicable result or recent-activity buckets, share that filter through the URL, and clear the currently filtered saved runs when needed. Each eval's actions menu can copy matching CLI run and debug commands using the workspace package manager. The app watches `agent-evals.config.ts` and reloads config in place when idle; if the file changes during a run, the UI shows a pending banner and new runs are blocked until the current run finishes and the reload applies.
+3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). Use the sidebar status counts to filter visible evals by one or more states. Running evals show a blinking dot in navigation and an elapsed-time status badge on the eval page. On an eval page, the Run chevron can open a case picker for running a selected subset of authored cases; case-picked runs are temporary by default and can be made durable in the modal. The app can also filter the runs table by applicable result or recent-activity buckets, share that filter through the URL, and clear the currently filtered saved runs when needed. Each eval's actions menu can copy matching CLI run and debug commands using the workspace package manager. The app watches `agent-evals.config.ts` and reloads config in place when idle; if the file changes during a run, the UI shows a pending banner and new runs are blocked until the current run finishes and the reload applies.
 
 4. **Or use the CLI**:
 
@@ -252,7 +252,7 @@ export const config: AgentEvalsConfig = {
 | `traceDisplay`          |            | Per-eval trace attribute display overrides for the UI                           |
 | `waitForBackgroundJobs` |            | Set `false` to skip waiting for registered background work before finalization  |
 | `startTime`             |            | Initial Date clock for this eval (default `2026-04-10T00:00:00.000Z`)           |
-| `freezeTime`            |            | Set `true` to keep Date frozen until `advanceEvalTime(...)` is called           |
+| `freezeTime`            |            | Set `true` to keep Date frozen until `evalTime.advance(...)` is called          |
 | `deriveFromTracing`     |            | Derive output columns from the finished trace tree                              |
 | `scores`                |            | Record of scoring functions returning `0..1`                                    |
 | `columns`               |            | Custom columns shown in the results table                                       |
@@ -415,23 +415,24 @@ Pass `startTime: 'now'` when one eval should use the real current clock.
 Set `freezeTime: true` when you want `new Date()` and `Date.now()` to stay at
 the eval's current shifted time until you move it manually.
 
-Use `getEvalStartTime()` when shared workflow code needs the eval's captured
-wall-clock start as a `Date`. For `startTime: 'now'`, this returns the real time
-captured when the eval case started.
+Use `evalTime.startTime` when shared workflow code needs the eval's captured
+wall-clock start as a Dayjs object. For `startTime: 'now'`, this returns the
+real time captured when the eval case started. Use `evalTime.dayjs(...)` to
+create other Dayjs date objects from inside eval code.
 
-Use `advanceEvalTime(unit, amount)` inside an eval to move the shifted wall
-clock forward between steps:
+Use `evalTime.advance(amount, unit)` inside an eval to move the shifted wall
+clock forward between steps. It accepts Dayjs `add(...)` units:
 
 ```ts
 execute: ({ setOutput }) => {
-  setOutput('startedAt', getEvalStartTime().toISOString());
-  setOutput('readyAt', advanceEvalTime('minutes', 5).toISOString());
+  setOutput('startedAt', evalTime.startTime.toISOString());
+  setOutput('readyAt', evalTime.advance(5, 'minutes').toISOString());
+  setOutput('dueAt', evalTime.startTime.add(2, 'days').toISOString());
 };
 ```
 
-Supported units are `millisecond(s)`, `second(s)`, `minute(s)`, `hour(s)`, and
-`day(s)`. `advanceEvalTime(...)` is only available for shifted eval clocks;
-evals with `startTime: 'now'` use the real current clock unless
+`evalTime.advance(...)` is only available for shifted eval clocks; evals with
+`startTime: 'now'` use the real current clock unless
 `freezeTime: true` is also set.
 
 ### Execute and tracing
