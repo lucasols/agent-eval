@@ -462,8 +462,8 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const cacheMenu: SplitButtonMenuEntry[] = [
     {
       id: 'run-default',
-      label: 'Run (use cache)',
-      description: 'Read on hit, write on miss.',
+      label: 'Run',
+      description: 'Run with default eval config',
       onSelect: () => startEvalRun('use'),
     },
     {

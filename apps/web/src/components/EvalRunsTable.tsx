@@ -530,9 +530,7 @@ function RunGroup({
             <RunTime latest={isLatest}>
               {formatTimestamp(manifest.startedAt)}
             </RunTime>
-            {manifest.temporary ? (
-              <TemporaryBadge>TEMPORARY</TemporaryBadge>
-            ) : null}
+            {manifest.temporary ? <TemporaryBadge>TEMP</TemporaryBadge> : null}
             {cases.length > 1 && <CasesChip>{cases.length} cases</CasesChip>}
           </RunCaseCell>
         </RunHeaderTd>
