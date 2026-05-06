@@ -2,6 +2,7 @@ import type { ColumnDef } from '@agent-evals/shared';
 import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { useState } from 'react';
 import { styled } from 'vindur';
+import { Button } from '#src/components/Button';
 import { EvalRunsTable } from '#src/components/EvalRunsTable';
 import { IconButton } from '#src/components/IconButton';
 import { Tooltip } from '#src/components/Tooltip';
@@ -12,6 +13,8 @@ import {
 import { colors } from '#src/style/colors';
 import { inline, monoFont } from '#src/style/helpers';
 import type { ScopedRunRow } from '#src/utils/evalRuns';
+
+const RUNS_PAGE_SIZE = 20;
 
 export type RunFilter =
   | 'all'
@@ -160,16 +163,26 @@ export function EvalRunsSection({
     const latestRun = runs[0];
     return latestRun ? new Set([latestRun.manifest.id]) : new Set();
   });
+  const [visibleCount, setVisibleCount] = useState(RUNS_PAGE_SIZE);
   const runFilterOptions = getApplicableRunFilterOptions(runs);
   const runFilter = parseRunFilter(
     searchParams.get(RUN_FILTER_SEARCH_PARAM),
     runFilterOptions,
   );
+  const [lastRunFilter, setLastRunFilter] = useState(runFilter);
+  if (lastRunFilter !== runFilter) {
+    setLastRunFilter(runFilter);
+    setVisibleCount(RUNS_PAGE_SIZE);
+  }
+
   const filteredRuns = runs.filter((run) => runMatchesFilter(run, runFilter));
+  const visibleRuns = filteredRuns.slice(0, visibleCount);
+  const hiddenRunCount = filteredRuns.length - visibleRuns.length;
+  const nextPageSize = Math.min(hiddenRunCount, RUNS_PAGE_SIZE);
 
   const allRunsExpanded =
-    filteredRuns.length > 0 &&
-    filteredRuns.every((run) => expandedRunIds.has(run.manifest.id));
+    visibleRuns.length > 0 &&
+    visibleRuns.every((run) => expandedRunIds.has(run.manifest.id));
 
   function toggleExpandedRun(runId: string) {
     setExpandedRunIds((prev) => {
@@ -183,18 +196,31 @@ export function EvalRunsSection({
   function toggleAllRuns() {
     setExpandedRunIds(() => {
       if (allRunsExpanded) return new Set<string>();
-      return new Set(filteredRuns.map((run) => run.manifest.id));
+      return new Set(visibleRuns.map((run) => run.manifest.id));
     });
   }
 
-  const runCountLabel =
-    runFilter === 'all'
-      ? runs.length > 0
-        ? `${runs.length} ${runs.length === 1 ? 'run' : 'runs'}`
-        : 'no runs'
-      : `${filteredRuns.length} of ${runs.length} ${
-          runs.length === 1 ? 'run' : 'runs'
-        }`;
+  function showMoreRuns() {
+    setVisibleCount((prev) => prev + RUNS_PAGE_SIZE);
+  }
+
+  const runCountLabel = (() => {
+    if (runFilter === 'all') {
+      if (runs.length === 0) return 'no runs';
+      const totalLabel = `${runs.length} ${runs.length === 1 ? 'run' : 'runs'}`;
+      if (hiddenRunCount > 0) {
+        return `${visibleRuns.length} of ${totalLabel}`;
+      }
+      return totalLabel;
+    }
+    const matchedLabel = `${filteredRuns.length} of ${runs.length} ${
+      runs.length === 1 ? 'run' : 'runs'
+    }`;
+    if (hiddenRunCount > 0) {
+      return `${visibleRuns.length} of ${matchedLabel}`;
+    }
+    return matchedLabel;
+  })();
 
   return (
     <>
@@ -245,7 +271,7 @@ export function EvalRunsSection({
         </SectionActions>
       </SectionLabel>
       <EvalRunsTable
-        runs={filteredRuns}
+        runs={visibleRuns}
         columnDefs={columnDefs}
         expandedRunIds={expandedRunIds}
         onToggleExpandedRun={toggleExpandedRun}
@@ -254,6 +280,28 @@ export function EvalRunsSection({
           runFilter === 'all' ? undefined : 'No runs match this filter'
         }
       />
+      {hiddenRunCount > 0 ? (
+        <ShowMoreRow>
+          <Button
+            variant="secondary"
+            onClick={showMoreRuns}
+          >
+            {`Show ${nextPageSize} more ${nextPageSize === 1 ? 'run' : 'runs'}`}
+          </Button>
+          <ShowMoreMeta>{`${hiddenRunCount} more hidden`}</ShowMoreMeta>
+        </ShowMoreRow>
+      ) : null}
     </>
   );
 }
+
+const ShowMoreRow = styled.div`
+  ${inline({ justify: 'center', gap: 10 })};
+  margin-top: 12px;
+`;
+
+const ShowMoreMeta = styled.span`
+  ${monoFont};
+  font-size: 10.5px;
+  color: ${colors.textMuted.var};
+`;

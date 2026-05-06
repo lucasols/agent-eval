@@ -277,7 +277,7 @@ function isNumericColumn(c: ColumnDef): boolean {
 
 function formatCellValue(c: ColumnDef, value: CellValue | undefined): string {
   if (value === null || value === undefined) return EM_DASH;
-  if (Array.isArray(value)) return `${String(value.length)} block(s)`;
+  if (Array.isArray(value)) return `JSON Array (len=${String(value.length)})`;
   if (typeof value === 'number') {
     return formatNumericCellValue(c, value);
   }
