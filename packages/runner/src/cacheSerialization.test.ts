@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { deserializeCacheValue, serializeCacheValue } from '@agent-evals/sdk';
 import { expect, test } from 'vitest';
 
@@ -60,6 +61,31 @@ test('compresses large nested JSON subtrees', async () => {
     getRecordProperty(serialized, 'payload'),
     'rows',
   );
+  expect(rowsValue).toMatchObject({
+    [serializationMarker]: 'json-safe-v1',
+    type: 'CompressedJson',
+  });
+});
+
+test('compresses nested JSON subtrees above 10 KiB', async () => {
+  const rows = Array.from({ length: 160 }, (_, index) => ({
+    index,
+    message: 'repeatable nested tree payload',
+    status: index % 2 === 0 ? 'pass' : 'fail',
+  }));
+  const value = { payload: { rows } };
+  const rawSize = Buffer.byteLength(JSON.stringify(rows), 'utf8');
+
+  expect(rawSize).toBeGreaterThanOrEqual(10 * 1024);
+  expect(rawSize).toBeLessThan(15 * 1024);
+
+  const serialized = await serializeCacheValue(value);
+  const rowsValue = getRecordProperty(
+    getRecordProperty(serialized, 'payload'),
+    'rows',
+  );
+
+  expect(deserializeCacheValue(serialized)).toEqual(value);
   expect(rowsValue).toMatchObject({
     [serializationMarker]: 'json-safe-v1',
     type: 'CompressedJson',

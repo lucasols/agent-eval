@@ -8,6 +8,7 @@ import {
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import launch from 'launch-editor';
+import { resultify } from 't-result';
 import { z } from 'zod/v4';
 import { getRunnerInstance } from '../runner.ts';
 
@@ -24,6 +25,12 @@ function isInsideWorkspace(path: string, workspaceRoot: string): boolean {
 
 function stripImportQuery(path: string): string {
   return path.split(importQuerySeparatorRegex, 1)[0] ?? path;
+}
+
+function formatUnknownErrorDetails(error: unknown): string {
+  if (error instanceof Error) return error.stack ?? error.message;
+  if (typeof error === 'string') return error;
+  return String(error);
 }
 
 export const runsRoutes = new Hono()
@@ -69,8 +76,17 @@ export const runsRoutes = new Hono()
         400,
       );
     }
-    const run = await runner.startRun(body);
-    return c.json(run, 201);
+    const runResult = await resultify(() => runner.startRun(body));
+    if (runResult.error) {
+      return c.json(
+        {
+          error: 'Failed to start run',
+          message: formatUnknownErrorDetails(runResult.error),
+        },
+        500,
+      );
+    }
+    return c.json(runResult.value, 201);
   })
   .post(
     '/actions/open-location',

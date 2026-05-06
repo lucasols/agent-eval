@@ -145,4 +145,31 @@ describe('runs route config reload guard', () => {
     expect(mockRunner.validateManualInputs).not.toHaveBeenCalled();
     expect(mockRunner.startRun).not.toHaveBeenCalled();
   });
+
+  test('returns run start failures as JSON feedback', async () => {
+    mockRunner.startRun.mockRejectedValue(
+      new Error('manual input file vanished before run start'),
+    );
+
+    const response = await app.request('/runs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target: { mode: 'all' }, trials: 1 }),
+    });
+
+    expect(response.status).toBe(500);
+    const responseBody: unknown = await response.json();
+    expect(responseBody).toMatchObject({ error: 'Failed to start run' });
+    if (
+      typeof responseBody !== 'object' ||
+      responseBody === null ||
+      !('message' in responseBody) ||
+      typeof responseBody.message !== 'string'
+    ) {
+      throw new Error('Expected run start failure response to include message');
+    }
+    expect(responseBody.message).toContain(
+      'manual input file vanished before run start',
+    );
+  });
 });

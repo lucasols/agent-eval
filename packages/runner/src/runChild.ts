@@ -55,10 +55,21 @@ const runChildContextSchema = z.object({
 });
 
 let activeContext: RunChildContext | undefined;
+let fatalErrorReported = false;
+let disconnectExpected = false;
 
 function sendMessage(message: RunChildMessage): void {
   if (process.send === undefined) return;
   process.send(message);
+}
+
+function installFatalRunChildErrorHandlers(): void {
+  process.once('uncaughtException', (error) => {
+    void reportFatalRunChildErrorAndExit(error);
+  });
+  process.once('unhandledRejection', (reason) => {
+    void reportFatalRunChildErrorAndExit(toUnhandledRejectionError(reason));
+  });
 }
 
 function getSourceFingerprint(source: string): string {
@@ -148,6 +159,7 @@ async function readContext(contextPath: string | undefined) {
 
 async function main(): Promise<void> {
   process.on('disconnect', () => {
+    if (disconnectExpected) return;
     process.exit(1);
   });
 
@@ -215,6 +227,8 @@ async function main(): Promise<void> {
 }
 
 async function handleFatalRunChildError(error: unknown): Promise<void> {
+  if (fatalErrorReported) return;
+  fatalErrorReported = true;
   const message = formatUnknownErrorDetails(error);
   process.exitCode = 1;
   console.error(message);
@@ -253,7 +267,25 @@ function formatUnknownErrorDetails(error: unknown): string {
   return String(error);
 }
 
+function toUnhandledRejectionError(reason: unknown): Error {
+  if (reason instanceof Error) return reason;
+  return new Error(`Unhandled rejection: ${formatUnknownErrorDetails(reason)}`);
+}
+
+async function reportFatalRunChildErrorAndExit(error: unknown): Promise<void> {
+  try {
+    await handleFatalRunChildError(error);
+  } catch (reportError) {
+    console.error('Failed to report fatal run child error:');
+    console.error(formatUnknownErrorDetails(reportError));
+  } finally {
+    process.exit(1);
+  }
+}
+
+installFatalRunChildErrorHandlers();
 await main().catch(async (error: unknown) => {
   await handleFatalRunChildError(error);
 });
+disconnectExpected = true;
 process.disconnect();

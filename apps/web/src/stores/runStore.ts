@@ -54,6 +54,7 @@ type RunSelection = { runId: string; scope: RunScope | null };
 
 type RunState = {
   currentRun: RunDetail | null;
+  runStartError: string | null;
   selectedCaseRunId: string | null;
   selectedCaseId: string | null;
   selectedCaseDetail: CaseDetail | null;
@@ -210,6 +211,7 @@ const initialRunSelection =
 export const runStore = new Store<RunState>({
   state: {
     currentRun: null,
+    runStartError: null,
     selectedCaseRunId: initialCaseSelection?.runId ?? null,
     selectedCaseId: initialCaseSelection?.caseId ?? null,
     selectedCaseDetail: null,
@@ -220,6 +222,10 @@ export const runStore = new Store<RunState>({
     eventSource: null,
   },
 });
+
+export function clearRunStartError(): void {
+  runStore.setPartialState({ runStartError: null });
+}
 
 export type RunTarget =
   | { mode: 'all' }
@@ -265,6 +271,10 @@ const configReloadPendingErrorBodySchema = z.object({
   error: z.string(),
   configReload: configReloadStateSchema,
 });
+const genericErrorBodySchema = z.object({
+  error: z.string(),
+  message: z.string().optional(),
+});
 
 /** Per-eval manual-input failure surfaced from a 400 `POST /api/runs` response. */
 export type ManualInputStartRunFailure = z.infer<
@@ -307,11 +317,11 @@ export async function startRun(
   target: RunTarget,
   options: StartRunOptions = {},
 ): Promise<StartRunResult> {
+  clearRunStartError();
   if (workspaceConfigStore.state.configReload.status !== 'idle') {
-    return {
-      status: 'config-reload-pending',
-      message: 'Config is reloading. Try again after it finishes.',
-    };
+    const message = 'Config is reloading. Try again after it finishes.';
+    runStore.setPartialState({ runStartError: message });
+    return { status: 'config-reload-pending', message };
   }
 
   if (!confirmLargeAppRun(target)) return { status: 'cancelled' };
@@ -334,12 +344,15 @@ export async function startRun(
     }),
   );
   if (fetchResult.error) {
+    runStore.setPartialState({ runStartError: fetchResult.error.message });
     return { status: 'error', message: fetchResult.error.message };
   }
 
   const jsonResult = await resultify(() => fetchResult.value.json());
   if (jsonResult.error) {
-    return { status: 'error', message: 'Server returned non-JSON response' };
+    const message = 'Server returned non-JSON response';
+    runStore.setPartialState({ runStartError: message });
+    return { status: 'error', message };
   }
 
   if (!fetchResult.value.ok) {
@@ -359,25 +372,35 @@ export async function startRun(
       workspaceConfigStore.setPartialState({
         configReload: configReloadParse.data.configReload,
       });
+      runStore.setPartialState({ runStartError: configReloadParse.data.error });
       return {
         status: 'config-reload-pending',
         message: configReloadParse.data.error,
       };
     }
-    return {
-      status: 'error',
-      message: `Server responded ${String(fetchResult.value.status)}`,
-    };
+    const genericErrorParse = genericErrorBodySchema.safeParse(
+      jsonResult.value,
+    );
+    const message = genericErrorParse.success
+      ? (genericErrorParse.data.message ?? genericErrorParse.data.error)
+      : `Server responded ${String(fetchResult.value.status)}`;
+    runStore.setPartialState({ runStartError: message });
+    return { status: 'error', message };
   }
 
   const parseResult = resultify(() =>
     createRunResponseSchema.parse(jsonResult.value),
   );
   if (parseResult.error) {
-    return { status: 'error', message: 'Run response did not match schema' };
+    const message = 'Run response did not match schema';
+    runStore.setPartialState({ runStartError: message });
+    return { status: 'error', message };
   }
 
-  runStore.setPartialState({ currentRun: parseResult.value });
+  runStore.setPartialState({
+    currentRun: parseResult.value,
+    runStartError: null,
+  });
   setCaseSelection(null);
 
   subscribeToRunEvents(parseResult.value.manifest.id);

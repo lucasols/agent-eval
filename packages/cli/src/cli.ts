@@ -157,14 +157,12 @@ export async function runCli(argv: string[]): Promise<void> {
 
   if (args.loadEnv && !loadWorkspaceEnv()) {
     process.exit(1);
-    return;
   }
 
   if (args.showHelp) {
     if (args.unknownHelpTarget !== undefined) {
       console.error(`No help found for "${args.unknownHelpTarget}".`);
       process.exit(1);
-      return;
     }
     printHelp(args.helpTopic);
     return;
@@ -250,6 +248,12 @@ function loadWorkspaceEnv(): boolean {
   }
 
   return true;
+}
+
+function formatUnknownErrorDetails(error: unknown): string {
+  if (error instanceof Error) return error.stack ?? error.message;
+  if (typeof error === 'string') return error;
+  return String(error);
 }
 
 type HonoAppLike = { fetch: (...args: unknown[]) => Response };
@@ -402,7 +406,6 @@ async function commandRun(args: CliArgs): Promise<void> {
       'This workspace disables running all evals from the CLI. Pass --eval <id>, --file <path|glob>, or --case <id> to run a targeted subset.',
     );
     process.exit(1);
-    return;
   }
 
   if (args.clearCache) {
@@ -444,16 +447,23 @@ async function commandRun(args: CliArgs): Promise<void> {
   if (manualInputsResult.error !== null) {
     console.error(manualInputsResult.error);
     process.exit(1);
-    return;
   }
 
-  const run = await runner.startRun({
-    target,
-    trials: args.trials,
-    temporary: args.temporary,
-    cache: { mode: args.cacheMode },
-    manualInputs: manualInputsResult.value,
-  });
+  const runResult = await resultify(() =>
+    runner.startRun({
+      target,
+      trials: args.trials,
+      temporary: args.temporary,
+      cache: { mode: args.cacheMode },
+      manualInputs: manualInputsResult.value,
+    }),
+  );
+  if (runResult.error) {
+    console.error('Failed to start run:');
+    console.error(formatUnknownErrorDetails(runResult.error));
+    process.exit(1);
+  }
+  const run = runResult.value;
 
   if (!args.json) {
     console.info(`Run started: ${run.manifest.id}`);
@@ -472,7 +482,6 @@ async function commandRun(args: CliArgs): Promise<void> {
   const finalRun = runner.getRun(run.manifest.id);
   if (!finalRun) {
     process.exit(1);
-    return;
   }
 
   const { summary } = finalRun;
@@ -553,7 +562,6 @@ async function commandShowRuns(args: CliArgs): Promise<void> {
     if (!run) {
       printMissingRun(runRef);
       process.exit(1);
-      return;
     }
     const index = buildRunFileIndex(runner.getWorkspaceRoot(), run);
     if (args.json) {
@@ -640,7 +648,6 @@ async function commandCache(args: CliArgs): Promise<void> {
       'Refusing to clear cache without --eval <id> or --all. Use one of these flags to confirm.',
     );
     process.exit(1);
-    return;
   }
 
   printHelp(args.helpTopic);

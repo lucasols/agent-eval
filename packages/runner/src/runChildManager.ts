@@ -19,13 +19,19 @@ const runChildInspectArgEnv = 'AGENT_EVALS_RUN_CHILD_INSPECT_ARG';
 const inspectFlagPrefix = '--inspect';
 const inspectBrkFlagPrefix = '--inspect-brk';
 const childOutputTailMaxLength = 12_000;
+const outputHeadlineMaxLength = 240;
 
 export type RunnerRunState = RunState & {
   childProcess: ChildProcess | undefined;
   childTerminalReceived: boolean;
 };
 
-type RunChildOutputTail = { stdout: string; stderr: string };
+export type RunChildOutputTail = {
+  stdout: string;
+  stderr: string;
+  stdoutTruncated: boolean;
+  stderrTruncated: boolean;
+};
 
 type RunChildManagerContext = {
   workspaceRoot: string;
@@ -51,6 +57,22 @@ export function startRunChild(params: {
 
   const outputTail = createRunChildOutputTail(child);
   params.runState.childProcess = child;
+  child.once('error', (error) => {
+    if (params.runState.childProcess === child) {
+      params.runState.childProcess = undefined;
+    }
+    if (
+      params.runState.manifest.status !== 'running' ||
+      params.runState.childTerminalReceived
+    ) {
+      return;
+    }
+    void markRunErrored(
+      params.runState,
+      `Failed to start run child: ${error.message}`,
+      params.managerContext,
+    );
+  });
   child.on('message', (message) => {
     if (!isRunChildMessage(message)) return;
     handleRunChildMessage({
@@ -59,7 +81,7 @@ export function startRunChild(params: {
       managerContext: params.managerContext,
     });
   });
-  child.once('exit', (code, signal) => {
+  child.once('close', (code, signal) => {
     if (params.runState.childProcess === child) {
       params.runState.childProcess = undefined;
     }
@@ -70,10 +92,7 @@ export function startRunChild(params: {
       return;
     }
 
-    const reason =
-      signal !== null
-        ? `Run child exited with signal ${signal}`
-        : `Run child exited with code ${String(code)}`;
+    const reason = formatChildExitReason(code, signal);
     void markRunErrored(
       params.runState,
       formatUnexpectedRunChildExit(reason, outputTail),
@@ -83,14 +102,23 @@ export function startRunChild(params: {
 }
 
 function createRunChildOutputTail(child: ChildProcess): RunChildOutputTail {
-  const tail: RunChildOutputTail = { stdout: '', stderr: '' };
+  const tail: RunChildOutputTail = {
+    stdout: '',
+    stderr: '',
+    stdoutTruncated: false,
+    stderrTruncated: false,
+  };
   child.stdout?.on('data', (chunk: Buffer | string) => {
     process.stdout.write(chunk);
-    tail.stdout = appendOutputTail(tail.stdout, chunkToText(chunk));
+    const nextTail = appendOutputTail(tail.stdout, chunkToText(chunk));
+    tail.stdout = nextTail.text;
+    tail.stdoutTruncated = tail.stdoutTruncated || nextTail.truncated;
   });
   child.stderr?.on('data', (chunk: Buffer | string) => {
     process.stderr.write(chunk);
-    tail.stderr = appendOutputTail(tail.stderr, chunkToText(chunk));
+    const nextTail = appendOutputTail(tail.stderr, chunkToText(chunk));
+    tail.stderr = nextTail.text;
+    tail.stderrTruncated = tail.stderrTruncated || nextTail.truncated;
   });
   return tail;
 }
@@ -99,30 +127,73 @@ function chunkToText(chunk: Buffer | string): string {
   return typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
 }
 
-function appendOutputTail(current: string, next: string): string {
+function appendOutputTail(
+  current: string,
+  next: string,
+): { text: string; truncated: boolean } {
   const combined = current + next;
-  if (combined.length <= childOutputTailMaxLength) return combined;
-  return combined.slice(combined.length - childOutputTailMaxLength);
+  if (combined.length <= childOutputTailMaxLength) {
+    return { text: combined, truncated: false };
+  }
+  return {
+    text: combined.slice(combined.length - childOutputTailMaxLength),
+    truncated: true,
+  };
 }
 
-function formatUnexpectedRunChildExit(
+export function formatUnexpectedRunChildExit(
   reason: string,
   outputTail: RunChildOutputTail,
 ): string {
-  const sections = [reason];
   const stderr = stripTerminalControlCodes(outputTail.stderr).trim();
   const stdout = stripTerminalControlCodes(outputTail.stdout).trim();
+  const headline = getChildStderrHeadline(stderr);
+  const sections = [
+    headline === null
+      ? `${reason} before sending a structured run error.`
+      : `Run child exited before sending a structured run error: ${headline}`,
+    reason,
+  ];
   if (stderr.length > 0) {
     sections.push(
-      `Child stderr (last ${String(stderr.length)} chars):\n${stderr}`,
+      formatOutputSection('stderr', stderr, outputTail.stderrTruncated),
     );
   }
   if (stdout.length > 0) {
     sections.push(
-      `Child stdout (last ${String(stdout.length)} chars):\n${stdout}`,
+      formatOutputSection('stdout', stdout, outputTail.stdoutTruncated),
     );
   }
   return sections.join('\n\n');
+}
+
+function formatChildExitReason(
+  code: number | null,
+  signal: NodeJS.Signals | null,
+): string {
+  if (signal !== null) return `Run child exited with signal ${signal}`;
+  return `Run child exited with code ${String(code)}`;
+}
+
+function getChildStderrHeadline(stderr: string): string | null {
+  const line = stderr
+    .split('\n')
+    .map((entry) => entry.trim())
+    .find((entry) => entry.length > 0);
+  if (line === undefined) return null;
+  if (line.length <= outputHeadlineMaxLength) return line;
+  return `${line.slice(0, outputHeadlineMaxLength)}...`;
+}
+
+function formatOutputSection(
+  streamName: 'stderr' | 'stdout',
+  output: string,
+  truncated: boolean,
+): string {
+  const label = truncated
+    ? `Child ${streamName} (last ${String(output.length)} chars)`
+    : `Child ${streamName}`;
+  return `${label}:\n${output}`;
 }
 
 function getRunChildExecArgv(): string[] {

@@ -103,11 +103,23 @@ async function reexecWithNodeArgs(
   });
 }
 
+function formatUnknownErrorDetails(error: unknown): string {
+  if (error instanceof Error) return error.stack ?? error.message;
+  if (typeof error === 'string') return error;
+  return String(error);
+}
+
 const { argv, inspectArg } = parseDebugFlags(process.argv.slice(2));
 setRunChildInspectArg(inspectArg);
 const execArgv = buildExecArgv(inspectArg);
 if (needsModuleMocksFlag() || !execArgvMatches(execArgv)) {
-  await reexecWithNodeArgs(argv, execArgv);
+  await reexecWithNodeArgs(argv, execArgv).catch((error: unknown) => {
+    console.error(formatUnknownErrorDetails(error));
+    process.exitCode = 1;
+  });
 } else {
-  await runCli(argv);
+  await runCli(argv).catch((error: unknown) => {
+    console.error(formatUnknownErrorDetails(error));
+    process.exitCode = 1;
+  });
 }

@@ -3,7 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { SseEnvelope } from '@agent-evals/shared';
 import { afterEach, expect, test } from 'vitest';
-import { startRunChild, type RunnerRunState } from './runChildManager.ts';
+import {
+  formatUnexpectedRunChildExit,
+  startRunChild,
+  type RunnerRunState,
+} from './runChildManager.ts';
 import { createRunner } from './runner.ts';
 
 const createdWorkspaces: string[] = [];
@@ -137,9 +141,93 @@ test('persists child stderr when the run child exits before sending a terminal e
     .toBe('error');
 
   expect(runState.summary.errorMessage).toContain(
+    'Run child exited before sending a structured run error: SyntaxError',
+  );
+  expect(runState.summary.errorMessage).toContain(
     'Run child exited with code 1',
   );
-  expect(runState.summary.errorMessage).toContain('Child stderr');
+  expect(runState.summary.errorMessage).toContain('Child stderr:');
   expect(runState.summary.errorMessage).toContain('SyntaxError');
   expect(emittedEvents.at(-1)).toMatchObject({ type: 'run.error' });
 }, 10_000);
+
+test('persists uncaught child errors as structured run errors', async () => {
+  const workspacePath = await mkdtemp(
+    join(tmpdir(), 'agent-evals-runner-uncaught-child-error-'),
+  );
+  createdWorkspaces.push(workspacePath);
+
+  await mkdir(join(workspacePath, 'evals'), { recursive: true });
+  await writeFile(
+    join(workspacePath, 'agent-evals.config.ts'),
+    `export default {
+  include: ['evals/**/*.eval.ts'],
+};
+`,
+  );
+  await writeFile(
+    join(workspacePath, 'evals', 'uncaught.eval.ts'),
+    `import { defineEval } from '@agent-evals/sdk';
+
+defineEval({
+  id: 'uncaught-child-error',
+  cases: [{ id: 'crashes-later', input: {} }],
+  execute: async () => {
+    setTimeout(() => {
+      throw new Error('timer exploded outside the eval promise');
+    }, 0);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  },
+});
+`,
+  );
+
+  const previousCwd = process.cwd();
+  process.chdir(workspacePath);
+
+  try {
+    const runner = createRunner({ watchForChanges: false });
+    await runner.init();
+
+    const startedRun = await runner.startRun({
+      target: { mode: 'evalIds', evalIds: ['uncaught-child-error'] },
+      trials: 1,
+    });
+
+    await expect
+      .poll(() => runner.getRun(startedRun.manifest.id)?.manifest.status, {
+        timeout: 10_000,
+      })
+      .toBe('error');
+
+    const run = runner.getRun(startedRun.manifest.id);
+    expect(run?.summary.errorMessage).toContain(
+      'timer exploded outside the eval promise',
+    );
+    expect(run?.summary.errorMessage).not.toContain(
+      'Run child exited with code 1',
+    );
+  } finally {
+    process.chdir(previousCwd);
+  }
+}, 10_000);
+
+test('keeps child stdout as supporting detail for unexpected exits', () => {
+  const message = formatUnexpectedRunChildExit('Run child exited with code 1', {
+    stderr: '',
+    stdout:
+      'This storage provider does not support batch creating metrics\n' +
+      'This storage provider does not support batch creating logs\n',
+    stderrTruncated: false,
+    stdoutTruncated: false,
+  });
+
+  expect(message).toContain(
+    'Run child exited with code 1 before sending a structured run error.',
+  );
+  expect(message).toContain('Run child exited with code 1');
+  expect(message).toContain(
+    'Child stdout:\nThis storage provider does not support batch creating metrics',
+  );
+  expect(message).not.toContain('Child stdout (last');
+});

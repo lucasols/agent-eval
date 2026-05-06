@@ -11,7 +11,7 @@ const legacySerializedCacheValueMarker = '__agentEvalsCacheSerialization';
 const jsonSafeCacheValueVersion = 'json-safe-v1';
 const packedNumberArrayMinLength = 128;
 const compressedStringMinBytes = 16 * 1024;
-const compressedJsonMinBytes = 64 * 1024;
+const compressedJsonMinBytes = 10 * 1024;
 const maxCompressedSizeRatio = 0.8;
 
 type JsonSafeCacheValueType =

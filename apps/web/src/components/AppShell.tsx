@@ -13,6 +13,7 @@ import { useSearchParams } from '#src/hooks/useSearchParams';
 import { evalsStore, fetchEvals } from '#src/stores/evalsStore';
 import { refetchHistory } from '#src/stores/historyStore';
 import {
+  clearRunStartError,
   runStore,
   syncCaseSelectionFromSearchParams,
   syncRunSelectionFromSearchParams,
@@ -65,6 +66,30 @@ const DiscoveryIssueBanner = styled.div`
   color: ${colors.error.var};
   font-size: 13px;
   line-height: 1.4;
+`;
+
+const RunStartErrorBanner = styled.div`
+  ${inline({ justify: 'space-between', gap: 12 })}
+  padding: 10px 16px;
+  border-bottom: 1px solid ${colors.error.alpha(0.22)};
+  background: ${colors.error.alpha(0.08)};
+  color: ${colors.error.var};
+  font-size: 13px;
+  line-height: 1.4;
+`;
+
+const RunStartErrorMessage = styled.div`
+  min-width: 0;
+  overflow-wrap: anywhere;
+`;
+
+const DismissRunStartErrorButton = styled.button`
+  border: 0;
+  background: transparent;
+  color: ${colors.error.var};
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
 `;
 
 const ConfigReloadBanner = styled.div`
@@ -171,6 +196,9 @@ function MainContent({ showReloadApplied }: { showReloadApplied: boolean }) {
   const { configReload } = workspaceConfigStore.useSelectorRC((s) => ({
     configReload: s.configReload,
   }));
+  const { runStartError } = runStore.useSelectorRC((s) => ({
+    runStartError: s.runStartError,
+  }));
   const { evals, discoveryIssues } = evalsStore.useSelectorRC((s) => ({
     evals: s.evals,
     discoveryIssues: s.discoveryIssues,
@@ -196,6 +224,15 @@ function MainContent({ showReloadApplied }: { showReloadApplied: boolean }) {
     ) : showReloadApplied ? (
       <ConfigReloadBanner>Config reloaded.</ConfigReloadBanner>
     ) : null;
+  const runStartErrorBanner =
+    runStartError !== null ? (
+      <RunStartErrorBanner>
+        <RunStartErrorMessage>{runStartError}</RunStartErrorMessage>
+        <DismissRunStartErrorButton onClick={clearRunStartError}>
+          Dismiss
+        </DismissRunStartErrorButton>
+      </RunStartErrorBanner>
+    ) : null;
 
   if (selection.kind === 'eval') {
     const ev = evals.find((e) => e.key === selection.id);
@@ -204,6 +241,7 @@ function MainContent({ showReloadApplied }: { showReloadApplied: boolean }) {
       <>
         {issueBanner}
         {configReloadBanner}
+        {runStartErrorBanner}
         <SingleEvalView evalSummary={ev} />
       </>
     );
@@ -215,6 +253,7 @@ function MainContent({ showReloadApplied }: { showReloadApplied: boolean }) {
     <>
       {issueBanner}
       {configReloadBanner}
+      {runStartErrorBanner}
       <FolderView
         folderPath={folderPath}
         evals={inFolder}
