@@ -576,7 +576,7 @@ export function LlmCallRow({
               ) : null}
               {entry.tokensPerSecond !== null ? (
                 <MetricRow>
-                  <MetricRowLabel>Tokens/sec</MetricRowLabel>
+                  <MetricRowLabel>Output tokens/sec</MetricRowLabel>
                   <MetricRowValue>
                     {formatNumber(entry.tokensPerSecond, {
                       minDecimalPlaces: 1,

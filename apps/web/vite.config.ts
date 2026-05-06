@@ -16,6 +16,7 @@ export default defineConfig({
   ],
   resolve: { alias: { '#src': srcDir } },
   server: {
+    host: '0.0.0.0',
     port: webPort,
     strictPort: true,
     proxy: {

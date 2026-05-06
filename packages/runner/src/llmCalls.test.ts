@@ -171,7 +171,6 @@ test('extractLlmCalls filters by configured kinds and projects defaults', () => 
     inputTokens: 150,
     outputTokens: 50,
     totalTokens: 200,
-    tokensPerSecond: 500,
     costUsd: null,
     inputCostUsd: null,
     outputCostUsd: null,
@@ -186,6 +185,7 @@ test('extractLlmCalls filters by configured kinds and projects defaults', () => 
     error: null,
     warnings: [],
   });
+  expect(calls[0]?.tokensPerSecond).toBeCloseTo(352.113);
 });
 
 test('extractLlmCalls ignores explicit span costs and derives totals', () => {
@@ -212,13 +212,14 @@ test('extractLlmCalls ignores explicit span costs and derives totals', () => {
     }),
   ];
 
-  expect(extractLlmCalls(spans, DEFAULT_LLM_CALLS_CONFIG)[0]).toMatchObject({
+  const call = extractLlmCalls(spans, DEFAULT_LLM_CALLS_CONFIG)[0];
+
+  expect(call).toMatchObject({
     inputTokens: 100,
     outputTokens: 200,
     cachedInputTokens: 50,
     cacheCreationInputTokens: 80,
     totalTokens: 300,
-    tokensPerSecond: 2000,
     inputCostUsd: 0,
     outputCostUsd: null,
     cachedInputCostUsd: null,
@@ -226,6 +227,7 @@ test('extractLlmCalls ignores explicit span costs and derives totals', () => {
     reasoningCostUsd: null,
     costUsd: null,
   });
+  expect(call?.tokensPerSecond).toBeCloseTo(1408.451);
 });
 
 test('extractLlmCalls derives costs from pricing registry when span costs are missing', () => {
@@ -566,7 +568,7 @@ test('applyDerivedCallAttributes lets keyed attributes read earlier derived attr
   });
 });
 
-test('extractLlmCalls derives tokens per second after latency', () => {
+test('extractLlmCalls derives tokens per second from full duration with latency', () => {
   const calls = extractLlmCalls(
     [
       llmSpan({
@@ -581,7 +583,7 @@ test('extractLlmCalls derives tokens per second after latency', () => {
     DEFAULT_LLM_CALLS_CONFIG,
   );
 
-  expect(calls[0]?.tokensPerSecond).toBeCloseTo(50);
+  expect(calls[0]?.tokensPerSecond).toBeCloseTo(35.211);
 });
 
 test('extractLlmCalls derives tokens per second from full duration without latency', () => {
@@ -600,7 +602,7 @@ test('extractLlmCalls derives tokens per second from full duration without laten
   expect(calls[0]?.tokensPerSecond).toBeCloseTo(35.211);
 });
 
-test('extractLlmCalls handles zero output tokens and impossible generation windows', () => {
+test('extractLlmCalls handles latency matching duration and zero output tokens', () => {
   const calls = extractLlmCalls(
     [
       llmSpan({
@@ -622,7 +624,7 @@ test('extractLlmCalls handles zero output tokens and impossible generation windo
     DEFAULT_LLM_CALLS_CONFIG,
   );
 
-  expect(calls[0]?.tokensPerSecond).toBeNull();
+  expect(calls[0]?.tokensPerSecond).toBeCloseTo(35.211);
   expect(calls[1]?.tokensPerSecond).toBe(0);
 });
 

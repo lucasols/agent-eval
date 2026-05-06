@@ -371,7 +371,7 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   summarized for review. Defaults to `kind: 'llm'` spans with `model`,
   `usage.*`, `latencyMs`, `input`, `output`, etc. read from conventional
   attribute paths. `latencyMs` is time to first token; duration, total tokens,
-  tokens/sec, and USD costs are derived. Override `kinds` to broaden the filter,
+  output tokens/sec, and USD costs are derived. Override `kinds` to broaden the filter,
   override `attributes.<field>` for non-default primitive span shapes, configure
   model-keyed `pricing` to derive USD costs from token counts, with nested
   `providers` entries for provider-specific rates, add `costCurrencies` to show

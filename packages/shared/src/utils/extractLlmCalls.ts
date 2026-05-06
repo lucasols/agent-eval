@@ -38,6 +38,7 @@ export type LlmCallEntry = {
   totalTokens: number | null;
   /** Time to first token for the LLM call in milliseconds, when reported by the span. */
   latencyMs: number | null;
+  /** Output-token throughput over the full elapsed LLM call duration. */
   tokensPerSecond: number | null;
   costUsd: number | null;
   inputCostUsd: number | null;
@@ -421,18 +422,14 @@ function computeTotalTokens({
 function computeTokensPerSecond({
   outputTokens,
   durationMs,
-  latencyMs,
 }: {
   outputTokens: number | null;
   durationMs: number | null;
-  latencyMs: number | null;
 }): number | null {
   if (outputTokens === null || durationMs === null) return null;
   if (outputTokens === 0) return 0;
-
-  const generationMs = latencyMs === null ? durationMs : durationMs - latencyMs;
-  if (generationMs <= 0) return null;
-  return outputTokens / (generationMs / 1000);
+  if (durationMs <= 0) return null;
+  return outputTokens / (durationMs / 1000);
 }
 
 function readSteps(
@@ -468,7 +465,8 @@ function pickError(span: EvalTraceSpan): EvalTraceSpanError | null {
  * `getNestedAttribute` from the configured paths, with safe coercion to
  * `string | null` / `number | null`. `latencyMs` is an explicit
  * time-to-first-token attribute; full span elapsed time is reported separately
- * as `durationMs`. Built-in USD costs are derived only from configured model
+ * as `durationMs`. `tokensPerSecond` is output tokens divided by that full
+ * elapsed duration. Built-in USD costs are derived only from configured model
  * pricing and token counts. `totalTokens` is always derived from input +
  * output tokens. Cached input and cache creation tokens are reported
  * separately because they are subsets of input/output usage. The main cache
@@ -593,11 +591,7 @@ export function extractLlmCalls(
         output: outputTokens,
       }),
       latencyMs,
-      tokensPerSecond: computeTokensPerSecond({
-        outputTokens,
-        durationMs,
-        latencyMs,
-      }),
+      tokensPerSecond: computeTokensPerSecond({ outputTokens, durationMs }),
       costUsd,
       inputCostUsd,
       outputCostUsd,
