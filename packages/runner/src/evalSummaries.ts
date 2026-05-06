@@ -14,6 +14,7 @@ type EvalSummaryMeta = Pick<
   | 'id'
   | 'title'
   | 'filePath'
+  | 'tags'
   | 'columnDefs'
   | 'caseCount'
   | 'caseIds'

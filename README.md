@@ -78,6 +78,7 @@ pnpm add -D @ls-stack/agent-eval
    agent-evals list
    agent-evals run
    agent-evals run --temporary --eval my-agent --case greeting
+   agent-evals run --tags-filter "smoke && !slow"
    agent-evals run --eval my-agent --case greeting --json
    agent-evals show-runs
    agent-evals show-runs latest --json
@@ -152,6 +153,7 @@ defineEval({
 Notes:
 
 - `isInEvalScope()` returns the current eval runner phase (`'env'`, `'cases'`, `'eval'`, `'derive'`, `'outputsSchema'`, or `'scorer'`) and returns `null` outside eval-owned work. This is useful when shared workflow code needs to branch on eval-only behavior. Top-level modules imported while a run is being prepared see `'env'`; code called from `execute` sees `'eval'`.
+- `matchesEvalTags('tag')` and `matchesEvalTags({ all, any, not })` check the active case's effective tags with typed exact tag names. Calls outside a case scope return `false`.
 - `getEvalCaseInput()` returns the current case input while an eval case is executing, and `getEvalCaseInput('customer.tier')` reads nested values with dot-path access. Outside a case scope, both return `undefined`.
 - `nextEvalId()` returns a stable sequential id for the active eval file, eval id, and case id, such as `refund-workflow-evals-refund-workflow-eval-ts-simple-text-1`. It throws outside an eval case scope so accidental production-only usage is visible.
 - `evalAssert(value, message)` accepts any value, narrows it as truthy in TypeScript, and records a failed assertion only while an eval case scope is active. Outside a case scope, it is a runtime no-op so shared workflow code can be reused safely.
@@ -204,6 +206,7 @@ build also bundles the web UI assets used by `agent-evals app`.
 | --------------------- | ------------------------------- | --------------------------------------------------------------------------------------- |
 | `include`             | `string[]`                      | Glob patterns for eval files (e.g. `['evals/**/*.eval.ts']`)                            |
 | `workspaceRoot`       | `string?`                       | Root directory; defaults to `process.cwd()`                                             |
+| `tags`                | `string[]?`                     | Workspace tags inherited by every eval unless removed per eval                          |
 | `defaultTrials`       | `number?`                       | Trials per case when not overridden (default: `1`)                                      |
 | `trialSelection`      | `'lowestScore' \| 'median'?`    | Winner selection strategy for persisted multi-trial case results                        |
 | `concurrency`         | `number?`                       | Max parallel case executions per run, including trials (default: `2`)                   |
@@ -222,8 +225,9 @@ When `trials > 1`, the runner executes the case repeatedly but persists a
 single winning result per case. `lowestScore` is the default. `median` uses the
 lower median when the number of trials is even.
 
-By default, CLI runs require explicit targeting with `--eval` or `--case`. Set
-`allowCliRunAll: true` to permit unfiltered `agent-evals run`. The web UI can
+By default, CLI runs require explicit targeting with `--eval`, `--file`,
+`--case`, or `--tags-filter`. Set `allowCliRunAll: true` to permit unfiltered
+`agent-evals run`. The web UI can
 still start grouped runs; when a UI action would run more than five evals, it
 asks for confirmation first.
 
@@ -236,6 +240,12 @@ data, entries also include the source file, line, and column for the log call.
 Console capture can be disabled globally:
 
 ```ts
+import {
+  defineEval,
+  matchesEvalTags,
+  type AgentEvalsConfig,
+} from '@ls-stack/agent-eval';
+
 export const config: AgentEvalsConfig = {
   include: ['evals/**/*.eval.ts'],
   runLogs: { captureConsole: false },
@@ -250,6 +260,8 @@ export const config: AgentEvalsConfig = {
 | ----------------------- | ---------- | ------------------------------------------------------------------------------- |
 | `id`                    | yes        | Eval id, unique within one eval file                                            |
 | `title`                 |            | Display title (defaults to a humanized version of `id`)                         |
+| `tags`                  |            | Eval tags inherited by every case                                               |
+| `removeTags`            |            | Workspace tags this eval should not inherit                                     |
 | `cache`                 |            | Per-eval cache controls: `{ read?: boolean; store?: boolean }`                  |
 | `cases`                 | yes        | `EvalCase[]` or `() => Promise<EvalCase[]>` (async loader for dynamic datasets) |
 | `execute`               | yes        | `async ({ input }) => { ... }`                                                  |
@@ -280,6 +292,60 @@ different files; the runner treats the exact eval identity as
 `filePath + evalId`, and the exact case identity as `filePath + evalId + caseId`.
 Duplicate eval ids inside one file and duplicate case ids inside one eval are
 reported as errors.
+
+### Tags
+
+Tags mark evals and cases for targeted runs. Workspace tags from
+`agent-evals.config.ts` apply to every eval; `defineEval({ tags })` adds
+eval-level tags; `case.tags` adds case-only tags. `removeTags` can disable
+workspace tags for one eval and must reference a tag present in config.
+
+```ts
+export const config: AgentEvalsConfig = {
+  include: ['evals/**/*.eval.ts'],
+  tags: ['smoke'],
+};
+
+defineEval({
+  id: 'refund-workflow',
+  tags: ['refunds'],
+  cases: [
+    { id: 'text', input: { message: 'refund me' } },
+    { id: 'image', tags: ['media'], input: { message: 'damaged item' } },
+  ],
+  execute: async ({ input }) => {
+    if (matchesEvalTags({ any: ['media'] })) {
+      // Eval-only branch for media cases.
+    }
+    await runWorkflow(input);
+  },
+});
+```
+
+CLI tag filters use Vitest-style expressions with `and`/`&&`, `or`/`||`,
+`not`/`!`, parentheses, and wildcard `*`:
+
+```sh
+agent-evals run --tags-filter "refunds && media"
+agent-evals run --tags-filter "smoke && !slow"
+```
+
+Multiple `--tags-filter` flags combine with AND. Tag names are freeform but
+cannot be `and`, `or`, `not`, or contain spaces and expression characters
+`(`, `)`, `&`, `|`, `!`, `*`.
+
+To type tag names globally, add a project `.d.ts` file included by your
+`tsconfig`:
+
+```ts
+import '@ls-stack/agent-eval';
+
+declare module '@ls-stack/agent-eval' {
+  interface AgentEvalTagRegistry {
+    tags: 'smoke' | 'refunds' | 'media' | 'slow';
+  }
+}
+```
 
 `columns` populates your custom columns. Global `columns` from
 `agent-evals.config.ts` apply to every eval, and eval-level `columns` override
@@ -1389,6 +1455,7 @@ Flags:
   --file <path|glob[,..]>    Narrow evals by workspace-relative file path/glob
   --eval <id[,id]>           Run evals with matching authored ids
   --case <id[,id]>           Run specific cases; use --file/--eval if ambiguous
+  --tags-filter <expr>       Run cases matching a tag expression
   --trials <n>               Override trials per case
   --inspect[=host:port]      Run with the Node.js inspector enabled
   --inspect-brk[=host:port]  Enable inspector and pause before startup
@@ -1407,8 +1474,9 @@ The CLI automatically loads `.env` from the current workspace before running a
 command. Variables already set in the shell take precedence over `.env` values;
 use `--no-env` to disable this loading for a single invocation.
 
-`run` requires `--eval` or `--case` unless `allowCliRunAll: true` is set in
-`agent-evals.config.ts`. It exits non-zero if any case fails or errors, making it CI-friendly.
+`run` requires `--eval`, `--file`, `--case`, or `--tags-filter` unless
+`allowCliRunAll: true` is set in `agent-evals.config.ts`. It exits non-zero if
+any case fails or errors, making it CI-friendly.
 Use `agent-evals <command> --help` to inspect command-specific flags without
 starting work. Unknown help targets exit non-zero instead of falling back to
 global help.

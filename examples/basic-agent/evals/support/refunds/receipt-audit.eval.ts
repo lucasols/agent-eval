@@ -12,9 +12,11 @@ import {
 defineEval<ReceiptAuditInput>({
   id: 'receipt-audit',
   title: 'Receipt Audit',
+  tags: ['refunds'],
   cases: [
     {
       id: 'damaged-mug',
+      tags: ['media'],
       input: {
         customerMessage: 'The mug arrived chipped and the handle was cracked.',
         expectedTotalUsd: 24.5,
@@ -24,6 +26,7 @@ defineEval<ReceiptAuditInput>({
     },
     {
       id: 'bundle-attachment-audit',
+      tags: ['media'],
       input: {
         customerMessage:
           'The grinder attachment was missing from the bundle box.',
@@ -65,9 +68,11 @@ defineEval<ReceiptAuditInput>({
 defineEval<ReceiptFraudReviewInput>({
   id: 'receipt-fraud-review',
   title: 'Receipt Fraud Review',
+  tags: ['refunds'],
   cases: [
     {
       id: 'tampered-total',
+      tags: ['media'],
       input: {
         claimedAmountUsd: 312,
         customerMessage:

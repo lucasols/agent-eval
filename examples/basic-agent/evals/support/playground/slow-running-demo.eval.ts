@@ -20,6 +20,8 @@ async function waitForDelay(ms: number): Promise<void> {
 defineEval<{ prompt: string }>({
   id: 'slow-running-demo',
   title: 'Slow Running Demo',
+  tags: ['playground', 'slow'],
+  removeTags: ['example'],
   cache: { read: false, store: false },
   cases: [
     {

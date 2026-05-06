@@ -1,5 +1,6 @@
 import type { EvalManualInputConfig } from '@agent-evals/sdk';
 import type { CreateRunRequest } from '@agent-evals/shared';
+import { matchesTagsFilter } from '@agent-evals/shared';
 import type { EvalMeta } from '../runOrchestration.ts';
 import {
   parseManualInputValues,
@@ -32,6 +33,13 @@ function evalIsTargeted(
   }
   if (target.evalIds && target.evalIds.length > 0) {
     if (!target.evalIds.includes(evalMeta.id)) return false;
+  }
+  if (
+    target.tagsFilter &&
+    target.tagsFilter.length > 0 &&
+    !matchesTagsFilter({ tags: evalMeta.tags, filters: target.tagsFilter })
+  ) {
+    return false;
   }
   return true;
 }

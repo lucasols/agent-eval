@@ -66,6 +66,7 @@ import {
   type EvalLatestRunInfo,
   type PersistedRunSnapshot,
 } from './runPersistence.ts';
+import { resolveEvalTags, validateTagsFilters } from './tags.ts';
 import { getTargetEvalKeys } from './targeting.ts';
 import { getWatchRootsForIncludePatterns } from './watchRoots.ts';
 
@@ -383,11 +384,21 @@ export function createRunner({
             );
             let stats: EvalMeta['stats'];
             let charts: EvalMeta['charts'];
+            let tags: string[] = [];
             let manualInputDescriptor: EvalMeta['manualInputDescriptor'];
             let requiresManualInput = false;
             const relativeFilePath = toWorkspaceRelativePath(meta.filePath);
 
             discoveredEntry?.use((evalDef) => {
+              const tagResult = resolveEvalTags({
+                configTags: config.tags,
+                evalDef,
+                evalId: meta.id,
+                filePath: relativeFilePath,
+              });
+              tags = tagResult.tags;
+              discoveryIssues.push(...tagResult.issues);
+
               const defaultConfig = resolveEvalDefaultConfig({
                 evalDef,
                 globalColumns: config.columns,
@@ -439,6 +450,7 @@ export function createRunner({
               id: meta.id,
               title,
               filePath: relativeFilePath,
+              tags,
               sourceFilePath: meta.filePath,
               sourceFingerprint,
               columnDefs,
@@ -458,6 +470,9 @@ export function createRunner({
       emitDiscoveryEvent();
     },
     async startRun(request) {
+      const tagsFilterError = validateTagsFilters(request.target.tagsFilter);
+      if (tagsFilterError !== null) throw new Error(tagsFilterError);
+
       const deletedTemporaryRuns = await deleteTemporaryRuns({
         runs,
         cancelRunningRun: killRunChild,

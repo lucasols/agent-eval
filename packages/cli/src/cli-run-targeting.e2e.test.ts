@@ -250,7 +250,7 @@ defineEval({
       expect(result.exitCode).toBe(1);
       expect(result.stdout).toBe('');
       expect(result.stderr).toBe(
-        'This workspace disables running all evals from the CLI. Pass --eval <id>, --file <path|glob>, or --case <id> to run a targeted subset.',
+        'This workspace disables running all evals from the CLI. Pass --eval <id>, --file <path|glob>, --case <id>, or --tags-filter <expr> to run a targeted subset.',
       );
       expect(
         await readdir(resolve(workspacePath, '.agent-evals/runs')),
@@ -391,6 +391,99 @@ defineEval({
               "refund-workflow",
             ],
             "mode": "caseIds",
+          },
+        }
+      `);
+    });
+  });
+
+  test('supports tag filters and persists effective case tags', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const result = await runExampleCli(workspacePath, [
+        'run',
+        '--tags-filter',
+        'refunds && media',
+        '--json',
+      ]);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe('');
+      const summary = runSummarySchema.parse(JSON.parse(result.stdout));
+      expect(summary.totalCases).toBeGreaterThan(0);
+
+      const artifacts = await readSingleRunArtifacts(workspacePath);
+      expect(artifacts.manifest.target).toEqual({
+        mode: 'evalIds',
+        tagsFilter: ['refunds && media'],
+      });
+      expect(
+        artifacts.cases.every((caseRow) =>
+          (caseRow.tags ?? []).includes('media'),
+        ),
+      ).toBe(true);
+      expect(
+        normalizeSnapshotValue(workspacePath, {
+          caseTags: artifacts.cases.map((caseRow) => ({
+            caseId: caseRow.caseId,
+            evalId: caseRow.evalId,
+            tags: caseRow.tags,
+          })),
+          target: artifacts.manifest.target,
+        }),
+      ).toMatchInlineSnapshot(`
+        {
+          "caseTags": [
+            {
+              "caseId": "with-image",
+              "evalId": "refund-workflow",
+              "tags": [
+                "example",
+                "refunds",
+                "media",
+              ],
+            },
+            {
+              "caseId": "with-audio",
+              "evalId": "refund-workflow",
+              "tags": [
+                "example",
+                "refunds",
+                "media",
+              ],
+            },
+            {
+              "caseId": "damaged-mug",
+              "evalId": "receipt-audit",
+              "tags": [
+                "example",
+                "refunds",
+                "media",
+              ],
+            },
+            {
+              "caseId": "bundle-attachment-audit",
+              "evalId": "receipt-audit",
+              "tags": [
+                "example",
+                "refunds",
+                "media",
+              ],
+            },
+            {
+              "caseId": "tampered-total",
+              "evalId": "receipt-fraud-review",
+              "tags": [
+                "example",
+                "refunds",
+                "media",
+              ],
+            },
+          ],
+          "target": {
+            "mode": "evalIds",
+            "tagsFilter": [
+              "refunds && media",
+            ],
           },
         }
       `);

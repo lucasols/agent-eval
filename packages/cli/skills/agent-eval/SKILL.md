@@ -25,7 +25,8 @@ display rules), read the TypeScript declarations shipped with the package:
 - The CLI automatically loads `.env` from the current workspace. Shell-provided
   environment variables win; pass `--no-env` to disable `.env` loading once.
 - Unfiltered `agent-evals run` is disabled by default; use `--eval` or `--case`
-  for targeted CLI runs. Set `allowCliRunAll: true` in
+  for targeted CLI runs, or `--tags-filter <expr>` to run cases matching tags.
+  Set `allowCliRunAll: true` in
   `agent-evals.config.ts` to opt into run-all CLI behavior. The web UI can
   still run grouped evals and confirms before starting more than five. On a
   single eval page, the Run chevron can open a picker to run specific authored
@@ -69,6 +70,25 @@ during case-owned phases by default; log arguments are stored as JSON-safe
 values and rendered with the JSON viewer, collapsed previews include best-effort
 code locations when stack data is available, previews are capped, and logs
 inside cached operations are not replayed from cache hits.
+Use eval tags to target related coverage without naming every case:
+`AgentEvalsConfig.tags` applies workspace-wide tags, `defineEval({ tags })`
+adds eval tags, `case.tags` adds case-only tags, and `removeTags` disables a
+configured global tag for one eval. CLI filters support Vitest-style tag
+expressions such as `agent-evals run --tags-filter "refunds && !slow"`.
+Inside eval-scoped code, use `matchesEvalTags('tag')` or
+`matchesEvalTags({ all, any, not })`; it uses typed exact tag names and returns
+`false` outside a case scope. Projects can narrow tag names with a `.d.ts`
+module augmentation:
+
+```ts
+import '@ls-stack/agent-eval';
+
+declare module '@ls-stack/agent-eval' {
+  interface AgentEvalTagRegistry {
+    tags: 'refunds' | 'media' | 'manual' | 'slow';
+  }
+}
+```
 
 ### Product code (instrumented once, reused everywhere)
 

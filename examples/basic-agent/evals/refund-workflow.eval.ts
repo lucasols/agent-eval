@@ -8,6 +8,7 @@ import {
 defineEval<WorkflowInput, RefundWorkflowOutputs>({
   id: 'refund-workflow',
   title: 'Refund Workflow',
+  tags: ['refunds'],
   cases: [
     {
       id: 'simple-text',
@@ -15,6 +16,7 @@ defineEval<WorkflowInput, RefundWorkflowOutputs>({
     },
     {
       id: 'with-image',
+      tags: ['media'],
       input: {
         message: 'Please refund this damaged item',
         receiptImage: 'evals/datasets/assets/receipt-1.png',
@@ -22,6 +24,7 @@ defineEval<WorkflowInput, RefundWorkflowOutputs>({
     },
     {
       id: 'with-audio',
+      tags: ['media'],
       input: {
         message: 'I need to return this product',
         voiceNote: 'evals/datasets/assets/note-1.mp3',

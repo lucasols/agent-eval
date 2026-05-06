@@ -13,10 +13,11 @@ import type {
   RunLogPhase,
   TraceCacheRef,
 } from '@agent-evals/shared';
+import { matchesEvalTagInput } from '@agent-evals/shared';
 import dayjs from 'dayjs';
 import type { CacheSerializationExternalJsonStore } from './cacheSerialization.ts';
 import { stripTerminalControlCodes } from './stackFormatting.ts';
-import type { EvalStartTime } from './types.ts';
+import type { EvalStartTime, EvalTagMatchInput } from './types.ts';
 
 declare global {
   var __agentEvalsRealDate: DateConstructor | undefined;
@@ -114,6 +115,8 @@ export type EvalCaseScope = {
   nextEvalIdCounter: number;
   /** Authored input for the current case, when provided by the runner. */
   input?: unknown;
+  /** Effective tags for the current case. */
+  tags: string[];
   outputs: Record<string, unknown>;
   /** Structured assertion failures recorded for the current case. */
   assertionFailures: AssertionFailure[];
@@ -405,6 +408,17 @@ export function getCurrentScope(): EvalCaseScope | undefined {
 export function isInEvalScope(): EvalRuntimeScope | null {
   if (activeEvalRuntimeScopeCount === 0) return null;
   return runtimeScopeStorage.getStore() ?? null;
+}
+
+/**
+ * Return whether the current eval case has tags matching the typed input.
+ *
+ * Calls outside an eval case scope return `false`.
+ */
+export function matchesEvalTags(input: EvalTagMatchInput): boolean {
+  const scope = getCurrentScope();
+  if (scope === undefined) return false;
+  return matchesEvalTagInput(scope.tags, input);
 }
 
 function normalizeLogLevel(level: EvalLogLevelInput): RunLogLevel {
@@ -733,6 +747,8 @@ export function setScopeCacheContext(
 export type RunInEvalScopeOptions = {
   /** Authored input for the active eval case. */
   input?: unknown;
+  /** Effective tags for the active eval case. */
+  tags?: string[];
   /** Stable prefix used when generating scoped IDs with `nextEvalId()`. */
   idPrefix?: string;
   /** Cache adapter + mode attached to the scope before `fn` runs. */
@@ -806,6 +822,7 @@ export async function runInEvalScope<T>(
     idPrefix: options.idPrefix,
     nextEvalIdCounter: 0,
     input: options.input,
+    tags: options.tags ?? [],
     outputs: {},
     assertionFailures: [],
     logs: [],

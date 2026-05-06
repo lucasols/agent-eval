@@ -1,4 +1,8 @@
-import type { EvalDisplayStatus, EvalSummary } from '@agent-evals/shared';
+import type {
+  CacheMode,
+  EvalDisplayStatus,
+  EvalSummary,
+} from '@agent-evals/shared';
 import { Play, SquareStop } from 'lucide-react';
 import { useState } from 'react';
 import { styled } from 'vindur';
@@ -11,6 +15,7 @@ import {
   SplitButton,
   type SplitButtonMenuEntry,
 } from '#src/components/SplitButton';
+import { TagPickerModal } from '#src/components/TagPickerModal';
 import {
   cleanRunsForEval,
   clearCacheForEval,
@@ -198,6 +203,11 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
   const [maintenanceAction, setMaintenanceAction] = useState<
     'recompute' | 'clean' | null
   >(null);
+  const [tagPickerOpen, setTagPickerOpen] = useState(false);
+  const [tagPickerCacheMode, setTagPickerCacheMode] =
+    useState<CacheMode>('use');
+  const [tagPickerTemporary, setTagPickerTemporary] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const { currentRun } = runStore.useSelectorRC((s) => ({
     currentRun: s.currentRun,
   }));
@@ -232,6 +242,9 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
   const breakdownItems = BREAKDOWN_STATUS_ORDER.filter(
     ({ key }) => breakdown[key] > 0 || statusFilters.has(key),
   );
+  const availableTags = [
+    ...new Set(filteredEvals.flatMap((ev) => ev.tags ?? [])),
+  ].toSorted();
 
   function startRunForEvalKeys(
     cacheMode?: 'use' | 'bypass' | 'refresh',
@@ -263,6 +276,45 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
     startRunForEvalKeys(undefined, true);
   }
 
+  function openTagPicker(cacheMode: CacheMode) {
+    setTagPickerCacheMode(cacheMode);
+    setTagPickerTemporary(true);
+    setSelectedTags(availableTags);
+    setTagPickerOpen(true);
+  }
+
+  function toggleTag(tag: string) {
+    setSelectedTags((current) =>
+      current.includes(tag)
+        ? current.filter((selected) => selected !== tag)
+        : [...current, tag],
+    );
+  }
+
+  function handleRunTags() {
+    if (selectedTags.length === 0) return;
+    const skipped = filteredEvals.filter((ev) => ev.manualInput !== undefined);
+    const runnableKeys = filteredEvals
+      .filter((ev) => ev.manualInput === undefined)
+      .map((ev) => ev.key);
+    if (skipped.length > 0) {
+      const skippedNames = skipped.map((ev) => ev.title ?? ev.id).join(', ');
+      window.alert(
+        `Skipping ${String(skipped.length)} eval(s) that require manual input — run them individually: ${skippedNames}`,
+      );
+    }
+    if (runnableKeys.length === 0) return;
+    setTagPickerOpen(false);
+    void startRun(
+      {
+        mode: 'evalIds',
+        evalKeys: runnableKeys,
+        tagsFilter: [selectedTags.join(' || ')],
+      },
+      { cacheMode: tagPickerCacheMode, temporary: tagPickerTemporary },
+    );
+  }
+
   function handleStop() {
     void cancelRun(currentRun?.manifest.id);
   }
@@ -285,6 +337,10 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
     });
   }
 
+  function handleClearCache() {
+    void Promise.all(evalKeys.map((evalKey) => clearCacheForEval(evalKey)));
+  }
+
   const cacheMenu: SplitButtonMenuEntry[] = [
     {
       id: 'run-default',
@@ -305,12 +361,20 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
       onSelect: handleTemporaryRunAll,
     },
     {
+      id: 'run-tags',
+      label: 'Run tags',
+      description: 'Choose tags to run in this folder.',
+      onSelect: () => openTagPicker('use'),
+    },
+    {
       id: 'run-refresh',
       label: 'Refresh cache',
       description: 'Force re-execution and overwrite entries.',
       onSelect: () => startRunForEvalKeys('refresh'),
     },
-    { kind: 'separator' },
+  ];
+
+  const moreMenu: SplitButtonMenuEntry[] = [
     {
       id: 'clear-cache',
       label: 'Clear cache for these evals',
@@ -324,12 +388,10 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
         ) {
           return;
         }
-        void Promise.all(evalKeys.map((evalKey) => clearCacheForEval(evalKey)));
+        handleClearCache();
       },
     },
-  ];
-
-  const moreMenu: SplitButtonMenuEntry[] = [
+    { kind: 'separator' },
     {
       id: 'recompute-status',
       label: 'Recompute status',
@@ -445,6 +507,21 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
           ))}
         </Stack>
       )}
+      <TagPickerModal
+        isOpen={tagPickerOpen}
+        title="Run Tags"
+        subtitle={currentLabel}
+        tags={availableTags}
+        selectedTags={selectedTags}
+        cacheMode={tagPickerCacheMode}
+        temporary={tagPickerTemporary}
+        onCacheModeChange={setTagPickerCacheMode}
+        onTemporaryChange={setTagPickerTemporary}
+        onSelectedTagsChange={setSelectedTags}
+        onToggleTag={toggleTag}
+        onCancel={() => setTagPickerOpen(false)}
+        onRun={handleRunTags}
+      />
     </Root>
   );
 }

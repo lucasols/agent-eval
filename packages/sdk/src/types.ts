@@ -1,5 +1,5 @@
 import type {
-  EvalCase,
+  EvalCase as SharedEvalCase,
   EvalChartAggregate,
   EvalChartAxis,
   EvalChartBuiltinMetric,
@@ -35,7 +35,6 @@ export type {
   EvalChartsConfig,
   EvalChartTooltipExtra,
   EvalChartType,
-  EvalCase,
   EvalColumnOverride,
   EvalColumns,
   EvalDeriveConfig,
@@ -48,6 +47,50 @@ export type {
   EvalStatsConfig,
   EvalTraceTree,
   DefaultConfigKey,
+};
+
+/**
+ * Augment this interface to narrow accepted tag names for direct
+ * `@agent-evals/sdk` imports.
+ *
+ * @example
+ * ```ts
+ * declare module '@agent-evals/sdk' {
+ *   interface AgentEvalTagRegistry {
+ *     tags: 'refunds' | 'slow';
+ *   }
+ * }
+ * ```
+ */
+export interface AgentEvalTagRegistry {
+  /** Internal marker so the interface can be safely augmented by users. */
+  __agentEvalTagRegistry?: never;
+}
+
+/** Tag name accepted by eval definitions, cases, and runtime tag checks. */
+export type EvalTag = AgentEvalTagRegistry extends { tags: infer T }
+  ? Extract<T, string>
+  : string;
+
+/** Typed input accepted by {@link matchesEvalTags}. */
+export type EvalTagMatchInput =
+  | EvalTag
+  | {
+      /** Require every listed tag to be present. */
+      all?: EvalTag[];
+      /** Require at least one listed tag to be present. */
+      any?: EvalTag[];
+      /** Require every listed tag to be absent. */
+      not?: EvalTag[];
+    };
+
+/** Single authored eval case with its stable identifier, input, and tags. */
+export type EvalCase<TInput = unknown> = Omit<
+  SharedEvalCase<TInput>,
+  'tags'
+> & {
+  /** Additional tags applied only to this case. */
+  tags?: EvalTag[];
 };
 
 /** Runtime output values collected from output helpers and `deriveFromTracing`. */
@@ -317,6 +360,17 @@ type EvalDefinitionBase<
    * When omitted, consumers fall back to `id`.
    */
   title?: string;
+  /**
+   * Tags applied to every case in this eval, in addition to workspace-wide
+   * tags from `agent-evals.config.ts`.
+   */
+  tags?: EvalTag[];
+  /**
+   * Workspace-wide tags this eval should not inherit. Each tag must be present
+   * in `AgentEvalsConfig.tags`; removing unknown tags is reported during
+   * discovery.
+   */
+  removeTags?: EvalTag[];
   /**
    * Per-eval cache controls. Both `read` and `store` default to `true`.
    *

@@ -43,9 +43,9 @@ import { stripTerminalControlCodes } from './stackFormatting.ts';
 import { resolveTracePresentation } from './traceDisplay.ts';
 
 export function filterEvalCases<TInput>(
-  cases: { id: string; input: TInput; tags?: string[] }[],
+  cases: { id: string; input: TInput; tags: string[] }[],
   caseIds: string[] | undefined,
-): { id: string; input: TInput; tags?: string[] }[] {
+): { id: string; input: TInput; tags: string[] }[] {
   if (!caseIds || caseIds.length === 0) {
     return cases;
   }
@@ -250,6 +250,7 @@ export async function runCase<
     },
     {
       input: evalCase.input,
+      tags: evalCase.tags ?? [],
       idPrefix: scopedIdPrefix,
       waitForBackgroundJobs: evalDef.waitForBackgroundJobs !== false,
       cacheContext: cacheAdapter
@@ -377,6 +378,7 @@ export async function runCase<
         },
         {
           input: evalCase.input,
+          tags: evalCase.tags ?? [],
           idPrefix: `${scopedIdPrefix}-score-${toStableIdSegment(key)}`,
           runtimeScope: 'scorer',
           cacheContext: cacheAdapter
@@ -488,6 +490,7 @@ export async function runCase<
     caseKey,
     caseId: evalCase.id,
     evalId,
+    tags: evalCase.tags ?? [],
     status,
     input: evalCase.input,
     trace: displayTrace,
@@ -506,6 +509,7 @@ export async function runCase<
   const elapsedMs = Date.now() - startTime;
 
   const caseRowUpdate: Partial<CaseRow> = {
+    tags: evalCase.tags ?? [],
     status,
     durationMs: elapsedMs,
     columns,

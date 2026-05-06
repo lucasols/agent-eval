@@ -79,6 +79,8 @@ export const evalSummarySchema = z.object({
   title: z.string().optional(),
   /** Eval file path relative to the active workspace root. */
   filePath: z.string(),
+  /** Effective eval-level tags inherited by every case in this eval. */
+  tags: z.array(z.string()).optional(),
   /** Indicates the eval file changed since the latest passing result. */
   stale: z.boolean(),
   /** Indicates the latest comparable run is from an older commit and too old. */
@@ -132,6 +134,8 @@ export const caseRowSchema = z.object({
   caseKey: z.string().optional(),
   caseId: z.string(),
   evalId: z.string(),
+  /** Effective tags for this case, including workspace/eval/case tags. */
+  tags: z.array(z.string()).optional(),
   status: z.enum(['pending', 'running', 'pass', 'fail', 'error', 'cancelled']),
   /** Elapsed case execution duration in milliseconds, or null before completion. */
   durationMs: z.number().nullable(),
@@ -231,6 +235,8 @@ export const caseDetailSchema = z.object({
   caseKey: z.string().optional(),
   caseId: z.string(),
   evalId: z.string(),
+  /** Effective tags for this case, including workspace/eval/case tags. */
+  tags: z.array(z.string()).optional(),
   status: z.enum(['pending', 'running', 'pass', 'fail', 'error', 'cancelled']),
   input: z.unknown(),
   trace: z.array(traceSpanSchema),
@@ -268,7 +274,11 @@ export type CaseDetail = z.infer<typeof caseDetailSchema>;
 
 /** Schema for discovery problems that should be shown before running evals. */
 export const discoveryIssueSchema = z.object({
-  type: z.enum(['duplicate-eval-id', 'manual-input-with-cases']),
+  type: z.enum([
+    'duplicate-eval-id',
+    'manual-input-with-cases',
+    'invalid-tags',
+  ]),
   severity: z.enum(['error']),
   filePath: z.string(),
   evalId: z.string(),

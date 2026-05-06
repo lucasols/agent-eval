@@ -1,4 +1,4 @@
-import { z, type EvalDefinition } from '@ls-stack/agent-eval';
+import { matchesEvalTags, z, type EvalDefinition } from '@ls-stack/agent-eval';
 import {
   triggerWorkflow,
   type WorkflowInput,
@@ -14,6 +14,7 @@ const refundWorkflowOutputsSchema = z.object({
   costUsd: z.number(),
   toolCalls: z.number(),
   llmTurns: z.number(),
+  tagContext: z.string().optional(),
 });
 
 export type RefundWorkflowOutputs = z.infer<typeof refundWorkflowOutputsSchema>;
@@ -36,6 +37,7 @@ export const refundWorkflowSharedConfig: Pick<
   columns: {
     response: { label: 'Response', format: 'markdown' },
     reviewConfidence: { label: 'Review Confidence' },
+    tagContext: { label: 'Tag Context' },
   },
   traceDisplay: {
     attributes: [
@@ -78,7 +80,10 @@ export const refundWorkflowSharedConfig: Pick<
       },
     ],
   },
-  execute: async ({ input }) => {
+  execute: async ({ input, setOutput }) => {
+    if (matchesEvalTags({ any: ['media'] })) {
+      setOutput('tagContext', 'media-case');
+    }
     await triggerWorkflow(input);
   },
   scores: {

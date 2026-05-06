@@ -30,6 +30,8 @@ export const createRunRequestSchema = z.object({
     files: z.array(z.string()).optional(),
     evalIds: z.array(z.string()).optional(),
     caseIds: z.array(z.string()).optional(),
+    /** Vitest-style tag filter expressions; multiple entries combine with AND. */
+    tagsFilter: z.array(z.string()).optional(),
   }),
   trials: z.number().min(1),
   /**

@@ -27,6 +27,7 @@ export {
   runInEvalScope,
   getCurrentScope,
   isInEvalScope,
+  matchesEvalTags,
   setScopeCacheContext,
   type EvalCaseScope,
   type EvalRuntimeScope,
@@ -103,4 +104,7 @@ export type {
   EvalCacheConfig,
   EvalDefinition,
   EvalStartTime,
+  EvalTag,
+  EvalTagMatchInput,
+  AgentEvalTagRegistry,
 } from './types.ts';

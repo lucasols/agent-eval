@@ -234,6 +234,7 @@ export type RunTarget =
       evalIds?: string[];
       evalKeys?: string[];
       files?: string[];
+      tagsFilter?: string[];
     }
   | {
       mode: 'caseIds';
@@ -241,6 +242,7 @@ export type RunTarget =
       evalIds?: string[];
       evalKeys?: string[];
       files?: string[];
+      tagsFilter?: string[];
     };
 
 /** Optional run-start options, notably the cache mode. */

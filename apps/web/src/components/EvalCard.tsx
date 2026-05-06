@@ -33,6 +33,7 @@ import {
   type SplitButtonMenuEntry,
 } from '#src/components/SplitButton';
 import { StatusBadge } from '#src/components/StatusBadge';
+import { TagChips } from '#src/components/TagChips';
 import { Tooltip } from '#src/components/Tooltip';
 import { useElapsedRunTime } from '#src/hooks/useElapsedRunTime';
 import { useManualInputRun } from '#src/hooks/useManualInputRun';
@@ -386,6 +387,15 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
         : latestCases.map((caseRow) => caseRow.caseId);
     return [...new Set(sourceCaseIds)];
   }, [evalSummary.caseIds, latestCases]);
+  const knownCases = useMemo(() => {
+    const latestTagsByCaseId = new Map(
+      latestCases.map((caseRow) => [caseRow.caseId, caseRow.tags ?? []]),
+    );
+    return knownCaseIds.map((caseId) => ({
+      id: caseId,
+      tags: latestTagsByCaseId.get(caseId) ?? evalSummary.tags ?? [],
+    }));
+  }, [evalSummary.tags, knownCaseIds, latestCases]);
 
   const isRunning =
     currentRun?.manifest.status === 'running' &&
@@ -728,6 +738,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
                   history and per-case results below.
                 </Description>
               ) : null}
+              <TagChips tags={evalSummary.tags ?? []} />
             </TitleBlock>
           </HeaderLeft>
           <HeaderRight onClick={(e) => e.stopPropagation()}>
@@ -811,7 +822,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
         isOpen={casePickerOpen}
         title="Run Specific Cases"
         subtitle={getEvalTitle(evalSummary)}
-        caseIds={knownCaseIds}
+        cases={knownCases}
         selectedCaseIds={selectedCaseIds}
         cacheMode={casePickerCacheMode}
         temporary={casePickerTemporary}

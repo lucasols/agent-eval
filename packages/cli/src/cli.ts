@@ -27,6 +27,7 @@ type CliArgs = {
   evalIds: string[];
   files: string[];
   caseIds: string[];
+  tagsFilter: string[];
   trials: number;
   json: boolean;
   port: number;
@@ -57,6 +58,7 @@ function parseArgs(argv: string[]): CliArgs {
     evalIds: [],
     files: [],
     caseIds: [],
+    tagsFilter: [],
     trials: 1,
     json: false,
     port: 4100,
@@ -109,6 +111,9 @@ function parseArgs(argv: string[]): CliArgs {
       i++;
     } else if (arg === '--case' && next) {
       args.caseIds.push(...next.split(','));
+      i++;
+    } else if (arg === '--tags-filter' && next) {
+      args.tagsFilter.push(...next.split(','));
       i++;
     } else if (arg === '--trials' && next) {
       args.trials = Number(next);
@@ -400,10 +405,11 @@ async function commandRun(args: CliArgs): Promise<void> {
   const runTargetsAllEvals =
     args.evalIds.length === 0 &&
     args.caseIds.length === 0 &&
-    args.files.length === 0;
+    args.files.length === 0 &&
+    args.tagsFilter.length === 0;
   if (runTargetsAllEvals && !runner.getAllowCliRunAll()) {
     console.error(
-      'This workspace disables running all evals from the CLI. Pass --eval <id>, --file <path|glob>, or --case <id> to run a targeted subset.',
+      'This workspace disables running all evals from the CLI. Pass --eval <id>, --file <path|glob>, --case <id>, or --tags-filter <expr> to run a targeted subset.',
     );
     process.exit(1);
   }
@@ -423,16 +429,26 @@ async function commandRun(args: CliArgs): Promise<void> {
           caseIds: args.caseIds,
           evalIds: args.evalIds.length > 0 ? args.evalIds : undefined,
           files: args.files.length > 0 ? args.files : undefined,
+          tagsFilter: args.tagsFilter.length > 0 ? args.tagsFilter : undefined,
         }
       : args.evalIds.length > 0
         ? {
             mode: 'evalIds' as const,
             evalIds: args.evalIds,
             files: args.files.length > 0 ? args.files : undefined,
+            tagsFilter:
+              args.tagsFilter.length > 0 ? args.tagsFilter : undefined,
           }
         : args.files.length > 0
-          ? { mode: 'evalIds' as const, files: args.files }
-          : { mode: 'all' as const };
+          ? {
+              mode: 'evalIds' as const,
+              files: args.files,
+              tagsFilter:
+                args.tagsFilter.length > 0 ? args.tagsFilter : undefined,
+            }
+          : args.tagsFilter.length > 0
+            ? { mode: 'evalIds' as const, tagsFilter: args.tagsFilter }
+            : { mode: 'all' as const };
 
   const manualInputsResult = await collectManualInputs({
     runner,
@@ -440,6 +456,7 @@ async function commandRun(args: CliArgs): Promise<void> {
       evalIds: args.evalIds,
       files: args.files,
       caseIds: args.caseIds,
+      tagsFilter: args.tagsFilter,
       inputJson: args.inputJson,
       inputFilePath: args.inputFilePath,
     },

@@ -1,25 +1,22 @@
 import { type CacheMode } from '@agent-evals/shared';
-import { useState } from 'react';
 import { styled } from 'vindur';
 import { Button } from '#src/components/Button';
 import { Modal } from '#src/components/Modal';
 import { colors } from '#src/style/colors';
-import { ellipsis, inline, monoFont, stack } from '#src/style/helpers';
+import { inline, monoFont, stack } from '#src/style/helpers';
 
-type CaseOption = { id: string; tags: string[] };
-
-type CasePickerModalProps = {
+type TagPickerModalProps = {
   isOpen: boolean;
   title: string;
   subtitle: string;
-  cases: CaseOption[];
-  selectedCaseIds: string[];
+  tags: string[];
+  selectedTags: string[];
   cacheMode: CacheMode;
   temporary: boolean;
   onCacheModeChange: (cacheMode: CacheMode) => void;
   onTemporaryChange: (temporary: boolean) => void;
-  onSelectedCaseIdsChange: (caseIds: string[]) => void;
-  onToggleCaseId: (caseId: string) => void;
+  onSelectedTagsChange: (tags: string[]) => void;
+  onToggleTag: (tag: string) => void;
   onCancel: () => void;
   onRun: () => void;
 };
@@ -42,7 +39,7 @@ const Meta = styled.div`
   color: ${colors.textMuted.var};
 `;
 
-const CaseList = styled.div`
+const TagList = styled.div`
   ${stack({ gap: 0 })}
   max-height: 340px;
   overflow: auto;
@@ -51,7 +48,7 @@ const CaseList = styled.div`
   background: ${colors.bg.var};
 `;
 
-const CaseRow = styled.label`
+const TagRow = styled.label`
   ${inline({ align: 'center', gap: 10 })}
   min-height: 38px;
   padding: 0 12px;
@@ -71,36 +68,11 @@ const CaseRow = styled.label`
   }
 `;
 
-const CaseId = styled.span`
+const TagName = styled.span`
   ${monoFont};
-  ${ellipsis};
   min-width: 0;
   font-size: 12px;
   color: ${colors.text.var};
-`;
-
-const CaseMain = styled.span`
-  ${stack({ gap: 4 })}
-  min-width: 0;
-  flex: 1;
-`;
-
-const TagList = styled.span`
-  ${inline({ align: 'center', gap: 4 })}
-  min-width: 0;
-  flex-wrap: wrap;
-`;
-
-const TagChip = styled.span`
-  ${monoFont};
-  max-width: 140px;
-  padding: 1px 6px;
-  border: 1px solid ${colors.border.var};
-  border-radius: var(--radius-sm);
-  background: ${colors.surface.var};
-  color: ${colors.textMuted.var};
-  font-size: 10px;
-  line-height: 1.4;
 `;
 
 const Empty = styled.div`
@@ -128,10 +100,6 @@ const CacheModeSelect = styled.select`
   font-size: 12.5px;
 `;
 
-const TagFilterSelect = styled(CacheModeSelect)`
-  max-width: 180px;
-`;
-
 const TemporaryToggle = styled.label`
   ${inline({ align: 'center', gap: 6 })}
   color: ${colors.textMuted.var};
@@ -148,31 +116,21 @@ function readCacheMode(value: string): CacheMode {
   return 'use';
 }
 
-export function CasePickerModal({
+export function TagPickerModal({
   isOpen,
   title,
   subtitle,
-  cases,
-  selectedCaseIds,
+  tags,
+  selectedTags,
   cacheMode,
   temporary,
   onCacheModeChange,
   onTemporaryChange,
-  onSelectedCaseIdsChange,
-  onToggleCaseId,
+  onSelectedTagsChange,
+  onToggleTag,
   onCancel,
   onRun,
-}: CasePickerModalProps) {
-  const availableTags = [
-    ...new Set(cases.flatMap((caseOption) => caseOption.tags)),
-  ];
-  const [selectedTag, setSelectedTag] = useState('');
-  const visibleCases =
-    selectedTag.length === 0
-      ? cases
-      : cases.filter((caseOption) => caseOption.tags.includes(selectedTag));
-  const visibleCaseIds = visibleCases.map((caseOption) => caseOption.id);
-
+}: TagPickerModalProps) {
   return (
     <Modal
       isOpen={isOpen}
@@ -214,7 +172,7 @@ export function CasePickerModal({
             <Button
               variant="primary"
               onClick={onRun}
-              disabled={selectedCaseIds.length === 0}
+              disabled={selectedTags.length === 0}
             >
               Run selected
             </Button>
@@ -225,80 +183,41 @@ export function CasePickerModal({
       <Body>
         <Toolbar>
           <Meta>
-            {selectedCaseIds.length} of {cases.length} selected
+            {selectedTags.length} of {tags.length} selected
           </Meta>
           <ToolbarActions>
-            {availableTags.length > 0 ? (
-              <TagFilterSelect
-                aria-label="Filter by tag"
-                value={selectedTag}
-                onChange={(event) => setSelectedTag(event.currentTarget.value)}
-              >
-                <option value="">All tags</option>
-                {availableTags.map((tag) => (
-                  <option
-                    key={tag}
-                    value={tag}
-                  >
-                    {tag}
-                  </option>
-                ))}
-              </TagFilterSelect>
-            ) : null}
             <Button
               variant="ghost"
-              onClick={() => onSelectedCaseIdsChange(visibleCaseIds)}
-              disabled={
-                visibleCaseIds.length === 0 ||
-                visibleCaseIds.every((caseId) =>
-                  selectedCaseIds.includes(caseId),
-                )
-              }
+              onClick={() => onSelectedTagsChange(tags)}
+              disabled={tags.length === selectedTags.length}
             >
-              Select visible
+              Select all
             </Button>
             <Button
               variant="ghost"
-              onClick={() => onSelectedCaseIdsChange([])}
-              disabled={selectedCaseIds.length === 0}
+              onClick={() => onSelectedTagsChange([])}
+              disabled={selectedTags.length === 0}
             >
               Clear
             </Button>
           </ToolbarActions>
         </Toolbar>
 
-        {cases.length > 0 ? (
-          <CaseList>
-            {visibleCases.map((caseOption) => (
-              <CaseRow key={caseOption.id}>
+        {tags.length > 0 ? (
+          <TagList>
+            {tags.map((tag) => (
+              <TagRow key={tag}>
                 <input
                   type="checkbox"
-                  checked={selectedCaseIds.includes(caseOption.id)}
-                  onChange={() => onToggleCaseId(caseOption.id)}
+                  checked={selectedTags.includes(tag)}
+                  onChange={() => onToggleTag(tag)}
                 />
-                <CaseMain>
-                  <CaseId title={caseOption.id}>{caseOption.id}</CaseId>
-                  {caseOption.tags.length > 0 ? (
-                    <TagList>
-                      {caseOption.tags.map((tag) => (
-                        <TagChip
-                          key={tag}
-                          title={tag}
-                        >
-                          {tag}
-                        </TagChip>
-                      ))}
-                    </TagList>
-                  ) : null}
-                </CaseMain>
-              </CaseRow>
+                <TagName title={tag}>{tag}</TagName>
+              </TagRow>
             ))}
-          </CaseList>
+          </TagList>
         ) : (
-          <Empty>
-            Case ids are not available yet. Run this eval once to let the app
-            discover its authored cases.
-          </Empty>
+          <Empty>No tags are available in this folder.</Empty>
         )}
       </Body>
     </Modal>

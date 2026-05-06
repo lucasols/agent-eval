@@ -48,6 +48,7 @@ const toneOpenings: Record<ManualInputGreetingInput['tone'], string> = {
 defineEval<ManualInputGreetingInput, ManualInputGreetingOutputs>({
   id: 'manual-input-greeting',
   title: 'Manual Input Greeting',
+  tags: ['manual', 'playground'],
   manualInput: {
     schema: manualInputGreetingSchema,
     title: 'Greet someone',

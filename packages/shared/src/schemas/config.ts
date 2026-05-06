@@ -779,6 +779,8 @@ export type AgentEvalsConfig = {
   workspaceRoot?: string;
   /** Glob patterns (relative to `workspaceRoot`) used to discover eval files. */
   include: string[];
+  /** Workspace-wide tags inherited by every eval unless removed per eval. */
+  tags?: string[];
   /** Number of trials per case when none is specified. Defaults to `1`. */
   defaultTrials?: number;
   /**
@@ -939,6 +941,7 @@ export type AgentEvalsConfig = {
 export const agentEvalsConfigSchema = z.object({
   workspaceRoot: z.string().optional(),
   include: z.array(z.string()),
+  tags: z.array(z.string()).optional(),
   defaultTrials: z.number().optional(),
   trialSelection: trialSelectionModeSchema.optional(),
   concurrency: z.number().optional(),

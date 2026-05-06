@@ -12,6 +12,7 @@ import type {
   CaseRow,
   ColumnDef,
   CreateRunRequest,
+  DiscoveryIssue,
   EvalChartsConfig,
   EvalStatsConfig,
   EvalSummary,
@@ -46,6 +47,14 @@ import {
 import { persistRunState } from './runMaintenance.ts';
 import { persistCaseDetail, type EvalLatestRunInfo } from './runPersistence.ts';
 import { executeQueuedCases, type QueuedCaseRun } from './runQueue.ts';
+import {
+  evalTagsMatchFilter,
+  filterEvalCasesByTags,
+  resolveCaseTags,
+  resolveEvalTags,
+  validateTagsFilters,
+  type TaggedEvalCase,
+} from './tags.ts';
 import { getTargetEvalKeys } from './targeting.ts';
 
 export type EvalMeta = {
@@ -53,6 +62,7 @@ export type EvalMeta = {
   id: string;
   title?: string;
   filePath: string;
+  tags: string[];
   sourceFilePath: string;
   sourceFingerprint: string | null;
   columnDefs: ColumnDef[];
@@ -206,6 +216,11 @@ function findDuplicateCaseIds(cases: readonly { id: string }[]): string[] {
     .toSorted();
 }
 
+function throwIfDiscoveryIssues(issues: readonly DiscoveryIssue[]): void {
+  if (issues.length === 0) return;
+  throw new Error(issues.map((issue) => issue.message).join('\n'));
+}
+
 function findAmbiguousTargetCaseIds(
   preparedEvals: readonly PreparedEvalRun[],
 ): string[] {
@@ -355,6 +370,10 @@ export async function executeRun({
   onCaseFinished,
 }: ExecuteRunParams): Promise<void> {
   try {
+    const tagsFilterError = validateTagsFilters(request.target.tagsFilter);
+    if (tagsFilterError !== null) {
+      throw new Error(tagsFilterError);
+    }
     const targetEvals = getTargetEvals(request);
 
     emitEvent(runState, {
@@ -411,14 +430,40 @@ export async function executeRun({
         await runWithModuleIsolation(moduleIsolation, async () => {
           await runInEvalRuntimeScope('cases', async () => {
             await entry.use(async (evalDef) => {
+              const evalTagsResult = resolveEvalTags({
+                configTags: config.tags,
+                evalDef,
+                evalId: evalMeta.id,
+                filePath: evalMeta.filePath,
+              });
+              throwIfDiscoveryIssues(evalTagsResult.issues);
+              evalMeta.tags = evalTagsResult.tags;
+
               if (evalDef.manualInput && evalDef.cases !== undefined) {
                 throw new Error(
                   `Eval "${evalMeta.id}" cannot declare both "cases" and "manualInput". Remove one of them.`,
                 );
               }
 
-              let manualInputCase: { id: string; input: unknown } | null = null;
+              let manualInputCase: TaggedEvalCase | null = null;
               if (evalDef.manualInput) {
+                const manualTags = evalTagsResult.tags;
+                if (
+                  !filterEvalCasesByTags(
+                    [
+                      {
+                        id: `${evalMeta.id}-manual`,
+                        input: {},
+                        tags: manualTags,
+                      },
+                    ],
+                    request.target.tagsFilter,
+                  ).length
+                ) {
+                  evalMeta.caseCount = 1;
+                  evalMeta.caseIds = [`${evalMeta.id}-manual`];
+                  return;
+                }
                 const rawValue = request.manualInputs?.[evalMeta.key];
                 if (rawValue === undefined) {
                   throw new Error(
@@ -444,34 +489,51 @@ export async function executeRun({
                 manualInputCase = {
                   id: `${evalMeta.id}-manual`,
                   input: parsed.value,
+                  tags: manualTags,
                 };
               }
 
               const evalCases = manualInputCase
                 ? [manualInputCase]
-                : await runWithEvalClock(
-                    evalDef.startTime,
-                    async () =>
-                      typeof evalDef.cases === 'function'
-                        ? await evalDef.cases()
-                        : (evalDef.cases ?? []),
-                    { freezeTime: evalDef.freezeTime },
-                  );
-              const runnableCases = manualInputCase
-                ? evalCases
-                : resolveRunnableEvalCases({
-                    cases: evalCases,
-                    evalId: evalMeta.id,
-                  });
+                : typeof evalDef.cases === 'function' &&
+                    !evalTagsMatchFilter({
+                      tags: evalTagsResult.tags,
+                      tagsFilter: request.target.tagsFilter,
+                    })
+                  ? []
+                  : await runWithEvalClock(
+                      evalDef.startTime,
+                      async () =>
+                        typeof evalDef.cases === 'function'
+                          ? await evalDef.cases()
+                          : (evalDef.cases ?? []),
+                      { freezeTime: evalDef.freezeTime },
+                    );
+              const runnableCases = (
+                manualInputCase
+                  ? evalCases
+                  : resolveRunnableEvalCases({
+                      cases: evalCases,
+                      evalId: evalMeta.id,
+                    })
+              ).map((evalCase) => ({
+                ...evalCase,
+                tags: resolveCaseTags({
+                  evalTags: evalTagsResult.tags,
+                  evalCase,
+                  evalId: evalMeta.id,
+                  filePath: evalMeta.filePath,
+                }),
+              }));
               const duplicateCaseIds = findDuplicateCaseIds(runnableCases);
               if (duplicateCaseIds.length > 0) {
                 throw new Error(
                   `Duplicate case id${duplicateCaseIds.length === 1 ? '' : 's'} in ${evalMeta.filePath}#${evalMeta.id}: ${duplicateCaseIds.join(', ')}`,
                 );
               }
-              const cases = filterEvalCases(
-                runnableCases,
-                request.target.caseIds,
+              const cases = filterEvalCasesByTags(
+                filterEvalCases(runnableCases, request.target.caseIds),
+                request.target.tagsFilter,
               );
               evalMeta.caseCount = runnableCases.length;
               evalMeta.caseIds = runnableCases.map((evalCase) => evalCase.id);
@@ -566,6 +628,7 @@ export async function executeRun({
                           evalId: evalMeta.id,
                           evalKey: evalMeta.key,
                           caseKey: caseDetail.caseKey,
+                          tags: caseDetail.tags,
                           status: caseRowUpdate.status ?? 'pending',
                           durationMs: caseRowUpdate.durationMs ?? null,
                           columns: caseRowUpdate.columns ?? {},

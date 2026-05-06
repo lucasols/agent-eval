@@ -314,6 +314,7 @@ function applyChildEvalMetas(
       continue;
     }
     evalMeta.columnDefs = childMeta.columnDefs;
+    evalMeta.tags = childMeta.tags;
     evalMeta.caseCount = childMeta.caseCount;
     evalMeta.caseIds = childMeta.caseIds;
     evalMeta.stats = childMeta.stats;

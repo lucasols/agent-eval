@@ -105,6 +105,14 @@ export {
   type RunSummary,
 } from './schemas/run.ts';
 export {
+  dedupeEvalTags,
+  matchesEvalTagInput,
+  matchesTagsFilter,
+  validateEvalTagName,
+  validateTagsFilterExpression,
+  type TagValidationResult,
+} from './tags.ts';
+export {
   deriveStatusFromChildStatuses,
   deriveStatusFromCaseRows,
   deriveScopedSummaryFromCases,

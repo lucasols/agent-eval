@@ -51,6 +51,7 @@ Flags:
   --eval <id>                Run specific eval(s) (comma-separated)
   --file <path|glob>         Run eval files matching path/glob (comma-separated)
   --case <id>                Run case(s); combine with --file/--eval if ambiguous
+  --tags-filter <expr>       Run cases matching a tag expression
   --trials <n>               Number of trials per case
   --inspect[=host:port]      Run with the Node.js inspector enabled
   --inspect-brk[=host:port]  Enable inspector and pause before startup
@@ -124,6 +125,7 @@ Commands:
 Options:
   --eval <id>                Run specific eval(s) (comma-separated)
   --case <id>                Run specific case(s) (comma-separated)
+  --tags-filter <expr>       Run cases matching a tag expression
   --trials <n>               Number of trials per case
   --inspect[=host:port]      Run with the Node.js inspector enabled
   --inspect-brk[=host:port]  Enable inspector and pause before startup

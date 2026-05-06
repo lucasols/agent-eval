@@ -5,6 +5,7 @@ import {
   type EvalRunner,
 } from '@agent-evals/runner';
 import type { EvalSummary } from '@agent-evals/shared';
+import { matchesTagsFilter } from '@agent-evals/shared';
 import { resultify } from 't-result';
 
 /** CLI flags consumed by the manual-input collector. */
@@ -12,6 +13,7 @@ export type ManualInputCliArgs = {
   evalIds: string[];
   files: string[];
   caseIds: string[];
+  tagsFilter: string[];
   inputJson: string | undefined;
   inputFilePath: string | undefined;
 };
@@ -89,9 +91,11 @@ function isManualInputEvalTargeted(params: {
   }
   if (!hasEvalIds && !hasFiles) {
     if (hasCaseIds) return false;
-    return true;
   }
-  return true;
+  return matchesTagsFilter({
+    tags: evalSummary.tags ?? [],
+    filters: args.tagsFilter,
+  });
 }
 
 async function readInputFileMap(

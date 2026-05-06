@@ -4,6 +4,7 @@ const USD_TO_BRL = 5.7;
 
 export const config: AgentEvalsConfig = {
   include: ['evals/**/*.eval.ts'],
+  tags: ['example'],
   defaultTrials: 1,
   trialSelection: 'lowestScore',
   concurrency: 2,

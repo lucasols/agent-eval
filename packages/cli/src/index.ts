@@ -1,3 +1,71 @@
+import {
+  defineEval as defineSdkEval,
+  matchesEvalTags as matchesSdkEvalTags,
+} from '@agent-evals/sdk';
+import type {
+  EvalCase as SdkEvalCase,
+  EvalDefinition as SdkEvalDefinition,
+  EvalOutputs,
+} from '@agent-evals/sdk';
+import type { AgentEvalsConfig as SharedAgentEvalsConfig } from '@agent-evals/shared';
+
+/**
+ * Augment this interface to narrow accepted tag names for
+ * `@ls-stack/agent-eval` imports.
+ */
+export interface AgentEvalTagRegistry {
+  /** Internal marker so the interface can be safely augmented by users. */
+  __agentEvalTagRegistry?: never;
+}
+
+/** Tag name accepted by eval definitions, config, cases, and runtime checks. */
+export type EvalTag = AgentEvalTagRegistry extends { tags: infer T }
+  ? Extract<T, string>
+  : string;
+
+/** Typed input accepted by {@link matchesEvalTags}. */
+export type EvalTagMatchInput =
+  | EvalTag
+  | { all?: EvalTag[]; any?: EvalTag[]; not?: EvalTag[] };
+
+/** Public config type with module-augmentable eval tags. */
+export type AgentEvalsConfig = Omit<SharedAgentEvalsConfig, 'tags'> & {
+  /** Workspace-wide tags inherited by every eval unless removed per eval. */
+  tags?: EvalTag[];
+};
+
+/** Single authored eval case with module-augmentable tags. */
+export type EvalCase<TInput = unknown> = Omit<SdkEvalCase<TInput>, 'tags'> & {
+  /** Additional tags applied only to this case. */
+  tags?: EvalTag[];
+};
+
+/** Complete authored eval definition with module-augmentable tags. */
+export type EvalDefinition<
+  TInput = unknown,
+  TOutputs extends EvalOutputs = EvalOutputs,
+> = SdkEvalDefinition<TInput, TOutputs> & {
+  /** Tags applied to every case in this eval. */
+  tags?: EvalTag[];
+  /** Workspace tags this eval should not inherit. */
+  removeTags?: EvalTag[];
+  /** Authored cases for this eval. */
+  cases?: EvalCase<TInput>[] | (() => Promise<EvalCase<TInput>[]>);
+};
+
+/** Register an eval definition with typed tag support. */
+export function defineEval<
+  TInput = unknown,
+  TOutputs extends EvalOutputs = EvalOutputs,
+>(definition: EvalDefinition<TInput, TOutputs>): void {
+  defineSdkEval(definition);
+}
+
+/** Return whether the active eval case has tags matching the typed input. */
+export function matchesEvalTags(input: EvalTagMatchInput): boolean {
+  return matchesSdkEvalTags(input);
+}
+
 export {
   cleanupStagedManualInputFiles,
   createRunner,
@@ -9,7 +77,6 @@ export {
   type MaterializeManualInputFilesResult,
 } from '@agent-evals/runner';
 export {
-  defineEval,
   z,
   getEvalRegistry,
   manualInputFileValueSchema,
@@ -53,7 +120,6 @@ export {
   type CacheScopeContext,
   type CacheRecordingFrame,
   type RunInEvalScopeOptions,
-  type EvalCase,
   type EvalColumnOverride,
   type EvalColumns,
   type EvalTraceTree,
@@ -76,7 +142,6 @@ export {
   type ManualInputFileValue,
   type ReadManualInputFileResult,
   type EvalCacheConfig,
-  type EvalDefinition,
   type EvalStartTime,
   type DefaultConfigKey,
   type CacheSerializationOptions,
@@ -98,7 +163,6 @@ export {
   simulateTokenAllocation,
 } from '@agent-evals/shared';
 export type {
-  AgentEvalsConfig,
   ApiCallEntry,
   ApiCallMetric,
   ApiCallMetricFormat,

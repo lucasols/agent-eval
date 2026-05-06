@@ -40,6 +40,8 @@ export const runManifestSchema = z.object({
     files: z.array(z.string()).optional(),
     evalIds: z.array(z.string()).optional(),
     caseIds: z.array(z.string()).optional(),
+    /** Vitest-style tag filter expressions; multiple entries combine with AND. */
+    tagsFilter: z.array(z.string()).optional(),
   }),
   /** Number of trial attempts executed for each case in this run. */
   trials: z.number(),
