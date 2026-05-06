@@ -259,6 +259,7 @@ const Dim = styled.span`
 const RUN_SHORT_ID_PREFIX = /^r/;
 
 const EM_DASH = '—';
+const SIMPLE_JSON_PREVIEW_MAX_LENGTH = 96;
 
 const PlaceholderRow = styled.tr`
   border-top: 1px solid ${colors.border.var};
@@ -275,8 +276,28 @@ function isNumericColumn(c: ColumnDef): boolean {
   return c.kind === 'number';
 }
 
+function getSimpleJsonPreview(
+  c: ColumnDef,
+  value: CellValue,
+): string | undefined {
+  if (value === null) return undefined;
+  if (typeof value !== 'object' && c.format !== 'json') return undefined;
+  if (typeof value === 'object' && isFileRefLike(value)) return undefined;
+
+  const serialized = JSON.stringify(value);
+  if (serialized.length > SIMPLE_JSON_PREVIEW_MAX_LENGTH) return undefined;
+  return serialized;
+}
+
+function isFileRefLike(value: object): boolean {
+  if (!('source' in value)) return false;
+  return value.source === 'repo' || value.source === 'run';
+}
+
 function formatCellValue(c: ColumnDef, value: CellValue | undefined): string {
   if (value === null || value === undefined) return EM_DASH;
+  const simpleJsonPreview = getSimpleJsonPreview(c, value);
+  if (simpleJsonPreview !== undefined) return simpleJsonPreview;
   if (Array.isArray(value)) return `JSON Array (len=${String(value.length)})`;
   if (typeof value === 'number') {
     return formatNumericCellValue(c, value);
