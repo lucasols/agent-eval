@@ -205,9 +205,7 @@ export async function toCellValue(
   const fileRef = fileRefSchema.safeParse(value);
   if (fileRef.success) return fileRef.data;
 
-  const serialized = await serializeCacheValue(value, {
-    preserveUndefined: true,
-  });
+  const serialized = await serializeCacheValue(value, { compress: false });
   const parsed = jsonCellSchema.safeParse(serialized);
   if (parsed.success) return parsed.data;
 

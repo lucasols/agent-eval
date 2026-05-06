@@ -66,6 +66,17 @@ test('compresses large nested JSON subtrees', async () => {
   });
 });
 
+test('can skip compression for browser-displayable serialized values', async () => {
+  const value = { nested: { text: 'nested prompt context '.repeat(2000) } };
+
+  const serialized = await serializeCacheValue(value, { compress: false });
+
+  expect(deserializeCacheValue(serialized)).toEqual(value);
+  expect(
+    getRecordProperty(getRecordProperty(serialized, 'nested'), 'text'),
+  ).toBe(value.nested.text);
+});
+
 test('round trips rich cache values with small JSON-safe tags', async () => {
   const value = {
     bigint: 123n,

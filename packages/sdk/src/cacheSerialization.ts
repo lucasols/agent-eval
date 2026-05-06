@@ -54,9 +54,19 @@ export type CacheSerializationOptions = {
    * and set items are omitted instead of being written to cache files.
    */
   preserveUndefined?: boolean;
+  /**
+   * Compress large nested strings/JSON blobs with gzip wrappers.
+   *
+   * Enabled by default for reusable cache files. Disable for output artifacts
+   * that need synchronous browser-side deserialization.
+   */
+  compress?: boolean;
 };
 
-type CacheSerializationConfig = { preserveUndefined: boolean };
+type CacheSerializationConfig = {
+  compress: boolean;
+  preserveUndefined: boolean;
+};
 
 function isRecordLike(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -128,7 +138,10 @@ export async function cloneCacheValue(
 function normalizeCacheSerializationOptions(
   options: CacheSerializationOptions | undefined,
 ): CacheSerializationConfig {
-  return { preserveUndefined: options?.preserveUndefined === true };
+  return {
+    compress: options?.compress !== false,
+    preserveUndefined: options?.preserveUndefined === true,
+  };
 }
 
 async function serializeJsonSafeValue(
@@ -143,7 +156,7 @@ async function serializeJsonSafeValue(
   if (typeof value === 'bigint')
     return jsonSafeValue('BigInt', value.toString());
   if (typeof value === 'number') return serializeNumber(value);
-  if (typeof value === 'string') return serializeString(value, depth);
+  if (typeof value === 'string') return serializeString(value, depth, config);
   if (value instanceof Date) return jsonSafeValue('Date', value.toISOString());
   if (value instanceof Map) return serializeMap(value, refs, depth, config);
   if (value instanceof Set) return serializeSet(value, refs, depth, config);
@@ -209,7 +222,7 @@ async function serializeJsonSafeValue(
       if (serializedItem !== undefined) items.push(serializedItem);
     }
     refs.delete(value);
-    return compressNestedJsonValue(items, depth) ?? items;
+    return compressNestedJsonValue(items, depth, config) ?? items;
   }
 
   const entries: [string, unknown][] = [];
@@ -229,7 +242,7 @@ async function serializeJsonSafeValue(
   const serialized = hasSerializationMarkerKey(value)
     ? jsonSafeValue('Object', entries)
     : Object.fromEntries(entries);
-  return compressNestedJsonValue(serialized, depth) ?? serialized;
+  return compressNestedJsonValue(serialized, depth, config) ?? serialized;
 }
 
 function serializeNumber(value: number): unknown {
@@ -240,8 +253,13 @@ function serializeNumber(value: number): unknown {
   return value;
 }
 
-function serializeString(value: string, depth: number): unknown {
+function serializeString(
+  value: string,
+  depth: number,
+  config: CacheSerializationConfig,
+): unknown {
   if (depth === 0) return value;
+  if (!config.compress) return value;
   return compressNestedStringValue(value) ?? value;
 }
 
@@ -303,8 +321,10 @@ function compressNestedStringValue(
 function compressNestedJsonValue(
   value: unknown,
   depth: number,
+  config: CacheSerializationConfig,
 ): JsonSafeSerializedCacheValue | undefined {
   if (depth === 0) return undefined;
+  if (!config.compress) return undefined;
   const raw = JSON.stringify(value);
   const rawSize = Buffer.byteLength(raw);
   if (rawSize < compressedJsonMinBytes) return undefined;

@@ -192,6 +192,7 @@ test('runCase preserves JSON-safe output values without a column override', asyn
     ai_metadata = { done: true };
     criado_em = new Date('2024-01-02T03:04:05.000Z');
     description = 'Hi';
+    omitted = undefined;
   }
 
   const generatedAt = new Date('2024-01-02T03:04:05.000Z');

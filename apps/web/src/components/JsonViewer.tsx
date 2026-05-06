@@ -34,6 +34,7 @@ import {
   monoFont,
   transition,
 } from '#src/style/helpers';
+import { deserializeSerializedValue } from '#src/utils/serializedValues';
 
 const ViewerWrapper = styled.div`
   position: relative;
@@ -604,6 +605,10 @@ export function JsonViewer({
   const [expanded, setExpanded] = useState(false);
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
+  const displayValue = useMemo(
+    () => deserializeSerializedValue(value),
+    [value],
+  );
 
   useLayoutEffect(() => {
     if (!maxHeight || expanded) return;
@@ -618,7 +623,7 @@ export function JsonViewer({
     const observer = new ResizeObserver(measure);
     observer.observe(element);
     return () => observer.disconnect();
-  }, [maxHeight, expanded, value]);
+  }, [maxHeight, expanded, displayValue]);
 
   useEffect(() => {
     if (!maxHeight) setExpanded(false);
@@ -648,7 +653,7 @@ export function JsonViewer({
         expanded={expanded}
       >
         <JsonContent
-          value={value}
+          value={displayValue}
           collapsed={collapsed}
           collapseStringsAfterLength={collapseStringsAfterLength}
           enableClipboard={enableClipboard}
@@ -666,7 +671,7 @@ export function JsonViewer({
       ) : null}
       {fullscreenOpen ? (
         <JsonFullscreenModal
-          value={value}
+          value={displayValue}
           collapsed={collapsed}
           collapseStringsAfterLength={collapseStringsAfterLength}
           enableClipboard={enableClipboard}
