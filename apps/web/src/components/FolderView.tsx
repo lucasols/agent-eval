@@ -278,7 +278,7 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
 
   function openTagPicker(cacheMode: CacheMode) {
     setTagPickerCacheMode(cacheMode);
-    setTagPickerTemporary(true);
+    setTagPickerTemporary(false);
     setSelectedTags(availableTags);
     setTagPickerOpen(true);
   }
@@ -344,8 +344,8 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
   const cacheMenu: SplitButtonMenuEntry[] = [
     {
       id: 'run-default',
-      label: 'Run (use cache)',
-      description: 'Read on hit, write on miss.',
+      label: 'Run all',
+      description: 'Run all evals using default evals config',
       onSelect: () => startRunForEvalKeys('use'),
     },
     {
