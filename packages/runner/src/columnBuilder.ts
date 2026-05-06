@@ -4,6 +4,7 @@ import type {
   EvalOutputs,
   EvalScoreDef,
 } from '@agent-evals/sdk';
+import { serializeCacheValue } from '@agent-evals/sdk';
 import type {
   CellValue,
   ColumnDef,
@@ -194,34 +195,23 @@ export function inferKind(value: unknown): ColumnKind {
 
 /**
  * Coerce an arbitrary runtime value into a serializable `CellValue`.
- * JSON-safe objects and arrays stay structured so saved run artifacts preserve
- * the authored output shape. Rich runtime values fall back to `JSON.stringify`.
+ * Runtime values use the SDK's tagged serializer so saved run artifacts keep
+ * structured data instead of storing JSON strings. Native binary/file root
+ * values are handled before this helper.
  */
-export function toCellValue(value: unknown): CellValue | undefined {
-  if (value === null) return null;
-  if (
-    typeof value === 'string' ||
-    typeof value === 'number' ||
-    typeof value === 'boolean'
-  ) {
-    return value;
-  }
-  if (value === undefined) return undefined;
+export async function toCellValue(
+  value: unknown,
+): Promise<CellValue | undefined> {
   const fileRef = fileRefSchema.safeParse(value);
   if (fileRef.success) return fileRef.data;
-  if (isPlainJsonContainer(value)) {
-    const parsed = jsonCellSchema.safeParse(value);
-    if (parsed.success) return parsed.data;
-  }
-  if (value instanceof Date) return value.toISOString();
-  return JSON.stringify(value);
-}
 
-function isPlainJsonContainer(value: unknown): boolean {
-  if (Array.isArray(value)) return true;
-  if (typeof value !== 'object' || value === null) return false;
-  const prototype: unknown = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
+  const serialized = await serializeCacheValue(value, {
+    preserveUndefined: true,
+  });
+  const parsed = jsonCellSchema.safeParse(serialized);
+  if (parsed.success) return parsed.data;
+
+  return undefined;
 }
 
 function inferKindFromFormat(

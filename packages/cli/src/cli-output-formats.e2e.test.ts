@@ -83,6 +83,8 @@ describe('CLI output formats', () => {
           {
             "name": "receipt-match",
             "status": "passed",
+            "textWithLineBreaks": "Matched receipt
+Amount: $15.99",
           },
           {
             "name": "queue-routing",

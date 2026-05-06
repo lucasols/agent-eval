@@ -1274,14 +1274,16 @@ export const config: AgentEvalsConfig = {
 ## Output formatting
 
 Store output values with the `setOutput(...)` helper passed to `execute` as
-plain data: strings, numbers, booleans, `null`, JSON-safe objects/arrays,
-explicit file refs, or native `Blob`/`File` values. Stored output values are
-not coerced by column formats; `columns.format` only controls visualization in
-the CLI/UI. Native `Blob`/`File` values are copied to run artifacts because
-saved run files are JSON. When the eval has a typed outputs generic,
-`setOutput(...)` keys and values are typed from that output map. Use the global
-`setEvalOutput(...)` from shared workflow code that does not receive the
-execute context. Use `incrementEvalOutput(...)` for numeric totals,
+plain data: strings, numbers, booleans, `null`, objects/arrays, explicit file
+refs, or native `Blob`/`File` values. Stored output values are not coerced by
+column formats; `columns.format` only controls visualization in the CLI/UI.
+Values that are not plain JSON, such as `Date`, `Map`, `Set`, `BigInt`, typed
+arrays, or class instances, are persisted through the tagged value serializer
+instead of a string fallback. Native `Blob`/`File` values are copied to run
+artifacts because saved run files are JSON. When the eval has a typed outputs
+generic, `setOutput(...)` keys and values are typed from that output map. Use
+the global `setEvalOutput(...)` from shared workflow code that does not receive
+the execute context. Use `incrementEvalOutput(...)` for numeric totals,
 `appendToEvalOutput(...)` for arrays that preserve existing scalar values, and
 `mergeEvalOutput(...)` for shallow object updates.
 

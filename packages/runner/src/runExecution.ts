@@ -466,7 +466,7 @@ export async function runCase<
           trial,
           value,
         })
-      : toCellValue(value);
+      : await toCellValue(value);
     if (cell !== undefined) {
       columns[key] = cell;
     }

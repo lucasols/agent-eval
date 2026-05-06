@@ -8,6 +8,11 @@ import { afterEach, expect, test } from 'vitest';
 import { createRunner } from './runner.ts';
 
 const createdWorkspaces: string[] = [];
+const serializedPlanDate = {
+  __aecs: 'json-safe-v1',
+  type: 'Date',
+  value: '2024-01-02T03:04:05.000Z',
+};
 
 afterEach(async () => {
   await Promise.all(
@@ -230,7 +235,7 @@ test('caches values without creating a cache span and replays SDK effects', asyn
       costUsd: 0.25,
       plannedIso: '2024-01-02T03:04:05.000Z',
       plannedTier: 'gold',
-      plannedDateOutput: '2024-01-02T03:04:05.000Z',
+      plannedDateOutput: serializedPlanDate,
       auditTrail: ['draft', { step: 'review', activeCalls: 1 }],
       scalarTrail: ['first', 'second'],
       cacheMetadata: { source: 'fresh', activeCalls: 1, status: 'ok' },
@@ -292,7 +297,7 @@ test('caches values without creating a cache span and replays SDK effects', asyn
       costUsd: 0.25,
       plannedIso: '2024-01-02T03:04:05.000Z',
       plannedTier: 'gold',
-      plannedDateOutput: '2024-01-02T03:04:05.000Z',
+      plannedDateOutput: serializedPlanDate,
       auditTrail: ['draft', { step: 'review', activeCalls: 1 }],
       scalarTrail: ['first', 'second'],
       cacheMetadata: { source: 'fresh', activeCalls: 1, status: 'ok' },

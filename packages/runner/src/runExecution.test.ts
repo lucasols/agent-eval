@@ -188,6 +188,12 @@ test('runCase does not overwrite authored outputs with default usage', async () 
 });
 
 test('runCase preserves JSON-safe output values without a column override', async () => {
+  class ReplyMessage {
+    ai_metadata = { done: true };
+    criado_em = new Date('2024-01-02T03:04:05.000Z');
+    description = 'Hi';
+  }
+
   const generatedAt = new Date('2024-01-02T03:04:05.000Z');
   const result = await runDefaultUsageCase({
     evalDef: {
@@ -199,6 +205,7 @@ test('runCase preserves JSON-safe output values without a column override', asyn
         });
         setEvalOutput('jsonArray', ['draft', { step: 'review' }]);
         setEvalOutput('generatedAt', generatedAt);
+        setEvalOutput('classArray', [new ReplyMessage()]);
       },
     },
   });
@@ -211,9 +218,18 @@ test('runCase preserves JSON-safe output values without a column override', asyn
     'draft',
     { step: 'review' },
   ]);
-  expect(result.caseDetail.columns.generatedAt).toBe(
-    '2024-01-02T03:04:05.000Z',
-  );
+  expect(result.caseDetail.columns.generatedAt).toEqual({
+    __aecs: 'json-safe-v1',
+    type: 'Date',
+    value: '2024-01-02T03:04:05.000Z',
+  });
+  expect(result.caseDetail.columns.classArray).toEqual([
+    {
+      ai_metadata: { done: true },
+      criado_em: result.caseDetail.columns.generatedAt,
+      description: 'Hi',
+    },
+  ]);
 });
 
 test('runCase supports global and per-eval removal of default usage', async () => {
