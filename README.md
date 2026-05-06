@@ -1181,10 +1181,12 @@ CLI:
 - `pnpm eval cache clear --all` — drop every entry.
 
 UI: every `EvalCard` has a split button next to **Run** with a chevron menu
-containing the cache run modes, a single-eval case picker, and a danger-toned
-"Clear cache for this eval". While a run is active, eval cards, folder headers,
-and the run drawer show **Stop** to cancel the whole in-flight run by
-terminating its isolated run process.
+containing the cache run modes and, for single evals, a case picker. The single
+eval page's more menu includes a danger-toned "Clear cache for this eval" that
+deletes the cache namespace/key pairs recorded by saved runs for that eval.
+While a run is active, eval cards, folder headers, and the run drawer show
+**Stop** to cancel the whole in-flight run by terminating its isolated run
+process.
 
 Per eval, use `cache.read` and `cache.store` to control whether authored cached
 operations may read or persist entries:
@@ -1209,6 +1211,8 @@ Server API (`/api/cache`):
 - `GET /api/cache/:namespace/:key` — return one cache entry, plus optional
   raw-key debug metadata when available.
 - `DELETE /api/cache` — clear everything.
+- `DELETE /api/cache/actions/eval?evalKey=<key>` — drop cached entries recorded
+  by saved runs for one exact eval identity.
 - `DELETE /api/cache/:namespace` — clear one namespace.
 - `DELETE /api/cache/:namespace/:key` — drop a single entry.
 

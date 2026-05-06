@@ -223,7 +223,6 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
     isEvalRunning,
   );
   const evalKeys = filteredEvals.map((ev) => ev.key);
-  const evalIds = [...new Set(filteredEvals.map((ev) => ev.id))];
   const isRunning =
     currentRun?.manifest.status === 'running' &&
     evalKeys.some((evalKey) =>
@@ -320,12 +319,12 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
       onSelect: () => {
         if (
           !window.confirm(
-            `Clear cached entries for ${String(evalIds.length)} eval ids in this view?`,
+            `Clear cached entries recorded by saved runs for ${String(evalKeys.length)} evals in this view?`,
           )
         ) {
           return;
         }
-        void Promise.all(evalIds.map((evalId) => clearCacheForEval(evalId)));
+        void Promise.all(evalKeys.map((evalKey) => clearCacheForEval(evalKey)));
       },
     },
   ];

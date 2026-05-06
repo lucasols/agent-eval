@@ -168,7 +168,7 @@ const Separator = styled.div`
  * secondary actions.
  *
  * Used on `EvalCard` to expose run controls (run normally, choose cases,
- * bypass cache, refresh cache, clear cache) alongside the default Run action.
+ * bypass cache, refresh cache) alongside the default Run action.
  */
 export function SplitButton({
   label,

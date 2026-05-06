@@ -285,7 +285,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   }, [scoreHistoryCollapsed]);
 
   const [maintenanceAction, setMaintenanceAction] = useState<
-    'recompute' | 'clean' | null
+    'recompute' | 'clean' | 'clear-cache' | null
   >(null);
   const isStacked = mode === 'stacked';
   const isSingle = mode === 'single';
@@ -494,17 +494,6 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
       description: 'Force re-execution and overwrite entries.',
       onSelect: () => startEvalRun('refresh'),
     },
-    { kind: 'separator' },
-    {
-      id: 'clear-cache',
-      label: 'Clear cache for this eval',
-      description: 'Remove every cached entry tied to this eval id.',
-      tone: 'danger',
-      onSelect: () => {
-        if (!window.confirm('Clear cached entries for this eval?')) return;
-        void clearCacheForEval(evalSummary.id);
-      },
-    },
   ];
   async function handleRecomputeStatuses() {
     setMaintenanceAction('recompute');
@@ -519,6 +508,15 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     setMaintenanceAction('clean');
     try {
       await cleanRunsForEval(evalSummary.key);
+    } finally {
+      setMaintenanceAction(null);
+    }
+  }
+
+  async function handleClearCache() {
+    setMaintenanceAction('clear-cache');
+    try {
+      await clearCacheForEval(evalSummary.key);
     } finally {
       setMaintenanceAction(null);
     }
@@ -600,6 +598,22 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
       },
     },
     { kind: 'separator' },
+    ...(isSingle
+      ? [
+          {
+            id: 'clear-cache',
+            label: 'Clear cache for this eval',
+            description: 'Remove cached entries recorded by saved runs.',
+            tone: 'danger',
+            onSelect: () => {
+              if (!window.confirm('Clear cached entries for this eval?')) {
+                return;
+              }
+              void handleClearCache();
+            },
+          } satisfies SplitButtonMenuEntry,
+        ]
+      : []),
     ...(showClearFilteredRunsAction
       ? [
           {

@@ -679,36 +679,13 @@ export function setTrials(trials: number): void {
 }
 
 /**
- * Delete cache entries scoped to a single authored eval id.
- *
- * Conventional cache namespaces use `${evalId}__${operationName}`, so duplicate
- * eval ids in different files share cache management when they use the same
- * authored keys.
+ * Delete cache entries recorded by saved runs for a single exact eval identity.
  */
-export async function clearCacheForEval(evalId: string): Promise<void> {
-  const listResult = await resultify(() => fetch('/api/cache'));
-  if (listResult.error) return;
-  const jsonResult = await resultify(() => listResult.value.json());
-  if (jsonResult.error) return;
-
-  const parsed = z
-    .array(z.object({ namespace: z.string(), key: z.string() }))
-    .safeParse(jsonResult.value);
-  if (!parsed.success) return;
-
-  const prefix = `${evalId}__`;
-  const matching = parsed.data.filter((entry) =>
-    entry.namespace.startsWith(prefix),
-  );
-  await Promise.all(
-    matching.map((entry) =>
-      resultify(() =>
-        fetch(
-          `/api/cache/${encodeURIComponent(entry.namespace)}/${encodeURIComponent(entry.key)}`,
-          { method: 'DELETE' },
-        ),
-      ),
-    ),
+export async function clearCacheForEval(evalKey: string): Promise<void> {
+  await resultify(() =>
+    fetch(`/api/cache/actions/eval?evalKey=${encodeURIComponent(evalKey)}`, {
+      method: 'DELETE',
+    }),
   );
 }
 
