@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { styled } from 'vindur';
 import { Button } from '#src/components/Button';
 import { Modal } from '#src/components/Modal';
+import { formatEvalTagLabel } from '#src/components/TagChips';
 import { colors } from '#src/style/colors';
 import { ellipsis, inline, monoFont, stack } from '#src/style/helpers';
 
@@ -92,7 +93,6 @@ const TagList = styled.span`
 `;
 
 const TagChip = styled.span`
-  ${monoFont};
   max-width: 140px;
   padding: 1px 6px;
   border: 1px solid ${colors.border.var};
@@ -240,7 +240,7 @@ export function CasePickerModal({
                     key={tag}
                     value={tag}
                   >
-                    {tag}
+                    {formatEvalTagLabel(tag)}
                   </option>
                 ))}
               </TagFilterSelect>
@@ -285,7 +285,7 @@ export function CasePickerModal({
                           key={tag}
                           title={tag}
                         >
-                          {tag}
+                          {formatEvalTagLabel(tag)}
                         </TagChip>
                       ))}
                     </TagList>

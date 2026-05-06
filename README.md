@@ -1387,6 +1387,10 @@ alignment, visibility, and rendering format. Supported `columns.format` values
 include `boolean`, `markdown`, `json`, `image`, `audio`, `video`, `file`,
 `percent`, `duration`, `number`, `passFail`, and `stars`.
 
+In the case detail Output tab, string outputs that look like Markdown are
+rendered as Markdown even without `format: 'markdown'`. Markdown-rendered
+outputs include a small Preview/Raw toggle so you can inspect the original text.
+
 For `format: 'number'`, use `numberFormat` to customize the display:
 
 ```ts

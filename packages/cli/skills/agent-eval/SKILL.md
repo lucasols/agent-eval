@@ -353,6 +353,9 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   column from the runs table when every rendered row is missing the value,
   `null`, or an empty string; `0` and `false` still count as values, and the
   value remains available in case details and raw output data.
+  In the case detail Output tab, string outputs that look like Markdown render
+  as Markdown even without `format: 'markdown'`, with a Preview/Raw toggle for
+  inspecting the original text.
 - `deriveFromTracing` can be authored globally in `agent-evals.config.ts` or
   locally on one eval. Prefer the keyed map form for shared metrics:
   `deriveFromTracing: { toolCalls: ({ trace }) => trace.findSpansByKind('tool').length }`.

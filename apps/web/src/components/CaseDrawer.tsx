@@ -242,6 +242,7 @@ const ScalarValue = styled.div`
   ${monoFont};
   font-size: 13px;
   color: ${colors.text.var};
+  white-space: pre-wrap;
   word-break: break-word;
 `;
 
@@ -837,11 +838,17 @@ function renderColumnValue(def: ColumnDef, value: CellValue | undefined) {
     );
   }
 
-  if (hasRichColumnFormat(def) || typeof value === 'object') {
+  if (
+    hasRichColumnFormat(def) ||
+    typeof value === 'object' ||
+    typeof value === 'string'
+  ) {
     return (
       <FormattedCellValue
         def={def}
         value={value}
+        inferMarkdown
+        markdownRawToggle
       />
     );
   }

@@ -36,6 +36,8 @@ defineEval({
   ],
   columns: {
     response: { label: 'Response', format: 'markdown' },
+    plainTextSummary: { label: 'Plain Text Summary' },
+    inferredMarkdownSummary: { label: 'Inferred Markdown Summary' },
     toolResult: { label: 'Tool Result', format: 'json' },
     requiresManualReview: { label: 'Manual Review', format: 'boolean' },
     previewCard: { label: 'Preview Card', format: 'image', hideInTable: true },
@@ -132,6 +134,14 @@ defineEval({
     setEvalOutput(
       'response',
       `Prepared **refund package** for order \`${input.orderId}\`.\n\nCustomer note: ${input.customerMessage}`,
+    );
+    setEvalOutput(
+      'plainTextSummary',
+      `Order: ${input.orderId}\nStatus: refund package ready\nNext step: send confirmation`,
+    );
+    setEvalOutput(
+      'inferredMarkdownSummary',
+      `- Order \`${input.orderId}\` is ready for review\n- Confirmation can be sent from the refund queue`,
     );
     setEvalOutput('toolResult', {
       orderId: input.orderId,

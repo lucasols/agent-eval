@@ -2,8 +2,9 @@ import { type CacheMode } from '@agent-evals/shared';
 import { styled } from 'vindur';
 import { Button } from '#src/components/Button';
 import { Modal } from '#src/components/Modal';
+import { formatEvalTagLabel } from '#src/components/TagChips';
 import { colors } from '#src/style/colors';
-import { inline, monoFont, stack } from '#src/style/helpers';
+import { inline, stack } from '#src/style/helpers';
 
 type TagPickerModalProps = {
   isOpen: boolean;
@@ -69,7 +70,6 @@ const TagRow = styled.label`
 `;
 
 const TagName = styled.span`
-  ${monoFont};
   min-width: 0;
   font-size: 12px;
   color: ${colors.text.var};
@@ -212,7 +212,7 @@ export function TagPickerModal({
                   checked={selectedTags.includes(tag)}
                   onChange={() => onToggleTag(tag)}
                 />
-                <TagName title={tag}>{tag}</TagName>
+                <TagName title={tag}>{formatEvalTagLabel(tag)}</TagName>
               </TagRow>
             ))}
           </TagList>

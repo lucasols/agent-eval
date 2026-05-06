@@ -1,11 +1,13 @@
 import type { CellValue, ColumnDef, FileRef } from '@agent-evals/shared';
+import { Code2, Eye } from 'lucide-react';
+import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { styled } from 'vindur';
 import { JsonViewer } from '#src/components/JsonViewer';
 import { useImageLightbox } from '#src/components/useImageLightbox';
 import { colors } from '#src/style/colors';
-import { monoFont } from '#src/style/helpers';
+import { inline, monoFont, stack, transition } from '#src/style/helpers';
 import {
   formatDuration,
   formatNumber,
@@ -19,6 +21,59 @@ const TextValue = styled.p`
   margin: 0;
   font-size: 13px;
   line-height: 1.55;
+`;
+
+const RawTextValue = styled.pre`
+  ${monoFont};
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+`;
+
+const MarkdownBlock = styled.div`
+  ${stack({ gap: 6 })}
+`;
+
+const MarkdownToolbar = styled.div`
+  ${inline()}
+`;
+
+const MarkdownToggle = styled.div`
+  ${inline()}
+  padding: 1px;
+  border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-sm);
+  background: ${colors.bg.var};
+`;
+
+const MarkdownToggleButton = styled.button<{ active: boolean }>`
+  ${inline({ align: 'center', gap: 5 })}
+  ${transition({ property: 'background, color' })}
+  height: 20px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: ${colors.textMuted.var};
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+
+  &:hover {
+    color: ${colors.text.var};
+  }
+
+  &.active {
+    background: ${colors.surface.var};
+    color: ${colors.text.var};
+  }
+
+  & svg {
+    width: 10px;
+    height: 10px;
+  }
 `;
 
 const MarkdownValue = styled.div`
@@ -153,9 +208,13 @@ const FileLink = styled.a`
 export function FormattedCellValue({
   def,
   value,
+  inferMarkdown = false,
+  markdownRawToggle = false,
 }: {
   def: ColumnDef;
   value: CellValue | undefined;
+  inferMarkdown?: boolean;
+  markdownRawToggle?: boolean;
 }) {
   if (value === undefined || value === null) return '\u2014';
 
@@ -170,11 +229,15 @@ export function FormattedCellValue({
     );
   }
 
-  if (def.format === 'markdown' && typeof value === 'string') {
+  if (
+    typeof value === 'string' &&
+    shouldRenderAsMarkdown({ def, value, inferMarkdown })
+  ) {
     return (
-      <MarkdownValue>
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{value}</ReactMarkdown>
-      </MarkdownValue>
+      <MarkdownCell
+        value={value}
+        rawToggle={markdownRawToggle}
+      />
     );
   }
 
@@ -238,6 +301,89 @@ export function FormattedCellValue({
 
   return <TextValue>{String(value)}</TextValue>;
 }
+
+function MarkdownCell({
+  value,
+  rawToggle,
+}: {
+  value: string;
+  rawToggle: boolean;
+}) {
+  const [mode, setMode] = useState<'rendered' | 'raw'>('rendered');
+  if (!rawToggle) {
+    return (
+      <MarkdownValue>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{value}</ReactMarkdown>
+      </MarkdownValue>
+    );
+  }
+
+  return (
+    <MarkdownBlock>
+      {mode === 'rendered' ? (
+        <MarkdownValue>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{value}</ReactMarkdown>
+        </MarkdownValue>
+      ) : (
+        <RawTextValue>{value}</RawTextValue>
+      )}
+      <MarkdownToolbar>
+        <MarkdownToggle>
+          <MarkdownToggleButton
+            type="button"
+            active={mode === 'rendered'}
+            aria-pressed={mode === 'rendered'}
+            onClick={() => setMode('rendered')}
+          >
+            <Eye />
+            Preview
+          </MarkdownToggleButton>
+          <MarkdownToggleButton
+            type="button"
+            active={mode === 'raw'}
+            aria-pressed={mode === 'raw'}
+            onClick={() => setMode('raw')}
+          >
+            <Code2 />
+            Raw
+          </MarkdownToggleButton>
+        </MarkdownToggle>
+      </MarkdownToolbar>
+    </MarkdownBlock>
+  );
+}
+
+function shouldRenderAsMarkdown({
+  def,
+  value,
+  inferMarkdown,
+}: {
+  def: ColumnDef;
+  value: string;
+  inferMarkdown: boolean;
+}): boolean {
+  return (
+    def.format === 'markdown' || (inferMarkdown && inferMarkdownText(value))
+  );
+}
+
+function inferMarkdownText(value: string): boolean {
+  if (!value.trim()) return false;
+  return markdownSignals.some((signal) => signal.test(value));
+}
+
+const markdownSignals = [
+  /^#{1,6}\s+\S/m,
+  /^[-*+]\s+\S/m,
+  /^\d+\.\s+\S/m,
+  /^>\s+\S/m,
+  /^```/m,
+  /^[-*_]{3,}\s*$/m,
+  /^\|.+\|\s*$/m,
+  /(?:^|\s)(?:\*\*|__)\S[\s\S]*?\S(?:\*\*|__)(?:\s|$)/,
+  /(?:^|\s)`[^`\n]+`(?:\s|$)/,
+  /!?\[[^\]\n]+\]\([^)]+\)/,
+];
 
 function ImageCell({ src, alt }: { src: string; alt: string }) {
   const { openImage, lightbox } = useImageLightbox();
