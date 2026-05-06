@@ -12,6 +12,7 @@
   "dependencies": {
     "@hono/node-server": "^1.14.3",
     "@hono/zod-validator": "^0.7.3",
+    "@agent-evals/shared": "workspace:*",
     "@ls-stack/agent-eval": "workspace:*",
     "hono": "^4.9.9",
     "launch-editor": "^2.13.2",

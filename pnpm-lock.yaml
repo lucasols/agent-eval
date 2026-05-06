@@ -50,6 +50,9 @@ importers:
 
   apps/server:
     dependencies:
+      '@agent-evals/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@hono/node-server':
         specifier: ^1.14.3
         version: 1.19.11(hono@4.12.9)

@@ -1,4 +1,5 @@
-import { extractCacheEntries, type EvalRunner } from '@ls-stack/agent-eval';
+import { extractCacheEntries } from '@agent-evals/shared';
+import type { EvalRunner } from '@ls-stack/agent-eval';
 import { Hono } from 'hono';
 import { getRunnerInstance } from '../runner.ts';
 

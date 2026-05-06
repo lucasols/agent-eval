@@ -1,10 +1,10 @@
 import { existsSync } from 'node:fs';
 import { isAbsolute, resolve as resolvePath, sep } from 'node:path';
-import { zValidator } from '@hono/zod-validator';
 import {
   createRunRequestSchema,
   updateManualScoreRequestSchema,
-} from '@ls-stack/agent-eval';
+} from '@agent-evals/shared';
+import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import launch from 'launch-editor';
