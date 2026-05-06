@@ -12,7 +12,9 @@ type CasePickerModalProps = {
   caseIds: string[];
   selectedCaseIds: string[];
   cacheMode: CacheMode;
+  temporary: boolean;
   onCacheModeChange: (cacheMode: CacheMode) => void;
+  onTemporaryChange: (temporary: boolean) => void;
   onSelectedCaseIdsChange: (caseIds: string[]) => void;
   onToggleCaseId: (caseId: string) => void;
   onCancel: () => void;
@@ -82,7 +84,7 @@ const Empty = styled.div`
 `;
 
 const FooterLeft = styled.div`
-  ${inline({ align: 'center', gap: 8 })}
+  ${inline({ align: 'center', gap: 12 })}
 `;
 
 const FooterRight = styled.div`
@@ -99,6 +101,17 @@ const CacheModeSelect = styled.select`
   font-size: 12.5px;
 `;
 
+const TemporaryToggle = styled.label`
+  ${inline({ align: 'center', gap: 6 })}
+  color: ${colors.textMuted.var};
+  font-size: 12px;
+  cursor: pointer;
+
+  & > input {
+    flex-shrink: 0;
+  }
+`;
+
 function readCacheMode(value: string): CacheMode {
   if (value === 'bypass' || value === 'refresh') return value;
   return 'use';
@@ -111,7 +124,9 @@ export function CasePickerModal({
   caseIds,
   selectedCaseIds,
   cacheMode,
+  temporary,
   onCacheModeChange,
+  onTemporaryChange,
   onSelectedCaseIdsChange,
   onToggleCaseId,
   onCancel,
@@ -137,6 +152,16 @@ export function CasePickerModal({
               <option value="bypass">No cache</option>
               <option value="refresh">Refresh cache</option>
             </CacheModeSelect>
+            <TemporaryToggle>
+              <input
+                type="checkbox"
+                checked={temporary}
+                onChange={(event) =>
+                  onTemporaryChange(event.currentTarget.checked)
+                }
+              />
+              Temporary
+            </TemporaryToggle>
           </FooterLeft>
           <FooterRight>
             <Button

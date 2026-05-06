@@ -187,6 +187,17 @@ const CasesChip = styled.span`
   line-height: 1;
 `;
 
+const TemporaryBadge = styled.span`
+  ${kicker};
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  background: ${colors.warning.alpha(0.1)};
+  color: ${colors.warning.var};
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  line-height: 1;
+`;
+
 const RunTime = styled.span<{ latest: boolean }>`
   font-size: 12.5px;
   font-weight: 500;
@@ -519,6 +530,9 @@ function RunGroup({
             <RunTime latest={isLatest}>
               {formatTimestamp(manifest.startedAt)}
             </RunTime>
+            {manifest.temporary ? (
+              <TemporaryBadge>TEMPORARY</TemporaryBadge>
+            ) : null}
             {cases.length > 1 && <CasesChip>{cases.length} cases</CasesChip>}
           </RunCaseCell>
         </RunHeaderTd>

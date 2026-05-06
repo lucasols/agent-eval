@@ -234,7 +234,10 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
     ({ key }) => breakdown[key] > 0 || statusFilters.has(key),
   );
 
-  function startRunForEvalKeys(cacheMode?: 'use' | 'bypass' | 'refresh'): void {
+  function startRunForEvalKeys(
+    cacheMode?: 'use' | 'bypass' | 'refresh',
+    temporary = false,
+  ): void {
     if (evalKeys.length === 0) return;
     const skipped = filteredEvals.filter((ev) => ev.manualInput !== undefined);
     const runnableKeys = filteredEvals
@@ -249,12 +252,16 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
     if (runnableKeys.length === 0) return;
     void startRun(
       { mode: 'evalIds', evalKeys: runnableKeys },
-      cacheMode ? { cacheMode } : {},
+      { ...(cacheMode ? { cacheMode } : {}), temporary },
     );
   }
 
   function handleRunAll() {
     startRunForEvalKeys();
+  }
+
+  function handleTemporaryRunAll() {
+    startRunForEvalKeys(undefined, true);
   }
 
   function handleStop() {
@@ -291,6 +298,12 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
       label: 'Run without cache',
       description: 'Skip reads and writes for this run.',
       onSelect: () => startRunForEvalKeys('bypass'),
+    },
+    {
+      id: 'run-temporary',
+      label: 'Run temporary',
+      description: 'Persist this run until the next run starts.',
+      onSelect: handleTemporaryRunAll,
     },
     {
       id: 'run-refresh',

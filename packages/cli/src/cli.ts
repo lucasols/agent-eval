@@ -32,6 +32,7 @@ type CliArgs = {
   port: number;
   cacheMode: CacheMode;
   clearCache: boolean;
+  temporary: boolean;
   all: boolean;
   loadEnv: boolean;
   /** JSON value supplied with `--input`; used as the manual input for a single targeted eval. */
@@ -61,6 +62,7 @@ function parseArgs(argv: string[]): CliArgs {
     port: 4100,
     cacheMode: 'use',
     clearCache: false,
+    temporary: false,
     all: false,
     loadEnv: normalizedArgv.length === argv.length,
     inputJson: undefined,
@@ -127,6 +129,8 @@ function parseArgs(argv: string[]): CliArgs {
       args.cacheMode = 'refresh';
     } else if (arg === '--clear-cache') {
       args.clearCache = true;
+    } else if (arg === '--temporary') {
+      args.temporary = true;
     } else if (arg === '--input' && next !== undefined) {
       args.inputJson = next;
       i++;
@@ -446,6 +450,7 @@ async function commandRun(args: CliArgs): Promise<void> {
   const run = await runner.startRun({
     target,
     trials: args.trials,
+    temporary: args.temporary,
     cache: { mode: args.cacheMode },
     manualInputs: manualInputsResult.value,
   });
@@ -455,6 +460,9 @@ async function commandRun(args: CliArgs): Promise<void> {
     console.info(`Trials: ${String(args.trials)}`);
     if (args.cacheMode !== 'use') {
       console.info(`Cache mode: ${args.cacheMode}`);
+    }
+    if (args.temporary) {
+      console.info('Temporary: yes');
     }
     console.info('');
   }
@@ -512,6 +520,7 @@ type RunFileIndex = {
   id: string;
   shortId: string;
   status: RunManifest['status'];
+  temporary: boolean;
   startedAt: string;
   endedAt: string | null;
   target: RunManifest['target'];
@@ -664,6 +673,7 @@ function buildRunFileIndex(
     id: run.manifest.id,
     shortId: run.manifest.shortId,
     status: run.manifest.status,
+    temporary: run.manifest.temporary,
     startedAt: run.manifest.startedAt,
     endedAt: run.manifest.endedAt,
     target: run.manifest.target,
@@ -748,7 +758,7 @@ function printRunFileIndexes(indexes: RunFileIndex[]): void {
 
 function printRunFileIndex(index: RunFileIndex): void {
   console.info(
-    `${index.shortId} (${index.id})  ${index.status}  ${formatCaseCounts(index.summary)}`,
+    `${index.shortId} (${index.id})  ${index.status}${index.temporary ? '  temporary' : ''}  ${formatCaseCounts(index.summary)}`,
   );
   console.info(`  dir: ${index.files.dir}`);
   console.info(`  run: ${index.files.run}`);

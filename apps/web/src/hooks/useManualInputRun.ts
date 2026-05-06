@@ -6,6 +6,7 @@ import {
 } from '#src/stores/runStore';
 
 type SupportedCacheMode = Extract<CacheMode, 'use' | 'bypass' | 'refresh'>;
+type ActiveRunOptions = { cacheMode: SupportedCacheMode; temporary: boolean };
 
 /**
  * Hook owning a single eval's manual-input modal state plus the submission
@@ -18,31 +19,33 @@ type SupportedCacheMode = Extract<CacheMode, 'use' | 'bypass' | 'refresh'>;
  * - `cancel()` to dismiss the modal and clear failures.
  */
 export function useManualInputRun(evalSummary: EvalSummary) {
-  const [activeCacheMode, setActiveCacheMode] =
-    useState<SupportedCacheMode | null>(null);
+  const [activeOptions, setActiveOptions] = useState<ActiveRunOptions | null>(
+    null,
+  );
   const [serverFailure, setServerFailure] = useState<
     ManualInputStartRunFailure | undefined
   >(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function open(cacheMode: SupportedCacheMode): void {
+  function open(cacheMode: SupportedCacheMode, temporary = false): void {
     setServerFailure(undefined);
-    setActiveCacheMode(cacheMode);
+    setActiveOptions({ cacheMode, temporary });
   }
 
   function cancel(): void {
-    setActiveCacheMode(null);
+    setActiveOptions(null);
     setServerFailure(undefined);
     setIsSubmitting(false);
   }
 
   async function submit(values: Record<string, unknown>): Promise<void> {
-    if (activeCacheMode === null) return;
+    if (activeOptions === null) return;
     setIsSubmitting(true);
     const result = await startRun(
       { mode: 'evalIds', evalKeys: [evalSummary.key] },
       {
-        cacheMode: activeCacheMode,
+        cacheMode: activeOptions.cacheMode,
+        temporary: activeOptions.temporary,
         manualInputs: { [evalSummary.key]: values },
       },
     );
@@ -71,7 +74,7 @@ export function useManualInputRun(evalSummary: EvalSummary) {
   }
 
   return {
-    isOpen: activeCacheMode !== null,
+    isOpen: activeOptions !== null,
     isSubmitting,
     serverFailure,
     open,

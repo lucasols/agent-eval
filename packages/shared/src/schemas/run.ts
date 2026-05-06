@@ -12,6 +12,11 @@ export const runManifestSchema = z.object({
    */
   shortId: z.string(),
   status: z.enum(['pending', 'running', 'completed', 'cancelled', 'error']),
+  /**
+   * Temporary runs are persisted like normal runs, but are deleted before the
+   * next run starts. Older persisted runs default to durable history.
+   */
+  temporary: z.boolean().optional().default(false),
   startedAt: z.string(),
   endedAt: z.string().nullable(),
   /**

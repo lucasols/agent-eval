@@ -29,7 +29,11 @@ display rules), read the TypeScript declarations shipped with the package:
   `agent-evals.config.ts` to opt into run-all CLI behavior. The web UI can
   still run grouped evals and confirms before starting more than five. On a
   single eval page, the Run chevron can open a picker to run specific authored
-  case ids.
+  case ids; those case-picked runs are temporary by default and can be made
+  durable in the modal.
+- `agent-evals run --temporary` persists a run like normal history, but deletes
+  it before the next run starts. Temporary runs appear in `show-runs` and the UI
+  while present; normal runs are never deleted by temporary-run cleanup.
 - `agent-evals app` watches `agent-evals.config.ts` and reloads config in
   place when the runner is idle. If config changes during an active run, the UI
   shows a pending reload banner and blocks new runs until the current run
@@ -509,6 +513,8 @@ Run output lives under `.agent-evals/runs/<run-id>/` and cache entries under
 `.agent-evals/cache/<eval-id>.json`. Files in a run directory include run
 metadata, a run summary, per-case results, and per-case trace JSON. Inspect
 these when debugging persisted output, costs, columns, traces, or failures.
+Temporary runs use the same directory layout, but are removed before the next
+run of any kind starts.
 
 Use `agent-evals show-runs` when you need stable file
 paths before reading saved output:

@@ -274,6 +274,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const [casePickerOpen, setCasePickerOpen] = useState(false);
   const [casePickerCacheMode, setCasePickerCacheMode] =
     useState<CacheMode>('use');
+  const [casePickerTemporary, setCasePickerTemporary] = useState(false);
   const [selectedCaseIds, setSelectedCaseIds] = useState<string[]>([]);
   const [scoreHistoryCollapsed, setScoreHistoryCollapsed] = useState(
     readScoreHistoryCollapsed,
@@ -388,6 +389,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const isRunning =
     currentRun?.manifest.status === 'running' &&
     runTargetsEvalLocal(currentRun.manifest.target, evalSummary.key);
+  const primaryRunIsTemporary = visibleRunRows[0]?.manifest.temporary === true;
   const hasScoreHistory =
     isSingle && visibleCharts.length > 0 && completedRunCount > 1;
   const displayStatus = getEvalDisplayStatus({
@@ -407,6 +409,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
 
   function openCasePicker(cacheMode: CacheMode) {
     setCasePickerCacheMode(cacheMode);
+    setCasePickerTemporary(true);
     setSelectedCaseIds(knownCaseIds);
     setCasePickerOpen(true);
   }
@@ -432,22 +435,25 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
         evalKeys: [evalSummary.key],
         caseIds: selectedCaseIds,
       },
-      { cacheMode: casePickerCacheMode },
+      { cacheMode: casePickerCacheMode, temporary: casePickerTemporary },
     );
   }
-  function startEvalRun(cacheMode: 'use' | 'bypass' | 'refresh') {
+  function startEvalRun(
+    cacheMode: 'use' | 'bypass' | 'refresh',
+    temporary = false,
+  ) {
     if (requiresManualInput) {
-      manualInputRun.open(cacheMode);
+      manualInputRun.open(cacheMode, temporary);
       return;
     }
     void startRun(
       { mode: 'evalIds', evalKeys: [evalSummary.key] },
-      { cacheMode },
+      { cacheMode, temporary },
     );
   }
   function handleRun(e: React.MouseEvent) {
     e.stopPropagation();
-    startEvalRun('use');
+    startEvalRun('use', primaryRunIsTemporary);
   }
   function handleStop(e: React.MouseEvent) {
     e.stopPropagation();
@@ -459,6 +465,12 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
       label: 'Run (use cache)',
       description: 'Read on hit, write on miss.',
       onSelect: () => startEvalRun('use'),
+    },
+    {
+      id: 'run-temporary',
+      label: 'Run temporary',
+      description: 'Persist this run until the next run starts.',
+      onSelect: () => startEvalRun('use', true),
     },
     ...(requiresManualInput
       ? []
@@ -715,11 +727,11 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
               </Button>
             ) : (
               <SplitButton
-                label="Run"
+                label={primaryRunIsTemporary ? 'Temp run' : 'Run'}
                 leftIcon={<Play />}
                 onPrimaryClick={handleRun}
                 menu={cacheMenu}
-                aria-label="Run"
+                aria-label={primaryRunIsTemporary ? 'Temp run' : 'Run'}
               />
             )}
             <MenuButton
@@ -777,7 +789,9 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
         caseIds={knownCaseIds}
         selectedCaseIds={selectedCaseIds}
         cacheMode={casePickerCacheMode}
+        temporary={casePickerTemporary}
         onCacheModeChange={setCasePickerCacheMode}
+        onTemporaryChange={setCasePickerTemporary}
         onSelectedCaseIdsChange={setSelectedCaseIds}
         onToggleCaseId={toggleCaseId}
         onCancel={closeCasePicker}

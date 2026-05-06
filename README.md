@@ -70,13 +70,14 @@ pnpm add -D @ls-stack/agent-eval
    });
    ```
 
-3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). Use the sidebar status counts to filter visible evals by one or more states. On an eval page, the Run chevron can open a case picker for running a selected subset of authored cases, filter the runs table by applicable result or recent-activity buckets, share that filter through the URL, and clear the currently filtered saved runs when needed. Each eval's actions menu can copy matching CLI run and debug commands using the workspace package manager. The app watches `agent-evals.config.ts` and reloads config in place when idle; if the file changes during a run, the UI shows a pending banner and new runs are blocked until the current run finishes and the reload applies.
+3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). Use the sidebar status counts to filter visible evals by one or more states. On an eval page, the Run chevron can open a case picker for running a selected subset of authored cases; case-picked runs are temporary by default and can be made durable in the modal. The app can also filter the runs table by applicable result or recent-activity buckets, share that filter through the URL, and clear the currently filtered saved runs when needed. Each eval's actions menu can copy matching CLI run and debug commands using the workspace package manager. The app watches `agent-evals.config.ts` and reloads config in place when idle; if the file changes during a run, the UI shows a pending banner and new runs are blocked until the current run finishes and the reload applies.
 
 4. **Or use the CLI**:
 
    ```sh
    agent-evals list
    agent-evals run
+   agent-evals run --temporary --eval my-agent --case greeting
    agent-evals run --eval my-agent --case greeting --json
    agent-evals show-runs
    agent-evals show-runs latest --json
@@ -87,7 +88,7 @@ pnpm add -D @ls-stack/agent-eval
 
    Use `agent-evals show-runs` to print saved run directories and stable artifact file paths. Run ids can be full timestamp ids, short ids such as `r0`, or `latest`.
 
-   Run artifacts are persisted under `.agent-evals/runs/<run-id>/` with `run.json`, `summary.json`, per-case `cases.jsonl`, case detail JSON files, and trace JSON files for the executed cases.
+   Run artifacts are persisted under `.agent-evals/runs/<run-id>/` with `run.json`, `summary.json`, per-case `cases.jsonl`, case detail JSON files, and trace JSON files for the executed cases. Temporary runs are persisted and visible while present, then deleted before the next run starts.
 
 A complete working example lives at [`examples/basic-agent`](./examples/basic-agent).
 
@@ -1384,6 +1385,7 @@ Flags:
   --no-cache                 Shortcut for --cache bypass
   --refresh-cache            Shortcut for --cache refresh
   --clear-cache              Clear the cache before starting the run
+  --temporary                Persist this run until the next run starts
   --no-env                   Disable automatic .env loading
   --help, -h                 Show global or command-specific help
 ```

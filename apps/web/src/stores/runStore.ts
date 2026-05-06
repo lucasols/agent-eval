@@ -240,6 +240,7 @@ export type RunTarget =
 /** Optional run-start options, notably the cache mode. */
 export type StartRunOptions = {
   cacheMode?: CacheMode;
+  temporary?: boolean;
   /**
    * Manual-input payload keyed by eval key. Set when the user submitted the
    * `ManualInputModal` for a run that targets one or more evals declaring
@@ -322,6 +323,7 @@ export async function startRun(
     trials,
     cache: { mode: cacheMode },
   };
+  if (options.temporary === true) body.temporary = true;
   if (options.manualInputs) body.manualInputs = options.manualInputs;
 
   const fetchResult = await resultify(() =>

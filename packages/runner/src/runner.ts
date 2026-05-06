@@ -49,6 +49,7 @@ import {
 import { type RunChildContext } from './runChildProtocol.ts';
 import {
   persistRunState,
+  deleteTemporaryRuns,
   recomputePersistedCaseStatus,
   recomputeEvalStatusesInRuns,
   runTouchesEval,
@@ -457,6 +458,10 @@ export function createRunner({
       emitDiscoveryEvent();
     },
     async startRun(request) {
+      const deletedTemporaryRuns = await deleteTemporaryRuns({
+        runs,
+        cancelRunningRun: killRunChild,
+      });
       const runId = generateRunId();
       const shortId = `r${String(nextShortIdNum++)}`;
       const now = new Date().toISOString();
@@ -468,6 +473,7 @@ export function createRunner({
         id: runId,
         shortId,
         status: 'running',
+        temporary: request.temporary === true,
         startedAt: now,
         endedAt: null,
         commitSha: gitState.commitSha,
@@ -560,6 +566,7 @@ export function createRunner({
         managerContext: { workspaceRoot, evals, emitEvent, emitDiscoveryEvent },
       });
 
+      if (deletedTemporaryRuns > 0) emitDiscoveryEvent();
       return { manifest, summary, cases: [] };
     },
     getRuns() {

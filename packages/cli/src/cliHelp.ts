@@ -59,6 +59,7 @@ Flags:
   --no-cache                 Shortcut for --cache bypass
   --refresh-cache            Shortcut for --cache refresh
   --clear-cache              Clear the cache before starting the run
+  --temporary                Persist until the next run starts, then delete
   --input <json>             Manual input value for a single targeted eval
                              that declares manualInput
   --input-file <path>        JSON object keyed by eval key (or eval id) with
@@ -132,6 +133,7 @@ Options:
   --no-cache                 Shortcut for --cache bypass
   --refresh-cache            Shortcut for --cache refresh
   --clear-cache              Clear the cache before starting the run
+  --temporary                Persist until the next run starts, then delete
   --no-env                   Disable automatic .env loading
   --help, -h                 Show help
   `);

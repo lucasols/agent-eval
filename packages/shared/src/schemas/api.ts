@@ -33,6 +33,11 @@ export const createRunRequestSchema = z.object({
   }),
   trials: z.number().min(1),
   /**
+   * Persist this run as temporary history. Temporary runs are visible while
+   * present, then deleted before the next run of any kind starts.
+   */
+  temporary: z.boolean().optional(),
+  /**
    * Optional cache controls for the run. When omitted, the cache is used in
    * its default read-through / write-on-miss mode.
    */

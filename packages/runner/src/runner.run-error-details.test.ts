@@ -90,6 +90,7 @@ test('persists child stderr when the run child exits before sending a terminal e
       id: 'broken-child',
       shortId: 'r0',
       status: 'running',
+      temporary: false,
       startedAt: new Date().toISOString(),
       endedAt: null,
       commitSha: null,

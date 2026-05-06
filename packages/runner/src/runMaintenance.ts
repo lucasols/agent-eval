@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   deriveScopedSummaryFromCases,
@@ -91,6 +91,32 @@ export type MaintainedRunState = {
   cases: CaseRow[];
   caseDetails: Map<string, CaseDetail>;
 };
+
+export async function deleteTemporaryRuns<
+  RunState extends MaintainedRunState,
+>(params: {
+  runs: Map<string, RunState>;
+  cancelRunningRun: (run: RunState) => void;
+}): Promise<number> {
+  let deletedRuns = 0;
+  for (const [runId, run] of [...params.runs]) {
+    if (run.manifest.temporary !== true) continue;
+    if (run.manifest.status === 'running') {
+      const endedAt = new Date();
+      run.manifest.status = 'cancelled';
+      run.manifest.endedAt = endedAt.toISOString();
+      run.summary.status = 'cancelled';
+      run.summary.totalDurationMs =
+        endedAt.getTime() - new Date(run.manifest.startedAt).getTime();
+      params.cancelRunningRun(run);
+    }
+
+    params.runs.delete(runId);
+    await rm(run.runDir, { recursive: true, force: true });
+    deletedRuns += 1;
+  }
+  return deletedRuns;
+}
 
 export async function recomputeEvalStatusesInRuns(params: {
   runs: Iterable<MaintainedRunState>;

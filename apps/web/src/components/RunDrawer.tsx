@@ -96,6 +96,16 @@ const RunTag = styled.span`
   background: ${colors.accent.var};
 `;
 
+const TemporaryTag = styled.span`
+  ${kicker};
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  color: ${colors.warning.var};
+  background: ${colors.warning.alpha(0.1)};
+`;
+
 const RunTime = styled.span`
   font-size: 15px;
   font-weight: 600;
@@ -570,6 +580,7 @@ export function RunDrawer() {
         </HeaderTop>
         <HeaderLeft>
           <RunTag>RUN</RunTag>
+          {manifest.temporary ? <TemporaryTag>TEMPORARY</TemporaryTag> : null}
           <RunTime>{formatTimestamp(manifest.startedAt)}</RunTime>
           <StatusBadge status={displayStatus} />
         </HeaderLeft>

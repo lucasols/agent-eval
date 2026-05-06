@@ -22,6 +22,7 @@ const uploadApp = new Hono().route(
 );
 
 beforeEach(() => {
+  vi.clearAllMocks();
   mockRunner.getWorkspaceRoot.mockReturnValue(process.cwd());
   mockRunner.getConfigReloadState.mockReturnValue({
     status: 'idle',
@@ -35,6 +36,7 @@ beforeEach(() => {
       id: 'run-1',
       shortId: 'r0',
       status: 'running',
+      temporary: false,
       startedAt: '2026-05-01T00:00:00.000Z',
       endedAt: null,
       commitSha: null,
@@ -103,6 +105,24 @@ describe('manual input file upload route', () => {
 });
 
 describe('runs route config reload guard', () => {
+  test('passes temporary run creation through to the runner', async () => {
+    const body = {
+      target: { mode: 'evalIds', evalIds: ['example-eval'] },
+      trials: 1,
+      temporary: true,
+    };
+
+    const response = await app.request('/runs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    expect(response.status).toBe(201);
+    expect(mockRunner.validateManualInputs).toHaveBeenCalledWith(body);
+    expect(mockRunner.startRun).toHaveBeenCalledWith(body);
+  });
+
   test('blocks run creation while config reload is pending', async () => {
     mockRunner.getConfigReloadState.mockReturnValue({
       status: 'pending',

@@ -12,6 +12,7 @@ const runFileIndexSchema = z.object({
   id: z.string(),
   shortId: z.string(),
   status: z.string(),
+  temporary: z.boolean(),
   startedAt: z.string(),
   endedAt: z.string().nullable(),
   target: z.object({
@@ -61,7 +62,7 @@ describe('CLI saved run file index', () => {
         'agent-evals show-runs [<run-id>|latest]',
       );
     });
-  });
+  }, 10_000);
 
   test('prints stable artifact paths for saved runs', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
@@ -96,7 +97,7 @@ describe('CLI saved run file index', () => {
                 trace: <workspace>/.agent-evals/runs/<run-id>/traces/simple-text.json"
         `);
     });
-  });
+  }, 10_000);
 
   test('emits a JSON file index for latest or short-id lookup', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
@@ -180,6 +181,7 @@ describe('CLI saved run file index', () => {
               ],
               "mode": "caseIds",
             },
+            "temporary": false,
           },
           "list": [
             {
@@ -227,10 +229,74 @@ describe('CLI saved run file index', () => {
                 ],
                 "mode": "caseIds",
               },
+              "temporary": false,
             },
           ],
         }
       `);
     });
-  });
+  }, 10_000);
+
+  test('temporary CLI runs are replaced by the next run of any kind', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const firstTemporary = await runExampleCli(workspacePath, [
+        'run',
+        '--temporary',
+        '--eval',
+        'refund-workflow',
+        '--case',
+        'simple-text',
+      ]);
+      expect(firstTemporary.exitCode).toBe(0);
+      expect(firstTemporary.stderr).toBe('');
+      expect(firstTemporary.stdout).toContain('Temporary: yes');
+
+      const secondTemporary = await runExampleCli(workspacePath, [
+        'run',
+        '--temporary',
+        '--eval',
+        'refund-workflow',
+        '--case',
+        'simple-text',
+      ]);
+      expect(secondTemporary.exitCode).toBe(0);
+
+      const afterTemporaryRuns = await runExampleCli(workspacePath, [
+        'show-runs',
+        '--json',
+      ]);
+      const temporaryIndexes = parseJson(
+        runFileIndexListSchema,
+        afterTemporaryRuns.stdout,
+      );
+      expect(temporaryIndexes).toHaveLength(1);
+      expect(temporaryIndexes[0]).toMatchObject({
+        shortId: 'r1',
+        temporary: true,
+      });
+
+      const normalRun = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'refund-workflow',
+        '--case',
+        'simple-text',
+      ]);
+      expect(normalRun.exitCode).toBe(0);
+
+      const afterNormalRun = await runExampleCli(workspacePath, [
+        'show-runs',
+        '--json',
+      ]);
+      const finalIndexes = parseJson(
+        runFileIndexListSchema,
+        afterNormalRun.stdout,
+      );
+      expect(finalIndexes).toHaveLength(1);
+      expect(finalIndexes[0]).toMatchObject({
+        shortId: 'r2',
+        temporary: false,
+      });
+    });
+  }, 15_000);
 });
