@@ -1226,6 +1226,9 @@ Server API (`/api/cache`):
 - Entries live in inspectable per-owner files at
   `<workspaceRoot>/.agent-evals/cache/<owner>.json`; for conventional
   eval-prefixed namespaces, the owner is the eval id.
+- Nested cached JSON values at or above roughly 10K JSON characters are stored as content-addressed
+  Brotli blobs under `<workspaceRoot>/.agent-evals/cache-blobs/` and referenced
+  from the owner JSON by sha256. Identical large payloads share the same blob.
 - Authored raw cache keys are stored for debugging in
   `<workspaceRoot>/.agent-evals/cache-debug/<owner>.json`. This folder may
   contain prompts, user inputs, or other sensitive data, is not needed for cache
@@ -1250,11 +1253,11 @@ Server API (`/api/cache`):
   `evalTracer.checkpoint`, output helper calls, span attributes). External side
   effects (network, DB writes) do _not_ replay on cache hits — use caching only
   for pure functions of their key.
-- Cached payloads are serialized with Seroval's Web API plugin set, so return
-  values and recorded SDK effects preserve richer built-ins such as `Date`,
-  `Map`, `Set`, typed arrays, `URL`, `Headers`, `Blob`, and `File` on cache
-  hits. Undefined values are omitted by default instead of being written to
-  cache files; callers using `serializeCacheValue(...)` or
+- Cached payloads use JSON-safe tagged serialization, so return values and
+  recorded SDK effects preserve richer built-ins such as `Date`, `Map`, `Set`,
+  typed arrays, `URL`, `Headers`, `Blob`, and `File` on cache hits. Undefined
+  values are omitted by default instead of being written to cache files; callers
+  using `serializeCacheValue(...)` or
   `serializeCacheRecording(...)` directly can pass
   `{ preserveUndefined: true }` to retain explicit undefined wrappers. Cache
   keys still use the deterministic key-hashing rules above.

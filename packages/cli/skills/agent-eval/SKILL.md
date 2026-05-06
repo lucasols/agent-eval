@@ -491,6 +491,10 @@ Mental model:
   `.agent-evals/cache/<owner>.json`; each namespace is capped at 100 entries by
   default. Configure `cache.maxEntriesPerNamespace` for the default cap and
   `cache.maxEntriesByNamespace` for exact namespace-specific caps.
+- Nested cached JSON values at or above roughly 10K JSON characters are stored
+  as content-addressed Brotli blobs under `.agent-evals/cache-blobs/` and
+  referenced from cache JSON by sha256. Identical large payloads share the same
+  blob.
 - Authored raw cache keys are stored for debugging under
   `.agent-evals/cache-debug/<owner>.json`. This folder may include prompts,
   user inputs, or other sensitive data, should be gitignored, and is not needed
@@ -498,11 +502,11 @@ Mental model:
   can be filtered to hits or new entries added by cache misses/refreshes.
   Misses/refreshes with `cache.store: false` are shown as non-stored activity
   without fetch/delete controls.
-- Cached payloads use advanced serialization/deserialization with the Web API
-  plugin set, so return values and recorded SDK effects preserve richer
-  built-ins such as `Date`, `Map`, `Set`, typed arrays, `URL`, `Headers`,
-  `Blob`, and `File` on hits. Undefined values are omitted by default instead
-  of being written to cache files; direct serializer callers can pass
+- Cached payloads use JSON-safe tagged serialization, so return values and
+  recorded SDK effects preserve richer built-ins such as `Date`, `Map`, `Set`,
+  typed arrays, `URL`, `Headers`, `Blob`, and `File` on hits. Undefined values
+  are omitted by default instead of being written to cache files; direct
+  serializer callers can pass
   `{ preserveUndefined: true }` when explicit undefined wrappers are needed.
   Cache keys still use the deterministic key-hashing rules above.
 - Cache mode per run is controlled by CLI flags (see `agent-evals run --help`).

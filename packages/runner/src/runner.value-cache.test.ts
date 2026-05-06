@@ -9,8 +9,7 @@ import { createRunner } from './runner.ts';
 
 const createdWorkspaces: string[] = [];
 const serializedPlanDate = {
-  __aecs: 'json-safe-v1',
-  type: 'Date',
+  __aecs: 'v1:Date',
   value: '2024-01-02T03:04:05.000Z',
 };
 

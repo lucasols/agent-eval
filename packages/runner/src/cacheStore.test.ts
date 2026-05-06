@@ -2,6 +2,8 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { brotliDecompressSync } from 'node:zlib';
+import { serializeCacheRecording } from '@agent-evals/sdk';
 import {
   cacheDebugKeyFileSchema,
   cacheFileSchema,
@@ -13,6 +15,7 @@ import { afterEach, describe, expect, test } from 'vitest';
 import { createBufferedCacheStore, createFsCacheStore } from './cacheStore.ts';
 
 const workspaces: string[] = [];
+const externalJsonBlobPathRegex = /^sha256\/[a-f0-9]{2}\/[a-f0-9]+\.json\.br$/;
 
 afterEach(async () => {
   await Promise.all(
@@ -73,6 +76,32 @@ async function readDebugKeyFile(
       ),
     ),
   );
+}
+
+function getNestedExternalJsonRef(value: unknown): Record<string, unknown> {
+  const payload = getRecordProperty(value, 'payload');
+  const rows = getRecordProperty(payload, 'rows');
+  if (!isRecordLike(rows)) {
+    throw new Error('Expected nested rows to be an external JSON ref');
+  }
+  return rows;
+}
+
+function getStringProperty(value: unknown, key: string): string {
+  const property = getRecordProperty(value, key);
+  if (typeof property !== 'string') {
+    throw new Error(`Expected ${key} to be a string`);
+  }
+  return property;
+}
+
+function getRecordProperty(value: unknown, key: string): unknown {
+  if (!isRecordLike(value)) return undefined;
+  return value[key];
+}
+
+function isRecordLike(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 describe('filesystem cache store raw-key debug storage', () => {
@@ -148,6 +177,87 @@ describe('filesystem cache store raw-key debug storage', () => {
     expect(rawDebugFile).toContain('\n      "key": "hashed-key"');
   });
 
+  test('stores large nested JSON values as hashed Brotli blobs', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
+    const rows = Array.from({ length: 160 }, (_, index) => ({
+      index,
+      message: 'repeatable nested tree payload',
+      status: index % 2 === 0 ? 'pass' : 'fail',
+    }));
+    const entry = cacheEntry({ key: 'hashed-key' });
+    entry.recording = await serializeCacheRecording(
+      { returnValue: { payload: { rows } }, finalAttributes: {}, ops: [] },
+      { externalJsonStore: store.externalJsonStore },
+    );
+
+    await store.write(entry);
+
+    const cacheFile = await readCacheFile(workspacePath);
+    const blobRef = getNestedExternalJsonRef(
+      cacheFile.entries['hashed-key']?.recording.returnValue,
+    );
+    expect(blobRef).toMatchObject({ __aecs: 'v1:ExternalJson' });
+
+    const blobPath = getStringProperty(blobRef, 'path');
+    expect(blobPath).toMatch(externalJsonBlobPathRegex);
+    const compressed = await readFile(resolve(store.blobDir(), blobPath));
+    expect(
+      JSON.parse(brotliDecompressSync(compressed).toString('utf8')),
+    ).toEqual(rows);
+
+    await expect(
+      store.lookup('debug-eval__expensive-op', 'hashed-key'),
+    ).resolves.toMatchObject({
+      recording: { returnValue: { payload: { rows } } },
+    });
+
+    await store.clear({
+      key: 'hashed-key',
+      namespace: 'debug-eval__expensive-op',
+    });
+
+    expect(existsSync(resolve(store.blobDir(), blobPath))).toBe(false);
+  });
+
+  test('reuses the same external blob path for identical nested JSON', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
+    const rows = Array.from({ length: 160 }, (_, index) => ({
+      index,
+      message: 'repeatable nested tree payload',
+      status: index % 2 === 0 ? 'pass' : 'fail',
+    }));
+    const first = cacheEntry({ key: 'first' });
+    const second = cacheEntry({ key: 'second' });
+    first.recording = await serializeCacheRecording(
+      { returnValue: { payload: { rows } }, finalAttributes: {}, ops: [] },
+      { externalJsonStore: store.externalJsonStore },
+    );
+    second.recording = await serializeCacheRecording(
+      { returnValue: { payload: { rows } }, finalAttributes: {}, ops: [] },
+      { externalJsonStore: store.externalJsonStore },
+    );
+
+    await store.write(first);
+    await store.write(second);
+
+    const cacheFile = await readCacheFile(workspacePath);
+    const firstRef = getNestedExternalJsonRef(
+      cacheFile.entries.first?.recording.returnValue,
+    );
+    const secondRef = getNestedExternalJsonRef(
+      cacheFile.entries.second?.recording.returnValue,
+    );
+
+    expect(getStringProperty(firstRef, 'hash')).toBe(
+      getStringProperty(secondRef, 'hash'),
+    );
+    expect(getStringProperty(firstRef, 'path')).toBe(
+      getStringProperty(secondRef, 'path'),
+    );
+  });
+
   test('lookup succeeds when raw-key debug data is unavailable', async () => {
     const workspacePath = await createWorkspace();
     const store = createFsCacheStore({ workspaceRoot: workspacePath });
@@ -167,7 +277,7 @@ describe('filesystem cache store raw-key debug storage', () => {
     const store = createFsCacheStore({ workspaceRoot: workspacePath });
     const entry = cacheEntry({ key: 'unsupported-key' });
     entry.recording.returnValue = {
-      __aecs: 'unsupported-v1',
+      __aecs: 'unsupported:Value',
       value: { ok: true },
     };
 
@@ -276,6 +386,30 @@ describe('filesystem cache store raw-key debug storage', () => {
     expect(Object.keys(debugFile.entries)).toEqual(['winning-key']);
     expect(debugFile.entries['winning-key']?.rawKey).toEqual({
       candidate: 'winning',
+    });
+  });
+
+  test('buffered cache lookup materializes pending external blobs', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
+    const buffered = createBufferedCacheStore(store);
+    const rows = Array.from({ length: 160 }, (_, index) => ({
+      index,
+      message: 'repeatable nested tree payload',
+      status: index % 2 === 0 ? 'pass' : 'fail',
+    }));
+    const entry = cacheEntry({ key: 'hashed-key' });
+    entry.recording = await serializeCacheRecording(
+      { returnValue: { payload: { rows } }, finalAttributes: {}, ops: [] },
+      { externalJsonStore: buffered.externalJsonStore },
+    );
+
+    await buffered.write(entry);
+
+    await expect(
+      buffered.lookup('debug-eval__expensive-op', 'hashed-key'),
+    ).resolves.toMatchObject({
+      recording: { returnValue: { payload: { rows } } },
     });
   });
 });

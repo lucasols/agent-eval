@@ -13,6 +13,7 @@ import type {
   RunLogPhase,
   TraceCacheRef,
 } from '@agent-evals/shared';
+import type { CacheSerializationExternalJsonStore } from './cacheSerialization.ts';
 import { stripTerminalControlCodes } from './stackFormatting.ts';
 import type { EvalStartTime } from './types.ts';
 
@@ -42,6 +43,8 @@ export type CacheDebugKeyWrite = {
 export type CacheAdapter = {
   /** Return the stored entry for `keyHash` under `namespace`, or `null`. */
   lookup(namespace: string, keyHash: string): Promise<CacheEntry | null>;
+  /** Optional store for large nested JSON values persisted outside cache JSON. */
+  externalJsonStore?: CacheSerializationExternalJsonStore;
   /**
    * Persist a cache entry. Must be safe under concurrent calls.
    *

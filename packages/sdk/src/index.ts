@@ -41,9 +41,12 @@ export {
 export {
   deserializeCacheRecording,
   deserializeCacheValue,
+  materializeExternalJsonValues,
   serializeCacheRecording,
   serializeCacheValue,
+  type CacheSerializationExternalJsonStore,
   type CacheSerializationOptions,
+  type ExternalJsonBlobRef,
   type SerializedCacheValue,
 } from './cacheSerialization.ts';
 export {

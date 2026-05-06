@@ -723,7 +723,9 @@ async function traceSpanInternal(
           spanName: info.name,
           spanKind: info.kind,
           storedAt: new Date(getRealDateNowMs()).toISOString(),
-          recording: await serializeCacheRecording(recording),
+          recording: await serializeCacheRecording(recording, {
+            externalJsonStore: ctx.adapter.externalJsonStore,
+          }),
         };
         await ctx.adapter.write(entry, {
           rawKey: cacheOpts.key,

@@ -1,11 +1,8 @@
 const serializedValueMarker = '__aecs';
-const legacySerializedValueMarker = '__agentEvalsCacheSerialization';
-const jsonSafeVersion = 'json-safe-v1';
+const jsonSafeVersion = 'v1';
 
 type SerializedValueWrapper = {
   [serializedValueMarker]?: unknown;
-  [legacySerializedValueMarker]?: unknown;
-  type?: unknown;
   value?: unknown;
   length?: unknown;
 };
@@ -18,9 +15,16 @@ function isSerializedValueWrapper(
   value: unknown,
 ): value is SerializedValueWrapper {
   if (!isRecord(value)) return false;
-  const version =
-    value[serializedValueMarker] ?? value[legacySerializedValueMarker];
-  return version === jsonSafeVersion && typeof value.type === 'string';
+  return serializedValueType(value) !== undefined;
+}
+
+function serializedValueType(
+  value: SerializedValueWrapper,
+): string | undefined {
+  const marker = value[serializedValueMarker];
+  if (typeof marker !== 'string') return undefined;
+  if (!marker.startsWith(`${jsonSafeVersion}:`)) return undefined;
+  return marker.slice(jsonSafeVersion.length + 1);
 }
 
 /** Revive values persisted by the SDK tagged serializer for display. */
@@ -38,7 +42,7 @@ export function deserializeSerializedValue(value: unknown): unknown {
 }
 
 function deserializeWrapper(value: SerializedValueWrapper): unknown {
-  switch (value.type) {
+  switch (serializedValueType(value)) {
     case 'ArrayBuffer':
       return deserializeArrayBuffer(value.value);
     case 'BigInt':

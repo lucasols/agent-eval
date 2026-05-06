@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import {
   mkdir,
@@ -8,12 +9,21 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
-import { deserializeCacheRecording } from '@agent-evals/sdk';
-import type { CacheAdapter, CacheDebugKeyWrite } from '@agent-evals/sdk';
+import { dirname, join, relative, resolve, sep } from 'node:path';
+import { brotliCompressSync, brotliDecompressSync } from 'node:zlib';
+import {
+  deserializeCacheRecording,
+  materializeExternalJsonValues,
+} from '@agent-evals/sdk';
+import type {
+  CacheAdapter,
+  CacheDebugKeyWrite,
+  CacheSerializationExternalJsonStore,
+} from '@agent-evals/sdk';
 import {
   cacheDebugKeyFileSchema,
   cacheFileSchema,
+  cacheRecordingSchema,
   type CacheDebugKeyEntry,
   type CacheDebugKeyFile,
   type CacheEntry,
@@ -25,14 +35,17 @@ import { resultify } from 't-result';
 
 const defaultMaxEntriesPerNamespace = 100;
 const cacheSerializationMarker = '__aecs';
-const legacyCacheSerializationMarker = '__agentEvalsCacheSerialization';
-const supportedCacheSerializationVersion = 'json-safe-v1';
+const supportedCacheSerializationPrefix = 'v1:';
+const externalJsonCacheSerializationMarker = 'v1:ExternalJson';
+const externalJsonBlobExtension = '.json.br';
 
 /** Filter accepted by `FsCacheStore.clear` to narrow the set of entries removed. */
 export type CacheClearFilter = { namespace?: string; key?: string };
 
 /** Filesystem cache adapter backing persisted cache entries for a workspace. */
 export type FsCacheStore = CacheAdapter & {
+  /** Store used for content-addressed external JSON blob values. */
+  externalJsonStore: CacheSerializationExternalJsonStore;
   /** Walk the cache directory and return a summary row per stored entry. */
   list(): Promise<CacheListItem[]>;
   /** Return a persisted cache entry with optional raw-key debug metadata. */
@@ -46,6 +59,8 @@ export type FsCacheStore = CacheAdapter & {
   dir(): string;
   /** Resolve the on-disk directory used for raw-key debug entries. */
   debugDir(): string;
+  /** Resolve the on-disk directory used for external JSON cache blobs. */
+  blobDir(): string;
 };
 
 export type BufferedCacheStore = CacheAdapter & {
@@ -66,6 +81,7 @@ export function createFsCacheStore(options: {
   workspaceRoot: string;
   dir?: string;
   debugDir?: string;
+  blobDir?: string;
   maxEntriesPerNamespace?: number;
   maxEntriesByNamespace?: Record<string, number>;
 }): FsCacheStore {
@@ -77,9 +93,16 @@ export function createFsCacheStore(options: {
     options.workspaceRoot,
     options.debugDir ?? '.agent-evals/cache-debug',
   );
+  const blobDir = resolve(
+    options.workspaceRoot,
+    options.blobDir ?? '.agent-evals/cache-blobs',
+  );
+  const externalJsonStore = createExternalJsonBlobStore(blobDir);
   const defaultMaxEntries = normalizeMaxEntries(options.maxEntriesPerNamespace);
 
   return {
+    externalJsonStore,
+
     dir() {
       return cacheDir;
     },
@@ -88,16 +111,30 @@ export function createFsCacheStore(options: {
       return debugDir;
     },
 
+    blobDir() {
+      return blobDir;
+    },
+
     async lookup(namespace, keyHash) {
       const owner = ownerFromNamespace(namespace);
       const cacheFile = await readCacheFile(cacheDir, owner);
-      return cacheFile?.entries[keyHash] ?? null;
+      const entry = cacheFile?.entries[keyHash] ?? null;
+      return entry === null
+        ? null
+        : await materializeExternalJsonCacheEntry(entry, externalJsonStore);
     },
 
     async lookupWithDebug(namespace, keyHash) {
       const owner = ownerFromNamespace(namespace);
       const cacheFile = await readCacheFile(cacheDir, owner);
-      const entry = cacheFile?.entries[keyHash] ?? null;
+      const rawEntry = cacheFile?.entries[keyHash] ?? null;
+      const entry =
+        rawEntry === null
+          ? null
+          : await materializeExternalJsonCacheEntry(
+              rawEntry,
+              externalJsonStore,
+            );
       if (entry === null) return null;
       const debugFile = await readDebugKeyFile(debugDir, owner);
       const debugKey = debugFile?.entries[keyHash];
@@ -133,6 +170,7 @@ export function createFsCacheStore(options: {
           entries: prunedEntries,
         });
       });
+      await pruneExternalJsonBlobs(cacheDir, blobDir);
 
       if (debugKey !== undefined) {
         const debugWriteResult = await resultify(() =>
@@ -200,6 +238,7 @@ export function createFsCacheStore(options: {
       ) {
         await rm(cacheDir, { recursive: true, force: true });
         await rm(debugDir, { recursive: true, force: true });
+        await rm(blobDir, { recursive: true, force: true });
         return;
       }
 
@@ -227,6 +266,7 @@ export function createFsCacheStore(options: {
           });
         }
         await clearDebugEntries(debugDir, filter);
+        await pruneExternalJsonBlobs(cacheDir, blobDir);
         return;
       }
 
@@ -253,6 +293,7 @@ export function createFsCacheStore(options: {
         }
       }
       await clearDebugEntries(debugDir, filter);
+      await pruneExternalJsonBlobs(cacheDir, blobDir);
     },
   };
 }
@@ -273,9 +314,18 @@ export function createBufferedCacheStore(
   >();
 
   return {
+    externalJsonStore: backingStore.externalJsonStore,
+
     async lookup(namespace, keyHash) {
       const buffered = pendingEntries.get(toPendingKey(namespace, keyHash));
-      if (buffered !== undefined) return buffered.entry;
+      if (buffered !== undefined) {
+        return backingStore.externalJsonStore === undefined
+          ? buffered.entry
+          : await materializeExternalJsonCacheEntry(
+              buffered.entry,
+              backingStore.externalJsonStore,
+            );
+      }
       return backingStore.lookup(namespace, keyHash);
     },
 
@@ -337,6 +387,155 @@ function sanitizeSegment(segment: string): string {
   return segment.replace(/[^a-zA-Z0-9_.-]/g, '_');
 }
 
+function createExternalJsonBlobStore(
+  blobDir: string,
+): CacheSerializationExternalJsonStore {
+  return {
+    async write(rawJson) {
+      const rawBytes = Buffer.from(rawJson, 'utf8');
+      const hash = hashExternalJson(rawBytes);
+      const path = externalJsonBlobPath(hash);
+      const compressed = brotliCompressSync(rawBytes);
+      const filePath = resolveStorePath(blobDir, path);
+
+      if (!existsSync(filePath)) {
+        await mkdir(dirname(filePath), { recursive: true });
+        const tmpPath = `${filePath}.${process.pid.toString()}.tmp`;
+        await writeFile(tmpPath, compressed);
+        await rename(tmpPath, filePath);
+      }
+
+      return {
+        compressedLength: compressed.byteLength,
+        hash,
+        length: rawBytes.byteLength,
+        path,
+      };
+    },
+
+    async read(ref) {
+      const compressed = await readFile(resolveStorePath(blobDir, ref.path));
+      const rawBytes = brotliDecompressSync(compressed);
+      const rawJson = rawBytes.toString('utf8');
+      if (
+        rawBytes.byteLength !== ref.length ||
+        hashExternalJson(rawBytes) !== ref.hash
+      ) {
+        throw new Error(
+          `External cache blob failed integrity check: ${ref.hash}`,
+        );
+      }
+      return rawJson;
+    },
+  };
+}
+
+function hashExternalJson(rawBytes: Buffer): `sha256:${string}` {
+  return `sha256:${createHash('sha256').update(rawBytes).digest('hex')}`;
+}
+
+function externalJsonBlobPath(hash: `sha256:${string}`): string {
+  const digest = hash.slice('sha256:'.length);
+  return join(
+    'sha256',
+    digest.slice(0, 2),
+    `${digest}${externalJsonBlobExtension}`,
+  );
+}
+
+function resolveStorePath(root: string, relativePath: string): string {
+  const path = resolve(root, relativePath);
+  if (path !== root && !path.startsWith(`${root}${sep}`)) {
+    throw new Error(`External cache blob path escapes store: ${relativePath}`);
+  }
+  return path;
+}
+
+async function materializeExternalJsonCacheEntry(
+  entry: CacheEntry,
+  store: CacheSerializationExternalJsonStore,
+): Promise<CacheEntry> {
+  return {
+    ...entry,
+    recording: cacheRecordingSchema.parse(
+      await materializeExternalJsonValues(entry.recording, store),
+    ),
+  };
+}
+
+async function pruneExternalJsonBlobs(
+  cacheDir: string,
+  blobDir: string,
+): Promise<void> {
+  if (!existsSync(blobDir)) return;
+  const referenced = await collectReferencedExternalJsonBlobPaths(cacheDir);
+  for (const path of await listExternalJsonBlobPaths(blobDir)) {
+    if (!referenced.has(path)) {
+      await rm(resolveStorePath(blobDir, path), { force: true });
+    }
+  }
+}
+
+async function collectReferencedExternalJsonBlobPaths(
+  cacheDir: string,
+): Promise<Set<string>> {
+  const paths = new Set<string>();
+  if (!existsSync(cacheDir)) return paths;
+
+  const files = await readdir(cacheDir);
+  for (const fileName of files) {
+    if (!fileName.endsWith('.json')) continue;
+    const cacheFile = await readCacheFilePath(join(cacheDir, fileName));
+    if (cacheFile === null) continue;
+    collectExternalJsonBlobPaths(cacheFile, paths);
+  }
+  return paths;
+}
+
+function collectExternalJsonBlobPaths(
+  value: unknown,
+  paths: Set<string>,
+): void {
+  if (Array.isArray(value)) {
+    for (const item of value) collectExternalJsonBlobPaths(item, paths);
+    return;
+  }
+  if (!isRecordLike(value)) return;
+  if (
+    value[cacheSerializationMarker] === externalJsonCacheSerializationMarker &&
+    typeof value.path === 'string'
+  ) {
+    paths.add(value.path);
+  }
+  for (const entryValue of Object.values(value)) {
+    collectExternalJsonBlobPaths(entryValue, paths);
+  }
+}
+
+async function listExternalJsonBlobPaths(blobDir: string): Promise<string[]> {
+  const paths: string[] = [];
+  await collectExternalJsonBlobFilePaths(blobDir, blobDir, paths);
+  return paths;
+}
+
+async function collectExternalJsonBlobFilePaths(
+  root: string,
+  dir: string,
+  paths: string[],
+): Promise<void> {
+  const entries = await readdir(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      await collectExternalJsonBlobFilePaths(root, path, paths);
+      continue;
+    }
+    if (entry.isFile() && entry.name.endsWith(externalJsonBlobExtension)) {
+      paths.push(relative(root, path));
+    }
+  }
+}
+
 async function readCacheFile(
   cacheDir: string,
   owner: string,
@@ -367,16 +566,14 @@ function usesSupportedCacheSerialization(value: unknown): boolean {
     return value.every(usesSupportedCacheSerialization);
   }
   if (!isRecordLike(value)) return true;
-  for (const marker of [
-    cacheSerializationMarker,
-    legacyCacheSerializationMarker,
-  ]) {
-    if (
-      Object.hasOwn(value, marker) &&
-      value[marker] !== supportedCacheSerializationVersion
-    ) {
-      return false;
-    }
+  if (
+    Object.hasOwn(value, cacheSerializationMarker) &&
+    (typeof value[cacheSerializationMarker] !== 'string' ||
+      !value[cacheSerializationMarker].startsWith(
+        supportedCacheSerializationPrefix,
+      ))
+  ) {
+    return false;
   }
   return Object.values(value).every(usesSupportedCacheSerialization);
 }

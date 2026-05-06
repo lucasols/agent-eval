@@ -220,8 +220,7 @@ test('runCase preserves JSON-safe output values without a column override', asyn
     { step: 'review' },
   ]);
   expect(result.caseDetail.columns.generatedAt).toEqual({
-    __aecs: 'json-safe-v1',
-    type: 'Date',
+    __aecs: 'v1:Date',
     value: '2024-01-02T03:04:05.000Z',
   });
   expect(result.caseDetail.columns.classArray).toEqual([

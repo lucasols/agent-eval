@@ -1,5 +1,4 @@
 import { Buffer } from 'node:buffer';
-import { gzipSync, gunzipSync } from 'node:zlib';
 import type {
   CacheRecording,
   CacheRecordingOp,
@@ -7,21 +6,23 @@ import type {
 } from '@agent-evals/shared';
 
 const serializedCacheValueMarker = '__aecs';
-const legacySerializedCacheValueMarker = '__agentEvalsCacheSerialization';
-const jsonSafeCacheValueVersion = 'json-safe-v1';
+const jsonSafeCacheValueVersion = 'v1';
 const packedNumberArrayMinLength = 128;
-const compressedStringMinBytes = 16 * 1024;
-const compressedJsonMinBytes = 10 * 1024;
-const maxCompressedSizeRatio = 0.8;
+const maxPackedNumberArraySizeRatio = 0.8;
+const externalJsonMinChars = 10 * 1024;
+const jsonSafeCacheValueTypes = new Set<string>(
+  'ArrayBuffer BigInt Blob Date Error ExternalJson File Float64Array Headers Map Number Object RegExp Set URL URLSearchParams Undefined'.split(
+    ' ',
+  ),
+);
 
 type JsonSafeCacheValueType =
   | 'ArrayBuffer'
   | 'BigInt'
   | 'Blob'
-  | 'CompressedJson'
-  | 'CompressedString'
   | 'Date'
   | 'Error'
+  | 'ExternalJson'
   | 'File'
   | 'Float64Array'
   | 'Headers'
@@ -35,38 +36,54 @@ type JsonSafeCacheValueType =
   | 'Undefined';
 
 type JsonSafeSerializedCacheValue = {
-  [serializedCacheValueMarker]: typeof jsonSafeCacheValueVersion;
-  codec?: 'gzip';
+  [serializedCacheValueMarker]: `v1:${JsonSafeCacheValueType}`;
+  compressedLength?: number;
+  hash?: string;
   length?: number;
-  type: JsonSafeCacheValueType;
+  path?: string;
   value?: unknown;
 };
 
 /** JSON-safe persisted representation for one rich cached value. */
 export type SerializedCacheValue = JsonSafeSerializedCacheValue;
 
+/** Metadata for a Brotli-compressed external JSON blob. */
+export type ExternalJsonBlobRef = {
+  /** Original UTF-8 JSON byte length. */
+  length: number;
+  /** Brotli-compressed byte length. */
+  compressedLength: number;
+  /** SHA-256 digest of the original UTF-8 JSON payload. */
+  hash: `sha256:${string}`;
+  /** Store-relative Brotli blob path. */
+  path: string;
+};
+
+/** Store used by cache serialization for large nested JSON values. */
+export type CacheSerializationExternalJsonStore = {
+  /** Persist canonical JSON and return its content-addressed ref. */
+  write(rawJson: string): Promise<ExternalJsonBlobRef>;
+  /** Read a previously persisted canonical JSON payload. */
+  read(ref: ExternalJsonBlobRef): Promise<string>;
+};
+
 /** Options controlling how rich cache values are persisted as JSON-safe data. */
 export type CacheSerializationOptions = {
-  /**
-   * Preserve JavaScript `undefined` values with explicit tagged wrappers.
-   *
-   * Disabled by default so undefined object fields, array items, map entries,
-   * and set items are omitted instead of being written to cache files.
-   */
+  /** Preserve JavaScript `undefined` values with explicit tagged wrappers. */
   preserveUndefined?: boolean;
-  /**
-   * Compress large nested strings/JSON blobs with gzip wrappers.
-   *
-   * Enabled by default for reusable cache files. Disable for output artifacts
-   * that need synchronous browser-side deserialization.
-   */
+  /** Externalize large nested JSON values through Brotli blob refs. */
   compress?: boolean;
+  /** Store used for large nested JSON values when `compress` is enabled. */
+  externalJsonStore?: CacheSerializationExternalJsonStore;
 };
 
 type CacheSerializationConfig = {
   compress: boolean;
+  externalJsonStore: CacheSerializationExternalJsonStore | undefined;
   preserveUndefined: boolean;
 };
+
+type SerializedJsonSafeValueResult = { value: unknown; jsonLength: number };
 
 function isRecordLike(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -75,11 +92,7 @@ function isRecordLike(value: unknown): value is Record<string, unknown> {
 function isJsonSafeSerializedCacheValue(
   value: unknown,
 ): value is JsonSafeSerializedCacheValue {
-  return (
-    isRecordLike(value) &&
-    serializationMarkerValue(value) === jsonSafeCacheValueVersion &&
-    typeof value.type === 'string'
-  );
+  return isRecordLike(value) && jsonSafeValueType(value) !== undefined;
 }
 
 function jsonSafeValue(
@@ -87,21 +100,60 @@ function jsonSafeValue(
   value?: unknown,
 ): JsonSafeSerializedCacheValue {
   return value === undefined
-    ? { [serializedCacheValueMarker]: jsonSafeCacheValueVersion, type }
-    : { [serializedCacheValueMarker]: jsonSafeCacheValueVersion, type, value };
+    ? { [serializedCacheValueMarker]: jsonSafeMarker(type) }
+    : { [serializedCacheValueMarker]: jsonSafeMarker(type), value };
 }
 
 function hasSerializationMarkerKey(value: object): boolean {
-  return (
-    Object.hasOwn(value, serializedCacheValueMarker) ||
-    Object.hasOwn(value, legacySerializedCacheValueMarker)
-  );
+  return Object.hasOwn(value, serializedCacheValueMarker);
 }
 
-function serializationMarkerValue(value: Record<string, unknown>): unknown {
-  return (
-    value[serializedCacheValueMarker] ?? value[legacySerializedCacheValueMarker]
-  );
+function jsonSafeMarker(
+  type: JsonSafeCacheValueType,
+): `v1:${JsonSafeCacheValueType}` {
+  return `${jsonSafeCacheValueVersion}:${type}`;
+}
+
+function jsonSafeValueType(
+  value: Record<string, unknown>,
+): JsonSafeCacheValueType | undefined {
+  const marker = value[serializedCacheValueMarker];
+  if (typeof marker !== 'string') return undefined;
+  if (!marker.startsWith(`${jsonSafeCacheValueVersion}:`)) return undefined;
+  const type = marker.slice(jsonSafeCacheValueVersion.length + 1);
+  return isJsonSafeCacheValueType(type) ? type : undefined;
+}
+
+function isJsonSafeCacheValueType(
+  value: string,
+): value is JsonSafeCacheValueType {
+  return jsonSafeCacheValueTypes.has(value);
+}
+
+function externalJsonRefFromWrapper(
+  value: JsonSafeSerializedCacheValue,
+): ExternalJsonBlobRef | undefined {
+  const hash =
+    typeof value.hash === 'string' ? toExternalJsonHash(value.hash) : undefined;
+  if (
+    hash === undefined ||
+    typeof value.length !== 'number' ||
+    typeof value.compressedLength !== 'number' ||
+    typeof value.path !== 'string'
+  ) {
+    return undefined;
+  }
+  return {
+    compressedLength: value.compressedLength,
+    hash,
+    length: value.length,
+    path: value.path,
+  };
+}
+
+function toExternalJsonHash(value: string): `sha256:${string}` | undefined {
+  if (!value.startsWith('sha256:')) return undefined;
+  return `sha256:${value.slice('sha256:'.length)}`;
 }
 
 /**
@@ -114,34 +166,52 @@ export async function serializeCacheValue(
   value: unknown,
   options: CacheSerializationOptions | undefined = undefined,
 ): Promise<unknown> {
-  return serializeJsonSafeValue(
-    value,
-    new WeakSet(),
-    0,
-    normalizeCacheSerializationOptions(options),
+  return (
+    await serializeJsonSafeValue(
+      value,
+      new WeakSet(),
+      0,
+      normalizeCacheSerializationOptions(options),
+    )
+  ).value;
+}
+
+function serializedResult(
+  value: unknown,
+  jsonLength = jsonLengthOfSerializedValue(value),
+): SerializedJsonSafeValueResult {
+  return { value, jsonLength };
+}
+
+function jsonLengthOfSerializedValue(value: unknown): number {
+  if (value === undefined) return 0;
+  if (value === null) return 4;
+  if (typeof value === 'string') return approximateJsonStringLength(value);
+  return JSON.stringify(value).length;
+}
+
+function approximateJsonStringLength(value: string): number {
+  return value.length + 2;
+}
+
+function jsonArrayLength(itemLengths: number[]): number {
+  return (
+    2 +
+    itemLengths.reduce((total, itemLength) => total + itemLength, 0) +
+    Math.max(itemLengths.length - 1, 0)
   );
 }
 
-/** Revive one cached value, while preserving legacy JSON-round-tripped data. */
-export function deserializeCacheValue(value: unknown): unknown {
-  return deserializeJsonSafeValue(value);
-}
-
-/** Clone one value through the same serialization path used for cache data. */
-export async function cloneCacheValue(
-  value: unknown,
-  options: CacheSerializationOptions | undefined = undefined,
-): Promise<unknown> {
-  return deserializeCacheValue(await serializeCacheValue(value, options));
-}
-
-function normalizeCacheSerializationOptions(
-  options: CacheSerializationOptions | undefined,
-): CacheSerializationConfig {
-  return {
-    compress: options?.compress !== false,
-    preserveUndefined: options?.preserveUndefined === true,
-  };
+function jsonObjectLength(entries: Array<[string, number]>): number {
+  return (
+    2 +
+    entries.reduce(
+      (total, [key, valueLength]) =>
+        total + approximateJsonStringLength(key) + 1 + valueLength,
+      0,
+    ) +
+    Math.max(entries.length - 1, 0)
+  );
 }
 
 async function serializeJsonSafeValue(
@@ -149,49 +219,68 @@ async function serializeJsonSafeValue(
   refs: WeakSet<object>,
   depth: number,
   config: CacheSerializationConfig,
-): Promise<unknown> {
+): Promise<SerializedJsonSafeValueResult> {
   if (value === undefined) {
-    return config.preserveUndefined ? jsonSafeValue('Undefined') : undefined;
+    return config.preserveUndefined
+      ? serializedResult(jsonSafeValue('Undefined'))
+      : serializedResult(undefined);
   }
-  if (typeof value === 'bigint')
-    return jsonSafeValue('BigInt', value.toString());
-  if (typeof value === 'number') return serializeNumber(value);
-  if (typeof value === 'string') return serializeString(value, depth, config);
-  if (value instanceof Date) return jsonSafeValue('Date', value.toISOString());
+  if (typeof value === 'bigint') {
+    return serializedResult(jsonSafeValue('BigInt', value.toString()));
+  }
+  if (typeof value === 'number')
+    return serializedResult(serializeNumber(value));
+  if (typeof value === 'string') {
+    return await externalizeNestedJsonValue(
+      serializedResult(value, approximateJsonStringLength(value)),
+      depth,
+      config,
+    );
+  }
+  if (value instanceof Date) {
+    return serializedResult(jsonSafeValue('Date', value.toISOString()));
+  }
   if (value instanceof Map) return serializeMap(value, refs, depth, config);
   if (value instanceof Set) return serializeSet(value, refs, depth, config);
   if (value instanceof RegExp) {
-    return jsonSafeValue('RegExp', {
-      flags: value.flags,
-      source: value.source,
-    });
+    return serializedResult(
+      jsonSafeValue('RegExp', { flags: value.flags, source: value.source }),
+    );
   }
-  if (value instanceof URL) return jsonSafeValue('URL', value.toString());
+  if (value instanceof URL) {
+    return serializedResult(jsonSafeValue('URL', value.toString()));
+  }
   if (value instanceof URLSearchParams) {
-    return jsonSafeValue('URLSearchParams', value.toString());
+    return serializedResult(jsonSafeValue('URLSearchParams', value.toString()));
   }
   if (value instanceof Headers) {
-    return jsonSafeValue('Headers', [...value.entries()]);
+    return serializedResult(jsonSafeValue('Headers', [...value.entries()]));
   }
   if (value instanceof File) {
-    return jsonSafeValue('File', {
-      bytes: await blobToBase64(value),
-      lastModified: value.lastModified,
-      name: value.name,
-      type: value.type,
-    });
+    return serializedResult(
+      jsonSafeValue('File', {
+        bytes: await blobToBase64(value),
+        lastModified: value.lastModified,
+        name: value.name,
+        type: value.type,
+      }),
+    );
   }
   if (value instanceof Blob) {
-    return jsonSafeValue('Blob', {
-      bytes: await blobToBase64(value),
-      type: value.type,
-    });
+    return serializedResult(
+      jsonSafeValue('Blob', {
+        bytes: await blobToBase64(value),
+        type: value.type,
+      }),
+    );
   }
   if (value instanceof ArrayBuffer) {
-    return jsonSafeValue('ArrayBuffer', bytesToBase64(new Uint8Array(value)));
+    return serializedResult(
+      jsonSafeValue('ArrayBuffer', bytesToBase64(new Uint8Array(value))),
+    );
   }
   if (value instanceof Error) return serializeError(value, refs, depth, config);
-  if (!value || typeof value !== 'object') return value;
+  if (!value || typeof value !== 'object') return serializedResult(value);
 
   if (refs.has(value)) {
     throw new Error('Circular cache values are not supported');
@@ -207,11 +296,12 @@ async function serializeJsonSafeValue(
       const packed = packNumberArray(value);
       if (packed !== undefined) {
         refs.delete(value);
-        return packed;
+        return serializedResult(packed);
       }
     }
 
     const items: unknown[] = [];
+    const itemLengths: number[] = [];
     for (const item of value) {
       const serializedItem = await serializeJsonSafeValue(
         item,
@@ -219,13 +309,21 @@ async function serializeJsonSafeValue(
         depth + 1,
         config,
       );
-      if (serializedItem !== undefined) items.push(serializedItem);
+      if (serializedItem.value !== undefined) {
+        items.push(serializedItem.value);
+        itemLengths.push(serializedItem.jsonLength);
+      }
     }
     refs.delete(value);
-    return compressNestedJsonValue(items, depth, config) ?? items;
+    return await externalizeNestedJsonValue(
+      serializedResult(items, jsonArrayLength(itemLengths)),
+      depth,
+      config,
+    );
   }
 
   const entries: [string, unknown][] = [];
+  const entryLengths: Array<[string, number]> = [];
   for (const [key, entryValue] of Object.entries(value)) {
     const serializedEntryValue = await serializeJsonSafeValue(
       entryValue,
@@ -233,16 +331,84 @@ async function serializeJsonSafeValue(
       depth + 1,
       config,
     );
-    if (serializedEntryValue !== undefined) {
-      entries.push([key, serializedEntryValue]);
+    if (serializedEntryValue.value !== undefined) {
+      entries.push([key, serializedEntryValue.value]);
+      entryLengths.push([key, serializedEntryValue.jsonLength]);
     }
   }
   refs.delete(value);
 
-  const serialized = hasSerializationMarkerKey(value)
-    ? jsonSafeValue('Object', entries)
-    : Object.fromEntries(entries);
-  return compressNestedJsonValue(serialized, depth, config) ?? serialized;
+  if (hasSerializationMarkerKey(value)) {
+    const serialized = jsonSafeValue('Object', entries);
+    return await externalizeNestedJsonValue(
+      serializedResult(serialized),
+      depth,
+      config,
+    );
+  }
+
+  const serialized = Object.fromEntries(entries);
+  return await externalizeNestedJsonValue(
+    serializedResult(serialized, jsonObjectLength(entryLengths)),
+    depth,
+    config,
+  );
+}
+
+/** Revive one cached value, while preserving legacy JSON-round-tripped data. */
+export function deserializeCacheValue(value: unknown): unknown {
+  return deserializeJsonSafeValue(value);
+}
+
+/** Replace external JSON blob refs with their parsed serialized payloads. */
+export async function materializeExternalJsonValues(
+  value: unknown,
+  store: CacheSerializationExternalJsonStore,
+): Promise<unknown> {
+  if (
+    isJsonSafeSerializedCacheValue(value) &&
+    jsonSafeValueType(value) === 'ExternalJson'
+  ) {
+    const ref = externalJsonRefFromWrapper(value);
+    if (ref === undefined) return value;
+    return materializeExternalJsonValues(
+      JSON.parse(await store.read(ref)),
+      store,
+    );
+  }
+  if (Array.isArray(value)) {
+    return Promise.all(
+      value.map((item) => materializeExternalJsonValues(item, store)),
+    );
+  }
+  if (!isRecordLike(value)) return value;
+
+  return Object.fromEntries(
+    await Promise.all(
+      Object.entries(value).map(async ([key, entryValue]) => [
+        key,
+        await materializeExternalJsonValues(entryValue, store),
+      ]),
+    ),
+  );
+}
+
+/** Clone one value through the same serialization path used for cache data. */
+export async function cloneCacheValue(
+  value: unknown,
+  options: CacheSerializationOptions | undefined = undefined,
+): Promise<unknown> {
+  return deserializeCacheValue(await serializeCacheValue(value, options));
+}
+
+function normalizeCacheSerializationOptions(
+  options: CacheSerializationOptions | undefined,
+): CacheSerializationConfig {
+  return {
+    compress: options?.compress !== false,
+    externalJsonStore: options?.externalJsonStore,
+    preserveUndefined: options?.preserveUndefined === true,
+  };
 }
 
 function serializeNumber(value: number): unknown {
@@ -251,16 +417,6 @@ function serializeNumber(value: number): unknown {
   if (value === -Infinity) return jsonSafeValue('Number', '-Infinity');
   if (Object.is(value, -0)) return jsonSafeValue('Number', '-0');
   return value;
-}
-
-function serializeString(
-  value: string,
-  depth: number,
-  config: CacheSerializationConfig,
-): unknown {
-  if (depth === 0) return value;
-  if (!config.compress) return value;
-  return compressNestedStringValue(value) ?? value;
 }
 
 function isDenseNumberArray(value: unknown[]): value is number[] {
@@ -283,15 +439,12 @@ function packNumberArray(
   value: number[],
 ): JsonSafeSerializedCacheValue | undefined {
   const serialized = {
-    [serializedCacheValueMarker]: jsonSafeCacheValueVersion,
+    [serializedCacheValueMarker]: jsonSafeMarker('Float64Array'),
     length: value.length,
-    type: 'Float64Array',
     value: encodeFloat64Array(value),
   } satisfies JsonSafeSerializedCacheValue;
-  return compressionIsWorthIt(
-    serialized,
-    Buffer.byteLength(JSON.stringify(value)),
-  )
+  return JSON.stringify(serialized).length <
+    JSON.stringify(value).length * maxPackedNumberArraySizeRatio
     ? serialized
     : undefined;
 }
@@ -302,49 +455,33 @@ function decodeFloat64Array(value: string, length: number): number[] {
   return Array.from({ length }, (_, index) => view.getFloat64(index * 8, true));
 }
 
-function compressNestedStringValue(
-  value: string,
-): JsonSafeSerializedCacheValue | undefined {
-  const rawSize = Buffer.byteLength(JSON.stringify(value));
-  if (rawSize < compressedStringMinBytes) return undefined;
-  const compressed = gzipSync(value);
-  const serialized = {
-    [serializedCacheValueMarker]: jsonSafeCacheValueVersion,
-    codec: 'gzip',
-    length: Buffer.byteLength(value),
-    type: 'CompressedString',
-    value: compressed.toString('base64'),
-  } satisfies JsonSafeSerializedCacheValue;
-  return compressionIsWorthIt(serialized, rawSize) ? serialized : undefined;
-}
-
-function compressNestedJsonValue(
-  value: unknown,
+async function externalizeNestedJsonValue(
+  result: SerializedJsonSafeValueResult,
   depth: number,
   config: CacheSerializationConfig,
-): JsonSafeSerializedCacheValue | undefined {
-  if (depth === 0) return undefined;
-  if (!config.compress) return undefined;
-  const raw = JSON.stringify(value);
-  const rawSize = Buffer.byteLength(raw);
-  if (rawSize < compressedJsonMinBytes) return undefined;
-  const serialized = {
-    [serializedCacheValueMarker]: jsonSafeCacheValueVersion,
-    codec: 'gzip',
-    length: rawSize,
-    type: 'CompressedJson',
-    value: gzipSync(raw).toString('base64'),
-  } satisfies JsonSafeSerializedCacheValue;
-  return compressionIsWorthIt(serialized, rawSize) ? serialized : undefined;
-}
+): Promise<SerializedJsonSafeValueResult> {
+  if (
+    depth === 0 ||
+    !config.compress ||
+    config.externalJsonStore === undefined ||
+    result.jsonLength < externalJsonMinChars
+  ) {
+    return result;
+  }
 
-function compressionIsWorthIt(
-  value: JsonSafeSerializedCacheValue,
-  rawSize: number,
-): boolean {
-  return (
-    Buffer.byteLength(JSON.stringify(value)) < rawSize * maxCompressedSizeRatio
-  );
+  const raw = JSON.stringify(result.value);
+  if (raw.length < externalJsonMinChars) {
+    return { ...result, jsonLength: raw.length };
+  }
+
+  const ref = await config.externalJsonStore.write(raw);
+  return serializedResult({
+    [serializedCacheValueMarker]: jsonSafeMarker('ExternalJson'),
+    compressedLength: ref.compressedLength,
+    hash: ref.hash,
+    length: ref.length,
+    path: ref.path,
+  } satisfies JsonSafeSerializedCacheValue);
 }
 
 async function serializeMap(
@@ -352,7 +489,7 @@ async function serializeMap(
   refs: WeakSet<object>,
   depth: number,
   config: CacheSerializationConfig,
-): Promise<unknown> {
+): Promise<SerializedJsonSafeValueResult> {
   if (refs.has(value)) {
     throw new Error('Circular cache values are not supported');
   }
@@ -372,12 +509,15 @@ async function serializeMap(
       depth + 1,
       config,
     );
-    if (serializedKey !== undefined && serializedEntryValue !== undefined) {
-      entries.push([serializedKey, serializedEntryValue]);
+    if (
+      serializedKey.value !== undefined &&
+      serializedEntryValue.value !== undefined
+    ) {
+      entries.push([serializedKey.value, serializedEntryValue.value]);
     }
   }
   refs.delete(value);
-  return jsonSafeValue('Map', entries);
+  return serializedResult(jsonSafeValue('Map', entries));
 }
 
 async function serializeSet(
@@ -385,7 +525,7 @@ async function serializeSet(
   refs: WeakSet<object>,
   depth: number,
   config: CacheSerializationConfig,
-): Promise<unknown> {
+): Promise<SerializedJsonSafeValueResult> {
   if (refs.has(value)) {
     throw new Error('Circular cache values are not supported');
   }
@@ -399,10 +539,10 @@ async function serializeSet(
       depth + 1,
       config,
     );
-    if (serializedItem !== undefined) items.push(serializedItem);
+    if (serializedItem.value !== undefined) items.push(serializedItem.value);
   }
   refs.delete(value);
-  return jsonSafeValue('Set', items);
+  return serializedResult(jsonSafeValue('Set', items));
 }
 
 async function serializeError(
@@ -410,7 +550,7 @@ async function serializeError(
   refs: WeakSet<object>,
   depth: number,
   config: CacheSerializationConfig,
-): Promise<unknown> {
+): Promise<SerializedJsonSafeValueResult> {
   if (refs.has(value)) {
     throw new Error('Circular cache values are not supported');
   }
@@ -425,22 +565,24 @@ async function serializeError(
       depth + 1,
       config,
     );
-    if (serializedEntryValue !== undefined) {
-      props.push([key, serializedEntryValue]);
+    if (serializedEntryValue.value !== undefined) {
+      props.push([key, serializedEntryValue.value]);
     }
   }
+  const cause =
+    'cause' in value
+      ? (await serializeJsonSafeValue(value.cause, refs, depth + 1, config))
+          .value
+      : undefined;
   const serialized = jsonSafeValue('Error', {
-    cause:
-      'cause' in value
-        ? await serializeJsonSafeValue(value.cause, refs, depth + 1, config)
-        : undefined,
+    cause,
     message: value.message,
     name: value.name,
     props,
     stack: value.stack,
   });
   refs.delete(value);
-  return serialized;
+  return serializedResult(serialized);
 }
 
 async function blobToBase64(value: Blob): Promise<string> {
@@ -475,7 +617,7 @@ function deserializeJsonSafeValue(value: unknown): unknown {
 function deserializeJsonSafeWrapper(
   value: JsonSafeSerializedCacheValue,
 ): unknown {
-  switch (value.type) {
+  switch (jsonSafeValueType(value)) {
     case 'ArrayBuffer':
       return deserializeArrayBuffer(value.value);
     case 'BigInt':
@@ -484,16 +626,14 @@ function deserializeJsonSafeWrapper(
         : value.value;
     case 'Blob':
       return deserializeBlob(value.value);
-    case 'CompressedJson':
-      return deserializeCompressedJson(value.value);
-    case 'CompressedString':
-      return deserializeCompressedString(value.value);
     case 'Date':
       return typeof value.value === 'string'
         ? new Date(value.value)
         : value.value;
     case 'Error':
       return deserializeError(value.value);
+    case 'ExternalJson':
+      return value;
     case 'File':
       return deserializeFile(value.value);
     case 'Float64Array':
@@ -520,6 +660,8 @@ function deserializeJsonSafeWrapper(
         : value.value;
     case 'Undefined':
       return undefined;
+    default:
+      return value;
   }
 }
 
@@ -529,18 +671,6 @@ function deserializeNumber(value: unknown): unknown {
   if (value === '-Infinity') return -Infinity;
   if (value === '-0') return -0;
   return value;
-}
-
-function deserializeCompressedString(value: unknown): unknown {
-  if (typeof value !== 'string') return value;
-  return gunzipSync(Buffer.from(value, 'base64')).toString('utf8');
-}
-
-function deserializeCompressedJson(value: unknown): unknown {
-  if (typeof value !== 'string') return value;
-  return deserializeJsonSafeValue(
-    JSON.parse(gunzipSync(Buffer.from(value, 'base64')).toString('utf8')),
-  );
 }
 
 function deserializeFloat64Array(value: unknown, length: unknown): unknown {

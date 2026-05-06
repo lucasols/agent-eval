@@ -1,9 +1,15 @@
 import { Buffer } from 'node:buffer';
-import { deserializeCacheValue, serializeCacheValue } from '@agent-evals/sdk';
+import { createHash } from 'node:crypto';
+import {
+  deserializeCacheValue,
+  materializeExternalJsonValues,
+  serializeCacheValue,
+  type CacheSerializationExternalJsonStore,
+  type ExternalJsonBlobRef,
+} from '@agent-evals/sdk';
 import { expect, test } from 'vitest';
 
 const serializationMarker = '__aecs';
-const legacySerializationMarker = '__agentEvalsCacheSerialization';
 
 test('keeps root arrays plain while packing nested number arrays', async () => {
   const embedding = Array.from(
@@ -26,23 +32,29 @@ test('keeps root arrays plain while packing nested number arrays', async () => {
   );
 
   const nestedVector = getNestedVector(serialized);
-  expect(nestedVector?.type).toBe('Float64Array');
+  expect(nestedVector?.[serializationMarker]).toBe('v1:Float64Array');
   expect(nestedVector?.length).toBe(1536);
 });
 
-test('compresses large nested strings without compressing root strings', async () => {
+test('externalizes large nested strings without externalizing root strings', async () => {
+  const store = createMemoryExternalJsonStore();
   const text = 'nested prompt context '.repeat(2000);
-  const serialized = await serializeCacheValue({ text });
+  const serialized = await serializeCacheValue(
+    { text },
+    { externalJsonStore: store },
+  );
 
   expect(await serializeCacheValue(text)).toBe(text);
-  expect(deserializeCacheValue(serialized)).toEqual({ text });
+  expect(await deserializeWithExternalJsonStore(serialized, store)).toEqual({
+    text,
+  });
   expect(getRecordProperty(serialized, 'text')).toMatchObject({
-    [serializationMarker]: 'json-safe-v1',
-    type: 'CompressedString',
+    [serializationMarker]: 'v1:ExternalJson',
   });
 });
 
-test('compresses large nested JSON subtrees', async () => {
+test('externalizes large nested JSON subtrees', async () => {
+  const store = createMemoryExternalJsonStore();
   const rows = Array.from({ length: 2000 }, (_, index) => ({
     index,
     message: 'repeatable nested tree payload',
@@ -50,46 +62,46 @@ test('compresses large nested JSON subtrees', async () => {
   }));
   const value = { payload: { rows } };
 
-  const serialized = await serializeCacheValue(value);
+  const serialized = await serializeCacheValue(value, {
+    externalJsonStore: store,
+  });
 
-  expect(deserializeCacheValue(serialized)).toEqual(value);
-  expect(JSON.stringify(serialized).length).toBeLessThan(
-    JSON.stringify(value).length * 0.8,
+  expect(await deserializeWithExternalJsonStore(serialized, store)).toEqual(
+    value,
   );
 
   const rowsValue = getRecordProperty(
     getRecordProperty(serialized, 'payload'),
     'rows',
   );
-  expect(rowsValue).toMatchObject({
-    [serializationMarker]: 'json-safe-v1',
-    type: 'CompressedJson',
-  });
+  expect(rowsValue).toMatchObject({ [serializationMarker]: 'v1:ExternalJson' });
 });
 
-test('compresses nested JSON subtrees above 10 KiB', async () => {
+test('externalizes nested JSON subtrees above 10 KiB', async () => {
+  const store = createMemoryExternalJsonStore();
   const rows = Array.from({ length: 160 }, (_, index) => ({
     index,
     message: 'repeatable nested tree payload',
     status: index % 2 === 0 ? 'pass' : 'fail',
   }));
   const value = { payload: { rows } };
-  const rawSize = Buffer.byteLength(JSON.stringify(rows), 'utf8');
+  const rawLength = JSON.stringify(rows).length;
 
-  expect(rawSize).toBeGreaterThanOrEqual(10 * 1024);
-  expect(rawSize).toBeLessThan(15 * 1024);
+  expect(rawLength).toBeGreaterThanOrEqual(10 * 1024);
+  expect(rawLength).toBeLessThan(15 * 1024);
 
-  const serialized = await serializeCacheValue(value);
+  const serialized = await serializeCacheValue(value, {
+    externalJsonStore: store,
+  });
   const rowsValue = getRecordProperty(
     getRecordProperty(serialized, 'payload'),
     'rows',
   );
 
-  expect(deserializeCacheValue(serialized)).toEqual(value);
-  expect(rowsValue).toMatchObject({
-    [serializationMarker]: 'json-safe-v1',
-    type: 'CompressedJson',
-  });
+  expect(await deserializeWithExternalJsonStore(serialized, store)).toEqual(
+    value,
+  );
+  expect(rowsValue).toMatchObject({ [serializationMarker]: 'v1:ExternalJson' });
 });
 
 test('can skip compression for browser-displayable serialized values', async () => {
@@ -179,17 +191,8 @@ test('preserves undefined values when explicitly requested', async () => {
   });
   const deserialized = deserializeCacheValue(serialized);
 
-  expect(JSON.stringify(serialized)).toContain('"Undefined"');
+  expect(JSON.stringify(serialized)).toContain('"v1:Undefined"');
   expect(deserialized).toEqual(value);
-});
-
-test('deserializes legacy long-form cache serialization markers', () => {
-  expect(
-    deserializeCacheValue({
-      [legacySerializationMarker]: 'json-safe-v1',
-      type: 'Undefined',
-    }),
-  ).toBeUndefined();
 });
 
 test('escapes user objects that contain the cache serialization marker', async () => {
@@ -251,4 +254,48 @@ function getRecordProperty(value: unknown, key: string): unknown {
 
 function isRecordLike(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+async function deserializeWithExternalJsonStore(
+  value: unknown,
+  store: CacheSerializationExternalJsonStore,
+): Promise<unknown> {
+  return deserializeCacheValue(
+    await materializeExternalJsonValues(value, store),
+  );
+}
+
+function createMemoryExternalJsonStore(): CacheSerializationExternalJsonStore & {
+  blobs: Map<string, string>;
+} {
+  const blobs = new Map<string, string>();
+  return {
+    blobs,
+    read(ref) {
+      const rawJson = blobs.get(ref.hash);
+      if (rawJson === undefined) {
+        throw new Error(`Missing test blob: ${ref.hash}`);
+      }
+      return Promise.resolve(rawJson);
+    },
+    write(rawJson) {
+      const ref = memoryExternalJsonRef(rawJson);
+      blobs.set(ref.hash, rawJson);
+      return Promise.resolve(ref);
+    },
+  };
+}
+
+function memoryExternalJsonRef(rawJson: string): ExternalJsonBlobRef {
+  const hash = hashRawJson(rawJson);
+  return {
+    compressedLength: Buffer.byteLength(rawJson, 'utf8'),
+    hash,
+    length: Buffer.byteLength(rawJson, 'utf8'),
+    path: `memory/${hash.slice('sha256:'.length)}.json.br`,
+  };
+}
+
+function hashRawJson(rawJson: string): `sha256:${string}` {
+  return `sha256:${createHash('sha256').update(rawJson).digest('hex')}`;
 }

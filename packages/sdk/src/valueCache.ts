@@ -145,7 +145,9 @@ export function createTraceCache(generateSpanId: () => string): {
           operationType: 'value',
           operationName: info.name,
           storedAt: new Date(getRealDateNowMs()).toISOString(),
-          recording: await serializeCacheRecording(recording),
+          recording: await serializeCacheRecording(recording, {
+            externalJsonStore: cacheCtx.adapter.externalJsonStore,
+          }),
         },
         { rawKey: info.key, operationType: 'value', operationName: info.name },
       );
