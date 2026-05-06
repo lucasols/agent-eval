@@ -93,6 +93,8 @@ export const evalSummarySchema = z.object({
   currentCommitSha: z.string().nullable(),
   columnDefs: z.array(columnDefSchema),
   caseCount: z.number().nullable(),
+  /** Authored case ids discovered for this eval, when case generation has run. */
+  caseIds: z.array(z.string()).optional(),
   lastRunStatus: z
     .enum(['pass', 'fail', 'error', 'running', 'cancelled', 'unscored'])
     .nullable(),

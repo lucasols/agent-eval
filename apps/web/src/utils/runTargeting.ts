@@ -3,8 +3,8 @@ type EvalRunTargetLike = { mode: string; evalKeys?: string[] };
 
 /**
  * Returns whether a run's target includes a specific eval key. `mode: 'all'`
- * always matches; `mode: 'evalIds'` matches when the eval's key is in the
- * `evalKeys` list. Other modes match nothing for now.
+ * always matches; targeted modes match when the eval's key is in the `evalKeys`
+ * list.
  */
 export function runTargetsEval(
   target: EvalRunTargetLike,
@@ -12,6 +12,7 @@ export function runTargetsEval(
 ): boolean {
   return (
     target.mode === 'all' ||
-    (target.mode === 'evalIds' && (target.evalKeys?.includes(evalKey) ?? false))
+    ((target.mode === 'evalIds' || target.mode === 'caseIds') &&
+      (target.evalKeys?.includes(evalKey) ?? false))
   );
 }

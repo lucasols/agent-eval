@@ -27,7 +27,9 @@ display rules), read the TypeScript declarations shipped with the package:
 - Unfiltered `agent-evals run` is disabled by default; use `--eval` or `--case`
   for targeted CLI runs. Set `allowCliRunAll: true` in
   `agent-evals.config.ts` to opt into run-all CLI behavior. The web UI can
-  still run grouped evals and confirms before starting more than five.
+  still run grouped evals and confirms before starting more than five. On a
+  single eval page, the Run chevron can open a picker to run specific authored
+  case ids.
 - `agent-evals app` watches `agent-evals.config.ts` and reloads config in
   place when the runner is idle. If config changes during an active run, the UI
   shows a pending reload banner and blocks new runs until the current run

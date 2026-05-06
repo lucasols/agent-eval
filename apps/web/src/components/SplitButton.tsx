@@ -167,8 +167,8 @@ const Separator = styled.div`
  * Button composed of a primary action plus a chevron-triggered menu of
  * secondary actions.
  *
- * Used on `EvalCard` to expose cache mode controls (run normally, no cache,
- * refresh, clear) alongside the default Run action.
+ * Used on `EvalCard` to expose run controls (run normally, choose cases,
+ * bypass cache, refresh cache, clear cache) alongside the default Run action.
  */
 export function SplitButton({
   label,

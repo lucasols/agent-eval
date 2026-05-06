@@ -1,0 +1,204 @@
+import { type CacheMode } from '@agent-evals/shared';
+import { styled } from 'vindur';
+import { Button } from '#src/components/Button';
+import { Modal } from '#src/components/Modal';
+import { colors } from '#src/style/colors';
+import { ellipsis, inline, monoFont, stack } from '#src/style/helpers';
+
+type CasePickerModalProps = {
+  isOpen: boolean;
+  title: string;
+  subtitle: string;
+  caseIds: string[];
+  selectedCaseIds: string[];
+  cacheMode: CacheMode;
+  onCacheModeChange: (cacheMode: CacheMode) => void;
+  onSelectedCaseIdsChange: (caseIds: string[]) => void;
+  onToggleCaseId: (caseId: string) => void;
+  onCancel: () => void;
+  onRun: () => void;
+};
+
+const Body = styled.div`
+  ${stack({ gap: 14 })}
+  min-width: min(520px, calc(100vw - 72px));
+`;
+
+const Toolbar = styled.div`
+  ${inline({ justify: 'space-between', align: 'center', gap: 12 })}
+`;
+
+const ToolbarActions = styled.div`
+  ${inline({ align: 'center', gap: 8 })}
+`;
+
+const Meta = styled.div`
+  font-size: 12px;
+  color: ${colors.textMuted.var};
+`;
+
+const CaseList = styled.div`
+  ${stack({ gap: 0 })}
+  max-height: 340px;
+  overflow: auto;
+  border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-md);
+  background: ${colors.bg.var};
+`;
+
+const CaseRow = styled.label`
+  ${inline({ align: 'center', gap: 10 })}
+  min-height: 38px;
+  padding: 0 12px;
+  border-bottom: 1px solid ${colors.border.var};
+  cursor: pointer;
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  &:hover {
+    background: ${colors.surface.var};
+  }
+
+  & > input {
+    flex-shrink: 0;
+  }
+`;
+
+const CaseId = styled.span`
+  ${monoFont};
+  ${ellipsis};
+  min-width: 0;
+  font-size: 12px;
+  color: ${colors.text.var};
+`;
+
+const Empty = styled.div`
+  padding: 14px;
+  color: ${colors.textMuted.var};
+  font-size: 12.5px;
+  line-height: 1.45;
+`;
+
+const FooterLeft = styled.div`
+  ${inline({ align: 'center', gap: 8 })}
+`;
+
+const FooterRight = styled.div`
+  ${inline({ align: 'center', gap: 8 })}
+`;
+
+const CacheModeSelect = styled.select`
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid ${colors.borderStrong.var};
+  border-radius: var(--radius-md);
+  background: ${colors.bg.var};
+  color: ${colors.text.var};
+  font-size: 12.5px;
+`;
+
+function readCacheMode(value: string): CacheMode {
+  if (value === 'bypass' || value === 'refresh') return value;
+  return 'use';
+}
+
+export function CasePickerModal({
+  isOpen,
+  title,
+  subtitle,
+  caseIds,
+  selectedCaseIds,
+  cacheMode,
+  onCacheModeChange,
+  onSelectedCaseIdsChange,
+  onToggleCaseId,
+  onCancel,
+  onRun,
+}: CasePickerModalProps) {
+  return (
+    <Modal
+      isOpen={isOpen}
+      title={title}
+      subtitle={subtitle}
+      onClose={onCancel}
+      footer={
+        <>
+          <FooterLeft>
+            <CacheModeSelect
+              aria-label="Cache mode"
+              value={cacheMode}
+              onChange={(event) =>
+                onCacheModeChange(readCacheMode(event.currentTarget.value))
+              }
+            >
+              <option value="use">Use cache</option>
+              <option value="bypass">No cache</option>
+              <option value="refresh">Refresh cache</option>
+            </CacheModeSelect>
+          </FooterLeft>
+          <FooterRight>
+            <Button
+              variant="ghost"
+              onClick={onCancel}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={onRun}
+              disabled={selectedCaseIds.length === 0}
+            >
+              Run selected
+            </Button>
+          </FooterRight>
+        </>
+      }
+    >
+      <Body>
+        <Toolbar>
+          <Meta>
+            {selectedCaseIds.length} of {caseIds.length} selected
+          </Meta>
+          <ToolbarActions>
+            <Button
+              variant="ghost"
+              onClick={() => onSelectedCaseIdsChange(caseIds)}
+              disabled={caseIds.length === selectedCaseIds.length}
+            >
+              Select all
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => onSelectedCaseIdsChange([])}
+              disabled={selectedCaseIds.length === 0}
+            >
+              Clear
+            </Button>
+          </ToolbarActions>
+        </Toolbar>
+
+        {caseIds.length > 0 ? (
+          <CaseList>
+            {caseIds.map((caseId) => (
+              <CaseRow key={caseId}>
+                <input
+                  type="checkbox"
+                  checked={selectedCaseIds.includes(caseId)}
+                  onChange={() => onToggleCaseId(caseId)}
+                />
+                <CaseId title={caseId}>{caseId}</CaseId>
+              </CaseRow>
+            ))}
+          </CaseList>
+        ) : (
+          <Empty>
+            Case ids are not available yet. Run this eval once to let the app
+            discover its authored cases.
+          </Empty>
+        )}
+      </Body>
+    </Modal>
+  );
+}

@@ -70,7 +70,7 @@ pnpm add -D @ls-stack/agent-eval
    });
    ```
 
-3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). Use the sidebar status counts to filter visible evals by one or more states. On an eval page, filter the runs table by applicable result or recent-activity buckets, share that filter through the URL, and clear the currently filtered saved runs when needed. Each eval's actions menu can copy matching CLI run and debug commands using the workspace package manager. The app watches `agent-evals.config.ts` and reloads config in place when idle; if the file changes during a run, the UI shows a pending banner and new runs are blocked until the current run finishes and the reload applies.
+3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). Use the sidebar status counts to filter visible evals by one or more states. On an eval page, the Run chevron can open a case picker for running a selected subset of authored cases, filter the runs table by applicable result or recent-activity buckets, share that filter through the URL, and clear the currently filtered saved runs when needed. Each eval's actions menu can copy matching CLI run and debug commands using the workspace package manager. The app watches `agent-evals.config.ts` and reloads config in place when idle; if the file changes during a run, the UI shows a pending banner and new runs are blocked until the current run finishes and the reload applies.
 
 4. **Or use the CLI**:
 
@@ -1180,10 +1180,10 @@ CLI:
 - `pnpm eval cache clear --all` — drop every entry.
 
 UI: every `EvalCard` has a split button next to **Run** with a chevron menu
-containing the same four run modes plus a danger-toned "Clear cache for this
-eval". While a run is active, eval cards, folder headers, and the run drawer
-show **Stop** to cancel the whole in-flight run by terminating its isolated
-run process.
+containing the cache run modes, a single-eval case picker, and a danger-toned
+"Clear cache for this eval". While a run is active, eval cards, folder headers,
+and the run drawer show **Stop** to cancel the whole in-flight run by
+terminating its isolated run process.
 
 Per eval, use `cache.read` and `cache.store` to control whether authored cached
 operations may read or persist entries:

@@ -38,6 +38,7 @@ const evalMetaSchema = z.object({
   sourceFingerprint: z.string().nullable(),
   columnDefs: z.array(columnDefSchema),
   caseCount: z.number().nullable(),
+  caseIds: z.array(z.string()).optional(),
   stats: evalStatsConfigSchema.optional(),
   charts: evalChartsConfigSchema.optional(),
   manualInputDescriptor: manualInputDescriptorSchema.optional(),

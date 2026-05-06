@@ -242,6 +242,7 @@ function applyChildEvalMetas(
     }
     evalMeta.columnDefs = childMeta.columnDefs;
     evalMeta.caseCount = childMeta.caseCount;
+    evalMeta.caseIds = childMeta.caseIds;
     evalMeta.stats = childMeta.stats;
     evalMeta.charts = childMeta.charts;
     evalMeta.sourceFingerprint = childMeta.sourceFingerprint;

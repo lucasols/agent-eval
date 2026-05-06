@@ -442,6 +442,7 @@ export function createRunner({
               sourceFingerprint,
               columnDefs,
               caseCount: null,
+              caseIds: undefined,
               stats,
               charts,
               manualInputDescriptor,

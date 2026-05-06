@@ -1,6 +1,7 @@
 import {
   getEvalDisplayStatus,
   getEvalTitle,
+  type CacheMode,
   type EvalSummary,
 } from '@agent-evals/shared';
 import {
@@ -10,10 +11,10 @@ import {
   SquareStop,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { resultify } from 't-result';
 import { styled } from 'vindur';
 import { Button } from '#src/components/Button';
-import { EvalRunsChart } from '#src/components/EvalRunsChart';
+import { CasePickerModal } from '#src/components/CasePickerModal';
+import { EvalHistorySection } from '#src/components/EvalHistorySection';
 import {
   EvalRunsSection,
   getApplicableRunFilterOptions,
@@ -39,8 +40,8 @@ import { evalsStore, openEvalInEditor } from '#src/stores/evalsStore';
 import { getRunsForEval, historyStore } from '#src/stores/historyStore';
 import {
   cleanRunsForEval,
-  clearCacheForEval,
   cancelRun,
+  clearCacheForEval,
   deleteRuns,
   recomputeStatusesForEval,
   runStore,
@@ -65,10 +66,15 @@ import {
   buildEvalDebugCliCommand,
   buildEvalRunCliCommand,
 } from '#src/utils/cliCommand';
+import { copyTextToClipboard } from '#src/utils/clipboard';
 import { buildEvalScopedRunRows } from '#src/utils/evalRuns';
 import { computeStatDisplay } from '#src/utils/evalStats';
 import { getFreshnessTooltip } from '#src/utils/freshness';
 import { runTargetsEval as runTargetsEvalLocal } from '#src/utils/runTargeting';
+import {
+  readScoreHistoryCollapsed,
+  writeScoreHistoryCollapsed,
+} from '#src/utils/scoreHistoryCollapsed';
 import { shouldShowStatDisplay } from '#src/utils/statVisibility';
 
 type EvalCardProps = { evalSummary: EvalSummary; mode: 'single' | 'stacked' };
@@ -263,122 +269,18 @@ const Section = styled.div<{ fill: boolean }>`
   }
 `;
 
-const SectionLabel = styled.div<{ collapsed: boolean }>`
-  ${inline({ justify: 'space-between', align: 'center' })}
-  margin-bottom: 14px;
-
-  &.collapsed {
-    margin-bottom: 0;
-  }
-`;
-
-const SectionLabelLeft = styled.button`
-  ${inline({ gap: 8, align: 'center' })}
-  min-width: 0;
-  background: none;
-  border: none;
-  padding: 0;
-  margin: 0;
-  cursor: pointer;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-`;
-
-const SectionChevron = styled.span<{ open: boolean }>`
-  ${transition({ property: 'transform' })}
-  display: inline-flex;
-  width: 16px;
-  height: 16px;
-  align-items: center;
-  justify-content: center;
-  color: ${colors.textDim.var};
-  transform: rotate(-90deg);
-
-  &.open {
-    transform: rotate(0deg);
-  }
-
-  & > svg {
-    width: 14px;
-    height: 14px;
-  }
-`;
-
-const SectionLabelText = styled.span`
-  font-size: 13.5px;
-  font-weight: 600;
-  color: ${colors.text.var};
-  letter-spacing: -0.01em;
-`;
-
-const SectionMeta = styled.span`
-  ${monoFont};
-  font-size: 10.5px;
-  color: ${colors.textMuted.var};
-`;
-
-const SectionLabelRight = styled.span`
-  ${inline({ justify: 'right', align: 'center', gap: 10 })}
-  min-width: 0;
-  flex: 1;
-`;
-
-const CollapsedChartLabels = styled.span`
-  ${inline({ gap: 8, align: 'center' })}
-  min-width: 0;
-  justify-content: flex-end;
-  color: ${colors.textMuted.var};
-  font-size: 12px;
-`;
-
-const CollapsedChartLabelItem = styled.span`
-  ${inline({ gap: 8, align: 'center' })}
-  min-width: 0;
-`;
-
-const CollapsedChartLabel = styled.span`
-  ${ellipsis};
-  max-width: 180px;
-`;
-
-const CollapsedChartSeparator = styled.span`
-  color: ${colors.textMuted.var};
-`;
-
-const SCORE_HISTORY_COLLAPSED_STORAGE_KEY =
-  'agent-evals.eval-card.score-history-collapsed.v2';
-
-function readScoreHistoryCollapsed(): boolean {
-  if (typeof window === 'undefined') return true;
-  const stored = window.localStorage.getItem(
-    SCORE_HISTORY_COLLAPSED_STORAGE_KEY,
-  );
-  return stored === null ? true : stored === '1';
-}
-
-async function copyTextToClipboard(
-  text: string,
-  promptTitle: string,
-): Promise<void> {
-  const copyResult = await resultify(() => navigator.clipboard.writeText(text));
-  if (!copyResult.error) return;
-
-  window.prompt(promptTitle, text);
-}
-
 export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [casePickerOpen, setCasePickerOpen] = useState(false);
+  const [casePickerCacheMode, setCasePickerCacheMode] =
+    useState<CacheMode>('use');
+  const [selectedCaseIds, setSelectedCaseIds] = useState<string[]>([]);
   const [scoreHistoryCollapsed, setScoreHistoryCollapsed] = useState(
     readScoreHistoryCollapsed,
   );
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem(
-      SCORE_HISTORY_COLLAPSED_STORAGE_KEY,
-      scoreHistoryCollapsed ? '1' : '0',
-    );
+    writeScoreHistoryCollapsed(scoreHistoryCollapsed);
   }, [scoreHistoryCollapsed]);
 
   const [maintenanceAction, setMaintenanceAction] = useState<
@@ -474,6 +376,14 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const chartLabels = visibleCharts.map(
     ({ config }, index) => config.heading ?? `Chart ${String(index + 1)}`,
   );
+  const knownCaseIds = useMemo(() => {
+    const fromSummary = evalSummary.caseIds ?? [];
+    const sourceCaseIds =
+      fromSummary.length > 0
+        ? fromSummary
+        : latestCases.map((caseRow) => caseRow.caseId);
+    return [...new Set(sourceCaseIds)];
+  }, [evalSummary.caseIds, latestCases]);
 
   const isRunning =
     currentRun?.manifest.status === 'running' &&
@@ -495,6 +405,36 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const requiresManualInput = evalSummary.manualInput !== undefined;
   const manualInputRun = useManualInputRun(evalSummary);
 
+  function openCasePicker(cacheMode: CacheMode) {
+    setCasePickerCacheMode(cacheMode);
+    setSelectedCaseIds(knownCaseIds);
+    setCasePickerOpen(true);
+  }
+
+  function closeCasePicker() {
+    setCasePickerOpen(false);
+  }
+
+  function toggleCaseId(caseId: string) {
+    setSelectedCaseIds((current) =>
+      current.includes(caseId)
+        ? current.filter((selected) => selected !== caseId)
+        : [...current, caseId],
+    );
+  }
+
+  function startSelectedCaseRun() {
+    if (selectedCaseIds.length === 0) return;
+    setCasePickerOpen(false);
+    void startRun(
+      {
+        mode: 'caseIds',
+        evalKeys: [evalSummary.key],
+        caseIds: selectedCaseIds,
+      },
+      { cacheMode: casePickerCacheMode },
+    );
+  }
   function startEvalRun(cacheMode: 'use' | 'bypass' | 'refresh') {
     if (requiresManualInput) {
       manualInputRun.open(cacheMode);
@@ -505,17 +445,14 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
       { cacheMode },
     );
   }
-
   function handleRun(e: React.MouseEvent) {
     e.stopPropagation();
     startEvalRun('use');
   }
-
   function handleStop(e: React.MouseEvent) {
     e.stopPropagation();
     void cancelRun(currentRun?.manifest.id);
   }
-
   const cacheMenu: SplitButtonMenuEntry[] = [
     {
       id: 'run-default',
@@ -523,6 +460,16 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
       description: 'Read on hit, write on miss.',
       onSelect: () => startEvalRun('use'),
     },
+    ...(requiresManualInput
+      ? []
+      : [
+          {
+            id: 'run-specific-cases',
+            label: 'Run specific cases',
+            description: 'Choose which cases to execute.',
+            onSelect: () => openCasePicker('use'),
+          } satisfies SplitButtonMenuEntry,
+        ]),
     {
       id: 'run-no-cache',
       label: 'Run without cache',
@@ -547,7 +494,6 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
       },
     },
   ];
-
   async function handleRecomputeStatuses() {
     setMaintenanceAction('recompute');
     try {
@@ -804,54 +750,14 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
           ) : null}
 
           {hasScoreHistory ? (
-            <Section fill={false}>
-              <SectionLabel collapsed={scoreHistoryCollapsed}>
-                <SectionLabelLeft
-                  type="button"
-                  onClick={() => setScoreHistoryCollapsed((v) => !v)}
-                  aria-expanded={!scoreHistoryCollapsed}
-                  aria-label={
-                    scoreHistoryCollapsed
-                      ? 'Expand history charts'
-                      : 'Collapse history charts'
-                  }
-                >
-                  <SectionChevron open={!scoreHistoryCollapsed}>
-                    <ChevronDown />
-                  </SectionChevron>
-                  <SectionLabelText>History</SectionLabelText>
-                </SectionLabelLeft>
-                <SectionLabelRight>
-                  {scoreHistoryCollapsed ? (
-                    <CollapsedChartLabels>
-                      {chartLabels.map((label, index) => (
-                        <CollapsedChartLabelItem key={`${label}-${index}`}>
-                          {index > 0 ? (
-                            <CollapsedChartSeparator>·</CollapsedChartSeparator>
-                          ) : null}
-                          <CollapsedChartLabel>{label}</CollapsedChartLabel>
-                        </CollapsedChartLabelItem>
-                      ))}
-                    </CollapsedChartLabels>
-                  ) : (
-                    <SectionMeta>
-                      {completedRunCount}{' '}
-                      {completedRunCount === 1 ? 'run' : 'runs'}
-                    </SectionMeta>
-                  )}
-                </SectionLabelRight>
-              </SectionLabel>
-              {scoreHistoryCollapsed
-                ? null
-                : visibleCharts.map(({ config, data }, i) => (
-                    <EvalRunsChart
-                      key={`chart-${i}`}
-                      config={config}
-                      data={data}
-                      columnDefs={evalSummary.columnDefs}
-                    />
-                  ))}
-            </Section>
+            <EvalHistorySection
+              collapsed={scoreHistoryCollapsed}
+              chartLabels={chartLabels}
+              completedRunCount={completedRunCount}
+              visibleCharts={visibleCharts}
+              columnDefs={evalSummary.columnDefs}
+              onToggle={() => setScoreHistoryCollapsed((v) => !v)}
+            />
           ) : null}
 
           <Section fill={isSingle}>
@@ -864,6 +770,19 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
           </Section>
         </Body>
       ) : null}
+      <CasePickerModal
+        isOpen={casePickerOpen}
+        title="Run Specific Cases"
+        subtitle={getEvalTitle(evalSummary)}
+        caseIds={knownCaseIds}
+        selectedCaseIds={selectedCaseIds}
+        cacheMode={casePickerCacheMode}
+        onCacheModeChange={setCasePickerCacheMode}
+        onSelectedCaseIdsChange={setSelectedCaseIds}
+        onToggleCaseId={toggleCaseId}
+        onCancel={closeCasePicker}
+        onRun={startSelectedCaseRun}
+      />
       {requiresManualInput && evalSummary.manualInput ? (
         <ManualInputModal
           evalSummary={evalSummary}

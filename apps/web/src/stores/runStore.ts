@@ -228,6 +228,13 @@ export type RunTarget =
       evalIds?: string[];
       evalKeys?: string[];
       files?: string[];
+    }
+  | {
+      mode: 'caseIds';
+      caseIds: string[];
+      evalIds?: string[];
+      evalKeys?: string[];
+      files?: string[];
     };
 
 /** Optional run-start options, notably the cache mode. */
@@ -277,6 +284,12 @@ function getRunTargetEvalCount(target: RunTarget): number {
   if (target.mode === 'evalIds') {
     return new Set(target.evalKeys ?? target.evalIds ?? target.files ?? [])
       .size;
+  }
+  if (target.mode === 'caseIds') {
+    const evalTargets = target.evalKeys ?? target.evalIds ?? target.files;
+    return evalTargets && evalTargets.length > 0
+      ? new Set(evalTargets).size
+      : evalsStore.state.evals.length;
   }
   return evalsStore.state.evals.length;
 }

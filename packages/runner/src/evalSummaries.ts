@@ -16,6 +16,7 @@ type EvalSummaryMeta = Pick<
   | 'filePath'
   | 'columnDefs'
   | 'caseCount'
+  | 'caseIds'
   | 'stats'
   | 'charts'
 > & {

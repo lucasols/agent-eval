@@ -57,6 +57,7 @@ export type EvalMeta = {
   sourceFingerprint: string | null;
   columnDefs: ColumnDef[];
   caseCount: number | null;
+  caseIds?: string[];
   stats?: EvalStatsConfig;
   charts?: EvalChartsConfig;
   /**
@@ -472,6 +473,8 @@ export async function executeRun({
                 runnableCases,
                 request.target.caseIds,
               );
+              evalMeta.caseCount = runnableCases.length;
+              evalMeta.caseIds = runnableCases.map((evalCase) => evalCase.id);
 
               runState.summary.totalCases += cases.length;
 

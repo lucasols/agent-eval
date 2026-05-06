@@ -85,7 +85,7 @@ export function runTargetsEval(
       false
     );
   }
-  return false;
+  return manifest.target.evalKeys?.includes(evalKey) ?? false;
 }
 
 export function getRunsForEval(
