@@ -366,14 +366,14 @@ function formatRunErrorItems(errorMessage: string): ErrorDetailItem[] {
 function getScopedRunErrorMessage(params: {
   errorMessage: string | null;
   evals: Array<{ id: string; key: string; filePath: string }>;
-  selectedEvalId: string | null;
+  selectedEvalKey: string | null;
   selectedFolderPath: string | null;
 }): string | null {
   if (params.errorMessage === null || params.errorMessage.length === 0) {
     return null;
   }
 
-  if (params.selectedEvalId === null && params.selectedFolderPath === null) {
+  if (params.selectedEvalKey === null && params.selectedFolderPath === null) {
     return params.errorMessage;
   }
 
@@ -382,15 +382,11 @@ function getScopedRunErrorMessage(params: {
     return params.errorMessage;
   }
 
-  const selectedEvalIds =
-    params.selectedEvalId !== null
-      ? new Set([params.selectedEvalId])
-      : params.selectedFolderPath !== null
-        ? getEvalIdsForFolderPath({
-            evals: params.evals,
-            selectedFolderPath: params.selectedFolderPath,
-          })
-        : new Set<string>();
+  const selectedEvalIds = getSelectedRunErrorEvalIds({
+    evals: params.evals,
+    selectedEvalKey: params.selectedEvalKey,
+    selectedFolderPath: params.selectedFolderPath,
+  });
   const scopedLines = parsedBlocks.filter((line) =>
     selectedEvalIds.has(line.evalId),
   );
@@ -402,6 +398,39 @@ function getScopedRunErrorMessage(params: {
       return line.stack === undefined ? heading : `${heading}\n${line.stack}`;
     })
     .join('\n');
+}
+
+function getSelectedRunErrorEvalIds(params: {
+  evals: Array<{ id: string; key: string; filePath: string }>;
+  selectedEvalKey: string | null;
+  selectedFolderPath: string | null;
+}): Set<string> {
+  if (params.selectedEvalKey !== null) {
+    const selectedEval = params.evals.find(
+      (ev) =>
+        ev.key === params.selectedEvalKey || ev.id === params.selectedEvalKey,
+    );
+    const selectedIds = new Set<string>([params.selectedEvalKey]);
+    if (selectedEval !== undefined) {
+      selectedIds.add(selectedEval.id);
+      selectedIds.add(selectedEval.key);
+    }
+    return selectedIds;
+  }
+
+  if (params.selectedFolderPath === null) return new Set();
+
+  const evalKeysInFolder = getEvalIdsForFolderPath({
+    evals: params.evals,
+    selectedFolderPath: params.selectedFolderPath,
+  });
+  const selectedIds = new Set<string>();
+  for (const evalSummary of params.evals) {
+    if (!evalKeysInFolder.has(evalSummary.key)) continue;
+    selectedIds.add(evalSummary.id);
+    selectedIds.add(evalSummary.key);
+  }
+  return selectedIds;
 }
 
 export function RunDrawer() {
@@ -474,7 +503,7 @@ export function RunDrawer() {
       ? getScopedRunErrorMessage({
           errorMessage: summary.errorMessage,
           evals,
-          selectedEvalId: scopedEvalId,
+          selectedEvalKey: scopedEvalId,
           selectedFolderPath: scopedFolderPath,
         })
       : null;

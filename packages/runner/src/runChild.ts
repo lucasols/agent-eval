@@ -20,6 +20,7 @@ import { createFsCacheStore } from './cacheStore.ts';
 import { loadConfig } from './config.ts';
 import { parseEvalDiscovery } from './discovery.ts';
 import type { RunChildContext, RunChildMessage } from './runChildProtocol.ts';
+import { persistRunState } from './runMaintenance.ts';
 import {
   executeRun,
   type EvalMeta,
@@ -51,6 +52,8 @@ const runChildContextSchema = z.object({
   summary: runSummarySchema,
   evals: z.array(evalMetaSchema).optional(),
 });
+
+let activeContext: RunChildContext | undefined;
 
 function sendMessage(message: RunChildMessage): void {
   if (process.send === undefined) return;
@@ -148,6 +151,7 @@ async function main(): Promise<void> {
   });
 
   const context = await readContext(process.argv[2]);
+  activeContext = context;
   process.chdir(context.workspaceRoot);
 
   const config = await loadConfig();
@@ -209,5 +213,46 @@ async function main(): Promise<void> {
   sendMessage({ type: 'done', evals: [...evals.values()] });
 }
 
-await main();
+async function handleFatalRunChildError(error: unknown): Promise<void> {
+  const message = formatUnknownErrorDetails(error);
+  process.exitCode = 1;
+  console.error(message);
+
+  if (activeContext === undefined) return;
+
+  const endedAt = new Date().toISOString();
+  const runState: RunState = {
+    runDir: activeContext.runDir,
+    manifest: { ...activeContext.manifest, status: 'error', endedAt },
+    summary: {
+      ...activeContext.summary,
+      status: 'error',
+      errorMessage: message,
+    },
+    cases: [],
+    caseDetails: new Map(),
+    listeners: new Set(),
+  };
+
+  await persistRunState(runState);
+  sendMessage({
+    type: 'event',
+    event: {
+      type: 'run.error',
+      runId: activeContext.manifest.id,
+      timestamp: endedAt,
+      payload: { message },
+    },
+  });
+}
+
+function formatUnknownErrorDetails(error: unknown): string {
+  if (error instanceof Error) return error.stack ?? error.message;
+  if (typeof error === 'string') return error;
+  return String(error);
+}
+
+await main().catch(async (error: unknown) => {
+  await handleFatalRunChildError(error);
+});
 process.disconnect();

@@ -166,6 +166,11 @@ From `examples/basic-agent`, run `pnpm eval app` for the same single-command flo
 
 From the repo root, `pnpm dev` starts the example-backed Hono server on `http://localhost:5100` together with the Vite web dev server on `http://localhost:5200` by default, so frontend changes get full HMR while `/api` stays pointed at the example workspace. These repo-local defaults intentionally differ from the packaged `agent-evals app` default of `http://localhost:4100`, so you can run this checkout alongside an app in another project.
 
+The example workspace includes `Run Error Details Demo`
+(`evals/support/playground/run-error-details.eval.ts`) for checking the app's
+run-level error drawer. Run that eval by itself to see the "no cases in this
+run" state together with the persisted setup stack.
+
 If you want different local dev ports, add a repo-root `.env` file with one or both of these variables:
 
 ```sh

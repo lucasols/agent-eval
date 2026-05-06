@@ -13,15 +13,19 @@ import { isRunChildMessage, type RunChildMessage } from './runChildProtocol.ts';
 import { persistRunState } from './runMaintenance.ts';
 import type { EvalMeta, RunState } from './runOrchestration.ts';
 import { loadPersistedRunSnapshot } from './runPersistence.ts';
+import { stripTerminalControlCodes } from './stackFormatting.ts';
 
 const runChildInspectArgEnv = 'AGENT_EVALS_RUN_CHILD_INSPECT_ARG';
 const inspectFlagPrefix = '--inspect';
 const inspectBrkFlagPrefix = '--inspect-brk';
+const childOutputTailMaxLength = 12_000;
 
 export type RunnerRunState = RunState & {
   childProcess: ChildProcess | undefined;
   childTerminalReceived: boolean;
 };
+
+type RunChildOutputTail = { stdout: string; stderr: string };
 
 type RunChildManagerContext = {
   workspaceRoot: string;
@@ -41,10 +45,11 @@ export function startRunChild(params: {
     {
       cwd: params.managerContext.workspaceRoot,
       env: process.env,
-      stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
+      stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     },
   );
 
+  const outputTail = createRunChildOutputTail(child);
   params.runState.childProcess = child;
   child.on('message', (message) => {
     if (!isRunChildMessage(message)) return;
@@ -69,8 +74,55 @@ export function startRunChild(params: {
       signal !== null
         ? `Run child exited with signal ${signal}`
         : `Run child exited with code ${String(code)}`;
-    void markRunErrored(params.runState, reason, params.managerContext);
+    void markRunErrored(
+      params.runState,
+      formatUnexpectedRunChildExit(reason, outputTail),
+      params.managerContext,
+    );
   });
+}
+
+function createRunChildOutputTail(child: ChildProcess): RunChildOutputTail {
+  const tail: RunChildOutputTail = { stdout: '', stderr: '' };
+  child.stdout?.on('data', (chunk: Buffer | string) => {
+    process.stdout.write(chunk);
+    tail.stdout = appendOutputTail(tail.stdout, chunkToText(chunk));
+  });
+  child.stderr?.on('data', (chunk: Buffer | string) => {
+    process.stderr.write(chunk);
+    tail.stderr = appendOutputTail(tail.stderr, chunkToText(chunk));
+  });
+  return tail;
+}
+
+function chunkToText(chunk: Buffer | string): string {
+  return typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
+}
+
+function appendOutputTail(current: string, next: string): string {
+  const combined = current + next;
+  if (combined.length <= childOutputTailMaxLength) return combined;
+  return combined.slice(combined.length - childOutputTailMaxLength);
+}
+
+function formatUnexpectedRunChildExit(
+  reason: string,
+  outputTail: RunChildOutputTail,
+): string {
+  const sections = [reason];
+  const stderr = stripTerminalControlCodes(outputTail.stderr).trim();
+  const stdout = stripTerminalControlCodes(outputTail.stdout).trim();
+  if (stderr.length > 0) {
+    sections.push(
+      `Child stderr (last ${String(stderr.length)} chars):\n${stderr}`,
+    );
+  }
+  if (stdout.length > 0) {
+    sections.push(
+      `Child stdout (last ${String(stdout.length)} chars):\n${stdout}`,
+    );
+  }
+  return sections.join('\n\n');
 }
 
 function getRunChildExecArgv(): string[] {
