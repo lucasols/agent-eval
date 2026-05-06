@@ -5,6 +5,7 @@ import type { SseEnvelope } from '@agent-evals/shared';
 import { afterEach, expect, test } from 'vitest';
 import {
   formatUnexpectedRunChildExit,
+  getRunChildExecArgv,
   startRunChild,
   type RunnerRunState,
 } from './runChildManager.ts';
@@ -19,6 +20,10 @@ afterEach(async () => {
     }),
   );
   createdWorkspaces.length = 0;
+});
+
+test('run child enables node:test module mocks', () => {
+  expect(getRunChildExecArgv()).toContain('--experimental-test-module-mocks');
 });
 
 test('persists full run error details for eval load failures', async () => {

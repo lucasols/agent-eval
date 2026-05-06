@@ -117,8 +117,8 @@ For true module replacement, use `mock.module(...)` from `node:test` and
 register the mock before dynamically importing the module graph you want to
 exercise.
 
-Node requires the `--experimental-test-module-mocks` flag for this API, and the
-Agent Evals CLI enables it automatically:
+Node requires the `--experimental-test-module-mocks` flag for this API, and
+Agent Evals enables it automatically for CLI and app runs:
 
 ```sh
 agent-evals run --eval module-mock-demo
@@ -171,6 +171,11 @@ The example workspace includes `Run Error Details Demo`
 (`evals/support/playground/run-error-details.eval.ts`) for checking the app's
 run-level error drawer. Run that eval by itself to see the "no cases in this
 run" state together with the persisted setup stack.
+
+It also includes `Slow Running Demo`
+(`evals/support/playground/slow-running-demo.eval.ts`) for checking live running
+UI states such as elapsed-time badges and running indicators. It disables cache
+reads and writes so each run intentionally takes several seconds.
 
 If you want different local dev ports, add a repo-root `.env` file with one or both of these variables:
 

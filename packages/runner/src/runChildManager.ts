@@ -16,6 +16,7 @@ import { loadPersistedRunSnapshot } from './runPersistence.ts';
 import { stripTerminalControlCodes } from './stackFormatting.ts';
 
 const runChildInspectArgEnv = 'AGENT_EVALS_RUN_CHILD_INSPECT_ARG';
+const moduleMocksFlag = '--experimental-test-module-mocks';
 const inspectFlagPrefix = '--inspect';
 const inspectBrkFlagPrefix = '--inspect-brk';
 const childOutputTailMaxLength = 12_000;
@@ -196,8 +197,8 @@ function formatOutputSection(
   return `${label}:\n${output}`;
 }
 
-function getRunChildExecArgv(): string[] {
-  const execArgv: string[] = [];
+export function getRunChildExecArgv(): string[] {
+  const execArgv: string[] = [moduleMocksFlag];
   let skipNext = false;
 
   for (const arg of process.execArgv) {
@@ -216,6 +217,7 @@ function getRunChildExecArgv(): string[] {
       if (arg === '--input-type') skipNext = true;
       continue;
     }
+    if (arg === moduleMocksFlag) continue;
     if (isInspectArg(arg)) continue;
 
     execArgv.push(arg);

@@ -12,6 +12,7 @@ import { summarizeCellValue } from '#src/components/FormattedCellValue';
 import { ManualScoreCell, ScoreCell } from '#src/components/ScoreCell';
 import { StatusBadge } from '#src/components/StatusBadge';
 import { Tooltip } from '#src/components/Tooltip';
+import { useElapsedRunTime } from '#src/hooks/useElapsedRunTime';
 import { runStore, selectCase, selectRun } from '#src/stores/runStore';
 import { colors } from '#src/style/colors';
 import {
@@ -488,6 +489,9 @@ function RunGroup({
   const { manifest, summary, cases } = run;
   const displayShortId = manifest.shortId.replace(RUN_SHORT_ID_PREFIX, '');
   const durationValue = summary.totalDurationMs;
+  const runningElapsedLabel = useElapsedRunTime(
+    summary.status === 'running' ? manifest.startedAt : null,
+  );
   const runHasOpenDrawer =
     selectedRunId === manifest.id || selectedCaseRunId === manifest.id;
 
@@ -538,7 +542,14 @@ function RunGroup({
           rightAlign={false}
           mono={false}
         >
-          <StatusBadge status={summary.status} />
+          <StatusBadge
+            status={summary.status}
+            detail={
+              summary.status === 'running'
+                ? (runningElapsedLabel ?? undefined)
+                : undefined
+            }
+          />
         </RunHeaderTd>
         {scoreColumns.map((c) => {
           const avg = averageNumericColumn(cases, c.key);

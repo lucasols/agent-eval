@@ -540,8 +540,9 @@ traces.
 ## Module mocking
 
 For true module replacement inside an eval, register `mock.module(...)` from
-`node:test` before dynamically importing the module graph. The CLI enables
-Node's `--experimental-test-module-mocks` flag automatically. Use dynamic
+`node:test` before dynamically importing the module graph. Agent Evals enables
+Node's `--experimental-test-module-mocks` flag automatically for CLI and app
+runs. Use dynamic
 `import(...)` inside `execute` — static imports happen too early.
 
 ```ts

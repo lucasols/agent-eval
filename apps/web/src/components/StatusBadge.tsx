@@ -1,4 +1,4 @@
-import { styled } from 'vindur';
+import { keyframes, styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import { inline, monoFont } from '#src/style/helpers';
 
@@ -13,6 +13,16 @@ type Tone =
   | 'stale'
   | 'outdated'
   | 'unscored';
+
+const runningDotPulse = keyframes`
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+`;
 
 const Badge = styled.span<{
   pass: boolean;
@@ -87,28 +97,19 @@ const Dot = styled.span<{
   }
   &.running {
     background: ${colors.accent.var};
-    animation: blinkDot 1s steps(2, start) infinite;
+    animation: ${runningDotPulse} 1.3s ease-in-out infinite;
   }
   &.cancelled {
     background: ${colors.warning.var};
   }
   &.stale {
-    background: ${colors.borderStrong.var};
+    background: ${colors.textDim.var};
   }
   &.outdated {
     background: ${colors.warning.var};
   }
   &.unscored {
     background: ${colors.accent.var};
-  }
-
-  @keyframes blinkDot {
-    0% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.25;
-    }
   }
 `;
 
