@@ -57,10 +57,35 @@ const runChildContextSchema = z.object({
 let activeContext: RunChildContext | undefined;
 let fatalErrorReported = false;
 let disconnectExpected = false;
+const pendingMessageSends = new Set<Promise<void>>();
 
 function sendMessage(message: RunChildMessage): void {
   if (process.send === undefined) return;
-  process.send(message);
+  const sendPromise = new Promise<void>((resolvePromise) => {
+    try {
+      process.send?.(message, (error: Error | null) => {
+        if (error) {
+          console.error('Failed to send run child message:');
+          console.error(formatUnknownErrorDetails(error));
+        }
+        resolvePromise();
+      });
+    } catch (error) {
+      console.error('Failed to send run child message:');
+      console.error(formatUnknownErrorDetails(error));
+      resolvePromise();
+    }
+  });
+  pendingMessageSends.add(sendPromise);
+  void sendPromise.finally(() => {
+    pendingMessageSends.delete(sendPromise);
+  });
+}
+
+async function flushMessageSends(): Promise<void> {
+  while (pendingMessageSends.size > 0) {
+    await Promise.allSettled([...pendingMessageSends]);
+  }
 }
 
 function installFatalRunChildErrorHandlers(): void {
@@ -224,6 +249,7 @@ async function main(): Promise<void> {
   });
 
   sendMessage({ type: 'done', evals: [...evals.values()] });
+  await flushMessageSends();
 }
 
 async function handleFatalRunChildError(error: unknown): Promise<void> {
@@ -259,6 +285,7 @@ async function handleFatalRunChildError(error: unknown): Promise<void> {
       payload: { message },
     },
   });
+  await flushMessageSends();
 }
 
 function formatUnknownErrorDetails(error: unknown): string {
@@ -287,5 +314,6 @@ installFatalRunChildErrorHandlers();
 await main().catch(async (error: unknown) => {
   await handleFatalRunChildError(error);
 });
+await flushMessageSends();
 disconnectExpected = true;
 process.disconnect();
