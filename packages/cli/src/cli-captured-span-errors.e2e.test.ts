@@ -8,12 +8,12 @@ import {
 } from './cliTestUtils.ts';
 
 describe('CLI span diagnostic examples', () => {
-  test('persists captured span warnings, captured errors, and thrown span errors from example evals', async () => {
+  test('persists span diagnostics and diagnostic output keys from example evals', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const result = await runExampleCli(workspacePath, [
         'run',
         '--eval',
-        'captured-span-errors-demo,warning-span-demo,errored-span-demo',
+        'captured-span-errors-demo,warning-span-demo,errored-span-demo,diagnostic-output-keys-demo',
       ]);
 
       expect(result.exitCode).toBe(0);
@@ -240,24 +240,50 @@ describe('CLI span diagnostic examples', () => {
                   "loyaltyTier",
                   "requestedRefundUsd",
                 ],
+                "llmTurns": 0,
                 "response": "Recovered risk review for order #771 with fallback signals.",
+                "toolCalls": 1,
               },
               "status": "pass",
             },
             {
               "caseId": "continue-with-stale-signal",
               "columns": {
+                "llmTurns": 0,
                 "response": "Continued review for order #662 with a stale SLA signal.",
                 "signalFreshness": "stale",
+                "toolCalls": 1,
               },
               "status": "pass",
             },
             {
               "caseId": "recover-after-webhook-error",
               "columns": {
+                "llmTurns": 0,
                 "response": "Queued a retry for order #884 after webhook rejection.",
                 "spanError": "Refund webhook rejected #884",
                 "submitStatus": "queued-for-retry",
+                "toolCalls": 1,
+              },
+              "status": "pass",
+            },
+            {
+              "caseId": "review-diagnostic-output-keys",
+              "columns": {
+                "diagnosticSummary": {
+                  "errorCount": 0,
+                  "nextAction": "watch-for-carrier-callback",
+                  "warning": "Carrier refund status is delayed",
+                },
+                "llmTurns": 0,
+                "response": "Recorded diagnostic output keys for order #935.",
+                "retryFailures": [
+                  {
+                    "reason": "status-not-ready",
+                    "service": "carrier-refund-status",
+                  },
+                ],
+                "toolCalls": 0,
               },
               "status": "pass",
             },
@@ -277,10 +303,10 @@ describe('CLI span diagnostic examples', () => {
             "errorCases": 0,
             "errorMessage": null,
             "failedCases": 0,
-            "passedCases": 3,
+            "passedCases": 4,
             "runId": "<run-id>",
             "status": "completed",
-            "totalCases": 3,
+            "totalCases": 4,
             "totalDurationMs": "<totalDurationMs>",
           },
           "warningSpan": {
@@ -325,6 +351,7 @@ function getDiagnosticCaseOrder(caseId: string): number {
     'recover-with-fallback-signals',
     'continue-with-stale-signal',
     'recover-after-webhook-error',
+    'review-diagnostic-output-keys',
   ].indexOf(caseId);
   return order === -1 ? Number.MAX_SAFE_INTEGER : order;
 }

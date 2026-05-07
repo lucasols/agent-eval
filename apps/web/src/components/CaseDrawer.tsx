@@ -9,7 +9,7 @@ import {
   type RunLogPhase,
 } from '@agent-evals/shared';
 import { useActionFn } from '@ls-stack/react-utils/useActionFn';
-import { Maximize2, Minimize2, X } from 'lucide-react';
+import { Maximize2, Minimize2, TriangleAlert, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { styled } from 'vindur';
 import { ApiCallRow } from '#src/components/ApiCallRow';
@@ -32,6 +32,7 @@ import { MenuButton } from '#src/components/MenuButton';
 import { ResizeHandle } from '#src/components/ResizeHandle';
 import type { SplitButtonMenuEntry } from '#src/components/SplitButton';
 import { StatusBadge } from '#src/components/StatusBadge';
+import { Tooltip } from '#src/components/Tooltip';
 import { TraceTree } from '#src/components/TraceTree';
 import { useResizableWidth } from '#src/hooks/useResizableWidth';
 import {
@@ -50,6 +51,10 @@ import { workspaceConfigStore } from '#src/stores/workspaceConfigStore';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
 import { formatNumericCellValue } from '#src/utils/formatters';
+import {
+  findDiagnosticOutputKey,
+  formatDiagnosticOutputTooltip,
+} from '#src/utils/outputDiagnostics';
 import {
   getDisplayColumnLabel,
   mergeRuntimeColumnDefs,
@@ -201,6 +206,24 @@ const OutputBlock = styled.div`
 const OutputLabel = styled.div`
   ${kicker};
   color: ${colors.textMuted.var};
+`;
+
+const OutputLabelRow = styled.div`
+  ${inline({ align: 'center', gap: 6 })}
+`;
+
+const OutputWarningIcon = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: ${colors.warning.var};
+  flex-shrink: 0;
+
+  & > svg {
+    width: 12px;
+    height: 12px;
+    stroke-width: 2.5;
+  }
 `;
 
 const OutputContent = styled.div`
@@ -811,9 +834,24 @@ function ColumnCell({
   def: ColumnDef;
   value: CellValue | undefined;
 }) {
+  const label = getDisplayColumnLabel(def);
+  const diagnosticKey = findDiagnosticOutputKey(value, def.key);
   return (
     <OutputBlock>
-      <OutputLabel>{getDisplayColumnLabel(def)}</OutputLabel>
+      <OutputLabelRow>
+        <OutputLabel>{label}</OutputLabel>
+        {diagnosticKey !== undefined ? (
+          <Tooltip
+            content={formatDiagnosticOutputTooltip(diagnosticKey, label)}
+          >
+            <OutputWarningIcon
+              aria-label={`Output contains ${diagnosticKey} key`}
+            >
+              <TriangleAlert />
+            </OutputWarningIcon>
+          </Tooltip>
+        ) : null}
+      </OutputLabelRow>
       <OutputContent>{renderColumnValue(def, value)}</OutputContent>
     </OutputBlock>
   );

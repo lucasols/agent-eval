@@ -133,3 +133,42 @@ defineEval<{ orderId: string }>({
     );
   },
 });
+
+defineEval<{ orderId: string }>({
+  id: 'diagnostic-output-keys-demo',
+  title: 'Diagnostic Output Keys Demo',
+  cases: [{ id: 'review-diagnostic-output-keys', input: { orderId: '#935' } }],
+  columns: {
+    response: { label: 'Response', format: 'markdown' },
+    diagnosticSummary: { label: 'Diagnostic Summary', format: 'json' },
+    retryFailures: { label: 'Retry Failures', format: 'json' },
+  },
+  execute: async ({ input }) => {
+    await evalTracer.span(
+      { kind: 'agent', name: 'refund-output-diagnostics' },
+      () => {
+        evalSpan.setAttribute('input', input);
+
+        const diagnosticSummary = {
+          warning: 'Carrier refund status is delayed',
+          errorCount: 0,
+          nextAction: 'watch-for-carrier-callback',
+        };
+        const retryFailures = [
+          { service: 'carrier-refund-status', reason: 'status-not-ready' },
+        ];
+
+        setEvalOutput('diagnosticSummary', diagnosticSummary);
+        setEvalOutput('retryFailures', retryFailures);
+
+        const response = `Recorded diagnostic output keys for order ${input.orderId}.`;
+        setEvalOutput('response', response);
+        evalSpan.setAttribute('output', {
+          diagnosticSummary,
+          retryFailures,
+          response,
+        });
+      },
+    );
+  },
+});

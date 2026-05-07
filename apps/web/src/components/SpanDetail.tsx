@@ -12,6 +12,7 @@ import { JsonViewer } from '#src/components/JsonViewer';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
 import { formatDuration } from '#src/utils/formatters';
+import { findDiagnosticOutputKey } from '#src/utils/outputDiagnostics';
 import {
   formatTraceAttributeValue,
   getTraceAttributeItems,
@@ -118,7 +119,21 @@ export function SpanDetail({ span, spans, traceDisplay }: SpanDetailProps) {
     remainingAttributes !== null && Object.keys(remainingAttributes).length > 0;
   const capturedErrors = span.errors ?? [];
   const capturedWarnings = span.warnings ?? [];
+  const outputDiagnosticKey = findDiagnosticOutputKey(span.attributes?.output);
   const lastCapturedError = capturedErrors.at(-1);
+  const outputWarningItems =
+    outputDiagnosticKey !== undefined
+      ? [
+          toDiagnosticDetailItem({
+            diagnostic: {
+              message: `Output may contain a diagnostic key: "${outputDiagnosticKey}".`,
+              name: 'DiagnosticOutputWarning',
+            },
+            id: `output-diagnostic-${outputDiagnosticKey}`,
+            meta: undefined,
+          }),
+        ]
+      : [];
   const capturedWarningItems = capturedWarnings.map((warning, index) =>
     toDiagnosticDetailItem({
       diagnostic: warning,
@@ -129,6 +144,7 @@ export function SpanDetail({ span, spans, traceDisplay }: SpanDetailProps) {
           : undefined,
     }),
   );
+  const warningItems = [...outputWarningItems, ...capturedWarningItems];
   const showTerminalError =
     span.error !== undefined &&
     (lastCapturedError === undefined ||
@@ -232,12 +248,12 @@ export function SpanDetail({ span, spans, traceDisplay }: SpanDetailProps) {
         />
       ) : null}
 
-      {capturedWarnings.length > 0 ? (
+      {warningItems.length > 0 ? (
         <ErrorDetails
           label={`Captured ${
-            capturedWarnings.length === 1 ? 'warning' : 'warnings'
+            warningItems.length === 1 ? 'warning' : 'warnings'
           }`}
-          errors={capturedWarningItems}
+          errors={warningItems}
           tone="warning"
         />
       ) : null}
