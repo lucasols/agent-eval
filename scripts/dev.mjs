@@ -93,7 +93,6 @@ function startWeb() {
       '--filter',
       '@agent-evals/web',
       'dev',
-      '--',
       '--host',
       'localhost',
       '--port',
