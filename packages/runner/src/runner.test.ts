@@ -84,173 +84,6 @@ defineEval({
     }
   }, 10_000);
 
-  test('loads persisted runs and case details during init', async () => {
-    const workspacePath = await mkdtemp(
-      join(tmpdir(), 'agent-evals-runner-persisted-runs-'),
-    );
-    createdWorkspaces.push(workspacePath);
-
-    await mkdir(join(workspacePath, 'evals'), { recursive: true });
-    await mkdir(
-      join(
-        workspacePath,
-        '.agent-evals',
-        'runs',
-        '2026-04-21T12-00-00Z_abc123',
-      ),
-      { recursive: true },
-    );
-    await mkdir(
-      join(
-        workspacePath,
-        '.agent-evals',
-        'runs',
-        '2026-04-21T12-00-00Z_abc123',
-        'case-details',
-      ),
-      { recursive: true },
-    );
-
-    await writeFile(
-      join(workspacePath, 'agent-evals.config.ts'),
-      `export default {
-  include: ['evals/**/*.eval.ts'],
-};
-`,
-    );
-    await writeFile(
-      join(workspacePath, 'evals', 'persisted.eval.ts'),
-      `import { defineEval } from '@agent-evals/sdk';
-
-defineEval({
-  id: 'persisted-eval',
-  title: 'Persisted Eval',
-});
-`,
-    );
-
-    await writeFile(
-      join(
-        workspacePath,
-        '.agent-evals',
-        'runs',
-        '2026-04-21T12-00-00Z_abc123',
-        'run.json',
-      ),
-      JSON.stringify(
-        {
-          id: '2026-04-21T12-00-00Z_abc123',
-          shortId: 'r0',
-          status: 'completed',
-          startedAt: '2026-04-21T12:00:00.000Z',
-          endedAt: '2026-04-21T12:00:02.000Z',
-          target: { mode: 'evalIds', evalIds: ['persisted-eval'] },
-          trials: 1,
-          cacheMode: 'use',
-        },
-        null,
-        2,
-      ),
-    );
-    await writeFile(
-      join(
-        workspacePath,
-        '.agent-evals',
-        'runs',
-        '2026-04-21T12-00-00Z_abc123',
-        'summary.json',
-      ),
-      JSON.stringify(
-        {
-          runId: '2026-04-21T12-00-00Z_abc123',
-          status: 'completed',
-          totalCases: 1,
-          passedCases: 1,
-          failedCases: 0,
-          errorCases: 0,
-          cancelledCases: 0,
-          totalDurationMs: 2000,
-          errorMessage: null,
-        },
-        null,
-        2,
-      ),
-    );
-    await writeFile(
-      join(
-        workspacePath,
-        '.agent-evals',
-        'runs',
-        '2026-04-21T12-00-00Z_abc123',
-        'cases.jsonl',
-      ),
-      `${JSON.stringify({
-        caseId: 'saved-case',
-        evalId: 'persisted-eval',
-        status: 'pass',
-        durationMs: 234,
-        costUsd: 0.12,
-        columns: { answer: 'ok' },
-        trial: 0,
-      })}
-`,
-    );
-    await writeFile(
-      join(
-        workspacePath,
-        '.agent-evals',
-        'runs',
-        '2026-04-21T12-00-00Z_abc123',
-        'case-details',
-        'saved-case.json',
-      ),
-      JSON.stringify(
-        {
-          caseId: 'saved-case',
-          evalId: 'persisted-eval',
-          status: 'pass',
-          input: { prompt: 'hi' },
-          trace: [],
-          traceDisplay: { attributes: [] },
-          columns: { answer: 'ok' },
-          assertionFailures: [],
-          error: null,
-          trial: 0,
-        },
-        null,
-        2,
-      ),
-    );
-
-    const previousCwd = process.cwd();
-    process.chdir(workspacePath);
-
-    try {
-      const runner = createRunner({ watchForChanges: false });
-      await runner.init();
-
-      expect(runner.getRuns()).toHaveLength(1);
-      expect(runner.getRun('2026-04-21T12-00-00Z_abc123')).toMatchObject({
-        manifest: { id: '2026-04-21T12-00-00Z_abc123', status: 'completed' },
-        summary: { totalCases: 1, passedCases: 1 },
-        cases: [
-          { caseId: 'saved-case', evalId: 'persisted-eval', status: 'pass' },
-        ],
-      });
-      expect(
-        runner.getCaseDetail('2026-04-21T12-00-00Z_abc123', 'saved-case'),
-      ).toMatchObject({
-        caseId: 'saved-case',
-        evalId: 'persisted-eval',
-        status: 'pass',
-        columns: { answer: 'ok' },
-      });
-      expect(runner.getEval('persisted-eval')?.lastRunStatus).toBe('pass');
-    } finally {
-      process.chdir(previousCwd);
-    }
-  });
-
   test('derives each eval lastRunStatus from only that eval cases within a run', async () => {
     const workspacePath = await mkdtemp(
       join(tmpdir(), 'agent-evals-runner-status-scope-'),
@@ -371,7 +204,10 @@ defineEval({ id: 'errored-eval', title: 'Errored Eval' });
           status: 'completed',
           startedAt: '2026-04-21T12:00:00.000Z',
           endedAt: '2026-04-21T12:00:02.000Z',
-          target: { mode: 'evalIds', evalIds: ['persisted-eval'] },
+          target: {
+            mode: 'evalIds',
+            evalKeys: ['evals%2Fpersisted.eval.ts#persisted-eval'],
+          },
           trials: 1,
           cacheMode: 'use',
         },
@@ -414,6 +250,7 @@ defineEval({ id: 'errored-eval', title: 'Errored Eval' });
       `${JSON.stringify({
         caseId: 'saved-case',
         evalId: 'persisted-eval',
+        evalKey: 'evals%2Fpersisted.eval.ts#persisted-eval',
         status: 'fail',
         durationMs: 234,
         costUsd: 0.12,
@@ -440,7 +277,10 @@ defineEval({ id: 'errored-eval', title: 'Errored Eval' });
           endedAt: '2026-04-21T12:05:01.000Z',
           target: {
             mode: 'evalIds',
-            evalIds: ['persisted-eval', 'errored-eval'],
+            evalKeys: [
+              'evals%2Fpersisted.eval.ts#persisted-eval',
+              'evals%2Fpersisted.eval.ts#errored-eval',
+            ],
           },
           trials: 1,
           cacheMode: 'use',
@@ -484,6 +324,7 @@ defineEval({ id: 'errored-eval', title: 'Errored Eval' });
       `${JSON.stringify({
         caseId: 'new-case',
         evalId: 'persisted-eval',
+        evalKey: 'evals%2Fpersisted.eval.ts#persisted-eval',
         status: 'pass',
         durationMs: 120,
         costUsd: 0.08,
@@ -635,7 +476,10 @@ defineEval({
           status: 'completed',
           startedAt: '2026-04-21T12:10:00.000Z',
           endedAt: '2026-04-21T12:10:01.000Z',
-          target: { mode: 'evalIds', evalIds: ['recompute-eval'] },
+          target: {
+            mode: 'evalIds',
+            evalKeys: ['evals%2Frecompute.eval.ts#recompute-eval'],
+          },
           trials: 1,
           cacheMode: 'use',
         },
@@ -678,6 +522,7 @@ defineEval({
       `${JSON.stringify({
         caseId: 'old-case',
         evalId: 'recompute-eval',
+        evalKey: 'evals%2Frecompute.eval.ts#recompute-eval',
         status: 'pass',
         durationMs: 111,
         costUsd: null,
@@ -699,6 +544,7 @@ defineEval({
         {
           caseId: 'old-case',
           evalId: 'recompute-eval',
+          evalKey: 'evals%2Frecompute.eval.ts#recompute-eval',
           status: 'pass',
           input: {},
           trace: [],
@@ -779,7 +625,10 @@ defineEval({ id: 'cleanup-eval', title: 'Cleanup Eval' });
           status: 'completed',
           startedAt: '2026-04-21T12:20:00.000Z',
           endedAt: '2026-04-21T12:20:01.000Z',
-          target: { mode: 'evalIds', evalIds: ['cleanup-eval'] },
+          target: {
+            mode: 'evalIds',
+            evalKeys: ['evals%2Fcleanup.eval.ts#cleanup-eval'],
+          },
           trials: 1,
           cacheMode: 'use',
         },

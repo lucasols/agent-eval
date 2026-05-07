@@ -79,11 +79,7 @@ export function runTargetsEval(
 ): boolean {
   if (manifest.target.mode === 'all') return true;
   if (manifest.target.mode === 'evalIds') {
-    return (
-      manifest.target.evalKeys?.includes(evalKey) ??
-      manifest.target.evalIds?.includes(evalKey) ??
-      false
-    );
+    return manifest.target.evalKeys?.includes(evalKey) ?? false;
   }
   return manifest.target.evalKeys?.includes(evalKey) ?? false;
 }
@@ -92,5 +88,9 @@ export function getRunsForEval(
   runs: HistoricalRun[],
   evalKey: string,
 ): HistoricalRun[] {
-  return runs.filter((r) => runTargetsEval(r.manifest, evalKey));
+  return runs.filter(
+    (r) =>
+      runTargetsEval(r.manifest, evalKey) ||
+      r.cases.some((caseRow) => caseRow.evalKey === evalKey),
+  );
 }

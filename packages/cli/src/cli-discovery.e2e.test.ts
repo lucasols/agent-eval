@@ -89,7 +89,10 @@ describe('CLI discovery', () => {
             startedAt: '2026-04-01T12:00:00.000Z',
             endedAt: '2026-04-01T12:00:02.000Z',
             commitSha: '1111111111111111111111111111111111111111',
-            target: { mode: 'evalIds', evalIds: ['alpha-eval'] },
+            target: {
+              mode: 'evalIds',
+              evalKeys: ['evals%2Falpha.eval.ts#alpha-eval'],
+            },
             trials: 1,
             trialSelection: 'lowestScore',
             cacheMode: 'use',
@@ -121,6 +124,7 @@ describe('CLI discovery', () => {
         `${JSON.stringify({
           caseId: 'alpha-case',
           evalId: 'alpha-eval',
+          evalKey: 'evals%2Falpha.eval.ts#alpha-eval',
           status: 'pass',
           durationMs: 120,
           costUsd: 0.01,

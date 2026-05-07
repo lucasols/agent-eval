@@ -17,7 +17,7 @@ const runFileIndexSchema = z.object({
   endedAt: z.string().nullable(),
   target: z.object({
     mode: z.string(),
-    evalIds: z.array(z.string()).optional(),
+    evalKeys: z.array(z.string()).optional(),
     caseIds: z.array(z.string()).optional(),
   }),
   summary: runSummarySchema,
@@ -176,8 +176,8 @@ describe('CLI saved run file index', () => {
               "caseIds": [
                 "simple-text",
               ],
-              "evalIds": [
-                "refund-workflow",
+              "evalKeys": [
+                "evals%2Frefund-workflow.eval.ts#refund-workflow",
               ],
               "mode": "caseIds",
             },
@@ -224,8 +224,8 @@ describe('CLI saved run file index', () => {
                 "caseIds": [
                   "simple-text",
                 ],
-                "evalIds": [
-                  "refund-workflow",
+                "evalKeys": [
+                  "evals%2Frefund-workflow.eval.ts#refund-workflow",
                 ],
                 "mode": "caseIds",
               },

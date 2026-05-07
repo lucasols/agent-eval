@@ -4,7 +4,6 @@ import { getEvalRegistry } from '@agent-evals/sdk';
 import {
   applyDerivedCallAttributes,
   getCaseRowCaseKey,
-  getCaseRowEvalKey,
   type CaseDetail,
   type CaseRow,
   type ResolvedApiCallsConfig,
@@ -67,7 +66,10 @@ export async function recalculateDerivedAttributesForCase(params: {
 
   let nextTrace = spansWithDerivedAttributes;
   let nextTraceDisplay = caseDetail.traceDisplay;
-  const evalMeta = params.evals.get(getCaseRowEvalKey(caseRow));
+  const evalMeta =
+    caseRow.evalKey === undefined
+      ? undefined
+      : params.evals.get(caseRow.evalKey);
   const entry =
     evalMeta === undefined ? undefined : getEvalRegistry().get(evalMeta.id);
   if (entry !== undefined) {

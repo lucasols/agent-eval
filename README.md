@@ -89,7 +89,7 @@ pnpm add -D @ls-stack/agent-eval
 
    Use `agent-evals show-runs` to print saved run directories and stable artifact file paths. Run ids can be full timestamp ids, short ids such as `r0`, or `latest`.
 
-   Run artifacts are persisted under `.agent-evals/runs/<run-id>/` with `run.json`, `summary.json`, per-case `cases.jsonl`, case detail JSON files, and trace JSON files for the executed cases. Temporary runs are persisted and visible while present, then deleted before the next run starts.
+   Run artifacts are persisted under `.agent-evals/runs/<run-id>/` with `run.json`, `summary.json`, per-case `cases.jsonl`, case detail JSON files, and trace JSON files for the executed cases. In `run.json`, targeted evals are recorded by exact `evalKeys` (`filePath + evalId`) rather than authored eval ids, so duplicate eval ids stay unambiguous. Temporary runs are persisted and visible while present, then deleted before the next run starts.
 
 A complete working example lives at [`examples/basic-agent`](./examples/basic-agent).
 

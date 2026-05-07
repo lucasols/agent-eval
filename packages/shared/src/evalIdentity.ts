@@ -16,11 +16,6 @@ export function buildCaseKey(params: {
   ].join('#');
 }
 
-/** Return the collision-safe eval key stored on a row, falling back for legacy data. */
-export function getCaseRowEvalKey(row: { evalKey?: string; evalId: string }) {
-  return row.evalKey ?? row.evalId;
-}
-
 /** Return the collision-safe case key stored on a row, falling back for legacy data. */
 export function getCaseRowCaseKey(row: { caseKey?: string; caseId: string }) {
   return row.caseKey ?? row.caseId;

@@ -490,10 +490,10 @@ Mental model:
 - Cache identity is the namespace plus the authored key. Source-file
   fingerprints are tracked for run freshness separately, but do not participate
   in cache-key hashing.
-- Cached spans require an explicit `cache.namespace`; value caches default to
-  `${evalId}__${name}` and can be overridden with `namespace`. Matching
-  namespaces share entries across operations/evals that use the same authored
-  key.
+- Cached spans require an explicit `cache.namespace`. Value caches can also set
+  an explicit `namespace`; prefer doing that when the cache is part of a
+  documented workflow. Matching namespaces share entries across operations/evals
+  that use the same authored key.
 - Per eval, `cache: { read?: boolean; store?: boolean }` controls whether
   authored cached operations may read or persist entries. Both default to
   `true`. Use `read: false` to always execute instead of replaying hits, and
@@ -536,10 +536,17 @@ Mental model:
 
 ## Artifacts
 
-Run output lives under `.agent-evals/runs/<run-id>/` and cache entries under
-`.agent-evals/cache/<eval-id>.json`. Files in a run directory include run
-metadata, a run summary, per-case results, and per-case trace JSON. Inspect
-these when debugging persisted output, costs, columns, traces, or failures.
+Run output lives under `.agent-evals/runs/<run-id>/`. Cache metadata lives under
+`.agent-evals/cache/`, grouped into runner-managed owner files. Do not rely on a
+specific cache filename when authoring evals; configure cache namespaces
+manually in eval code, then use `agent-evals cache list` or the UI Cache tab to
+inspect the persisted namespace/key entries. Files in a run directory include
+run metadata, a run summary, per-case results, and per-case trace JSON. Inspect
+run files when debugging persisted output, costs, columns, traces, or failures;
+inspect cache entries when debugging replayed span/value-cache results.
+Targeted evals in `run.json` are recorded by exact `evalKeys`
+(`filePath + evalId`) rather than authored eval ids, so duplicate eval ids stay
+unambiguous in saved history.
 Temporary runs use the same directory layout, but are removed before the next
 run of any kind starts.
 

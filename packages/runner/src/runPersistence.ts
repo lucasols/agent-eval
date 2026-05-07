@@ -13,7 +13,6 @@ import {
   caseRowSchema,
   deriveStatusFromChildStatuses,
   deriveStatusFromCaseRows,
-  getCaseRowEvalKey,
   runManifestSchema,
   runSummarySchema,
 } from '@agent-evals/shared';
@@ -126,9 +125,6 @@ export function getLatestRunInfos(params: {
 }): Map<string, EvalLatestRunInfo> {
   const { runs, knownEvals } = params;
   const knownEvalMetas = [...knownEvals];
-  const evalIdByKey = new Map(
-    knownEvalMetas.map((evalMeta) => [evalMeta.key, evalMeta.id]),
-  );
   const manualScoreKeysByEval = new Map(
     knownEvalMetas.map((evalMeta) => [
       evalMeta.key,
@@ -150,15 +146,12 @@ export function getLatestRunInfos(params: {
         status: getEvalStatusForRun(
           run,
           evalKey,
-          evalIdByKey.get(evalKey),
           manualScoreKeysByEval.get(evalKey) ?? [],
         ),
         startedAt: getRunFreshnessTimestamp(run.manifest),
         commitSha: run.manifest.commitSha ?? null,
         evalSourceFingerprint:
-          run.manifest.evalSourceFingerprints[evalKey] ??
-          run.manifest.evalSourceFingerprints[evalIdByKey.get(evalKey) ?? ''] ??
-          null,
+          run.manifest.evalSourceFingerprints[evalKey] ?? null,
       });
     }
   }
@@ -266,22 +259,14 @@ function getRunEvalKeys(
   knownEvals: Iterable<{ key: string; id: string }>,
 ): string[] {
   const knownEvalMetas = [...knownEvals];
-  const evalKeys = new Set(run.cases.map(getCaseRowEvalKey));
+  const evalKeys = new Set<string>();
   for (const caseRow of run.cases) {
-    if (caseRow.evalKey !== undefined) continue;
-    for (const evalMeta of knownEvalMetas) {
-      if (evalMeta.id === caseRow.evalId) evalKeys.add(evalMeta.key);
-    }
+    if (caseRow.evalKey !== undefined) evalKeys.add(caseRow.evalKey);
   }
 
   if (run.manifest.target.mode === 'evalIds') {
     for (const evalKey of run.manifest.target.evalKeys ?? []) {
       evalKeys.add(evalKey);
-    }
-    for (const evalId of run.manifest.target.evalIds ?? []) {
-      for (const evalMeta of knownEvalMetas) {
-        if (evalMeta.id === evalId) evalKeys.add(evalMeta.key);
-      }
     }
   } else if (run.manifest.target.mode === 'all' && evalKeys.size === 0) {
     for (const evalMeta of knownEvalMetas) {
@@ -295,14 +280,9 @@ function getRunEvalKeys(
 function getEvalStatusForRun(
   run: { manifest: RunManifest; cases: CaseRow[] },
   evalKey: string,
-  evalId: string | undefined,
   manualScoreKeys: readonly string[],
 ): EvalSummary['lastRunStatus'] {
-  const evalCases = run.cases.filter(
-    (caseRow) =>
-      getCaseRowEvalKey(caseRow) === evalKey ||
-      (caseRow.evalKey === undefined && caseRow.evalId === evalId),
-  );
+  const evalCases = run.cases.filter((caseRow) => caseRow.evalKey === evalKey);
   if (evalCases.length > 0) {
     if (hasPendingManualScores(evalCases, manualScoreKeys)) {
       return 'unscored';

@@ -75,7 +75,6 @@ export {
 export {
   buildEvalKey,
   buildCaseKey,
-  getCaseRowEvalKey,
   getCaseRowCaseKey,
 } from './evalIdentity.ts';
 export {

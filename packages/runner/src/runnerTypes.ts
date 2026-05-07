@@ -96,7 +96,7 @@ export type EvalRunner = {
   clearCache(filter?: CacheClearFilter): Promise<void>;
   /**
    * Recompute persisted case and run statuses for terminal runs touching one
-   * eval. Accepts the exact eval key, with a legacy fallback for unique eval ids.
+   * eval. Accepts the exact eval key.
    */
   recomputeStatusesForEval(evalKey: string): Promise<{ updatedRuns: number }>;
   /** Recalculate configured LLM/API derived attributes for one persisted case trace. */
@@ -106,7 +106,7 @@ export type EvalRunner = {
   }): Promise<RecalculateDerivedAttributesResult>;
   /**
    * Delete terminal persisted runs that touch one eval from memory and disk.
-   * Accepts the exact eval key, with a legacy fallback for unique eval ids.
+   * Accepts the exact eval key.
    */
   cleanRunsForEval(evalKey: string): Promise<{ deletedRuns: number }>;
   /** Persist a UI-authored manual score for one case and recompute affected summaries. */

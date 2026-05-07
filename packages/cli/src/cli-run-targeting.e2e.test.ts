@@ -330,7 +330,9 @@ defineEval({
       const artifacts = await readSingleRunArtifacts(workspacePath);
 
       expect(artifacts.manifest.target.mode).toBe('caseIds');
-      expect(artifacts.manifest.target.evalIds).toEqual(['refund-workflow']);
+      expect(artifacts.manifest.target.evalKeys).toEqual([
+        'evals%2Frefund-workflow.eval.ts#refund-workflow',
+      ]);
       expect(artifacts.manifest.target.caseIds).toEqual([
         'simple-text',
         'with-image',
@@ -387,8 +389,8 @@ defineEval({
               "simple-text",
               "with-image",
             ],
-            "evalIds": [
-              "refund-workflow",
+            "evalKeys": [
+              "evals%2Frefund-workflow.eval.ts#refund-workflow",
             ],
             "mode": "caseIds",
           },
@@ -539,8 +541,8 @@ defineEval({
       const artifacts = await readSingleRunArtifacts(workspacePath);
 
       expect(artifacts.manifest.target.mode).toBe('evalIds');
-      expect(artifacts.manifest.target.evalIds).toEqual([
-        'receipt-fraud-review',
+      expect(artifacts.manifest.target.evalKeys).toEqual([
+        'evals%2Fsupport%2Frefunds%2Freceipt-audit.eval.ts#receipt-fraud-review',
       ]);
       expect(artifacts.traceFiles).toEqual(['tampered-total.json']);
       expect(artifacts.cases.map((caseRow) => caseRow.caseId)).toEqual([
@@ -586,8 +588,8 @@ defineEval({
             },
           ],
           "target": {
-            "evalIds": [
-              "receipt-fraud-review",
+            "evalKeys": [
+              "evals%2Fsupport%2Frefunds%2Freceipt-audit.eval.ts#receipt-fraud-review",
             ],
             "mode": "evalIds",
           },
@@ -612,8 +614,8 @@ defineEval({
 
       const artifacts = await readSingleRunArtifacts(workspacePath);
 
-      expect(artifacts.manifest.target.evalIds).toEqual([
-        'voice-return-follow-up',
+      expect(artifacts.manifest.target.evalKeys).toEqual([
+        'evals%2Fsupport%2Freturns%2Fvoice-follow-up.eval.ts#voice-return-follow-up',
       ]);
       expect(artifacts.traceFiles).toEqual(['pt-br-defect.json']);
 
@@ -658,7 +660,9 @@ defineEval({
       const artifacts = await readSingleRunArtifacts(workspacePath);
 
       expect(artifacts.manifest.target.mode).toBe('evalIds');
-      expect(artifacts.manifest.target.evalIds).toEqual(['high-value-refund']);
+      expect(artifacts.manifest.target.evalKeys).toEqual([
+        'evals%2Fsupport%2Frefunds%2Fescalations%2Fhigh-value-refund.eval.ts#high-value-refund',
+      ]);
       expect(artifacts.traceFiles).toEqual(['espresso-machine.json']);
       expect(artifacts.cases.map((caseRow) => caseRow.caseId)).toEqual([
         'espresso-machine',
@@ -703,8 +707,8 @@ defineEval({
             },
           ],
           "target": {
-            "evalIds": [
-              "high-value-refund",
+            "evalKeys": [
+              "evals%2Fsupport%2Frefunds%2Fescalations%2Fhigh-value-refund.eval.ts#high-value-refund",
             ],
             "mode": "evalIds",
           },

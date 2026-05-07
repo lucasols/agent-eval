@@ -17,7 +17,6 @@ import {
   buildEvalKey,
   deriveScopedSummaryFromCases,
   getCaseRowCaseKey,
-  getCaseRowEvalKey,
   resolveApiCallsConfig,
   resolveLlmCallsConfig,
 } from '@agent-evals/shared';
@@ -39,6 +38,7 @@ import {
   materializeManualInputFiles,
 } from './manualInput/files.ts';
 import { validateManualInputsForRequest } from './manualInput/validation.ts';
+import { isRecord } from './objectUtils.ts';
 import { resolveArtifactPath } from './outputArtifacts.ts';
 import { recalculateDerivedAttributesForCase as recalculateDerivedAttributesForRunCase } from './recalculateDerivedAttributes.ts';
 import {
@@ -54,6 +54,7 @@ import {
   recomputeEvalStatusesInRuns,
   runTouchesEval,
 } from './runMaintenance.ts';
+import { toRunnerRunState } from './runnerStateHydration.ts';
 import type { EvalRunner } from './runnerTypes.ts';
 import { type EvalMeta, type RunState } from './runOrchestration.ts';
 import {
@@ -64,8 +65,8 @@ import {
   nextShortIdFromSnapshots,
   persistCaseDetail,
   type EvalLatestRunInfo,
-  type PersistedRunSnapshot,
 } from './runPersistence.ts';
+import { buildPersistedRunTarget } from './runTargetPersistence.ts';
 import { resolveEvalTags, validateTagsFilters } from './tags.ts';
 import { getTargetEvalKeys } from './targeting.ts';
 import { getWatchRootsForIncludePatterns } from './watchRoots.ts';
@@ -76,16 +77,10 @@ export type {
 } from './manualInput/validation.ts';
 export type { EvalRunner } from './runnerTypes.ts';
 
-type CreateRunnerOptions = { watchForChanges?: boolean };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 /** Create an in-memory eval runner bound to the current workspace config. */
 export function createRunner({
   watchForChanges = true,
-}: CreateRunnerOptions = {}): EvalRunner {
+}: { watchForChanges?: boolean } = {}): EvalRunner {
   let config: AgentEvalsConfig;
   let workspaceRoot: string;
   let localStateDir: string;
@@ -175,7 +170,6 @@ export function createRunner({
       const updatedRuns = await recomputeEvalStatusesInRuns({
         runs: runs.values(),
         evalKey: evalMeta.key,
-        evalId: evalMeta.id,
         evalExists: evals.has(evalMeta.key),
         scoreThresholds,
         persistCaseDetail,
@@ -206,7 +200,6 @@ export function createRunner({
             target: run.manifest.target,
             caseRows: run.cases,
             evalKey: evalMeta?.key ?? evalKey,
-            evalId: evalMeta?.id,
             evalExists: evalMeta !== undefined,
           })
         ) {
@@ -234,7 +227,8 @@ export function createRunner({
       );
       if (!caseRow) return { updated: false, reason: 'Case not found' };
 
-      const evalMeta = evals.get(getCaseRowEvalKey(caseRow));
+      const evalMeta =
+        caseRow.evalKey === undefined ? undefined : evals.get(caseRow.evalKey);
       if (!evalMeta) {
         return { updated: false, reason: 'Eval not found' };
       }
@@ -483,6 +477,10 @@ export function createRunner({
       const cacheMode: CacheMode = request.cache?.mode ?? 'use';
       const runDir = join(localStateDir, 'runs', runId);
       const gitState = readGitWorktreeState(workspaceRoot);
+      const targetEvalKeys = getTargetEvalKeys({
+        request,
+        sortedEvals: getSortedEvalMetas(),
+      });
 
       const manifest: RunManifest = {
         id: runId,
@@ -493,7 +491,10 @@ export function createRunner({
         endedAt: null,
         commitSha: gitState.commitSha,
         evalSourceFingerprints: {},
-        target: request.target,
+        target: buildPersistedRunTarget({
+          target: request.target,
+          evalKeys: targetEvalKeys,
+        }),
         trials: request.trials,
         trialSelection: config.trialSelection ?? 'lowestScore',
         cacheMode,
@@ -547,10 +548,7 @@ export function createRunner({
       runs.set(runId, runState);
       setLatestRunInfoMap({
         latestRunInfoMap,
-        evalIds: getTargetEvalKeys({
-          request: materializedRequest,
-          sortedEvals: getSortedEvalMetas(),
-        }),
+        evalIds: targetEvalKeys,
         info: {
           status: 'running',
           startedAt: now,
@@ -877,18 +875,6 @@ export function createRunner({
       nextShortIdFromSnapshots(persistedRuns),
     );
     if (changed) emitDiscoveryEvent();
-  }
-
-  function toRunnerRunState(
-    snapshot: PersistedRunSnapshot,
-    existing?: RunnerRunState,
-  ): RunnerRunState {
-    return {
-      ...snapshot,
-      listeners: existing?.listeners ?? new Set(),
-      childProcess: existing?.childProcess,
-      childTerminalReceived: existing?.childTerminalReceived ?? false,
-    };
   }
 
   return runner;

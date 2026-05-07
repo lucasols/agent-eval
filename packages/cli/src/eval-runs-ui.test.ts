@@ -158,6 +158,48 @@ describe('eval run rows ui', () => {
     });
   });
 
+  test('ignores eval-id-only rows when building eval-scoped summaries', () => {
+    const manifest: RunManifest = {
+      id: 'run-legacy',
+      shortId: 'r1',
+      status: 'completed',
+      temporary: false,
+      startedAt: '2026-04-21T12:00:00.000Z',
+      endedAt: '2026-04-21T12:00:03.000Z',
+      commitSha: null,
+      evalSourceFingerprints: {},
+      target: { mode: 'evalIds', evalIds: ['alpha'] },
+      trials: 1,
+      trialSelection: 'lowestScore',
+      cacheMode: 'use',
+    };
+    const [row] = buildEvalScopedRunRows(
+      [
+        {
+          manifest,
+          cases: [
+            {
+              caseId: 'alpha-fail',
+              evalId: 'alpha',
+              status: 'fail',
+              durationMs: 260,
+              columns: {},
+              trial: 0,
+            },
+          ],
+        },
+      ],
+      'evals%2Falpha.eval.ts#alpha',
+    );
+
+    expect(row?.cases).toEqual([]);
+    expect(row?.summary).toMatchObject({
+      status: 'pending',
+      totalCases: 0,
+      failedCases: 0,
+    });
+  });
+
   test('scopes drawer run data to the selected eval', () => {
     const cases: CaseRow[] = [
       {
