@@ -39,6 +39,14 @@ export const runsRoutes = new Hono()
     const runs = runner.getRuns();
     return c.json(runs, 200);
   })
+  .get('/history', (c) => {
+    const runner = getRunnerInstance();
+    const runs = runner
+      .getRuns()
+      .map((manifest) => runner.getRun(manifest.id))
+      .filter((run) => run !== undefined);
+    return c.json(runs, 200);
+  })
   .post('/actions/recompute-status/:evalId', async (c) => {
     const evalId = c.req.param('evalId');
     const runner = getRunnerInstance();

@@ -17,12 +17,12 @@ export type HistoricalRun = {
   cases: CaseRow[];
 };
 
-const runManifestArraySchema = z.array(runManifestSchema);
 const runDetailSchema = z.object({
   manifest: runManifestSchema,
   summary: runSummarySchema,
   cases: z.array(caseRowSchema),
 });
+const runHistorySchema = z.array(runDetailSchema);
 
 type HistoryState = { runs: HistoricalRun[]; loading: boolean };
 
@@ -30,44 +30,37 @@ export const historyStore = new Store<HistoryState>({
   state: { runs: [], loading: false },
 });
 
-async function fetchManifests(): Promise<RunManifest[] | null> {
-  const fetchResult = await resultify(() => fetch(apiUrl('/api/runs')));
-  if (fetchResult.error) return null;
-  const jsonResult = await resultify(() => fetchResult.value.json());
-  if (jsonResult.error) return null;
-  const parseResult = resultify(() =>
-    runManifestArraySchema.parse(jsonResult.value),
-  );
-  if (parseResult.error) return null;
-  return parseResult.value;
-}
+let historyFetchInFlight: Promise<void> | null = null;
 
-async function fetchRunDetail(runId: string): Promise<HistoricalRun | null> {
-  const fetchResult = await resultify(() =>
-    fetch(apiUrl(`/api/runs/${runId}`)),
-  );
+async function fetchRunHistory(): Promise<HistoricalRun[] | null> {
+  const fetchResult = await resultify(() => fetch(apiUrl('/api/runs/history')));
   if (fetchResult.error) return null;
-  if (!fetchResult.value.ok) return null;
   const jsonResult = await resultify(() => fetchResult.value.json());
   if (jsonResult.error) return null;
-  const parseResult = resultify(() => runDetailSchema.parse(jsonResult.value));
+  const parseResult = resultify(() => runHistorySchema.parse(jsonResult.value));
   if (parseResult.error) return null;
   return parseResult.value;
 }
 
 export async function refetchHistory(): Promise<void> {
+  if (historyFetchInFlight) {
+    await historyFetchInFlight;
+    return;
+  }
+  historyFetchInFlight = refetchHistoryInner();
+  await historyFetchInFlight.finally(() => {
+    historyFetchInFlight = null;
+  });
+}
+
+async function refetchHistoryInner(): Promise<void> {
   historyStore.setPartialState({ loading: true });
-  const manifests = await fetchManifests();
-  if (!manifests) {
+  const runs = await fetchRunHistory();
+  if (!runs) {
     historyStore.setPartialState({ loading: false });
     return;
   }
 
-  const details = await Promise.all(manifests.map((m) => fetchRunDetail(m.id)));
-  const runs: HistoricalRun[] = [];
-  for (const d of details) {
-    if (d) runs.push(d);
-  }
   runs.sort(
     (a, b) =>
       new Date(b.manifest.startedAt).getTime() -
