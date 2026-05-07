@@ -158,13 +158,6 @@ const Title = styled.h2<{ large: boolean }>`
   }
 `;
 
-const Description = styled.div`
-  font-size: 12.5px;
-  color: ${colors.textMuted.var};
-  max-width: 720px;
-  line-height: 1.5;
-`;
-
 const StatusWrap = styled.span`
   display: inline-flex;
 `;
@@ -731,13 +724,6 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
                   {evalSummary.filePath}
                 </FilePath>
               )}
-              {isSingle && evalSummary.caseCount !== null ? (
-                <Description>
-                  {evalSummary.caseCount}{' '}
-                  {evalSummary.caseCount === 1 ? 'case' : 'cases'} · see score
-                  history and per-case results below.
-                </Description>
-              ) : null}
               <TagChips tags={evalSummary.tags ?? []} />
             </TitleBlock>
           </HeaderLeft>
