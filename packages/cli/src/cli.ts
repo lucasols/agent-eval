@@ -642,7 +642,7 @@ async function commandCache(args: CliArgs): Promise<void> {
         .map((ev) => ev.id);
       for (const evalId of evalIds) {
         const entries = await runner.listCache();
-        const prefix = `${evalId}__`;
+        const prefix = `${evalId}.`;
         const matching = entries.filter((entry) =>
           entry.namespace.startsWith(prefix),
         );

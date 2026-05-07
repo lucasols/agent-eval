@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import {
   mkdir,
@@ -6,10 +6,9 @@ import {
   readdir,
   rename,
   rm,
-  stat,
   writeFile,
 } from 'node:fs/promises';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { brotliCompressSync, brotliDecompressSync } from 'node:zlib';
 import {
   deserializeCacheRecording,
@@ -21,14 +20,12 @@ import type {
   CacheSerializationExternalJsonStore,
 } from '@agent-evals/sdk';
 import {
-  cacheDebugKeyFileSchema,
-  cacheFileSchema,
+  cacheDebugKeyEntrySchema,
+  cacheEntrySchema,
   cacheRecordingSchema,
   type CacheDebugKeyEntry,
-  type CacheDebugKeyFile,
   type CacheEntry,
   type CacheEntryWithDebugKey,
-  type CacheFile,
   type CacheListItem,
 } from '@agent-evals/shared';
 import { resultify } from 't-result';
@@ -38,6 +35,8 @@ const cacheSerializationMarker = '__aecs';
 const supportedCacheSerializationPrefix = 'v1:';
 const externalJsonCacheSerializationMarker = 'v1:ExternalJson';
 const externalJsonBlobExtension = '.json.br';
+const cacheEntryExtension = '.json.br';
+const debugEntryExtension = '.json';
 
 /** Filter accepted by `FsCacheStore.clear` to narrow the set of entries removed. */
 export type CacheClearFilter = { namespace?: string; key?: string };
@@ -73,9 +72,9 @@ export type BufferedCacheStore = CacheAdapter & {
 /**
  * Create a filesystem-backed cache adapter rooted at `<workspaceRoot>/<dir>`.
  *
- * Cache entries are grouped into one inspectable JSON file per cache owner.
- * Writes use a short-lived lock directory plus `<name>.tmp` + atomic
- * `rename` to avoid partial reads and lost updates under concurrent access.
+ * Cache entries are stored as one Brotli-compressed JSON file per entry, nested
+ * under a sanitized namespace directory. Debug sidecars mirror one key per file
+ * and include the authored raw key plus the serialized cache entry.
  */
 export function createFsCacheStore(options: {
   workspaceRoot: string;
@@ -116,74 +115,44 @@ export function createFsCacheStore(options: {
     },
 
     async lookup(namespace, keyHash) {
-      const owner = ownerFromNamespace(namespace);
-      const cacheFile = await readCacheFile(cacheDir, owner);
-      const entry = cacheFile?.entries[keyHash] ?? null;
+      const entry = await readCacheEntry(cacheDir, namespace, keyHash);
       return entry === null
         ? null
         : await materializeExternalJsonCacheEntry(entry, externalJsonStore);
     },
 
     async lookupWithDebug(namespace, keyHash) {
-      const owner = ownerFromNamespace(namespace);
-      const cacheFile = await readCacheFile(cacheDir, owner);
-      const rawEntry = cacheFile?.entries[keyHash] ?? null;
-      const entry =
-        rawEntry === null
-          ? null
-          : await materializeExternalJsonCacheEntry(
-              rawEntry,
-              externalJsonStore,
-            );
-      if (entry === null) return null;
-      const debugFile = await readDebugKeyFile(debugDir, owner);
-      const debugKey = debugFile?.entries[keyHash];
+      const rawEntry = await readCacheEntry(cacheDir, namespace, keyHash);
+      if (rawEntry === null) return null;
+      const entry = await materializeExternalJsonCacheEntry(
+        rawEntry,
+        externalJsonStore,
+      );
+      const debugKey = await readDebugEntry(debugDir, namespace, keyHash);
       const deserializedEntry: CacheEntry = {
         ...entry,
         recording: deserializeCacheRecording(entry.recording),
       };
-      return debugKey === undefined
+      return debugKey === null
         ? deserializedEntry
         : { ...deserializedEntry, debugKey };
     },
 
     async write(entry, debugKey) {
-      const owner = ownerFromNamespace(entry.namespace);
-      const filePath = ownerPath(cacheDir, owner);
-      await mkdir(cacheDir, { recursive: true });
-      await withCacheFileLock(filePath, async () => {
-        const existing = await readCacheFile(cacheDir, owner);
-        const entries = existing?.entries ?? {};
-        const prunedEntries = pruneEntries(
-          { ...entries, [entry.key]: entry },
-          entry.namespace,
-          maxEntriesForNamespace(
-            entry.namespace,
-            defaultMaxEntries,
-            options.maxEntriesByNamespace,
-          ),
-          entry.key,
-        );
-        await writeCacheFile(cacheDir, {
-          version: 1,
-          owner,
-          entries: prunedEntries,
-        });
-      });
-      await pruneExternalJsonBlobs(cacheDir, blobDir);
+      const maxEntries = maxEntriesForNamespace(
+        entry.namespace,
+        defaultMaxEntries,
+        options.maxEntriesByNamespace,
+      );
+
+      await withCacheFileLock(
+        namespaceLockPath(cacheDir, entry.namespace),
+        () => writeCompressedCacheEntry(cacheDir, entry),
+      );
 
       if (debugKey !== undefined) {
         const debugWriteResult = await resultify(() =>
-          writeDebugKeyEntry({
-            debugDir,
-            entry,
-            debugKey,
-            maxEntries: maxEntriesForNamespace(
-              entry.namespace,
-              defaultMaxEntries,
-              options.maxEntriesByNamespace,
-            ),
-          }),
+          writeDebugKeyEntry({ debugDir, entry, debugKey }),
         );
         if (debugWriteResult.error) {
           await resultify(() =>
@@ -194,37 +163,44 @@ export function createFsCacheStore(options: {
           );
         }
       }
+
+      await pruneEntriesForNamespace({
+        cacheDir,
+        debugDir,
+        namespace: entry.namespace,
+        maxEntries,
+        protectedKey: entry.key,
+      });
+      await pruneExternalJsonBlobs(cacheDir, blobDir);
     },
 
     async list() {
-      if (!existsSync(cacheDir)) return [];
-      const files = await readdir(cacheDir);
+      const files = await listCacheEntryFiles(cacheDir);
       const items: CacheListItem[] = [];
 
-      for (const fileName of files) {
-        if (!fileName.endsWith('.json')) continue;
-        const filePath = join(cacheDir, fileName);
-        const fileStatResult = await resultify(() => stat(filePath));
-        if (fileStatResult.error || !fileStatResult.value.isFile()) continue;
-
-        const cacheFile = await readCacheFilePath(filePath);
-        if (cacheFile === null) continue;
-
-        for (const entry of Object.values(cacheFile.entries)) {
-          const operationType = entry.operationType ?? 'span';
-          const operationName =
-            entry.operationName ?? entry.spanName ?? entry.namespace;
-          items.push({
-            key: entry.key,
-            namespace: entry.namespace,
-            operationType,
-            operationName,
-            spanName: entry.spanName,
-            spanKind: entry.spanKind,
-            storedAt: entry.storedAt,
-            sizeBytes: Buffer.byteLength(JSON.stringify(entry), 'utf8'),
-          });
+      for (const filePath of files) {
+        const fileEntry = await readCacheEntryFilePath(filePath);
+        if (
+          fileEntry === null ||
+          !entryMatchesPath(filePath, fileEntry.entry)
+        ) {
+          continue;
         }
+
+        const entry = fileEntry.entry;
+        const operationType = entry.operationType ?? 'span';
+        const operationName =
+          entry.operationName ?? entry.spanName ?? entry.namespace;
+        items.push({
+          key: entry.key,
+          namespace: entry.namespace,
+          operationType,
+          operationName,
+          spanName: entry.spanName,
+          spanKind: entry.spanKind,
+          storedAt: entry.storedAt,
+          sizeBytes: fileEntry.sizeBytes,
+        });
       }
 
       items.sort((a, b) => (a.storedAt < b.storedAt ? 1 : -1));
@@ -243,55 +219,13 @@ export function createFsCacheStore(options: {
       }
 
       if (filter.namespace !== undefined) {
-        const owner = ownerFromNamespace(filter.namespace);
-        const filePath = ownerPath(cacheDir, owner);
-        if (existsSync(cacheDir)) {
-          await withCacheFileLock(filePath, async () => {
-            const cacheFile = await readCacheFile(cacheDir, owner);
-            if (cacheFile === null) return;
-
-            const entries = Object.fromEntries(
-              Object.entries(cacheFile.entries).filter(([key, entry]) => {
-                if (filter.key !== undefined) {
-                  return key !== filter.key;
-                }
-                return entry.namespace !== filter.namespace;
-              }),
-            );
-            await writeOrRemoveCacheFile(cacheDir, {
-              version: 1,
-              owner,
-              entries,
-            });
-          });
-        }
+        await clearCacheEntries(cacheDir, filter);
         await clearDebugEntries(debugDir, filter);
         await pruneExternalJsonBlobs(cacheDir, blobDir);
         return;
       }
 
-      if (existsSync(cacheDir)) {
-        const files = await readdir(cacheDir);
-        for (const fileName of files) {
-          if (!fileName.endsWith('.json')) continue;
-          const filePath = join(cacheDir, fileName);
-          await withCacheFileLock(filePath, async () => {
-            const cacheFile = await readCacheFilePath(filePath);
-            if (cacheFile === null) return;
-
-            const entries = Object.fromEntries(
-              Object.entries(cacheFile.entries).filter(
-                ([key]) => key !== filter.key,
-              ),
-            );
-            await writeOrRemoveCacheFile(cacheDir, {
-              version: 1,
-              owner: cacheFile.owner,
-              entries,
-            });
-          });
-        }
-      }
+      await clearCacheEntries(cacheDir, filter);
       await clearDebugEntries(debugDir, filter);
       await pruneExternalJsonBlobs(cacheDir, blobDir);
     },
@@ -370,21 +304,367 @@ function maxEntriesForNamespace(
     : normalizeMaxEntries(namespaceMaxEntries, defaultMaxEntries);
 }
 
-function ownerFromNamespace(namespace: string): string {
-  const [owner] = namespace.split('__');
-  return owner === undefined || owner.length === 0 ? namespace : owner;
-}
-
-function ownerPath(cacheDir: string, owner: string): string {
-  return join(cacheDir, `${sanitizeSegment(owner)}.json`);
-}
-
 function toPendingKey(namespace: string, keyHash: string): string {
   return `${namespace}::${keyHash}`;
 }
 
 function sanitizeSegment(segment: string): string {
   return segment.replace(/[^a-zA-Z0-9_.-]/g, '_');
+}
+
+function namespaceDirPath(rootDir: string, namespace: string): string {
+  return join(rootDir, sanitizeSegment(namespace));
+}
+
+function namespaceLockPath(rootDir: string, namespace: string): string {
+  return join(rootDir, `${sanitizeSegment(namespace)}.namespace`);
+}
+
+function cacheEntryPath(
+  cacheDir: string,
+  namespace: string,
+  key: string,
+): string {
+  return entryPath({
+    rootDir: cacheDir,
+    namespace,
+    key,
+    extension: cacheEntryExtension,
+  });
+}
+
+function debugEntryPath(
+  debugDir: string,
+  namespace: string,
+  key: string,
+): string {
+  return entryPath({
+    rootDir: debugDir,
+    namespace,
+    key,
+    extension: debugEntryExtension,
+  });
+}
+
+function entryPath(params: {
+  rootDir: string;
+  namespace: string;
+  key: string;
+  extension: string;
+}): string {
+  const namespaceDir = resolve(
+    namespaceDirPath(params.rootDir, params.namespace),
+  );
+  const filePath = resolve(namespaceDir, `${params.key}${params.extension}`);
+  if (
+    filePath !== namespaceDir &&
+    !filePath.startsWith(`${namespaceDir}${sep}`)
+  ) {
+    throw new Error(
+      `Cache entry key escapes namespace directory: ${params.key}`,
+    );
+  }
+  return filePath;
+}
+
+async function readCacheEntry(
+  cacheDir: string,
+  namespace: string,
+  key: string,
+): Promise<CacheEntry | null> {
+  const fileEntry = await readCacheEntryFilePath(
+    cacheEntryPath(cacheDir, namespace, key),
+    { namespace, key },
+  );
+  return fileEntry?.entry ?? null;
+}
+
+async function readCacheEntryFilePath(
+  filePath: string,
+  expected?: { namespace: string; key: string },
+): Promise<{ entry: CacheEntry; sizeBytes: number } | null> {
+  if (!existsSync(filePath)) return null;
+  const compressedResult = await resultify(() => readFile(filePath));
+  if (compressedResult.error) return null;
+  const rawResult = resultify(() =>
+    brotliDecompressSync(compressedResult.value).toString('utf8'),
+  );
+  if (rawResult.error) return null;
+  const json = safeJsonParse(rawResult.value);
+  if (json === null) return null;
+  const parsed = cacheEntrySchema.safeParse(json);
+  if (!parsed.success) return null;
+  const entry = parsed.data;
+  if (!usesSupportedCacheSerialization(entry.recording)) return null;
+  if (
+    expected !== undefined &&
+    (entry.namespace !== expected.namespace || entry.key !== expected.key)
+  ) {
+    return null;
+  }
+  return { entry, sizeBytes: compressedResult.value.byteLength };
+}
+
+async function writeCompressedCacheEntry(
+  cacheDir: string,
+  entry: CacheEntry,
+): Promise<void> {
+  const filePath = cacheEntryPath(cacheDir, entry.namespace, entry.key);
+  const rawJson = JSON.stringify(entry);
+  const compressed = brotliCompressSync(Buffer.from(rawJson, 'utf8'));
+  await writeAtomicFile(filePath, compressed);
+}
+
+async function readDebugEntry(
+  debugDir: string,
+  namespace: string,
+  key: string,
+): Promise<CacheDebugKeyEntry | null> {
+  return readDebugEntryFilePath(debugEntryPath(debugDir, namespace, key), {
+    namespace,
+    key,
+  });
+}
+
+async function readDebugEntryFilePath(
+  filePath: string,
+  expected?: { namespace: string; key: string },
+): Promise<CacheDebugKeyEntry | null> {
+  if (!existsSync(filePath)) return null;
+  const rawResult = await resultify(() => readFile(filePath, 'utf8'));
+  if (rawResult.error) return null;
+  const json = safeJsonParse(rawResult.value);
+  if (json === null) return null;
+  const parsed = cacheDebugKeyEntrySchema.safeParse(json);
+  if (!parsed.success) return null;
+  const entry = parsed.data;
+  if (
+    entry.entry.namespace !== entry.namespace ||
+    entry.entry.key !== entry.key ||
+    !usesSupportedCacheSerialization(entry.entry.recording)
+  ) {
+    return null;
+  }
+  if (
+    expected !== undefined &&
+    (entry.namespace !== expected.namespace || entry.key !== expected.key)
+  ) {
+    return null;
+  }
+  return entry;
+}
+
+async function writeDebugKeyEntry(params: {
+  debugDir: string;
+  entry: CacheEntry;
+  debugKey: CacheDebugKeyWrite;
+}): Promise<void> {
+  const { debugDir, entry, debugKey } = params;
+  const debugEntry: CacheDebugKeyEntry = {
+    version: 1,
+    key: entry.key,
+    namespace: entry.namespace,
+    operationType: debugKey.operationType,
+    operationName: debugKey.operationName,
+    storedAt: entry.storedAt,
+    rawKey: debugKey.rawKey,
+    entry,
+  };
+
+  await withCacheFileLock(namespaceLockPath(debugDir, entry.namespace), () =>
+    writePrettyDebugEntry(debugDir, debugEntry),
+  );
+}
+
+async function writePrettyDebugEntry(
+  debugDir: string,
+  entry: CacheDebugKeyEntry,
+): Promise<void> {
+  await writeAtomicFile(
+    debugEntryPath(debugDir, entry.namespace, entry.key),
+    JSON.stringify(entry, null, 2),
+  );
+}
+
+async function writeAtomicFile(
+  filePath: string,
+  contents: string | Buffer,
+): Promise<void> {
+  await mkdir(dirname(filePath), { recursive: true });
+  const tmpPath = `${filePath}.${process.pid.toString()}.${randomUUID()}.tmp`;
+  await writeFile(tmpPath, contents);
+  await rename(tmpPath, filePath);
+}
+
+async function clearCacheEntries(
+  cacheDir: string,
+  filter: CacheClearFilter,
+): Promise<void> {
+  const files =
+    filter.namespace === undefined
+      ? await listCacheEntryFiles(cacheDir)
+      : await listCacheEntryFiles(namespaceDirPath(cacheDir, filter.namespace));
+  for (const filePath of files) {
+    const fileEntry = await readCacheEntryFilePath(filePath);
+    if (fileEntry === null) continue;
+    const entry = fileEntry.entry;
+    if (!entryMatchesFilter(entry, filter)) continue;
+    await withCacheFileLock(namespaceLockPath(cacheDir, entry.namespace), () =>
+      rm(filePath, { force: true }),
+    );
+  }
+  if (filter.namespace !== undefined) {
+    await removeDirIfEmpty(namespaceDirPath(cacheDir, filter.namespace));
+  }
+}
+
+async function clearDebugEntries(
+  debugDir: string,
+  filter: CacheClearFilter,
+): Promise<void> {
+  const files =
+    filter.namespace === undefined
+      ? await listDebugEntryFiles(debugDir)
+      : await listDebugEntryFiles(namespaceDirPath(debugDir, filter.namespace));
+  for (const filePath of files) {
+    const entry = await readDebugEntryFilePath(filePath);
+    if (entry === null || !entryMatchesFilter(entry, filter)) continue;
+    await withCacheFileLock(namespaceLockPath(debugDir, entry.namespace), () =>
+      rm(filePath, { force: true }),
+    );
+  }
+  if (filter.namespace !== undefined) {
+    await removeDirIfEmpty(namespaceDirPath(debugDir, filter.namespace));
+  }
+}
+
+function entryMatchesFilter(
+  entry: { namespace: string; key: string },
+  filter: CacheClearFilter,
+): boolean {
+  if (filter.namespace !== undefined && entry.namespace !== filter.namespace) {
+    return false;
+  }
+  return filter.key === undefined || entry.key === filter.key;
+}
+
+async function pruneEntriesForNamespace(params: {
+  cacheDir: string;
+  debugDir: string;
+  namespace: string;
+  maxEntries: number;
+  protectedKey: string;
+}): Promise<void> {
+  const { cacheDir, debugDir, namespace, maxEntries, protectedKey } = params;
+  await withCacheFileLock(namespaceLockPath(cacheDir, namespace), async () => {
+    const keptKeys = await pruneCacheEntriesForNamespace(
+      cacheDir,
+      namespace,
+      maxEntries,
+      protectedKey,
+    );
+    await withCacheFileLock(namespaceLockPath(debugDir, namespace), () =>
+      pruneDebugEntriesForNamespace(debugDir, namespace, keptKeys),
+    );
+  });
+}
+
+async function pruneCacheEntriesForNamespace(
+  cacheDir: string,
+  namespace: string,
+  maxEntries: number,
+  protectedKey: string,
+): Promise<Set<string>> {
+  const entries = await listCacheEntriesForNamespace(cacheDir, namespace);
+  const sorted = entries.toSorted((a, b) =>
+    a.entry.storedAt < b.entry.storedAt ? 1 : -1,
+  );
+  const keptKeys = new Set<string>();
+  const protectedEntry = entries.find(
+    (item) => item.entry.key === protectedKey,
+  );
+  if (protectedEntry !== undefined) {
+    keptKeys.add(protectedEntry.entry.key);
+  }
+
+  for (const item of sorted) {
+    if (keptKeys.size >= maxEntries) break;
+    keptKeys.add(item.entry.key);
+  }
+
+  for (const item of entries) {
+    if (!keptKeys.has(item.entry.key)) {
+      await rm(item.filePath, { force: true });
+    }
+  }
+  await removeDirIfEmpty(namespaceDirPath(cacheDir, namespace));
+  return keptKeys;
+}
+
+async function pruneDebugEntriesForNamespace(
+  debugDir: string,
+  namespace: string,
+  keptKeys: Set<string>,
+): Promise<void> {
+  const files = await listDebugEntryFiles(
+    namespaceDirPath(debugDir, namespace),
+  );
+  for (const filePath of files) {
+    const entry = await readDebugEntryFilePath(filePath);
+    if (
+      entry !== null &&
+      entry.namespace === namespace &&
+      !keptKeys.has(entry.key)
+    ) {
+      await rm(filePath, { force: true });
+    }
+  }
+  await removeDirIfEmpty(namespaceDirPath(debugDir, namespace));
+}
+
+async function listCacheEntriesForNamespace(
+  cacheDir: string,
+  namespace: string,
+): Promise<Array<{ filePath: string; entry: CacheEntry }>> {
+  const files = await listCacheEntryFiles(
+    namespaceDirPath(cacheDir, namespace),
+  );
+  const entries: Array<{ filePath: string; entry: CacheEntry }> = [];
+  for (const filePath of files) {
+    const fileEntry = await readCacheEntryFilePath(filePath);
+    if (
+      fileEntry !== null &&
+      fileEntry.entry.namespace === namespace &&
+      entryMatchesPath(filePath, fileEntry.entry)
+    ) {
+      entries.push({ filePath, entry: fileEntry.entry });
+    }
+  }
+  return entries;
+}
+
+function entryMatchesPath(filePath: string, entry: CacheEntry): boolean {
+  return (
+    basename(filePath) === `${entry.key}${cacheEntryExtension}` &&
+    basename(dirname(filePath)) === sanitizeSegment(entry.namespace)
+  );
+}
+
+function usesSupportedCacheSerialization(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    return value.every(usesSupportedCacheSerialization);
+  }
+  if (!isRecordLike(value)) return true;
+  if (
+    Object.hasOwn(value, cacheSerializationMarker) &&
+    (typeof value[cacheSerializationMarker] !== 'string' ||
+      !value[cacheSerializationMarker].startsWith(
+        supportedCacheSerializationPrefix,
+      ))
+  ) {
+    return false;
+  }
+  return Object.values(value).every(usesSupportedCacheSerialization);
 }
 
 function createExternalJsonBlobStore(
@@ -399,10 +679,7 @@ function createExternalJsonBlobStore(
       const filePath = resolveStorePath(blobDir, path);
 
       if (!existsSync(filePath)) {
-        await mkdir(dirname(filePath), { recursive: true });
-        const tmpPath = `${filePath}.${process.pid.toString()}.tmp`;
-        await writeFile(tmpPath, compressed);
-        await rename(tmpPath, filePath);
+        await writeAtomicFile(filePath, compressed);
       }
 
       return {
@@ -431,7 +708,8 @@ function createExternalJsonBlobStore(
 }
 
 function hashExternalJson(rawBytes: Buffer): `sha256:${string}` {
-  return `sha256:${createHash('sha256').update(rawBytes).digest('hex')}`;
+  const digest = createHash('sha256').update(rawBytes).digest('hex');
+  return `sha256:${digest}`;
 }
 
 function externalJsonBlobPath(hash: `sha256:${string}`): string {
@@ -480,14 +758,12 @@ async function collectReferencedExternalJsonBlobPaths(
   cacheDir: string,
 ): Promise<Set<string>> {
   const paths = new Set<string>();
-  if (!existsSync(cacheDir)) return paths;
-
-  const files = await readdir(cacheDir);
-  for (const fileName of files) {
-    if (!fileName.endsWith('.json')) continue;
-    const cacheFile = await readCacheFilePath(join(cacheDir, fileName));
-    if (cacheFile === null) continue;
-    collectExternalJsonBlobPaths(cacheFile, paths);
+  for (const filePath of await listCacheEntryFiles(cacheDir)) {
+    const fileEntry = await readCacheEntryFilePath(filePath);
+    if (fileEntry === null || !entryMatchesPath(filePath, fileEntry.entry)) {
+      continue;
+    }
+    collectExternalJsonBlobPaths(fileEntry.entry, paths);
   }
   return paths;
 }
@@ -523,8 +799,11 @@ async function collectExternalJsonBlobFilePaths(
   dir: string,
   paths: string[],
 ): Promise<void> {
-  const entries = await readdir(dir, { withFileTypes: true });
-  for (const entry of entries) {
+  const entriesResult = await resultify(() =>
+    readdir(dir, { withFileTypes: true }),
+  );
+  if (entriesResult.error) return;
+  for (const entry of entriesResult.value) {
     const path = join(dir, entry.name);
     if (entry.isDirectory()) {
       await collectExternalJsonBlobFilePaths(root, path, paths);
@@ -536,248 +815,41 @@ async function collectExternalJsonBlobFilePaths(
   }
 }
 
-async function readCacheFile(
-  cacheDir: string,
-  owner: string,
-): Promise<CacheFile | null> {
-  return readCacheFilePath(ownerPath(cacheDir, owner));
+async function listCacheEntryFiles(rootDir: string): Promise<string[]> {
+  return listFilesWithExtension(rootDir, cacheEntryExtension);
 }
 
-async function readCacheFilePath(filePath: string): Promise<CacheFile | null> {
-  if (!existsSync(filePath)) return null;
-  const rawResult = await resultify(() => readFile(filePath, 'utf-8'));
-  if (rawResult.error) return null;
-  const json = safeJsonParse(rawResult.value);
-  if (json === null) return null;
-  const parsed = cacheFileSchema.safeParse(json);
-  if (!parsed.success) return null;
-  return {
-    ...parsed.data,
-    entries: Object.fromEntries(
-      Object.entries(parsed.data.entries).filter(([, entry]) =>
-        usesSupportedCacheSerialization(entry.recording),
-      ),
-    ),
-  };
+async function listDebugEntryFiles(rootDir: string): Promise<string[]> {
+  return listFilesWithExtension(rootDir, debugEntryExtension);
 }
 
-function usesSupportedCacheSerialization(value: unknown): boolean {
-  if (Array.isArray(value)) {
-    return value.every(usesSupportedCacheSerialization);
-  }
-  if (!isRecordLike(value)) return true;
-  if (
-    Object.hasOwn(value, cacheSerializationMarker) &&
-    (typeof value[cacheSerializationMarker] !== 'string' ||
-      !value[cacheSerializationMarker].startsWith(
-        supportedCacheSerializationPrefix,
-      ))
-  ) {
-    return false;
-  }
-  return Object.values(value).every(usesSupportedCacheSerialization);
-}
-
-async function writeOrRemoveCacheFile(
-  cacheDir: string,
-  cacheFile: CacheFile,
-): Promise<void> {
-  if (Object.keys(cacheFile.entries).length === 0) {
-    await rm(ownerPath(cacheDir, cacheFile.owner), { force: true });
-    return;
-  }
-  await writeCacheFile(cacheDir, cacheFile);
-}
-
-async function writeCacheFile(
-  cacheDir: string,
-  cacheFile: CacheFile,
-): Promise<void> {
-  await mkdir(cacheDir, { recursive: true });
-  const filePath = ownerPath(cacheDir, cacheFile.owner);
-  const tmpPath = `${filePath}.${process.pid.toString()}.tmp`;
-  await writeFile(tmpPath, JSON.stringify(cacheFile, null, 2));
-  await rename(tmpPath, filePath);
-}
-
-async function readDebugKeyFile(
-  debugDir: string,
-  owner: string,
-): Promise<CacheDebugKeyFile | null> {
-  return readDebugKeyFilePath(ownerPath(debugDir, owner));
-}
-
-async function readDebugKeyFilePath(
-  filePath: string,
-): Promise<CacheDebugKeyFile | null> {
-  if (!existsSync(filePath)) return null;
-  const rawResult = await resultify(() => readFile(filePath, 'utf-8'));
-  if (rawResult.error) return null;
-  const json = safeJsonParse(rawResult.value);
-  if (json === null) return null;
-  const parsed = cacheDebugKeyFileSchema.safeParse(json);
-  if (!parsed.success) return null;
-  return parsed.data;
-}
-
-async function writeDebugKeyEntry(params: {
-  debugDir: string;
-  entry: CacheEntry;
-  debugKey: CacheDebugKeyWrite;
-  maxEntries: number;
-}): Promise<void> {
-  const { debugDir, entry, debugKey, maxEntries } = params;
-  const owner = ownerFromNamespace(entry.namespace);
-  const filePath = ownerPath(debugDir, owner);
-  await mkdir(debugDir, { recursive: true });
-  await withCacheFileLock(filePath, async () => {
-    const existing = await readDebugKeyFile(debugDir, owner);
-    const entries = existing?.entries ?? {};
-    const debugEntry: CacheDebugKeyEntry = {
-      version: 1,
-      key: entry.key,
-      namespace: entry.namespace,
-      operationType: debugKey.operationType,
-      operationName: debugKey.operationName,
-      storedAt: entry.storedAt,
-      rawKey: debugKey.rawKey,
-    };
-    const prunedEntries = pruneDebugKeyEntries(
-      { ...entries, [entry.key]: debugEntry },
-      entry.namespace,
-      maxEntries,
-      entry.key,
-    );
-    await writeDebugKeyFile(debugDir, {
-      version: 1,
-      owner,
-      entries: prunedEntries,
-    });
-  });
-}
-
-async function clearDebugEntries(
-  debugDir: string,
-  filter: CacheClearFilter,
-): Promise<void> {
-  if (!existsSync(debugDir)) return;
-
-  if (filter.namespace !== undefined) {
-    const owner = ownerFromNamespace(filter.namespace);
-    const filePath = ownerPath(debugDir, owner);
-    await withCacheFileLock(filePath, async () => {
-      const debugFile = await readDebugKeyFile(debugDir, owner);
-      if (debugFile === null) return;
-
-      const entries = Object.fromEntries(
-        Object.entries(debugFile.entries).filter(([key, entry]) => {
-          if (filter.key !== undefined) {
-            return key !== filter.key;
-          }
-          return entry.namespace !== filter.namespace;
-        }),
-      );
-      await writeOrRemoveDebugKeyFile(debugDir, { version: 1, owner, entries });
-    });
-    return;
-  }
-
-  const files = await readdir(debugDir);
-  for (const fileName of files) {
-    if (!fileName.endsWith('.json')) continue;
-    const filePath = join(debugDir, fileName);
-    await withCacheFileLock(filePath, async () => {
-      const debugFile = await readDebugKeyFilePath(filePath);
-      if (debugFile === null) return;
-
-      const entries = Object.fromEntries(
-        Object.entries(debugFile.entries).filter(([key]) => key !== filter.key),
-      );
-      await writeOrRemoveDebugKeyFile(debugDir, {
-        version: 1,
-        owner: debugFile.owner,
-        entries,
-      });
-    });
-  }
-}
-
-async function writeOrRemoveDebugKeyFile(
-  debugDir: string,
-  debugFile: CacheDebugKeyFile,
-): Promise<void> {
-  if (Object.keys(debugFile.entries).length === 0) {
-    await rm(ownerPath(debugDir, debugFile.owner), { force: true });
-    return;
-  }
-  await writeDebugKeyFile(debugDir, debugFile);
-}
-
-async function writeDebugKeyFile(
-  debugDir: string,
-  debugFile: CacheDebugKeyFile,
-): Promise<void> {
-  await mkdir(debugDir, { recursive: true });
-  const filePath = ownerPath(debugDir, debugFile.owner);
-  const tmpPath = `${filePath}.${process.pid.toString()}.tmp`;
-  await writeFile(tmpPath, JSON.stringify(debugFile, null, 2));
-  await rename(tmpPath, filePath);
-}
-
-function pruneEntries(
-  entries: Record<string, CacheEntry>,
-  namespace: string,
-  maxEntries: number,
-  protectedKey: string,
-): Record<string, CacheEntry> {
-  const sorted = Object.values(entries)
-    .filter((entry) => entry.namespace === namespace)
-    .toSorted((a, b) => (a.storedAt < b.storedAt ? 1 : -1));
-  const kept = new Map<string, CacheEntry>();
-  const protectedEntry = entries[protectedKey];
-  if (protectedEntry?.namespace === namespace) {
-    kept.set(protectedEntry.key, protectedEntry);
-  }
-
-  for (const entry of sorted) {
-    if (kept.size >= maxEntries) break;
-    kept.set(entry.key, entry);
-  }
-
-  return Object.fromEntries(
-    Object.values(entries)
-      .filter((entry) => entry.namespace !== namespace || kept.has(entry.key))
-      .toSorted((a, b) => (a.key < b.key ? -1 : 1))
-      .map((entry) => [entry.key, entry]),
+async function listFilesWithExtension(
+  rootDir: string,
+  extension: string,
+): Promise<string[]> {
+  if (!existsSync(rootDir)) return [];
+  const entriesResult = await resultify(() =>
+    readdir(rootDir, { withFileTypes: true }),
   );
+  if (entriesResult.error) return [];
+  const files: string[] = [];
+  for (const entry of entriesResult.value) {
+    const filePath = join(rootDir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...(await listFilesWithExtension(filePath, extension)));
+      continue;
+    }
+    if (entry.isFile() && entry.name.endsWith(extension)) {
+      files.push(filePath);
+    }
+  }
+  return files;
 }
 
-function pruneDebugKeyEntries(
-  entries: Record<string, CacheDebugKeyEntry>,
-  namespace: string,
-  maxEntries: number,
-  protectedKey: string,
-): Record<string, CacheDebugKeyEntry> {
-  const sorted = Object.values(entries)
-    .filter((entry) => entry.namespace === namespace)
-    .toSorted((a, b) => (a.storedAt < b.storedAt ? 1 : -1));
-  const kept = new Map<string, CacheDebugKeyEntry>();
-  const protectedEntry = entries[protectedKey];
-  if (protectedEntry?.namespace === namespace) {
-    kept.set(protectedEntry.key, protectedEntry);
-  }
-
-  for (const entry of sorted) {
-    if (kept.size >= maxEntries) break;
-    kept.set(entry.key, entry);
-  }
-
-  return Object.fromEntries(
-    Object.values(entries)
-      .filter((entry) => entry.namespace !== namespace || kept.has(entry.key))
-      .toSorted((a, b) => (a.key < b.key ? -1 : 1))
-      .map((entry) => [entry.key, entry]),
-  );
+async function removeDirIfEmpty(dirPath: string): Promise<void> {
+  const entriesResult = await resultify(() => readdir(dirPath));
+  if (entriesResult.error || entriesResult.value.length > 0) return;
+  await rm(dirPath, { recursive: true, force: true });
 }
 
 async function withCacheFileLock(
@@ -785,6 +857,7 @@ async function withCacheFileLock(
   fn: () => Promise<void>,
 ): Promise<void> {
   const lockPath = `${filePath}.lock`;
+  await mkdir(dirname(lockPath), { recursive: true });
   await acquireLock(lockPath);
   const result = await resultify(fn);
   await rm(lockPath, { recursive: true, force: true });

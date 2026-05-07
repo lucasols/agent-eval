@@ -176,7 +176,12 @@ export const cacheEntrySchema = z.object({
 /** Persisted cache file contents. */
 export type CacheEntry = z.infer<typeof cacheEntrySchema>;
 
-/** Debug-only raw key metadata stored outside the reusable cache entry. */
+/**
+ * Debug-only raw key metadata stored outside the reusable cache entry.
+ *
+ * Debug entries mirror the serialized cache entry so inspecting one debug file
+ * shows both the authored raw key and the persisted payload for that key.
+ */
 export const cacheDebugKeyEntrySchema = z.object({
   version: z.literal(1),
   key: z.string(),
@@ -185,8 +190,13 @@ export const cacheDebugKeyEntrySchema = z.object({
   operationName: z.string(),
   storedAt: z.string(),
   rawKey: z.unknown(),
+  entry: cacheEntrySchema,
 });
-/** Debug-only raw cache key entry. May contain sensitive prompt/input data. */
+/**
+ * Debug-only raw cache key entry.
+ *
+ * May contain sensitive prompt/input data and the full serialized cache entry.
+ */
 export type CacheDebugKeyEntry = z.infer<typeof cacheDebugKeyEntrySchema>;
 
 /** Cache lookup response with optional debug-only raw key data. */
@@ -198,20 +208,20 @@ export type CacheEntryWithDebugKey = z.infer<
   typeof cacheEntryWithDebugKeySchema
 >;
 
-/** Persisted per-owner cache file containing multiple cache entries. */
+/** Legacy aggregate cache file shape retained for API compatibility. */
 export const cacheFileSchema = z.object({
   version: z.literal(1),
   owner: z.string(),
   entries: z.record(z.string(), cacheEntrySchema),
 });
-/** Persisted per-owner cache file contents. */
+/** Legacy aggregate cache file contents retained for API compatibility. */
 export type CacheFile = z.infer<typeof cacheFileSchema>;
 
-/** Persisted per-owner debug file containing raw cache key metadata. */
+/** Legacy aggregate debug file shape retained for API compatibility. */
 export const cacheDebugKeyFileSchema = z.object({
   version: z.literal(1),
   owner: z.string(),
   entries: z.record(z.string(), cacheDebugKeyEntrySchema),
 });
-/** Persisted per-owner raw cache key debug file contents. */
+/** Legacy aggregate raw cache key debug file contents retained for compatibility. */
 export type CacheDebugKeyFile = z.infer<typeof cacheDebugKeyFileSchema>;

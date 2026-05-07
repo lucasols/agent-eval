@@ -96,7 +96,7 @@ defineEval({
             kind: 'scorer',
             name: 'auto-quality-review',
             cache: {
-              namespace: 'format-gallery__auto-quality-review',
+              namespace: 'format-gallery.auto-quality-review',
               key: { response: outputs.response, rubricVersion: 1 },
             },
           },

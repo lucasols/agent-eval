@@ -1,7 +1,14 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { cacheDebugKeyFileSchema } from '@agent-evals/shared';
+import { cacheDebugKeyEntrySchema } from '@agent-evals/shared';
 import { afterEach, expect, test } from 'vitest';
 import { createRunner } from './runner.ts';
 
@@ -43,7 +50,7 @@ defineEval({
         kind: 'llm',
         name: 'debuggable-call',
         cache: {
-          namespace: 'ui-cache-debug__debuggable-call',
+          namespace: 'ui-cache-debug.debuggable-call',
           key: { prompt: input.prompt, model: 'debug-model' },
         },
       },
@@ -74,33 +81,37 @@ defineEval({
       })
       .toBe('completed');
 
-    const debugFile = cacheDebugKeyFileSchema.parse(
-      JSON.parse(
-        await readFile(
-          join(
-            workspacePath,
-            '.agent-evals',
-            'cache-debug',
-            'ui-cache-debug.json',
-          ),
-          'utf8',
-        ),
-      ),
+    const debugDir = join(
+      workspacePath,
+      '.agent-evals',
+      'cache-debug',
+      'ui-cache-debug.debuggable-call',
     );
-    const [debugEntry, extraDebugEntry] = Object.values(debugFile.entries);
-    if (debugEntry === undefined) {
+    const debugFiles = await readdir(debugDir);
+    const [debugFile, extraDebugFile] = debugFiles.filter((file) =>
+      file.endsWith('.json'),
+    );
+    if (debugFile === undefined) {
       throw new Error('Expected a raw cache key debug entry');
     }
-    expect(extraDebugEntry).toBeUndefined();
+    expect(extraDebugFile).toBeUndefined();
+
+    const debugEntry = cacheDebugKeyEntrySchema.parse(
+      JSON.parse(await readFile(join(debugDir, debugFile), 'utf8')),
+    );
     expect(debugEntry).toMatchObject({
-      namespace: 'ui-cache-debug__debuggable-call',
+      namespace: 'ui-cache-debug.debuggable-call',
       operationType: 'span',
       operationName: 'debuggable-call',
       rawKey: { prompt: 'inspect this cache key', model: 'debug-model' },
+      entry: {
+        namespace: 'ui-cache-debug.debuggable-call',
+        key: debugEntry.key,
+      },
     });
 
     const cacheEntry = await runner.getCacheEntry(
-      'ui-cache-debug__debuggable-call',
+      'ui-cache-debug.debuggable-call',
       debugEntry.key,
     );
     expect(cacheEntry?.recording.returnValue).toEqual({

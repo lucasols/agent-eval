@@ -209,7 +209,7 @@ defineEval({
         kind: 'tool',
         name: 'optional-warning-loader',
         cache: {
-          namespace: 'captured-span-errors-eval__optional-warning-loader',
+          namespace: 'captured-span-errors-eval.optional-warning-loader',
           key: { ...input, source: 'warning' },
         },
       },
@@ -233,7 +233,7 @@ defineEval({
         kind: 'tool',
         name: 'optional-signal-loader',
         cache: {
-          namespace: 'captured-span-errors-eval__optional-signal-loader',
+          namespace: 'captured-span-errors-eval.optional-signal-loader',
           key: input,
         },
       },

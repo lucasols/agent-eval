@@ -3,9 +3,8 @@ dist/
 **/.agent-evals/*
 !**/.agent-evals/cache/
 **/.agent-evals/cache/*
-!**/.agent-evals/cache/*.json
-**/.agent-evals/cache/*.tmp
-**/.agent-evals/cache/*.lock/
+!**/.agent-evals/cache/*/
+!**/.agent-evals/cache/*/*.json.br
 **/.agent-evals/cache-debug/
 *.tsbuildinfo
 

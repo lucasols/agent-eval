@@ -246,12 +246,12 @@ test('caches values without creating a cache span and replays SDK effects', asyn
         expect.objectContaining({
           operationType: 'value',
           operationName: 'root-value',
-          namespace: 'value-cache-eval__root-value',
+          namespace: 'value-cache-eval.root-value',
         }),
         expect.objectContaining({
           operationType: 'value',
           operationName: 'value-plan',
-          namespace: 'value-cache-eval__value-plan',
+          namespace: 'value-cache-eval.value-plan',
         }),
       ]),
     );

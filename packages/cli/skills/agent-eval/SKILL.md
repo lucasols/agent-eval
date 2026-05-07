@@ -120,7 +120,7 @@ export async function runRefundWorkflow(input: RefundInput) {
           kind: 'llm',
           name: 'plan-refund',
           cache: {
-            namespace: 'refund-workflow__plan-refund',
+            namespace: 'refund-workflow.plan-refund',
             key: { prompt: input.message, model: 'gpt-4o-mini' },
           },
         },
@@ -444,7 +444,7 @@ await evalTracer.span(
     kind: 'llm',
     name: 'plan-refund',
     cache: {
-      namespace: 'refund-workflow__plan-refund',
+      namespace: 'refund-workflow.plan-refund',
       key: { prompt: input.message, model: 'gpt-4o-mini' },
     },
   },
@@ -510,21 +510,23 @@ Mental model:
   `name`/`lastModified` for `File`) and do not read file bytes. Add
   `serializeFileBytes: true` to a cached span or `evalTracer.cache(...)` call
   when byte-level cache invalidation is required.
-- Cache entries are stored in inspectable owner files under
-  `.agent-evals/cache/<owner>.json`; each namespace is capped at 100 entries by
-  default. Configure `cache.maxEntriesPerNamespace` for the default cap and
+- Cache entries are stored as one Brotli-compressed JSON file per key under
+  `.agent-evals/cache/<sanitizedNamespace>/<keyHash>.json.br`; each namespace
+  is capped at 100 entries by default. Configure
+  `cache.maxEntriesPerNamespace` for the default cap and
   `cache.maxEntriesByNamespace` for exact namespace-specific caps.
 - Nested cached JSON values at or above roughly 10K JSON characters are stored
   as content-addressed Brotli blobs under `.agent-evals/cache-blobs/` and
   referenced from cache JSON by sha256. Identical large payloads share the same
   blob.
 - Authored raw cache keys are stored for debugging under
-  `.agent-evals/cache-debug/<owner>.json`. This folder may include prompts,
-  user inputs, or other sensitive data, should be gitignored, and is not needed
-  for cache reuse. The UI Cache tab shows the raw key when it is available and
-  can be filtered to hits or new entries added by cache misses/refreshes.
-  Misses/refreshes with `cache.store: false` are shown as non-stored activity
-  without fetch/delete controls.
+  `.agent-evals/cache-debug/<sanitizedNamespace>/<keyHash>.json`. This folder
+  may include prompts, user inputs, full serialized cache payloads, or other
+  sensitive data, should be gitignored, and is not needed for cache reuse. The
+  UI Cache tab shows the raw key when it is available and can be filtered to
+  hits or new entries added by cache misses/refreshes. Misses/refreshes with
+  `cache.store: false` are shown as non-stored activity without fetch/delete
+  controls.
 - Cached payloads use JSON-safe tagged serialization, so return values and
   recorded SDK effects preserve richer built-ins such as `Date`, `Map`, `Set`,
   typed arrays, `URL`, `Headers`, `Blob`, and `File` on hits. Undefined values
@@ -537,7 +539,7 @@ Mental model:
 ## Artifacts
 
 Run output lives under `.agent-evals/runs/<run-id>/`. Cache metadata lives under
-`.agent-evals/cache/`, grouped into runner-managed owner files. Do not rely on a
+`.agent-evals/cache/<sanitizedNamespace>/<keyHash>.json.br`. Do not rely on a
 specific cache filename when authoring evals; configure cache namespaces
 manually in eval code, then use `agent-evals cache list` or the UI Cache tab to
 inspect the persisted namespace/key entries. Files in a run directory include

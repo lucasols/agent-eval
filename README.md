@@ -960,7 +960,7 @@ scores: {
           kind: 'scorer',
           name: 'llm-judge',
           cache: {
-            namespace: 'refund-workflow__llm-judge',
+            namespace: 'refund-workflow.llm-judge',
             key: {
               prompt: input.message,
               response: outputs.output,
@@ -1177,7 +1177,7 @@ await evalTracer.span(
     kind: 'llm',
     name: 'plan-refund',
     cache: {
-      namespace: 'refund-workflow__plan-refund',
+      namespace: 'refund-workflow.plan-refund',
       key: { prompt: input.message, model: 'gpt-4o-mini' },
     },
   },
@@ -1291,20 +1291,21 @@ Server API (`/api/cache`):
 ### How it works
 
 - Cached spans require an explicit `cache.namespace`. Spanless value caches
-  default to `${evalId}__${name}` and can be overridden with `namespace`.
+  default to `${evalId}.${name}` and can be overridden with `namespace`.
 - Cache identity is the namespace plus the authored key. Eval source
   fingerprints are tracked for run freshness separately, but do not participate
   in cache-key hashing.
-- Entries live in inspectable per-owner files at
-  `<workspaceRoot>/.agent-evals/cache/<owner>.json`; for conventional
-  eval-prefixed namespaces, the owner is the eval id.
+- Entries live as one Brotli-compressed JSON file per key at
+  `<workspaceRoot>/.agent-evals/cache/<sanitizedNamespace>/<keyHash>.json.br`.
 - Nested cached JSON values at or above roughly 10K JSON characters are stored as content-addressed
   Brotli blobs under `<workspaceRoot>/.agent-evals/cache-blobs/` and referenced
-  from the owner JSON by sha256. Identical large payloads share the same blob.
+  from cache entries by sha256. Identical large payloads share the same blob.
 - Authored raw cache keys are stored for debugging in
-  `<workspaceRoot>/.agent-evals/cache-debug/<owner>.json`. This folder may
-  contain prompts, user inputs, or other sensitive data, is not needed for cache
-  reuse, and should be gitignored. Normal cache files remain hash-only.
+  `<workspaceRoot>/.agent-evals/cache-debug/<sanitizedNamespace>/<keyHash>.json`.
+  These debug files also mirror the serialized cache entry for easier
+  inspection. This folder may contain prompts, user inputs, cached payloads, or
+  other sensitive data, is not needed for cache reuse, and should be gitignored.
+  Normal cache files remain hash-only.
 - Each namespace keeps at most `cache.maxEntriesPerNamespace ?? 100` entries,
   pruning the oldest entries in that namespace on write so committed caches do
   not grow forever. Use `cache.maxEntriesByNamespace` for exact namespace
@@ -1351,7 +1352,7 @@ export const config: AgentEvalsConfig = {
   include: ['evals/**/*.eval.ts'],
   cache: {
     maxEntriesPerNamespace: 50,
-    maxEntriesByNamespace: { 'receipt-audit__receipt-audit-context': 200 },
+    maxEntriesByNamespace: { 'receipt-audit.receipt-audit-context': 200 },
   },
 };
 ```

@@ -1,21 +1,28 @@
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { brotliDecompressSync } from 'node:zlib';
 import { serializeCacheRecording } from '@agent-evals/sdk';
 import {
-  cacheDebugKeyFileSchema,
-  cacheFileSchema,
-  type CacheDebugKeyFile,
+  cacheDebugKeyEntrySchema,
+  cacheEntrySchema,
+  type CacheDebugKeyEntry,
   type CacheEntry,
-  type CacheFile,
 } from '@agent-evals/shared';
 import { afterEach, describe, expect, test } from 'vitest';
 import { createBufferedCacheStore, createFsCacheStore } from './cacheStore.ts';
 
 const workspaces: string[] = [];
 const externalJsonBlobPathRegex = /^sha256\/[a-f0-9]{2}\/[a-f0-9]+\.json\.br$/;
+const defaultNamespace = 'debug-eval.expensive-op';
 
 afterEach(async () => {
   await Promise.all(
@@ -40,7 +47,7 @@ function cacheEntry(params: {
   return {
     version: 1,
     key: params.key,
-    namespace: params.namespace ?? 'debug-eval__expensive-op',
+    namespace: params.namespace ?? defaultNamespace,
     operationType: 'span',
     operationName: 'expensive-op',
     spanName: 'expensive-op',
@@ -50,32 +57,93 @@ function cacheEntry(params: {
   };
 }
 
-async function readCacheFile(
+async function readCacheEntry(
   workspacePath: string,
-  owner = 'debug-eval',
-): Promise<CacheFile> {
-  return cacheFileSchema.parse(
+  key: string,
+  namespace = defaultNamespace,
+): Promise<CacheEntry> {
+  const compressed = await readFile(
+    cacheEntryPath(workspacePath, namespace, key),
+  );
+  return cacheEntrySchema.parse(
+    JSON.parse(brotliDecompressSync(compressed).toString('utf8')),
+  );
+}
+
+async function readDebugKeyEntry(
+  workspacePath: string,
+  key: string,
+  namespace = defaultNamespace,
+): Promise<CacheDebugKeyEntry> {
+  return cacheDebugKeyEntrySchema.parse(
     JSON.parse(
-      await readFile(
-        resolve(workspacePath, '.agent-evals/cache', `${owner}.json`),
-        'utf8',
-      ),
+      await readFile(debugEntryPath(workspacePath, namespace, key), 'utf8'),
     ),
   );
 }
 
-async function readDebugKeyFile(
+async function readCacheKeys(
   workspacePath: string,
-  owner = 'debug-eval',
-): Promise<CacheDebugKeyFile> {
-  return cacheDebugKeyFileSchema.parse(
-    JSON.parse(
-      await readFile(
-        resolve(workspacePath, '.agent-evals/cache-debug', `${owner}.json`),
-        'utf8',
-      ),
-    ),
+  namespace = defaultNamespace,
+): Promise<string[]> {
+  const dir = resolve(
+    workspacePath,
+    '.agent-evals/cache',
+    sanitizeSegment(namespace),
   );
+  if (!existsSync(dir)) return [];
+  const files = await readdir(dir);
+  return files
+    .filter((file) => file.endsWith('.json.br'))
+    .map((file) => file.slice(0, -'.json.br'.length))
+    .sort();
+}
+
+async function readDebugKeys(
+  workspacePath: string,
+  namespace = defaultNamespace,
+): Promise<string[]> {
+  const dir = resolve(
+    workspacePath,
+    '.agent-evals/cache-debug',
+    sanitizeSegment(namespace),
+  );
+  if (!existsSync(dir)) return [];
+  const files = await readdir(dir);
+  return files
+    .filter((file) => file.endsWith('.json'))
+    .map((file) => file.slice(0, -'.json'.length))
+    .sort();
+}
+
+function cacheEntryPath(
+  workspacePath: string,
+  namespace: string,
+  key: string,
+): string {
+  return resolve(
+    workspacePath,
+    '.agent-evals/cache',
+    sanitizeSegment(namespace),
+    `${key}.json.br`,
+  );
+}
+
+function debugEntryPath(
+  workspacePath: string,
+  namespace: string,
+  key: string,
+): string {
+  return resolve(
+    workspacePath,
+    '.agent-evals/cache-debug',
+    sanitizeSegment(namespace),
+    `${key}.json`,
+  );
+}
+
+function sanitizeSegment(segment: string): string {
+  return segment.replace(/[^a-zA-Z0-9_.-]/g, '_');
 }
 
 function getNestedExternalJsonRef(value: unknown): Record<string, unknown> {
@@ -116,46 +184,50 @@ describe('filesystem cache store raw-key debug storage', () => {
       operationName: 'expensive-op',
     });
 
-    const cacheFile = await readCacheFile(workspacePath);
-    expect(cacheFile.entries['hashed-key']).toMatchObject({
+    const cacheFile = await readCacheEntry(workspacePath, 'hashed-key');
+    expect(cacheFile).toMatchObject({
       key: 'hashed-key',
-      namespace: 'debug-eval__expensive-op',
+      namespace: defaultNamespace,
     });
     expect(JSON.stringify(cacheFile)).not.toContain('refund please');
 
-    const debugFile = await readDebugKeyFile(workspacePath);
-    expect(debugFile.entries['hashed-key']).toMatchObject({
+    const debugFile = await readDebugKeyEntry(workspacePath, 'hashed-key');
+    expect(debugFile).toMatchObject({
       key: 'hashed-key',
-      namespace: 'debug-eval__expensive-op',
+      namespace: defaultNamespace,
       operationType: 'span',
       operationName: 'expensive-op',
       rawKey: { prompt: 'refund please', model: 'gpt-4o-mini' },
+      entry: cacheFile,
     });
 
     await expect(
-      store.lookup('debug-eval__expensive-op', 'hashed-key'),
+      store.lookup(defaultNamespace, 'hashed-key'),
     ).resolves.toMatchObject({ key: 'hashed-key' });
     await expect(
-      store.lookupWithDebug('debug-eval__expensive-op', 'hashed-key'),
+      store.lookupWithDebug(defaultNamespace, 'hashed-key'),
     ).resolves.toMatchObject({
       key: 'hashed-key',
       debugKey: { rawKey: { prompt: 'refund please' } },
     });
   });
 
-  test('writes cache files with two-space indentation', async () => {
+  test('writes cache entries as Brotli-compressed single-entry files', async () => {
     const workspacePath = await createWorkspace();
     const store = createFsCacheStore({ workspaceRoot: workspacePath });
 
     await store.write(cacheEntry({ key: 'hashed-key' }));
 
-    const rawCacheFile = await readFile(
-      resolve(workspacePath, '.agent-evals/cache/debug-eval.json'),
-      'utf8',
+    const entryPath = cacheEntryPath(
+      workspacePath,
+      defaultNamespace,
+      'hashed-key',
     );
-    expect(rawCacheFile).toContain('\n  "version": 1,');
-    expect(rawCacheFile).toContain('\n    "hashed-key": {');
-    expect(rawCacheFile).toContain('\n      "key": "hashed-key"');
+    expect(existsSync(entryPath)).toBe(true);
+    expect(await readCacheEntry(workspacePath, 'hashed-key')).toMatchObject({
+      key: 'hashed-key',
+      namespace: defaultNamespace,
+    });
   });
 
   test('writes raw-key debug files with two-space indentation', async () => {
@@ -169,12 +241,13 @@ describe('filesystem cache store raw-key debug storage', () => {
     });
 
     const rawDebugFile = await readFile(
-      resolve(workspacePath, '.agent-evals/cache-debug/debug-eval.json'),
+      debugEntryPath(workspacePath, defaultNamespace, 'hashed-key'),
       'utf8',
     );
     expect(rawDebugFile).toContain('\n  "version": 1,');
-    expect(rawDebugFile).toContain('\n    "hashed-key": {');
-    expect(rawDebugFile).toContain('\n      "key": "hashed-key"');
+    expect(rawDebugFile).toContain('\n  "key": "hashed-key",');
+    expect(rawDebugFile).toContain('\n  "rawKey": {');
+    expect(rawDebugFile).toContain('\n  "entry": {');
   });
 
   test('stores large nested JSON values as hashed Brotli blobs', async () => {
@@ -193,10 +266,8 @@ describe('filesystem cache store raw-key debug storage', () => {
 
     await store.write(entry);
 
-    const cacheFile = await readCacheFile(workspacePath);
-    const blobRef = getNestedExternalJsonRef(
-      cacheFile.entries['hashed-key']?.recording.returnValue,
-    );
+    const cacheFile = await readCacheEntry(workspacePath, 'hashed-key');
+    const blobRef = getNestedExternalJsonRef(cacheFile.recording.returnValue);
     expect(blobRef).toMatchObject({ __aecs: 'v1:ExternalJson' });
 
     const blobPath = getStringProperty(blobRef, 'path');
@@ -207,15 +278,12 @@ describe('filesystem cache store raw-key debug storage', () => {
     ).toEqual(rows);
 
     await expect(
-      store.lookup('debug-eval__expensive-op', 'hashed-key'),
+      store.lookup(defaultNamespace, 'hashed-key'),
     ).resolves.toMatchObject({
       recording: { returnValue: { payload: { rows } } },
     });
 
-    await store.clear({
-      key: 'hashed-key',
-      namespace: 'debug-eval__expensive-op',
-    });
+    await store.clear({ key: 'hashed-key', namespace: defaultNamespace });
 
     expect(existsSync(resolve(store.blobDir(), blobPath))).toBe(false);
   });
@@ -242,12 +310,11 @@ describe('filesystem cache store raw-key debug storage', () => {
     await store.write(first);
     await store.write(second);
 
-    const cacheFile = await readCacheFile(workspacePath);
-    const firstRef = getNestedExternalJsonRef(
-      cacheFile.entries.first?.recording.returnValue,
-    );
+    const firstEntry = await readCacheEntry(workspacePath, 'first');
+    const secondEntry = await readCacheEntry(workspacePath, 'second');
+    const firstRef = getNestedExternalJsonRef(firstEntry.recording.returnValue);
     const secondRef = getNestedExternalJsonRef(
-      cacheFile.entries.second?.recording.returnValue,
+      secondEntry.recording.returnValue,
     );
 
     expect(getStringProperty(firstRef, 'hash')).toBe(
@@ -265,10 +332,10 @@ describe('filesystem cache store raw-key debug storage', () => {
     await store.write(cacheEntry({ key: 'hashed-key' }));
 
     await expect(
-      store.lookupWithDebug('debug-eval__expensive-op', 'hashed-key'),
+      store.lookupWithDebug(defaultNamespace, 'hashed-key'),
     ).resolves.toMatchObject({ key: 'hashed-key' });
     await expect(
-      store.lookupWithDebug('debug-eval__expensive-op', 'hashed-key'),
+      store.lookupWithDebug(defaultNamespace, 'hashed-key'),
     ).resolves.not.toHaveProperty('debugKey');
   });
 
@@ -284,7 +351,7 @@ describe('filesystem cache store raw-key debug storage', () => {
     await store.write(entry);
 
     await expect(
-      store.lookup('debug-eval__expensive-op', 'unsupported-key'),
+      store.lookup(defaultNamespace, 'unsupported-key'),
     ).resolves.toBeNull();
     await expect(store.list()).resolves.toEqual([]);
   });
@@ -311,10 +378,10 @@ describe('filesystem cache store raw-key debug storage', () => {
     );
 
     await expect(
-      store.lookup('debug-eval__expensive-op', 'hashed-key'),
+      store.lookup(defaultNamespace, 'hashed-key'),
     ).resolves.toMatchObject({ storedAt: '2026-04-29T00:00:01.000Z' });
     await expect(
-      store.lookupWithDebug('debug-eval__expensive-op', 'hashed-key'),
+      store.lookupWithDebug(defaultNamespace, 'hashed-key'),
     ).resolves.not.toHaveProperty('debugKey');
   });
 
@@ -339,25 +406,88 @@ describe('filesystem cache store raw-key debug storage', () => {
       },
     );
 
-    await store.clear({ namespace: 'debug-eval__expensive-op', key: 'first' });
+    await store.clear({ namespace: defaultNamespace, key: 'first' });
 
-    expect(Object.keys((await readCacheFile(workspacePath)).entries)).toEqual([
-      'second',
-    ]);
-    expect(
-      Object.keys((await readDebugKeyFile(workspacePath)).entries),
-    ).toEqual(['second']);
+    expect(await readCacheKeys(workspacePath)).toEqual(['second']);
+    expect(await readDebugKeys(workspacePath)).toEqual(['second']);
 
-    await store.clear({ namespace: 'debug-eval__expensive-op' });
+    await store.clear({ namespace: defaultNamespace });
 
     expect(
-      existsSync(resolve(workspacePath, '.agent-evals/cache/debug-eval.json')),
+      existsSync(
+        resolve(
+          workspacePath,
+          '.agent-evals/cache',
+          sanitizeSegment(defaultNamespace),
+        ),
+      ),
     ).toBe(false);
     expect(
       existsSync(
-        resolve(workspacePath, '.agent-evals/cache-debug/debug-eval.json'),
+        resolve(
+          workspacePath,
+          '.agent-evals/cache-debug',
+          sanitizeSegment(defaultNamespace),
+        ),
       ),
     ).toBe(false);
+  });
+
+  test('ignores old aggregate owner cache files', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
+    const oldCacheDir = resolve(workspacePath, '.agent-evals/cache');
+    await rm(oldCacheDir, { recursive: true, force: true });
+    await mkdir(oldCacheDir, { recursive: true });
+    await writeFile(
+      resolve(oldCacheDir, 'debug-eval.json'),
+      JSON.stringify({
+        version: 1,
+        owner: 'debug-eval',
+        entries: { 'hashed-key': cacheEntry({ key: 'hashed-key' }) },
+      }),
+    );
+
+    await expect(
+      store.lookup(defaultNamespace, 'hashed-key'),
+    ).resolves.toBeNull();
+    await expect(store.list()).resolves.toEqual([]);
+  });
+
+  test('sanitized namespace collisions do not leak lookup or clear behavior', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
+    const slashNamespace = 'collision/eval';
+    const underscoreNamespace = 'collision_eval';
+
+    await store.write(
+      cacheEntry({
+        key: 'slash-key',
+        namespace: slashNamespace,
+        storedAt: '2026-04-29T00:00:00.000Z',
+      }),
+    );
+    await store.write(
+      cacheEntry({
+        key: 'underscore-key',
+        namespace: underscoreNamespace,
+        storedAt: '2026-04-29T00:00:01.000Z',
+      }),
+    );
+
+    await expect(
+      store.lookup(slashNamespace, 'underscore-key'),
+    ).resolves.toBeNull();
+    await expect(
+      store.lookup(underscoreNamespace, 'underscore-key'),
+    ).resolves.toMatchObject({ namespace: underscoreNamespace });
+
+    await store.clear({ namespace: slashNamespace });
+
+    await expect(store.lookup(slashNamespace, 'slash-key')).resolves.toBeNull();
+    await expect(
+      store.lookup(underscoreNamespace, 'underscore-key'),
+    ).resolves.toMatchObject({ namespace: underscoreNamespace });
   });
 
   test('buffered cache commits only the selected write and its raw key', async () => {
@@ -379,14 +509,11 @@ describe('filesystem cache store raw-key debug storage', () => {
 
     await winning.commit();
 
-    const cacheFile = await readCacheFile(workspacePath);
-    expect(Object.keys(cacheFile.entries)).toEqual(['winning-key']);
+    expect(await readCacheKeys(workspacePath)).toEqual(['winning-key']);
 
-    const debugFile = await readDebugKeyFile(workspacePath);
-    expect(Object.keys(debugFile.entries)).toEqual(['winning-key']);
-    expect(debugFile.entries['winning-key']?.rawKey).toEqual({
-      candidate: 'winning',
-    });
+    expect(await readDebugKeys(workspacePath)).toEqual(['winning-key']);
+    const debugFile = await readDebugKeyEntry(workspacePath, 'winning-key');
+    expect(debugFile.rawKey).toEqual({ candidate: 'winning' });
   });
 
   test('buffered cache lookup materializes pending external blobs', async () => {
@@ -407,7 +534,7 @@ describe('filesystem cache store raw-key debug storage', () => {
     await buffered.write(entry);
 
     await expect(
-      buffered.lookup('debug-eval__expensive-op', 'hashed-key'),
+      buffered.lookup(defaultNamespace, 'hashed-key'),
     ).resolves.toMatchObject({
       recording: { returnValue: { payload: { rows } } },
     });

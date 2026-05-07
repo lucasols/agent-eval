@@ -48,16 +48,17 @@ needed to author evals.
    case set `allowCliRunAll: true` in `agent-evals.config.ts`.
 
 5. Ignore persisted run output and raw cache-key debug data. Cache files under
-   `.agent-evals/cache/*.json` are bounded and may be committed when a project
-   wants to share them. Raw keys under `.agent-evals/cache-debug/` may contain
-   prompts, user inputs, or other sensitive data and should stay local. Append
-   to `.gitignore` if the entries are not already there:
+   `.agent-evals/cache/*/*.json.br` are bounded and may be committed when a
+   project wants to share them. Debug files under `.agent-evals/cache-debug/`
+   may contain prompts, user inputs, full serialized cache payloads, or other
+   sensitive data and should stay local. Append to `.gitignore` if the entries
+   are not already there:
 
    ```gitignore
    .agent-evals/runs/
-   .agent-evals/cache/*/
-   .agent-evals/cache/*.tmp
-   .agent-evals/cache/*.lock/
+   .agent-evals/cache/**
+   !.agent-evals/cache/*/
+   !.agent-evals/cache/*/*.json.br
    .agent-evals/cache-debug/
    ```
 

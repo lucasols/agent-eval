@@ -84,7 +84,7 @@ defineEval({
           kind: 'llm',
           name: 'draft-response',
           cache: {
-            namespace: 'trial-selection-cache__draft-response',
+            namespace: 'trial-selection-cache.draft-response',
             key: { message: input.message },
           },
         },

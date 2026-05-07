@@ -30,7 +30,7 @@ export async function triggerWorkflow(
           kind: 'llm',
           name: 'plan-refund',
           cache: {
-            namespace: 'refund-workflow__plan-refund',
+            namespace: 'refund-workflow.plan-refund',
             key: { prompt: input.message, locale: input.locale },
           },
         },

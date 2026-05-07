@@ -58,7 +58,7 @@ async function runCacheOptionsCase(params: {
             kind: 'tool',
             name: 'cached-span',
             cache: {
-              namespace: 'cache-options-eval__cached-span',
+              namespace: 'cache-options-eval.cached-span',
               key: { cacheKey: input.cacheKey },
             },
           },
@@ -86,7 +86,7 @@ async function runCacheOptionsCase(params: {
                 kind: 'scorer',
                 name: 'cached-score',
                 cache: {
-                  namespace: 'cache-options-eval__cached-score',
+                  namespace: 'cache-options-eval.cached-score',
                   key: { cacheKey: input.cacheKey },
                 },
               },

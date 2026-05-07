@@ -20,7 +20,7 @@ export type TraceCacheInfo = {
   name: string;
   /** Arbitrary JSON-safe value used to derive the cache key. */
   key: unknown;
-  /** Override the default namespace (`${evalId}__${name}`). */
+  /** Override the default namespace (`${evalId}.${name}`). */
   namespace?: string;
   /**
    * Include native `Blob`/`File` bytes in the cache key. By default only stable
@@ -47,7 +47,7 @@ export function createTraceCache(generateSpanId: () => string): {
       return await fn();
     }
 
-    const namespace = info.namespace ?? `${cacheCtx.evalId}__${info.name}`;
+    const namespace = info.namespace ?? `${cacheCtx.evalId}.${info.name}`;
     const keyHash = await hashCacheKey(
       { namespace, key: info.key },
       { serializeFileBytes: info.serializeFileBytes === true },
