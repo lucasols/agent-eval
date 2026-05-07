@@ -72,6 +72,12 @@ defineEval({
       expect(
         runner.getCaseDetail(
           startedRun.manifest.id,
+          'evals/refunds/workflow.eval.ts#shared-workflow#same-case',
+        )?.columns.folder,
+      ).toBe('refunds');
+      expect(
+        runner.getCaseDetail(
+          startedRun.manifest.id,
           'evals%2Frefunds%2Fworkflow.eval.ts#shared-workflow#same-case',
         )?.columns.folder,
       ).toBe('refunds');

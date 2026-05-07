@@ -222,6 +222,27 @@ export function formatSpanDuration(ms: number): string {
   return `${(ms / 1000).toFixed(2)}s`;
 }
 
+export function formatSpanDiagnosticTooltip(
+  span: EvalTraceSpan,
+  tone: 'error' | 'warning',
+): string {
+  const diagnostic =
+    tone === 'error'
+      ? (span.error ?? span.errors?.at(-1))
+      : (span.warning ?? span.warnings?.at(-1));
+  if (diagnostic === undefined) {
+    return tone === 'error' ? 'Errored span' : 'Warning span';
+  }
+
+  const label =
+    diagnostic.name && diagnostic.name !== 'Error'
+      ? diagnostic.name
+      : tone === 'error'
+        ? 'Error'
+        : 'Warning';
+  return `${label}: ${diagnostic.message}`;
+}
+
 function clamp(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
   return Math.min(max, Math.max(min, value));

@@ -29,6 +29,7 @@ import {
 } from '#src/stores/workspaceConfigStore';
 import { colors } from '#src/style/colors';
 import { inline, stack } from '#src/style/helpers';
+import { apiUrl } from '#src/utils/apiUrl';
 import { collectEvalsInFolder } from '#src/utils/buildEvalTree';
 
 const Root = styled.div`
@@ -139,7 +140,7 @@ export function AppShell() {
   }, [search, selectedRunFromUrl, selectedCaseRunId, selectedCaseFromUrl]);
 
   useEffect(() => {
-    const eventSource = new EventSource('/api/evals/events');
+    const eventSource = new EventSource(apiUrl('/api/evals/events'));
     eventSource.addEventListener('discovery.updated', () => {
       void fetchEvals();
       void refetchHistory();

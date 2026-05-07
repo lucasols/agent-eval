@@ -23,6 +23,7 @@ import {
 import { watch, type FSWatcher } from 'chokidar';
 import { glob } from 'glob';
 import { createFsCacheStore, type FsCacheStore } from './cacheStore.ts';
+import { resolveCaseDetailLookup } from './caseDetailLookup.ts';
 import { validateCharts } from './chartValidation.ts';
 import { buildDeclaredColumnDefs, normalizeScoreDef } from './columnBuilder.ts';
 import { loadConfig } from './config.ts';
@@ -623,18 +624,7 @@ export function createRunner({
     getCaseDetail(runId, caseId) {
       const run = runs.get(runId);
       if (!run) return undefined;
-      return (
-        run.caseDetails.get(caseId) ??
-        run.caseDetails.get(
-          getCaseRowCaseKey(
-            run.cases.find(
-              (caseRow) =>
-                getCaseRowCaseKey(caseRow) === caseId ||
-                caseRow.caseId === caseId,
-            ) ?? { caseId },
-          ),
-        )
-      );
+      return resolveCaseDetailLookup(run, caseId);
     },
     subscribe(runId, listener) {
       const run = runs.get(runId);

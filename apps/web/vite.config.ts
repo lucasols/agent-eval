@@ -9,21 +9,16 @@ const rootDir = dirname(fileURLToPath(import.meta.url));
 const srcDir = resolve(rootDir, 'src');
 const { serverPort, webPort } = getDevPorts();
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  define: {
+    'import.meta.env.VITE_AGENT_EVALS_API_BASE_URL': JSON.stringify(
+      command === 'serve' ? `http://127.0.0.1:${String(serverPort)}` : '',
+    ),
+  },
   plugins: [
     vindurPlugin({ importAliases: { '#src': srcDir } }),
     react({ babel: { plugins: [['babel-plugin-react-compiler']] } }),
   ],
   resolve: { alias: { '#src': srcDir } },
-  server: {
-    host: '0.0.0.0',
-    port: webPort,
-    strictPort: true,
-    proxy: {
-      '/api': {
-        target: `http://localhost:${String(serverPort)}`,
-        changeOrigin: true,
-      },
-    },
-  },
-});
+  server: { host: '127.0.0.1', port: webPort, strictPort: true },
+}));

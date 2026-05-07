@@ -8,6 +8,7 @@ import { JsonViewer } from '#src/components/JsonViewer';
 import { Tooltip } from '#src/components/Tooltip';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
+import { apiUrl } from '#src/utils/apiUrl';
 
 const LogToolbar = styled.div`
   ${inline({ justify: 'space-between', align: 'center', gap: 10 })}
@@ -380,7 +381,7 @@ async function openLogLocationInEditor(
   location: NonNullable<RunLogEntry['location']>,
 ): Promise<void> {
   await resultify(() =>
-    fetch('/api/runs/actions/open-location', {
+    fetch(apiUrl('/api/runs/actions/open-location'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(location),

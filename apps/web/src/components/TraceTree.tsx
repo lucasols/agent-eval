@@ -2,20 +2,24 @@ import type { EvalTraceSpan, TraceDisplayConfig } from '@agent-evals/shared';
 import {
   ChevronRight,
   Clock3,
+  CircleAlert,
   GitFork,
   PanelRightClose,
   PanelRightOpen,
+  TriangleAlert,
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { styled } from 'vindur';
 import { SpanDetail } from '#src/components/SpanDetail';
+import { Tooltip } from '#src/components/Tooltip';
 import {
   buildTraceChildrenByParent,
   buildRulerTicks,
   computeSpanBar,
   computeTraceMetrics,
   flattenVisibleRows,
+  formatSpanDiagnosticTooltip,
   formatSpanDuration,
   type SpanBar,
   type TraceNestingMode,
@@ -448,7 +452,29 @@ const KindBadge = styled.span`
   flex-shrink: 0;
 `;
 
-const SpanName = styled.span`
+const SpanStatusIcon = styled.span<{ isError: boolean; isWarning: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-left: -3px;
+
+  &.isError {
+    color: ${colors.error.var};
+  }
+
+  &.isWarning {
+    color: ${colors.warning.var};
+  }
+
+  & > svg {
+    width: 12px;
+    height: 12px;
+    stroke-width: 2.6;
+  }
+`;
+
+const SpanName = styled.span<{ isError: boolean; isWarning: boolean }>`
   font-weight: 500;
   font-size: 11.5px;
   white-space: nowrap;
@@ -456,20 +482,14 @@ const SpanName = styled.span`
   text-overflow: ellipsis;
   flex: 1;
   min-width: 0;
-`;
 
-const ErrorLabel = styled.span`
-  ${monoFont};
-  color: ${colors.error.var};
-  font-size: 10px;
-  flex-shrink: 0;
-`;
+  &.isError {
+    color: ${colors.error.var};
+  }
 
-const WarningLabel = styled.span`
-  ${monoFont};
-  color: ${colors.warning.var};
-  font-size: 10px;
-  flex-shrink: 0;
+  &.isWarning {
+    color: ${colors.warning.var};
+  }
 `;
 
 const TreeAttributeLabel = styled.span`
@@ -724,6 +744,19 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
                 const checkpointPreview = isCheckpoint
                   ? formatCheckpointPreview(span.attributes?.value)
                   : null;
+                const hasError = span.status === 'error';
+                const hasWarning =
+                  !hasError &&
+                  (span.warning !== undefined ||
+                    (span.warnings?.length ?? 0) > 0);
+                const diagnosticTooltip = hasError
+                  ? formatSpanDiagnosticTooltip(span, 'error')
+                  : hasWarning
+                    ? formatSpanDiagnosticTooltip(span, 'warning')
+                    : undefined;
+                const diagnosticLabel = hasError
+                  ? 'Errored span'
+                  : 'Warning span';
                 return (
                   <Row
                     key={span.id}
@@ -749,21 +782,32 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
                         <Spacer />
                       )}
                       <KindBadge style={kindStyle}>{span.kind}</KindBadge>
-                      <SpanName>{span.name}</SpanName>
+                      {hasError || hasWarning ? (
+                        <Tooltip
+                          content={diagnosticTooltip}
+                          placement="top"
+                        >
+                          <SpanStatusIcon
+                            isError={hasError}
+                            isWarning={hasWarning}
+                            aria-label={diagnosticLabel}
+                          >
+                            {hasError ? <CircleAlert /> : <TriangleAlert />}
+                          </SpanStatusIcon>
+                        </Tooltip>
+                      ) : null}
+                      <SpanName
+                        isError={hasError}
+                        isWarning={hasWarning}
+                      >
+                        {span.name}
+                      </SpanName>
                       {checkpointPreview !== null ? (
                         <CheckpointPreview title={checkpointPreview}>
                           {checkpointPreview}
                         </CheckpointPreview>
                       ) : null}
                       <TraceCacheBadge span={span} />
-                      {span.status === 'error' ? (
-                        <ErrorLabel>err</ErrorLabel>
-                      ) : null}
-                      {span.status !== 'error' &&
-                      (span.warning !== undefined ||
-                        (span.warnings?.length ?? 0) > 0) ? (
-                        <WarningLabel>warn</WarningLabel>
-                      ) : null}
                       {treeAttributeItems.map((item) => (
                         <TreeAttributeLabel key={item.config.path}>
                           {formatTraceAttributeValue(item.value, item.config)}

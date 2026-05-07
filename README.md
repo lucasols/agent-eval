@@ -167,7 +167,7 @@ Notes:
 
 From `examples/basic-agent`, run `pnpm eval app` for the same single-command flow a library user gets.
 
-From the repo root, `pnpm dev` starts the example-backed Hono server on `http://localhost:5100` together with the Vite web dev server on `http://localhost:5200` by default, so frontend changes get full HMR while `/api` stays pointed at the example workspace. These repo-local defaults intentionally differ from the packaged `agent-evals app` default of `http://localhost:4100`, so you can run this checkout alongside an app in another project.
+From the repo root, `pnpm dev` starts the example-backed Hono server on `http://localhost:5100` together with the Vite web dev server on `http://127.0.0.1:5200` by default, so frontend changes get full HMR while the web app calls the backend directly at `http://127.0.0.1:5100`. The web server binds to IPv4 loopback explicitly to avoid `localhost` resolving differently across browsers and hanging on the wrong loopback family. These repo-local defaults intentionally differ from the packaged `agent-evals app` default of `http://localhost:4100`, so you can run this checkout alongside an app in another project.
 
 The example workspace includes `Run Error Details Demo`
 (`evals/support/playground/run-error-details.eval.ts`) for checking the app's
@@ -186,7 +186,7 @@ AGENT_EVALS_DEV_SERVER_PORT=5300
 AGENT_EVALS_DEV_WEB_PORT=5400
 ```
 
-`pnpm dev`, `pnpm dev:server`, and `pnpm dev:app` read `AGENT_EVALS_DEV_SERVER_PORT`, and the Vite dev server reads `AGENT_EVALS_DEV_WEB_PORT` while proxying `/api` to the configured backend port.
+`pnpm dev`, `pnpm dev:server`, and `pnpm dev:app` read `AGENT_EVALS_DEV_SERVER_PORT`, and the Vite dev server reads `AGENT_EVALS_DEV_WEB_PORT`. During Vite dev, the web app receives the configured backend origin at build time and avoids a Vite `/api` proxy.
 
 ## Publishing
 

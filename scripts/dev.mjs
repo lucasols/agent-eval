@@ -67,7 +67,7 @@ await Promise.all([
 console.info(
   `Starting Agent Evals server on http://localhost:${String(serverPort)}`,
 );
-console.info(`Starting Vite dev server on http://localhost:${String(webPort)}`);
+console.info(`Starting Vite dev server on http://127.0.0.1:${String(webPort)}`);
 
 startServer();
 startWeb();
@@ -94,7 +94,7 @@ function startWeb() {
       '@agent-evals/web',
       'dev',
       '--host',
-      'localhost',
+      '127.0.0.1',
       '--port',
       String(webPort),
     ],

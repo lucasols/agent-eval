@@ -8,6 +8,7 @@ import { JsonViewer } from '#src/components/JsonViewer';
 import { useImageLightbox } from '#src/components/useImageLightbox';
 import { colors } from '#src/style/colors';
 import { inline, monoFont, stack, transition } from '#src/style/helpers';
+import { apiUrl } from '#src/utils/apiUrl';
 import {
   formatDuration,
   formatNumber,
@@ -442,13 +443,13 @@ function getFileUrl(ref: FileRef): string {
     if (ref.mimeType) {
       params.set('mimeType', ref.mimeType);
     }
-    return `/api/repo-file?${params.toString()}`;
+    return apiUrl(`/api/repo-file?${params.toString()}`);
   }
   const params = new URLSearchParams({ mimeType: ref.mimeType });
   if (ref.fileName) {
     params.set('fileName', ref.fileName);
   }
-  return `/api/artifacts/${ref.artifactId}?${params.toString()}`;
+  return apiUrl(`/api/artifacts/${ref.artifactId}?${params.toString()}`);
 }
 
 function getFileLabel(ref: FileRef): string {

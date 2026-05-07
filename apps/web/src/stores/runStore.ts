@@ -20,6 +20,7 @@ import {
 import { evalsStore, fetchEvals } from '#src/stores/evalsStore';
 import { refetchHistory } from '#src/stores/historyStore';
 import { workspaceConfigStore } from '#src/stores/workspaceConfigStore';
+import { apiUrl } from '#src/utils/apiUrl';
 
 const createRunResponseSchema = z.object({
   manifest: runManifestSchema,
@@ -167,7 +168,9 @@ function setRunSelection(selection: RunSelection | null): void {
 async function fetchCaseDetail(runId: string, caseId: string): Promise<void> {
   const fetchResult = await resultify(() =>
     fetch(
-      `/api/runs/${encodeURIComponent(runId)}/cases/${encodeURIComponent(caseId)}`,
+      apiUrl(
+        `/api/runs/${encodeURIComponent(runId)}/cases/${encodeURIComponent(caseId)}`,
+      ),
     ),
   );
   if (fetchResult.error) return;
@@ -187,7 +190,9 @@ async function fetchCaseDetail(runId: string, caseId: string): Promise<void> {
 }
 
 async function fetchRunDetail(runId: string): Promise<void> {
-  const fetchResult = await resultify(() => fetch(`/api/runs/${runId}`));
+  const fetchResult = await resultify(() =>
+    fetch(apiUrl(`/api/runs/${runId}`)),
+  );
   if (fetchResult.error) return;
   const jsonResult = await resultify(() => fetchResult.value.json());
   if (jsonResult.error) return;
@@ -339,7 +344,7 @@ export async function startRun(
   if (options.manualInputs) body.manualInputs = options.manualInputs;
 
   const fetchResult = await resultify(() =>
-    fetch('/api/runs', {
+    fetch(apiUrl('/api/runs'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -427,7 +432,7 @@ function subscribeToRunEvents(runId: string): void {
   const existing = runStore.state.eventSource;
   if (existing) existing.close();
 
-  const es = new EventSource(`/api/runs/${runId}/events`);
+  const es = new EventSource(apiUrl(`/api/runs/${runId}/events`));
   runStore.setPartialState({ eventSource: es });
 
   es.addEventListener('run.summary', (e) => {
@@ -573,7 +578,7 @@ export async function cancelRun(runId?: string): Promise<void> {
   const targetRunId = runId ?? runStore.state.currentRun?.manifest.id;
   if (!targetRunId) return;
   const cancelResult = await resultify(() =>
-    fetch(`/api/runs/${targetRunId}/cancel`, { method: 'POST' }),
+    fetch(apiUrl(`/api/runs/${targetRunId}/cancel`), { method: 'POST' }),
   );
   if (cancelResult.error) return;
 
@@ -708,17 +713,21 @@ export function setTrials(trials: number): void {
  */
 export async function clearCacheForEval(evalKey: string): Promise<void> {
   await resultify(() =>
-    fetch(`/api/cache/actions/eval?evalKey=${encodeURIComponent(evalKey)}`, {
-      method: 'DELETE',
-    }),
+    fetch(
+      apiUrl(`/api/cache/actions/eval?evalKey=${encodeURIComponent(evalKey)}`),
+      { method: 'DELETE' },
+    ),
   );
 }
 
 export async function recomputeStatusesForEval(evalId: string): Promise<void> {
   await resultify(() =>
-    fetch(`/api/runs/actions/recompute-status/${encodeURIComponent(evalId)}`, {
-      method: 'POST',
-    }),
+    fetch(
+      apiUrl(
+        `/api/runs/actions/recompute-status/${encodeURIComponent(evalId)}`,
+      ),
+      { method: 'POST' },
+    ),
   );
   closeRun();
   closeCase();
@@ -734,7 +743,9 @@ export async function updateManualScore(params: {
 }): Promise<void> {
   const result = await resultify(() =>
     fetch(
-      `/api/runs/${encodeURIComponent(params.runId)}/cases/${encodeURIComponent(params.caseId)}/manual-scores/${encodeURIComponent(params.scoreKey)}`,
+      apiUrl(
+        `/api/runs/${encodeURIComponent(params.runId)}/cases/${encodeURIComponent(params.caseId)}/manual-scores/${encodeURIComponent(params.scoreKey)}`,
+      ),
       {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -774,7 +785,9 @@ export async function recalculateDerivedAttributesForCase(params: {
 }): Promise<void> {
   const result = await resultify(() =>
     fetch(
-      `/api/runs/${encodeURIComponent(params.runId)}/cases/${encodeURIComponent(params.caseId)}/actions/recalculate-derived-attributes`,
+      apiUrl(
+        `/api/runs/${encodeURIComponent(params.runId)}/cases/${encodeURIComponent(params.caseId)}/actions/recalculate-derived-attributes`,
+      ),
       { method: 'POST' },
     ),
   );
@@ -799,7 +812,7 @@ export async function recalculateDerivedAttributesForCase(params: {
 
 export async function cleanRunsForEval(evalId: string): Promise<void> {
   await resultify(() =>
-    fetch(`/api/runs/actions/clean/${encodeURIComponent(evalId)}`, {
+    fetch(apiUrl(`/api/runs/actions/clean/${encodeURIComponent(evalId)}`), {
       method: 'POST',
     }),
   );
@@ -817,7 +830,9 @@ export async function cleanRunsForEval(evalId: string): Promise<void> {
  */
 export async function deleteRun(runId: string): Promise<void> {
   const result = await resultify(() =>
-    fetch(`/api/runs/${encodeURIComponent(runId)}`, { method: 'DELETE' }),
+    fetch(apiUrl(`/api/runs/${encodeURIComponent(runId)}`), {
+      method: 'DELETE',
+    }),
   );
   if (result.error) return;
   if (!result.value.ok) return;
@@ -842,7 +857,9 @@ export async function deleteRuns(runIds: string[]): Promise<void> {
   await Promise.all(
     Array.from(runIdSet, (runId) =>
       resultify(() =>
-        fetch(`/api/runs/${encodeURIComponent(runId)}`, { method: 'DELETE' }),
+        fetch(apiUrl(`/api/runs/${encodeURIComponent(runId)}`), {
+          method: 'DELETE',
+        }),
       ),
     ),
   );

@@ -9,6 +9,7 @@ import {
 import { resultify } from 't-result';
 import { Store } from 't-state';
 import { z } from 'zod/v4';
+import { apiUrl } from '#src/utils/apiUrl';
 
 export type PackageManager = 'npm' | 'pnpm' | 'yarn' | 'bun';
 
@@ -172,7 +173,7 @@ export function setConfigReloadState(configReload: ConfigReloadState): void {
  * UI keeps working when the server is briefly unreachable.
  */
 export async function fetchWorkspaceConfig(): Promise<void> {
-  const fetchResult = await resultify(() => fetch('/api/workspace'));
+  const fetchResult = await resultify(() => fetch(apiUrl('/api/workspace')));
   if (fetchResult.error || !fetchResult.value.ok) {
     workspaceConfigStore.setPartialState({ hasLoaded: true });
     return;

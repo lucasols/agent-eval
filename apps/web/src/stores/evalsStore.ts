@@ -7,6 +7,7 @@ import {
 import { resultify } from 't-result';
 import { Store } from 't-state';
 import { z } from 'zod/v4';
+import { apiUrl } from '#src/utils/apiUrl';
 
 const evalSummariesSchema = z.array(evalSummarySchema);
 const discoveryIssuesSchema = z.array(discoveryIssueSchema);
@@ -72,7 +73,7 @@ async function loadEvals(url: string, init?: RequestInit): Promise<void> {
 
 async function fetchDiscoveryIssues(): Promise<DiscoveryIssue[]> {
   const fetchResult = await resultify(() =>
-    fetch('/api/evals/discovery-issues'),
+    fetch(apiUrl('/api/evals/discovery-issues')),
   );
   if (fetchResult.error) return [];
   const jsonResult = await resultify(() => fetchResult.value.json());
@@ -82,13 +83,13 @@ async function fetchDiscoveryIssues(): Promise<DiscoveryIssue[]> {
 }
 
 export async function fetchEvals(): Promise<void> {
-  await loadEvals('/api/evals');
+  await loadEvals(apiUrl('/api/evals'));
 }
 
 /** Ask the server to open the eval's source file in the user's editor. */
 export async function openEvalInEditor(evalId: string): Promise<void> {
   await resultify(() =>
-    fetch(`/api/evals/${encodeURIComponent(evalId)}/open-in-editor`, {
+    fetch(apiUrl(`/api/evals/${encodeURIComponent(evalId)}/open-in-editor`), {
       method: 'POST',
     }),
   );

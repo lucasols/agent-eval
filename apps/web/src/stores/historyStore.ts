@@ -9,6 +9,7 @@ import {
 import { resultify } from 't-result';
 import { Store } from 't-state';
 import { z } from 'zod/v4';
+import { apiUrl } from '#src/utils/apiUrl';
 
 export type HistoricalRun = {
   manifest: RunManifest;
@@ -30,7 +31,7 @@ export const historyStore = new Store<HistoryState>({
 });
 
 async function fetchManifests(): Promise<RunManifest[] | null> {
-  const fetchResult = await resultify(() => fetch('/api/runs'));
+  const fetchResult = await resultify(() => fetch(apiUrl('/api/runs')));
   if (fetchResult.error) return null;
   const jsonResult = await resultify(() => fetchResult.value.json());
   if (jsonResult.error) return null;
@@ -42,7 +43,9 @@ async function fetchManifests(): Promise<RunManifest[] | null> {
 }
 
 async function fetchRunDetail(runId: string): Promise<HistoricalRun | null> {
-  const fetchResult = await resultify(() => fetch(`/api/runs/${runId}`));
+  const fetchResult = await resultify(() =>
+    fetch(apiUrl(`/api/runs/${runId}`)),
+  );
   if (fetchResult.error) return null;
   if (!fetchResult.value.ok) return null;
   const jsonResult = await resultify(() => fetchResult.value.json());

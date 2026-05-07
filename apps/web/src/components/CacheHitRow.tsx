@@ -12,6 +12,7 @@ import { Button } from '#src/components/Button';
 import { JsonViewer } from '#src/components/JsonViewer';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
+import { apiUrl } from '#src/utils/apiUrl';
 import { formatTimestamp } from '#src/utils/formatters';
 
 const Card = styled.div`
@@ -171,7 +172,9 @@ type FetchState =
   | { status: 'error'; message: string };
 
 function cacheEntryUrl(entry: CacheActivityEntry): string {
-  return `/api/cache/${encodeURIComponent(entry.namespace)}/${encodeURIComponent(entry.key)}`;
+  return apiUrl(
+    `/api/cache/${encodeURIComponent(entry.namespace)}/${encodeURIComponent(entry.key)}`,
+  );
 }
 
 function getNonNegativeCacheAge(entry: CacheActivityEntry): number | null {

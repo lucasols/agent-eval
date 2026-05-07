@@ -1,4 +1,5 @@
 import { Result, resultify } from 't-result';
+import { apiUrl } from '#src/utils/apiUrl';
 
 /**
  * Runtime value produced by the manual-input file widget. Mirrors the SDK's
@@ -38,7 +39,10 @@ export async function uploadFileAsManualInputValue(
   const formData = new FormData();
   formData.set('file', file);
   const responseResult = await resultify(() =>
-    fetch('/api/manual-input-files', { method: 'POST', body: formData }),
+    fetch(apiUrl('/api/manual-input-files'), {
+      method: 'POST',
+      body: formData,
+    }),
   );
   if (responseResult.error) return responseResult.errorResult();
 
@@ -68,7 +72,7 @@ export function getManualInputFileUrl(value: ManualInputFileValue): string {
   if (value.mimeType) {
     params.set('mimeType', value.mimeType);
   }
-  return `/api/repo-file?${params.toString()}`;
+  return apiUrl(`/api/repo-file?${params.toString()}`);
 }
 
 /** Format bytes as a human-readable string (e.g. `1.4 MB`, `820 KB`). */
