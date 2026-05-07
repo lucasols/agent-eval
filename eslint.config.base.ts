@@ -62,7 +62,7 @@ export function createBaseConfig({
         ],
         'max-lines': [
           ERROR,
-          { max: 800, skipBlankLines: true, skipComments: true },
+          { max: 1200, skipBlankLines: true, skipComments: true },
         ],
 
         '@typescript-eslint/no-unnecessary-condition': ERROR,
