@@ -486,7 +486,6 @@ const SpanName = styled.span<{ isError: boolean; isWarning: boolean }>`
   &.isError {
     color: ${colors.error.var};
   }
-
   &.isWarning {
     color: ${colors.warning.var};
   }
