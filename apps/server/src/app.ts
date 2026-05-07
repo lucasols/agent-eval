@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { logger } from 'hono/logger';
 import { assetsRoutes } from './routes/assets.ts';
 import { cacheRoutes } from './routes/cache.ts';
 import { evalsRoutes } from './routes/evals.ts';
@@ -14,6 +15,10 @@ import { workspaceRoutes } from './routes/workspace.ts';
 const baseApp = new Hono();
 
 baseApp.use('/*', cors());
+
+if (process.env.PORT === '5100') {
+  baseApp.use('/*', logger());
+}
 
 // routes must be chained in order for hono rpc to work
 const routes_ = baseApp
