@@ -15,7 +15,7 @@ type CacheKeySection = {
 };
 
 function buildLargeStableSections(): CacheKeySection[] {
-  return Array.from({ length: 48 }, (_, sectionIndex) => {
+  return Array.from({ length: 48 }, (_section, sectionIndex) => {
     const sectionNumber = sectionIndex + 1;
     return {
       sectionId: `refund-policy-section-${String(sectionNumber).padStart(2, '0')}`,
@@ -28,7 +28,7 @@ function buildLargeStableSections(): CacheKeySection[] {
           sectionNumber % 3 === 0 ? 'expedite-vip' : 'standard-routing',
         ],
       },
-      examples: Array.from({ length: 4 }, (_, exampleIndex) => ({
+      examples: Array.from({ length: 4 }, (_example, exampleIndex) => ({
         id: `example-${String(sectionNumber).padStart(2, '0')}-${String(exampleIndex + 1)}`,
         expectedAction:
           exampleIndex % 2 === 0 ? 'approve-refund' : 'request-more-context',
@@ -105,7 +105,7 @@ defineEval<LargeCacheKeyInput, LargeCacheKeyOutputs>({
       },
     );
 
-    setEvalOutput('response', String(response));
+    setEvalOutput('response', response);
     setEvalOutput(
       'keySectionCount',
       largeCacheKey.retrievalSnapshot.sections.length,

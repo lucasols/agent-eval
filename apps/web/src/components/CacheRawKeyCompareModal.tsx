@@ -33,11 +33,15 @@ import { formatTimestamp } from '#src/utils/formatters';
 
 const SelectorGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 14px;
 
-  @media (max-width: 860px) {
+  @media (max-width: 980px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (max-width: 640px) {
     grid-template-columns: 1fr;
   }
 `;
@@ -64,6 +68,22 @@ const SelectInput = styled.select`
   font-size: 12.5px;
 `;
 
+const ReadonlyValue = styled.div`
+  ${monoFont};
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid ${colors.border.var};
+  background: ${colors.bgElevated.var};
+  color: ${colors.text.var};
+  font-size: 12px;
+  line-height: 32px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
 const StatusMessage = styled.div`
   ${monoFont};
   padding: 14px;
@@ -83,6 +103,7 @@ const ErrorMessage = styled(StatusMessage)`
 const DiffHeader = styled.div`
   ${inline({ justify: 'space-between', align: 'center', gap: 12 })}
   margin: 0 0 8px;
+  flex-wrap: wrap;
 `;
 
 const DiffTitle = styled.div`
@@ -112,7 +133,27 @@ const EqualBadge = styled.span`
   font-size: 10px;
 `;
 
-const DiffPanel = styled.div`
+const DiffControls = styled.div`
+  ${inline({ align: 'center', gap: 10 })}
+  flex-wrap: wrap;
+`;
+
+const DiffControl = styled.label`
+  ${inline({ align: 'center', gap: 6 })}
+`;
+
+const DiffControlLabel = styled.span`
+  ${kicker};
+  color: ${colors.textMuted.var};
+  font-size: 9.5px;
+`;
+
+const CompactSelectInput = styled(SelectInput)`
+  width: auto;
+  min-width: 116px;
+`;
+
+const DiffPanel = styled.div<{ wrap: boolean }>`
   border: 1px solid ${colors.border.var};
   border-radius: var(--radius-md);
   overflow: auto;
@@ -122,6 +163,12 @@ const DiffPanel = styled.div`
   diffs-file-diff {
     min-width: 920px;
     font-size: 12px;
+  }
+
+  &.wrap {
+    diffs-file-diff {
+      min-width: 0;
+    }
   }
 `;
 
@@ -152,11 +199,8 @@ type CacheRawKeyCompareModalProps = {
   onClose: () => void;
 };
 
-const DIFF_OPTIONS: NonNullable<MultiFileDiffProps<undefined>['options']> = {
-  diffStyle: 'split',
-  overflow: 'wrap',
-  themeType: 'light',
-};
+type DiffStyle = 'split' | 'unified';
+type DiffOverflow = 'scroll' | 'wrap';
 
 function cacheEntryUrl(entry: CacheActivityEntry): string {
   return apiUrl(
@@ -174,6 +218,18 @@ function getRunLabel(run: {
   manifest: { shortId: string; startedAt: string; id: string };
 }): string {
   return `${run.manifest.shortId} · ${formatTimestamp(run.manifest.startedAt)}`;
+}
+
+function getCurrentRunLabel(params: {
+  runs: Array<{ manifest: { id: string; shortId: string; startedAt: string } }>;
+  currentRunId: string;
+}): string {
+  const currentRun = params.runs.find(
+    (run) => run.manifest.id === params.currentRunId,
+  );
+  return currentRun === undefined
+    ? params.currentRunId
+    : getRunLabel(currentRun);
 }
 
 function getCaseLabel(caseRow: CaseRow): string {
@@ -311,6 +367,8 @@ export function CacheRawKeyCompareModal({
   const [selectedCacheEntryId, setSelectedCacheEntryId] = useState<
     string | null
   >(null);
+  const [diffStyle, setDiffStyle] = useState<DiffStyle>('split');
+  const [diffOverflow, setDiffOverflow] = useState<DiffOverflow>('scroll');
   const [caseDetailState, setCaseDetailState] = useState<CaseDetailState>({
     status: 'idle',
   });
@@ -416,6 +474,21 @@ export function CacheRawKeyCompareModal({
           cacheKey: `current:${currentEntry.namespace}:${currentEntry.key}:${currentRawKeyJson.length}`,
         };
   const selectedComparisonEntryId = selectedComparisonEntry?.id ?? '';
+  const currentRunLabel = getCurrentRunLabel({
+    runs: runOptions,
+    currentRunId,
+  });
+  const diffOptions: NonNullable<MultiFileDiffProps<undefined>['options']> =
+    useMemo(
+      () => ({
+        diffStyle,
+        overflow: diffOverflow,
+        themeType: 'light',
+        lineDiffType: 'word',
+        collapsedContextThreshold: 6,
+      }),
+      [diffOverflow, diffStyle],
+    );
 
   function handleRunChange(nextRunId: string) {
     const nextRun = runOptions.find((run) => run.manifest.id === nextRunId);
@@ -453,7 +526,13 @@ export function CacheRawKeyCompareModal({
     >
       <SelectorGrid>
         <Field>
-          <FieldLabel>Run</FieldLabel>
+          <FieldLabel>Current run</FieldLabel>
+          <ReadonlyValue title={currentRunLabel}>
+            {currentRunLabel}
+          </ReadonlyValue>
+        </Field>
+        <Field>
+          <FieldLabel>Comparison run</FieldLabel>
           <SelectInput
             value={effectiveRunId}
             disabled={runOptions.length === 0}
@@ -560,12 +639,44 @@ export function CacheRawKeyCompareModal({
             {currentRawKeyJson === comparisonRawKeyJson ? (
               <EqualBadge>Identical</EqualBadge>
             ) : null}
+            <DiffControls>
+              <DiffControl>
+                <DiffControlLabel>Style</DiffControlLabel>
+                <CompactSelectInput
+                  value={diffStyle}
+                  onChange={(event) =>
+                    setDiffStyle(
+                      event.currentTarget.value === 'unified'
+                        ? 'unified'
+                        : 'split',
+                    )
+                  }
+                >
+                  <option value="split">Split</option>
+                  <option value="unified">Unified</option>
+                </CompactSelectInput>
+              </DiffControl>
+              <DiffControl>
+                <DiffControlLabel>Overflow</DiffControlLabel>
+                <CompactSelectInput
+                  value={diffOverflow}
+                  onChange={(event) =>
+                    setDiffOverflow(
+                      event.currentTarget.value === 'wrap' ? 'wrap' : 'scroll',
+                    )
+                  }
+                >
+                  <option value="scroll">Scroll</option>
+                  <option value="wrap">Wrap</option>
+                </CompactSelectInput>
+              </DiffControl>
+            </DiffControls>
           </DiffHeader>
-          <DiffPanel>
+          <DiffPanel wrap={diffOverflow === 'wrap'}>
             <MultiFileDiff
               oldFile={comparisonFile}
               newFile={currentFile}
-              options={DIFF_OPTIONS}
+              options={diffOptions}
               disableWorkerPool
             />
           </DiffPanel>
