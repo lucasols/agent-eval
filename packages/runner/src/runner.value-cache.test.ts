@@ -203,6 +203,9 @@ test('caches values without creating a cache span and replays SDK effects', asyn
         timeout: 10_000,
       })
       .toBe('completed');
+    expect(runner.getRun(firstRun.manifest.id)?.cases).toEqual([
+      expect.objectContaining({ cacheHits: 0, cacheOperations: 2 }),
+    ]);
 
     const firstDetail = runner.getCaseDetail(firstRun.manifest.id, 'first');
     const firstTrace = firstDetail?.trace ?? [];
@@ -266,6 +269,9 @@ test('caches values without creating a cache span and replays SDK effects', asyn
         timeout: 10_000,
       })
       .toBe('completed');
+    expect(runner.getRun(secondRun.manifest.id)?.cases).toEqual([
+      expect.objectContaining({ cacheHits: 2, cacheOperations: 2 }),
+    ]);
 
     const secondDetail = runner.getCaseDetail(secondRun.manifest.id, 'first');
     const secondTrace = secondDetail?.trace ?? [];

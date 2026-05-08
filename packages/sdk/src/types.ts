@@ -482,13 +482,15 @@ type EvalDefinitionBase<
    * Opt-in: when omitted (or empty) the EvalCard renders no stats row at all.
    * When provided, the stats render in order, left to right.
    *
-   * Built-in kinds (`cases`, `passRate`, `duration`, `cost`) read from the
-   * latest run summary. `kind: 'column'` aggregates a score or numeric output
-   * column across the latest run's cases — `key` must match one of the eval's
-   * score or column keys, and only finite numeric values participate in the
-   * reduction. When no case has a numeric value for the key the stat renders
-   * an em dash, or hides when `hideIfNoValue` is true. `label`, `format`, and
-   * `numberFormat` default to the matching `ColumnDef`.
+   * Built-in kinds (`cases`, `passRate`, `duration`, `cacheHits`) read from
+   * the latest run summary. `cacheHits` counts Agent Eval operation-level cache
+   * hits over total cache operations, not LLM provider prompt-cache read
+   * tokens. `kind: 'column'` aggregates a score or numeric output column across
+   * the latest run's cases — `key` must match one of the eval's score or column
+   * keys, and only finite numeric values participate in the reduction. When no
+   * case has a numeric value for the key the stat renders an em dash, or hides
+   * when `hideIfNoValue` is true. `label`, `format`, and `numberFormat` default
+   * to the matching `ColumnDef`.
    */
   stats?: EvalStatsConfig;
   /**

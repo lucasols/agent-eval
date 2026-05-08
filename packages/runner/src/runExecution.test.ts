@@ -493,10 +493,72 @@ test('runCase stores manual and console logs with phase metadata', async () => {
     expect(entry.location?.file).toContain('runExecution.test.ts');
     expect(typeof entry.location?.line).toBe('number');
     expect(typeof entry.location?.column).toBe('number');
+    expect(entry.location?.stack).toContain('runExecution.test.ts');
   }
   for (const entry of result.caseDetail.logs) {
     expect(entry.timestamp).toEqual(expect.any(String));
   }
+});
+
+test('runCase uses the first user frame when log stacks include packaged dist frames', async () => {
+  const originalPrepareStackTraceDescriptor = Object.getOwnPropertyDescriptor(
+    Error,
+    'prepareStackTrace',
+  );
+  const stack = [
+    'Error',
+    '    at getLogLocation (/repo/node_modules/@ls-stack/agent-eval/dist/runOrchestration-BFdxG9ws.mjs:2806:33)',
+    '    at recordEvalLog (/repo/node_modules/@agent-evals/sdk/dist/index.mjs:322:19)',
+    '    at Object.execute (/repo/evals/support/logs.eval.ts:12:5)',
+  ].join('\n');
+
+  Error.prepareStackTrace = () => stack;
+
+  let result: Awaited<ReturnType<typeof runCase>> | undefined = undefined;
+  try {
+    result = await runCase({
+      evalDef: {
+        id: 'dist-log-location-eval',
+        cases: [{ id: 'case-one', input: {} }],
+        execute: () => {
+          evalLog('info', 'manual entry');
+        },
+      },
+      evalId: 'dist-log-location-eval',
+      evalCase: { id: 'case-one', input: {} },
+      globalTraceDisplay: undefined,
+      trial: 0,
+      startTime: Date.now(),
+      cacheAdapter: null,
+      cacheMode: 'use',
+      moduleIsolation: undefined,
+      evalFilePath: '/repo/evals/support/logs.eval.ts',
+      workspaceRoot: '/repo',
+      artifactDir: '/repo/.agent-evals/runs/run-id/artifacts',
+      runId: 'run-id',
+    });
+  } finally {
+    if (originalPrepareStackTraceDescriptor) {
+      Object.defineProperty(
+        Error,
+        'prepareStackTrace',
+        originalPrepareStackTraceDescriptor,
+      );
+    } else {
+      Object.defineProperty(Error, 'prepareStackTrace', {
+        configurable: true,
+        value: undefined,
+        writable: true,
+      });
+    }
+  }
+
+  expect(result.caseDetail.logs[0]?.location).toEqual({
+    file: '/repo/evals/support/logs.eval.ts',
+    line: 12,
+    column: 5,
+    stack,
+  });
 });
 
 test('console capture can be disabled without disabling evalLog', async () => {

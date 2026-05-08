@@ -57,6 +57,8 @@ function createScopedRun(params: {
       runningCases: 0,
       pendingCases: 0,
       totalDurationMs: 1,
+      cacheHits: 0,
+      cacheOperations: 0,
     },
     cases: [
       {

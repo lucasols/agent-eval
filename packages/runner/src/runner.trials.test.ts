@@ -145,6 +145,8 @@ describe('runner trial selection', () => {
         caseId: 'damaged-order',
         evalId: 'trial-selection-eval',
         columns: { quality: 0.22 },
+        cacheHits: 0,
+        cacheOperations: 1,
         trial: 1,
       });
 
@@ -170,6 +172,9 @@ describe('runner trial selection', () => {
           timeout: 10_000,
         })
         .toBe('completed');
+      expect(runner.getRun(secondRun.manifest.id)?.cases).toEqual([
+        expect.objectContaining({ cacheHits: 1, cacheOperations: 1 }),
+      ]);
 
       const secondDetail = runner.getCaseDetail(
         secondRun.manifest.id,

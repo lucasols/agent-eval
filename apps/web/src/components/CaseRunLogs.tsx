@@ -1,14 +1,14 @@
 import type { RunLogEntry, RunLogPhase } from '@agent-evals/shared';
-import { ChevronDown, ChevronRight, SquareArrowOutUpRight } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
-import { resultify } from 't-result';
 import { styled } from 'vindur';
-import { IconButton } from '#src/components/IconButton';
 import { JsonViewer } from '#src/components/JsonViewer';
-import { Tooltip } from '#src/components/Tooltip';
+import {
+  formatShortStackLocation,
+  StackTraceViewer,
+} from '#src/components/StackTraceViewer';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
-import { apiUrl } from '#src/utils/apiUrl';
 
 const LogToolbar = styled.div`
   ${inline({ justify: 'space-between', align: 'center', gap: 10 })}
@@ -200,12 +200,9 @@ const DetailValue = styled.span`
   color: ${colors.text.var};
 `;
 
-const LocationDetailValue = styled.span`
-  ${monoFont};
-  font-size: 11px;
-  color: ${colors.text.var};
+const LocationDetailValue = styled.div`
   min-width: 0;
-  word-break: break-all;
+  flex: 1 1 auto;
 `;
 
 const TruncatedTag = styled.span`
@@ -222,8 +219,6 @@ const LOG_PHASE_LABELS: Record<RunLogPhase, string> = {
   scorer: 'Scorer',
 };
 const collapsedPreviewMaxChars = 220;
-const importQuerySeparatorRegex = /[?#]/;
-const trailingSlashRegex = /\/$/;
 
 export function getLogPhases(logs: { phase: RunLogPhase }[]): RunLogPhase[] {
   const order: RunLogPhase[] = ['eval', 'derive', 'outputsSchema', 'scorer'];
@@ -315,7 +310,7 @@ function LogEntry({
             </LogPhaseTag>
             {normalizedLocation ? (
               <LocationTag>
-                {formatShortLocation(normalizedLocation)}
+                {formatShortStackLocation(normalizedLocation)}
               </LocationTag>
             ) : null}
             {entry.truncated ? <TruncatedTag>truncated</TruncatedTag> : null}
@@ -343,18 +338,13 @@ function LogEntry({
               <LocationDetailItem>
                 <DetailLabel>location</DetailLabel>
                 <LocationDetailValue>
-                  {formatFullLocation(normalizedLocation, workspaceRoot)}
+                  <StackTraceViewer
+                    stack={normalizedLocation.stack}
+                    primaryLocation={normalizedLocation}
+                    workspaceRoot={workspaceRoot}
+                    openButtonLabel="Open log location in editor"
+                  />
                 </LocationDetailValue>
-                <Tooltip content="Open in editor">
-                  <IconButton
-                    aria-label="Open log location in editor"
-                    onClick={() => {
-                      void openLogLocationInEditor(normalizedLocation);
-                    }}
-                  >
-                    <SquareArrowOutUpRight />
-                  </IconButton>
-                </Tooltip>
               </LocationDetailItem>
             ) : null}
           </DetailRow>
@@ -377,58 +367,10 @@ function LogEntry({
   );
 }
 
-async function openLogLocationInEditor(
-  location: NonNullable<RunLogEntry['location']>,
-): Promise<void> {
-  await resultify(() =>
-    fetch(apiUrl('/api/runs/actions/open-location'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(location),
-    }),
-  );
-}
-
 function normalizeLogLocation(
   location: NonNullable<RunLogEntry['location']>,
 ): NonNullable<RunLogEntry['location']> {
-  return { ...location, file: stripImportQuery(location.file) };
-}
-
-function stripImportQuery(file: string): string {
-  return file.split(importQuerySeparatorRegex, 1)[0] ?? file;
-}
-
-function formatShortLocation(location: RunLogEntry['location']): string {
-  if (location === undefined) return '';
-  const fileName = location.file.split('/').at(-1) ?? location.file;
-  return `${fileName}:${String(location.line)}`;
-}
-
-function formatFullLocation(
-  location: RunLogEntry['location'],
-  workspaceRoot: string,
-): string {
-  if (location === undefined) return '';
-  const file = formatWorkspaceRelativeFile(location.file, workspaceRoot);
-  return `${file}:${String(location.line)}:${String(location.column)}`;
-}
-
-function formatWorkspaceRelativeFile(
-  file: string,
-  workspaceRoot: string,
-): string {
-  if (workspaceRoot.length === 0) return file;
-  const normalizedFile = file.replaceAll('\\', '/');
-  const normalizedRoot = workspaceRoot
-    .replaceAll('\\', '/')
-    .replace(trailingSlashRegex, '');
-  if (normalizedFile === normalizedRoot) return '.';
-  const rootPrefix = `${normalizedRoot}/`;
-  if (normalizedFile.startsWith(rootPrefix)) {
-    return normalizedFile.slice(rootPrefix.length);
-  }
-  return file;
+  return location;
 }
 
 function summarizeLogMessage(message: string): string {

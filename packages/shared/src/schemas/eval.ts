@@ -37,6 +37,8 @@ const hideIfNoValueShape = {
 
 /**
  * One entry in the EvalCard stats row. Built-in kinds use latest run totals;
+ * `cacheHits` counts Agent Eval operation-level cache hits from spans and
+ * `evalTracer.cache(...)` refs, not LLM provider prompt-cache read tokens.
  * `column` aggregates a score or numeric output column across the latest run.
  */
 export const evalStatItemSchema = z.discriminatedUnion('kind', [
@@ -47,6 +49,7 @@ export const evalStatItemSchema = z.discriminatedUnion('kind', [
     ...hideIfNoValueShape,
   }),
   z.object({ kind: z.literal('duration'), ...hideIfNoValueShape }),
+  z.object({ kind: z.literal('cacheHits'), ...hideIfNoValueShape }),
   z.object({
     kind: z.literal('column'),
     key: z.string(),
@@ -139,6 +142,23 @@ export const caseRowSchema = z.object({
   status: z.enum(['pending', 'running', 'pass', 'fail', 'error', 'cancelled']),
   /** Elapsed case execution duration in milliseconds, or null before completion. */
   durationMs: z.number().nullable(),
+  /**
+   * Agent Eval operation-level cache hits recorded for this case.
+   *
+   * This counts persisted operation cache hits from spans and
+   * `evalTracer.cache(...)` refs. It does not count LLM provider prompt-cache
+   * read tokens such as `cachedInputTokens`. Older run artifacts may omit it
+   * and should be treated as zero by aggregate readers.
+   */
+  cacheHits: z.number().optional(),
+  /**
+   * Agent Eval operation-level cache activity entries recorded for this case.
+   *
+   * This is the denominator for `cacheHits`, counting hits plus misses and
+   * refreshes that appear in the Cache tab. Older run artifacts may omit it
+   * and should be treated as zero by aggregate readers.
+   */
+  cacheOperations: z.number().optional(),
   costUsd: z.number().nullable().optional(),
   columns: z.record(z.string(), cellValueSchema),
   /** Winning trial index for the persisted case result. */
@@ -190,8 +210,14 @@ export const runLogLocationSchema = z.object({
   line: z.number(),
   /** 1-based source column reported by the JavaScript stack frame. */
   column: z.number(),
+  /**
+   * Full JavaScript stack captured when the log was emitted.
+   *
+   * Older run artifacts may only include the primary file, line, and column.
+   */
+  stack: z.string().optional(),
 });
-/** Best-effort source location for one captured case log. */
+/** Best-effort source location and captured stack for one case log. */
 export type RunLogLocation = z.infer<typeof runLogLocationSchema>;
 
 /** Schema for one persisted log entry captured during a case run. */

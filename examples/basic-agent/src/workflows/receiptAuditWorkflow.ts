@@ -79,9 +79,26 @@ export async function runReceiptAuditWorkflow(
       async () => {
         await waitForWorkflowDelay('compareClaimAgainstReceipt');
 
+        const messages = [
+          {
+            role: 'system',
+            content:
+              'You audit refund claims against receipt evidence.\n  - Verify the claimed item and total.\n  - Report any mismatched line items.',
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: `<receipt-claim>\n  <order-id>${input.orderId}</order-id>\n  <customer-message>${input.customerMessage}</customer-message>\n  <expected-total-usd>${String(receiptContext.expectedTotalUsd)}</expected-total-usd>\n</receipt-claim>`,
+              },
+            ],
+          },
+        ];
+
         evalSpan.setAttributes({
           input: {
-            customerMessage: input.customerMessage,
+            messages,
             expectedTotalUsd: receiptContext.expectedTotalUsd,
           },
           model: 'gpt-4o-mini',

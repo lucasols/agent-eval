@@ -331,6 +331,7 @@ defineEval({
   stats: [
     { kind: 'cases' },
     { kind: 'passRate', accent: true },
+    { kind: 'cacheHits', hideIfNoValue: true },
     {
       kind: 'column',
       key: 'accuracy',
@@ -358,6 +359,7 @@ defineEval({
       expect(runner.getEval('stats-eval')?.stats).toEqual([
         { kind: 'cases' },
         { kind: 'passRate', accent: true },
+        { kind: 'cacheHits', hideIfNoValue: true },
         {
           kind: 'column',
           key: 'accuracy',

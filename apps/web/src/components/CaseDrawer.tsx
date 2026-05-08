@@ -16,8 +16,11 @@ import { ApiCallRow } from '#src/components/ApiCallRow';
 import { CacheHitRow } from '#src/components/CacheHitRow';
 import { CaseRunLogs, getLogPhases } from '#src/components/CaseRunLogs';
 import { CaseScores } from '#src/components/CaseScores';
-import { CollapsibleDetails } from '#src/components/CollapsibleDetails';
 import { EmptyState } from '#src/components/EmptyState';
+import {
+  ErrorDetails,
+  type ErrorDetailItem,
+} from '#src/components/ErrorDetails';
 import {
   FormattedCellValue,
   hasRichColumnFormat,
@@ -231,26 +234,6 @@ const OutputContent = styled.div`
   color: ${colors.text.var};
 `;
 
-const ErrorContainer = styled.div`
-  color: ${colors.error.var};
-`;
-
-const ErrorTitle = styled.div`
-  font-weight: 600;
-  margin-bottom: 8px;
-`;
-
-const ErrorStack = styled.pre`
-  ${monoFont};
-  font-size: 11px;
-  white-space: pre-wrap;
-  opacity: 0.8;
-  background: ${colors.surface.var};
-  border: 1px solid ${colors.border.var};
-  border-radius: var(--radius-sm);
-  padding: 10px;
-`;
-
 const RawSections = styled.div`
   ${stack({ gap: 14 })}
 `;
@@ -293,31 +276,6 @@ const ScoringTraceTitle = styled.div`
   font-size: 12.5px;
   font-weight: 600;
   color: ${colors.text.var};
-`;
-
-const FailureList = styled.ul`
-  ${stack({ gap: 10 })}
-  list-style: none;
-  padding: 0;
-  margin: 0;
-`;
-
-const FailureItem = styled.li`
-  ${stack({ gap: 6 })}
-  padding: 12px;
-  background: ${colors.bg.var};
-  border: 1px solid ${colors.border.var};
-  border-radius: var(--radius-md);
-`;
-
-const FailureMessage = styled.div`
-  color: ${colors.error.var};
-  font-size: 12.5px;
-  line-height: 1.5;
-`;
-
-const FailureName = styled.span`
-  font-weight: 600;
 `;
 
 const LlmCallsList = styled.div`
@@ -764,40 +722,32 @@ export function CaseDrawer() {
         ) : null}
 
         {activeTab === 'failures' ? (
-          <FailureList>
-            {d.assertionFailures.map((failure, i) => (
-              <FailureItem key={`${failure.message}-${String(i)}`}>
-                <FailureMessage>
-                  {failure.name !== undefined ? (
-                    <>
-                      <FailureName>{failure.name}:</FailureName>{' '}
-                      {failure.message}
-                    </>
-                  ) : (
-                    failure.message
-                  )}
-                </FailureMessage>
-                {failure.stack ? (
-                  <CollapsibleDetails>
-                    <ErrorStack>{failure.stack}</ErrorStack>
-                  </CollapsibleDetails>
-                ) : null}
-              </FailureItem>
-            ))}
-          </FailureList>
+          <ErrorDetails
+            label={
+              d.assertionFailures.length === 1
+                ? 'Assertion failure'
+                : 'Assertion failures'
+            }
+            errors={d.assertionFailures.map((failure, index) =>
+              toFailureDetailItem(failure, index),
+            )}
+          />
         ) : null}
 
         {activeTab === 'error' && d.error ? (
-          <ErrorContainer>
-            <ErrorTitle>
-              {d.error.name ?? 'Error'}: {d.error.message}
-            </ErrorTitle>
-            {d.error.stack ? (
-              <CollapsibleDetails>
-                <ErrorStack>{d.error.stack}</ErrorStack>
-              </CollapsibleDetails>
-            ) : null}
-          </ErrorContainer>
+          <ErrorDetails
+            label="Case error"
+            errors={[
+              {
+                id: 'case-error',
+                name: d.error.name,
+                message: d.error.message,
+                meta: undefined,
+                stack: d.error.stack,
+                attributes: undefined,
+              },
+            ]}
+          />
         ) : null}
       </TabContent>
     </DrawerRoot>
@@ -806,6 +756,20 @@ export function CaseDrawer() {
 
 const hasRenderableOutputValue = (value: CellValue | undefined): boolean =>
   value !== undefined && value !== null;
+
+function toFailureDetailItem(
+  failure: { name?: string | undefined; message: string; stack?: string },
+  index: number,
+): ErrorDetailItem {
+  return {
+    id: `failure-${String(index)}-${failure.message}`,
+    name: failure.name,
+    message: failure.message,
+    meta: undefined,
+    stack: failure.stack,
+    attributes: undefined,
+  };
+}
 
 function orderOutputColumnDefs(
   columnDefs: ColumnDef[],

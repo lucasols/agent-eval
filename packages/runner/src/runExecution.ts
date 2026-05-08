@@ -31,6 +31,7 @@ import type {
 import {
   buildCaseKey,
   applyDerivedCallAttributes,
+  extractCacheEntries,
   resolveApiCallsConfig,
   resolveLlmCallsConfig,
 } from '@agent-evals/shared';
@@ -507,11 +508,15 @@ export async function runCase<
   }
 
   const elapsedMs = Date.now() - startTime;
+  const cacheEntries = extractCacheEntries(displayTrace, scope.caseCacheRefs);
+  const cacheHits = cacheEntries.filter((entry) => entry.status === 'hit');
 
   const caseRowUpdate: Partial<CaseRow> = {
     tags: evalCase.tags ?? [],
     status,
     durationMs: elapsedMs,
+    cacheHits: cacheHits.length,
+    cacheOperations: cacheEntries.length,
     columns,
   };
 

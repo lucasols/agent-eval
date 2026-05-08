@@ -62,6 +62,19 @@ export function computeStatDisplay(
       accent: false,
     };
   }
+  if (stat.kind === 'cacheHits') {
+    const s = ctx.latestSummary;
+    return {
+      label: 'Cache hits',
+      aggregateLabel: undefined,
+      value:
+        s !== null && s.cacheOperations > 0
+          ? `${String(s.cacheHits)}/${String(s.cacheOperations)}`
+          : EM_DASH,
+      hasValue: s !== null && s.cacheOperations > 0,
+      accent: false,
+    };
+  }
   return computeColumnStat(stat, ctx);
 }
 

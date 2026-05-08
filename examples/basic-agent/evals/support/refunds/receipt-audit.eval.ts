@@ -48,6 +48,11 @@ defineEval<ReceiptAuditInput>({
       numberFormat: { prefix: '$', minDecimalPlaces: 4, maxDecimalPlaces: 4 },
     },
   },
+  stats: [
+    { kind: 'cases' },
+    { kind: 'passRate', accent: true },
+    { kind: 'duration' },
+  ],
   traceDisplay: sharedTraceDisplay,
   execute: async ({ input }) => {
     await evalTracer.cache(

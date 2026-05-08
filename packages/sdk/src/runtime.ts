@@ -571,10 +571,14 @@ function normalizeStackFile(value: string): string {
 }
 
 function isInternalLogFrame(file: string): boolean {
+  const normalizedFile = file.replaceAll('\\', '/');
   return (
-    file.includes('/packages/sdk/src/runtime.ts') ||
-    file.includes('/node:internal/') ||
-    file.startsWith('node:internal/')
+    normalizedFile.includes('/packages/sdk/src/runtime.ts') ||
+    normalizedFile.includes('/packages/sdk/dist/') ||
+    normalizedFile.includes('/node_modules/@agent-evals/sdk/dist/') ||
+    normalizedFile.includes('/node_modules/@ls-stack/agent-eval/dist/') ||
+    normalizedFile.includes('/node:internal/') ||
+    normalizedFile.startsWith('node:internal/')
   );
 }
 
@@ -600,7 +604,7 @@ function getLogLocation(): RunLogLocation | undefined {
   for (const line of stack.split('\n').slice(1)) {
     const location = parseStackFrameLocation(line);
     if (location === null || isInternalLogFrame(location.file)) continue;
-    return location;
+    return { ...location, stack };
   }
   return undefined;
 }

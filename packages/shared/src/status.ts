@@ -29,6 +29,21 @@ export type ScopedCaseSummary = {
   pendingCases: number;
   runningCases: number;
   totalDurationMs: number | null;
+  /**
+   * Sum of Agent Eval operation-level cache hits across the scoped case rows.
+   *
+   * Missing values from older run artifacts count as zero. This is separate
+   * from LLM prompt-cache token reads such as `cachedInputTokens`.
+   */
+  cacheHits: number;
+  /**
+   * Sum of Agent Eval operation-level cache activity entries across the scoped
+   * case rows.
+   *
+   * This is the denominator for `cacheHits`. Missing values from older run
+   * artifacts count as zero.
+   */
+  cacheOperations: number;
 };
 
 type RunLifecycleStatus = RunManifest['status'] | null | undefined;
@@ -118,6 +133,8 @@ export function deriveScopedSummaryFromCases(params: {
 
   let totalDurationMs = 0;
   let hasDuration = false;
+  let cacheHits = 0;
+  let cacheOperations = 0;
 
   for (const caseRow of caseRows) {
     if (caseRow.status === 'pass') passedCases += 1;
@@ -131,6 +148,8 @@ export function deriveScopedSummaryFromCases(params: {
       totalDurationMs += caseRow.durationMs;
       hasDuration = true;
     }
+    cacheHits += caseRow.cacheHits ?? 0;
+    cacheOperations += caseRow.cacheOperations ?? 0;
   }
 
   return {
@@ -146,5 +165,7 @@ export function deriveScopedSummaryFromCases(params: {
     pendingCases,
     runningCases,
     totalDurationMs: hasDuration ? totalDurationMs : null,
+    cacheHits,
+    cacheOperations,
   };
 }

@@ -631,6 +631,8 @@ export async function executeRun({
                           tags: caseDetail.tags,
                           status: caseRowUpdate.status ?? 'pending',
                           durationMs: caseRowUpdate.durationMs ?? null,
+                          cacheHits: caseRowUpdate.cacheHits ?? 0,
+                          cacheOperations: caseRowUpdate.cacheOperations ?? 0,
                           columns: caseRowUpdate.columns ?? {},
                           trial,
                         },

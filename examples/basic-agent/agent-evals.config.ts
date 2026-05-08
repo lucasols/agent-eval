@@ -33,6 +33,7 @@ export const config: AgentEvalsConfig = {
     toolCalls: ({ trace }) => trace.findSpansByKind('tool').length,
     llmTurns: ({ trace }) => trace.findSpansByKind('llm').length,
   },
+  stats: [{ kind: 'cacheHits' }],
   llmCalls: {
     derivedAttributes: ({ get }) => {
       const inputTokens = get('usage.inputTokens');

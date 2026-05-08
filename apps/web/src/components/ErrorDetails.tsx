@@ -1,6 +1,8 @@
 import { styled } from 'vindur';
 import { CollapsibleDetails } from '#src/components/CollapsibleDetails';
 import { JsonViewer } from '#src/components/JsonViewer';
+import { StackTraceViewer } from '#src/components/StackTraceViewer';
+import { workspaceConfigStore } from '#src/stores/workspaceConfigStore';
 import { colors } from '#src/style/colors';
 import { kicker, monoFont, stack } from '#src/style/helpers';
 
@@ -64,17 +66,6 @@ const ErrorItemRoot = styled.div<{ warning: boolean }>`
   }
 `;
 
-const ErrorStack = styled.pre`
-  ${monoFont};
-  font-size: 10px;
-  max-width: 100%;
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-  opacity: 0.8;
-  margin: 0;
-`;
-
 const JsonSectionRoot = styled.div`
   ${stack({ gap: 6 })}
 `;
@@ -103,6 +94,9 @@ export function ErrorDetails({
   tone?: ErrorDetailTone;
 }) {
   const isWarning = tone === 'warning';
+  const { workspaceRoot } = workspaceConfigStore.useSelectorRC((s) => ({
+    workspaceRoot: s.workspaceRoot,
+  }));
 
   return (
     <ErrorContainer warning={isWarning}>
@@ -120,17 +114,18 @@ export function ErrorDetails({
           {error.meta !== undefined ? (
             <ErrorMeta warning={isWarning}>{error.meta}</ErrorMeta>
           ) : null}
-          {error.stack !== undefined || error.attributes !== undefined ? (
+          {error.stack !== undefined ? (
+            <StackTraceViewer
+              stack={error.stack}
+              workspaceRoot={workspaceRoot}
+            />
+          ) : null}
+          {error.attributes !== undefined ? (
             <CollapsibleDetails>
-              {error.stack !== undefined ? (
-                <ErrorStack>{error.stack}</ErrorStack>
-              ) : null}
-              {error.attributes !== undefined ? (
-                <JsonSection
-                  label="Attributes"
-                  data={error.attributes}
-                />
-              ) : null}
+              <JsonSection
+                label="Attributes"
+                data={error.attributes}
+              />
             </CollapsibleDetails>
           ) : null}
         </ErrorItemRoot>

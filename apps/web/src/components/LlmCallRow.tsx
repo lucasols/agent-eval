@@ -6,9 +6,10 @@ import {
   type ResolvedLlmCallCostCurrency,
   type ResolvedLlmCallPricing,
 } from '@agent-evals/shared';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Maximize2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { styled } from 'vindur';
+import { IconButton } from '#src/components/IconButton';
 import { JsonViewer } from '#src/components/JsonViewer';
 import {
   buildLlmCallBreakdownItems,
@@ -16,6 +17,7 @@ import {
 } from '#src/components/LlmCallBreakdownTable';
 import { formatCostScenarioLabel } from '#src/components/LlmCostScenarioToolbar';
 import { StatusBadge } from '#src/components/StatusBadge';
+import { TextViewModal } from '#src/components/TextViewModal';
 import { Tooltip } from '#src/components/Tooltip';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
@@ -26,6 +28,7 @@ import {
   LLM_CALL_EM_DASH,
   LLM_CALL_USD_COST_NUMBER_FORMAT,
 } from '#src/utils/llmCallTokenFormat';
+import { getSimplifiedLlmMessages } from '#src/utils/llmMessages';
 
 const Card = styled.div`
   ${stack({ gap: 0 })}
@@ -175,6 +178,40 @@ const RawLabel = styled.div`
   margin-bottom: 8px;
 `;
 
+const MessagesWrapper = styled.div`
+  ${stack({ gap: 8 })}
+`;
+
+const MessageCard = styled.div`
+  ${stack({ gap: 7 })}
+  border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-sm);
+  background: ${colors.surface.var};
+  padding: 9px 10px;
+`;
+
+const MessageHeader = styled.div`
+  ${inline({ justify: 'space-between', align: 'center', gap: 8 })}
+`;
+
+const MessageRole = styled.div`
+  ${kicker};
+  color: ${colors.accentDim.var};
+  font-size: 9.5px;
+`;
+
+const MessageText = styled.pre`
+  ${monoFont};
+  margin: 0;
+  color: ${colors.text.var};
+  font-size: 11px;
+  line-height: 1.55;
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+`;
+
 const MetricsSection = styled.div`
   ${stack({ gap: 6 })}
 `;
@@ -287,6 +324,61 @@ function RawSection({ label, data }: { label: string; data: unknown }) {
         collapsed={6}
       />
     </RawSectionWrapper>
+  );
+}
+
+function MessagesSection({ input }: { input: unknown }) {
+  const [selectedMessage, setSelectedMessage] = useState<{
+    role: string;
+    text: string;
+    index: number;
+  } | null>(null);
+  const messages = getSimplifiedLlmMessages(input);
+  if (messages.length === 0) return null;
+
+  return (
+    <>
+      <RawSectionWrapper>
+        <RawLabel>Messages</RawLabel>
+        <MessagesWrapper>
+          {messages.map((message, index) => (
+            <MessageCard key={`${message.role}-${String(index)}`}>
+              <MessageHeader>
+                <MessageRole>{message.role}</MessageRole>
+                <Tooltip content="View full message">
+                  <IconButton
+                    aria-label="View full message"
+                    onClick={() =>
+                      setSelectedMessage({
+                        role: message.role,
+                        text: message.text,
+                        index,
+                      })
+                    }
+                  >
+                    <Maximize2 />
+                  </IconButton>
+                </Tooltip>
+              </MessageHeader>
+              <MessageText>
+                {message.text.length > 0 ? message.text : LLM_CALL_EM_DASH}
+              </MessageText>
+            </MessageCard>
+          ))}
+        </MessagesWrapper>
+      </RawSectionWrapper>
+
+      {selectedMessage !== null ? (
+        <TextViewModal
+          key={`${selectedMessage.role}-${String(selectedMessage.index)}`}
+          isOpen
+          title="LLM message"
+          subtitle={selectedMessage.role}
+          text={selectedMessage.text}
+          onClose={() => setSelectedMessage(null)}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -654,6 +746,10 @@ export function LlmCallRow({
                 <ErrorStack>{entry.error.stack}</ErrorStack>
               ) : null}
             </ErrorContainer>
+          ) : null}
+
+          {entry.input !== undefined ? (
+            <MessagesSection input={entry.input} />
           ) : null}
         </Body>
       ) : null}

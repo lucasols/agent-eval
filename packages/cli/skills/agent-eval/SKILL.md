@@ -400,11 +400,17 @@ cacheCreationInputTokens` so cache details are not double-counted.
 - `runLogs` (in `agent-evals.config.ts`) controls case log capture. Use
   `runLogs: { captureConsole: false }` to keep console output in the terminal
   without persisting console calls to case details. Manual `evalLog(...)` calls
-  are still captured.
+  are still captured. Captured log locations store the selected user-facing
+  source frame and the full JavaScript stack so agents can inspect additional
+  frames in persisted artifacts when diagnosing where a log came from.
 
 Stats rows and history charts can be authored via `stats` / `charts` on the eval
 definition. Global `stats` in `agent-evals.config.ts` combine with eval-level
-stats. Usage stats and LLM usage charts are added by default unless removed with
+stats. Native stat kinds include `cases`, `passRate`, `duration`, and
+`cacheHits`; `cacheHits` shows Agent Eval operation-level cache hits over total
+cache operations (`hits/total`) from spans and `evalTracer.cache(...)` refs, not
+LLM provider prompt-cache read tokens such as `cachedInputTokens`. Usage stats
+and LLM usage charts are added by default unless removed with
 `removeDefaultConfig`. Column stats can override `format` and `numberFormat`,
 otherwise they inherit from the matching column. Number formats use
 `maxDecimalPlaces` to cap decimals and `minDecimalPlaces` to pad trailing
