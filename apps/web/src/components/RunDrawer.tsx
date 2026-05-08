@@ -3,7 +3,7 @@ import {
   deriveStatusFromCaseRows,
   type CaseRow,
 } from '@agent-evals/shared';
-import { SquareStop, X } from 'lucide-react';
+import { Copy, SquareStop, X } from 'lucide-react';
 import { styled } from 'vindur';
 import { Button } from '#src/components/Button';
 import {
@@ -27,6 +27,7 @@ import {
   selectCase,
 } from '#src/stores/runStore';
 import { selectionStore } from '#src/stores/selectionStore';
+import { workspaceConfigStore } from '#src/stores/workspaceConfigStore';
 import { colors } from '#src/style/colors';
 import {
   ellipsis,
@@ -37,6 +38,7 @@ import {
   tabularNums,
   transition,
 } from '#src/style/helpers';
+import { copyTextToClipboard } from '#src/utils/clipboard';
 import { getEvalIdsForFolderPath, scopeRunCases } from '#src/utils/evalRuns';
 import { formatDuration, formatTimestamp } from '#src/utils/formatters';
 
@@ -185,6 +187,22 @@ const MetaValue = styled.dd`
   word-break: break-all;
 `;
 
+const CopyableMetaValue = styled.dd`
+  ${inline({ align: 'center', gap: 6 })}
+  margin: 0;
+  min-width: 0;
+`;
+
+const MetaPath = styled.span`
+  ${monoFont};
+  ${tabularNums};
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  color: ${colors.text.var};
+  word-break: break-all;
+`;
+
 const CaseList = styled.div`
   ${stack({ gap: 0 })}
   border: 1px solid ${colors.border.var};
@@ -256,9 +274,22 @@ const EmptyCases = styled.div`
   border-radius: var(--radius-md);
 `;
 
+const trailingPathSeparatorsRegex = /[\\/]+$/;
+
 function formatCaseDuration(caseRow: CaseRow): string {
   if (caseRow.durationMs === null || caseRow.durationMs <= 0) return '—';
   return formatDuration(caseRow.durationMs);
+}
+
+function formatRunFolderPath(workspaceRoot: string, runId: string): string {
+  if (workspaceRoot.length === 0) return `.agent-evals/runs/${runId}`;
+  const separator = workspaceRoot.includes('\\') ? '\\' : '/';
+  const root = workspaceRoot.replace(trailingPathSeparatorsRegex, '');
+  return `${root}${separator}.agent-evals${separator}runs${separator}${runId}`;
+}
+
+function formatRunFolderDisplayPath(runId: string): string {
+  return `<root>/.agent-evals/runs/${runId}`;
 }
 
 function formatTarget(target: {
@@ -457,6 +488,9 @@ export function RunDrawer() {
   const { selection } = selectionStore.useSelectorRC((s) => ({
     selection: s.selection,
   }));
+  const { workspaceRoot } = workspaceConfigStore.useSelectorRC((s) => ({
+    workspaceRoot: s.workspaceRoot,
+  }));
   const windowWidth = useWindowWidth();
   const minWidth = 360;
   const maxWidth = Math.max(minWidth, windowWidth - sidebarWidth);
@@ -478,6 +512,8 @@ export function RunDrawer() {
   }
 
   const { manifest, summary, cases } = selectedRunDetail;
+  const runFolderPath = formatRunFolderPath(workspaceRoot, manifest.id);
+  const runFolderDisplayPath = formatRunFolderDisplayPath(manifest.id);
   const scopedEvalId =
     selectedRunScope?.kind === 'eval'
       ? selectedRunScope.id
@@ -525,7 +561,19 @@ export function RunDrawer() {
   const showEvalIdInCase = new Set(scopedCases.map((c) => c.evalId)).size > 1;
 
   const runIsRunning = manifest.status === 'running';
+  async function handleCopyRunFolderPath() {
+    await copyTextToClipboard(runFolderPath, 'Copy run folder path');
+  }
+
   const menuEntries: SplitButtonMenuEntry[] = [
+    {
+      id: 'copy-run-folder-path',
+      label: 'Copy run folder path',
+      description: 'Copy the saved artifact directory for this run.',
+      onSelect: () => {
+        void handleCopyRunFolderPath();
+      },
+    },
     {
       id: 'delete-run',
       label: 'Delete run',
@@ -686,6 +734,17 @@ export function RunDrawer() {
           <MetaList>
             <MetaKey>Run id</MetaKey>
             <MetaValue>{manifest.id}</MetaValue>
+            <MetaKey>Run folder</MetaKey>
+            <CopyableMetaValue>
+              <MetaPath title={runFolderPath}>{runFolderDisplayPath}</MetaPath>
+              <IconButton
+                onClick={() => void handleCopyRunFolderPath()}
+                aria-label="Copy run folder path"
+                title="Copy run folder path"
+              >
+                <Copy />
+              </IconButton>
+            </CopyableMetaValue>
             {scopedRunCases.label !== null ? (
               <>
                 <MetaKey>Scope</MetaKey>

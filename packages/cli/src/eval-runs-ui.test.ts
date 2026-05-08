@@ -3,6 +3,7 @@ import type {
   ColumnDef,
   EvalChartConfig,
   RunManifest,
+  RunSummary,
 } from '@agent-evals/shared';
 import { describe, expect, test } from 'vitest';
 import { buildChartPoints } from '../../../apps/web/src/utils/chartData.ts';
@@ -14,7 +15,9 @@ import {
 import { getVisibleRunTableColumns } from '../../../apps/web/src/utils/columnVisibility.ts';
 import {
   buildEvalScopedRunRows,
+  getRunsForEval,
   scopeRunCases,
+  type RunWithCases,
   type ScopedRunRow,
 } from '../../../apps/web/src/utils/evalRuns.ts';
 import { mergeRunRuntimeColumnDefs } from '../../../apps/web/src/utils/runtimeColumnDefs.ts';
@@ -66,6 +69,42 @@ function createScopedRun(params: {
         trial: 0,
       },
     ],
+  };
+}
+
+function createHistoricalRun(params: {
+  id: string;
+  target: RunManifest['target'];
+  evalSourceFingerprints?: RunManifest['evalSourceFingerprints'];
+  cases?: CaseRow[];
+}): RunWithCases & { summary: RunSummary } {
+  return {
+    manifest: {
+      id: params.id,
+      shortId: `r${params.id}`,
+      status: 'completed',
+      temporary: false,
+      startedAt: `2026-04-21T12:00:0${params.id}.000Z`,
+      endedAt: `2026-04-21T12:00:1${params.id}.000Z`,
+      commitSha: null,
+      evalSourceFingerprints: params.evalSourceFingerprints ?? {},
+      target: params.target,
+      trials: 1,
+      trialSelection: 'lowestScore',
+      cacheMode: 'use',
+    },
+    summary: {
+      runId: params.id,
+      status: 'completed',
+      totalCases: params.cases?.length ?? 0,
+      passedCases: 0,
+      failedCases: 0,
+      errorCases: 0,
+      cancelledCases: 0,
+      totalDurationMs: null,
+      errorMessage: null,
+    },
+    cases: params.cases ?? [],
   };
 }
 
@@ -198,6 +237,50 @@ describe('eval run rows ui', () => {
       totalCases: 0,
       failedCases: 0,
     });
+  });
+
+  test('does not show old all-target runs for evals they never recorded', () => {
+    const evalKey =
+      'evals%2Fsupport%2Fplayground%2Fspan-errors.eval.ts#diagnostic-output-keys-demo-2';
+    const otherEvalKey =
+      'evals%2Fsupport%2Fplayground%2Fspan-errors.eval.ts#warning-span-demo';
+
+    const runs = getRunsForEval(
+      [
+        createHistoricalRun({
+          id: '1',
+          target: { mode: 'all' },
+          evalSourceFingerprints: { [otherEvalKey]: 'other-fingerprint' },
+        }),
+        createHistoricalRun({
+          id: '2',
+          target: { mode: 'all' },
+          evalSourceFingerprints: { [evalKey]: 'selected-fingerprint' },
+        }),
+        createHistoricalRun({
+          id: '3',
+          target: { mode: 'all' },
+          cases: [
+            {
+              caseId: 'selected-case',
+              evalId: 'diagnostic-output-keys-demo-2',
+              evalKey,
+              status: 'pass',
+              durationMs: 12,
+              columns: {},
+              trial: 0,
+            },
+          ],
+        }),
+        createHistoricalRun({
+          id: '4',
+          target: { mode: 'evalIds', evalKeys: [evalKey] },
+        }),
+      ],
+      evalKey,
+    );
+
+    expect(runs.map((run) => run.manifest.id)).toEqual(['2', '3', '4']);
   });
 
   test('scopes drawer run data to the selected eval', () => {

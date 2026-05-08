@@ -12,6 +12,8 @@ export type ScopedRunRow = {
   cases: CaseRow[];
 };
 
+export type RunWithCases = { manifest: RunManifest; cases: CaseRow[] };
+
 export type RunCaseScope = { cases: CaseRow[]; label: string | null };
 
 function getDirSegments(filePath: string): string[] {
@@ -40,7 +42,7 @@ function getCommonPrefixLength(allDirs: string[][]): number {
 }
 
 export function buildEvalScopedRunRows(
-  runs: Array<{ manifest: RunManifest; cases: CaseRow[] }>,
+  runs: RunWithCases[],
   evalKey: string,
 ): ScopedRunRow[] {
   return runs.map((run) => {
@@ -54,6 +56,30 @@ export function buildEvalScopedRunRows(
       cases,
     };
   });
+}
+
+export function runTargetsEval(
+  manifest: RunManifest,
+  evalKey: string,
+): boolean {
+  if (manifest.target.mode === 'all') {
+    return manifest.evalSourceFingerprints[evalKey] !== undefined;
+  }
+  if (manifest.target.mode === 'evalIds') {
+    return manifest.target.evalKeys?.includes(evalKey) ?? false;
+  }
+  return manifest.target.evalKeys?.includes(evalKey) ?? false;
+}
+
+export function getRunsForEval<T extends RunWithCases>(
+  runs: T[],
+  evalKey: string,
+): T[] {
+  return runs.filter(
+    (run) =>
+      runTargetsEval(run.manifest, evalKey) ||
+      run.cases.some((caseRow) => caseRow.evalKey === evalKey),
+  );
 }
 
 export function getEvalIdsForFolderPath(params: {

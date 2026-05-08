@@ -10,6 +10,7 @@ import { resultify } from 't-result';
 import { Store } from 't-state';
 import { z } from 'zod/v4';
 import { apiUrl } from '#src/utils/apiUrl';
+import { getRunsForEval, runTargetsEval } from '#src/utils/evalRuns';
 
 export type HistoricalRun = {
   manifest: RunManifest;
@@ -69,24 +70,4 @@ async function refetchHistoryInner(): Promise<void> {
   historyStore.setPartialState({ runs, loading: false });
 }
 
-export function runTargetsEval(
-  manifest: RunManifest,
-  evalKey: string,
-): boolean {
-  if (manifest.target.mode === 'all') return true;
-  if (manifest.target.mode === 'evalIds') {
-    return manifest.target.evalKeys?.includes(evalKey) ?? false;
-  }
-  return manifest.target.evalKeys?.includes(evalKey) ?? false;
-}
-
-export function getRunsForEval(
-  runs: HistoricalRun[],
-  evalKey: string,
-): HistoricalRun[] {
-  return runs.filter(
-    (r) =>
-      runTargetsEval(r.manifest, evalKey) ||
-      r.cases.some((caseRow) => caseRow.evalKey === evalKey),
-  );
-}
+export { getRunsForEval, runTargetsEval };
