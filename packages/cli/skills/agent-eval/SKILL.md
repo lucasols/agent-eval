@@ -5,11 +5,11 @@ description: Create, run, and maintain TypeScript evals with @ls-stack/agent-eva
 
 # Agent Eval
 
-Local-first, UI-first eval runner for LLM and agent systems. Evals are strict
-TypeScript modules named `*.eval.ts`, discovered from `agent-evals.config.ts`,
-and executed through the CLI (`agent-evals run`) or the web UI
-(`agent-evals app`). Runs persist to `.agent-evals/` so results, traces, and
-caches survive across processes.
+Local-first eval runner for LLM and agent systems. Evals are strict TypeScript
+modules named `*.eval.ts`, discovered from `agent-evals.config.ts`, and
+executed through the CLI (`agent-evals run`) or local app (`agent-evals app`).
+Runs persist to `.agent-evals/` so results, traces, and caches survive across
+processes.
 
 This skill covers the mental model and conventions. For exhaustive field lists
 (config options, eval shape, column formats, score/chart/stats options, trace
@@ -27,18 +27,13 @@ display rules), read the TypeScript declarations shipped with the package:
 - Unfiltered `agent-evals run` is disabled by default; use `--eval` or `--case`
   for targeted CLI runs, or `--tags-filter <expr>` to run cases matching tags.
   Set `allowCliRunAll: true` in
-  `agent-evals.config.ts` to opt into run-all CLI behavior. The web UI can
-  still run grouped evals and confirms before starting more than five. On a
-  single eval page, the Run chevron can open a picker to run specific authored
-  case ids; those case-picked runs are temporary by default and can be made
-  durable in the modal.
+  `agent-evals.config.ts` to opt into run-all CLI behavior.
 - `agent-evals run --temporary` persists a run like normal history, but deletes
-  it before the next run starts. Temporary runs appear in `show-runs` and the UI
-  while present; normal runs are never deleted by temporary-run cleanup.
+  it before the next run starts. Temporary runs appear in `show-runs` while
+  present; normal runs are never deleted by temporary-run cleanup.
 - `agent-evals app` watches `agent-evals.config.ts` and reloads config in
-  place when the runner is idle. If config changes during an active run, the UI
-  shows a pending reload banner and blocks new runs until the current run
-  reaches a terminal state and the reload applies.
+  place when the runner is idle. If config changes during an active run, the
+  reload applies after the current run reaches a terminal state.
 
 Assume that enumerated tables in this document may lag behind the types —
 treat the types as source of truth when they disagree.
@@ -67,9 +62,7 @@ a per-case sequence number, and throws outside an eval case scope.
 Use `evalLog(level, ...args)` for intentional per-case logs. The runner also
 captures `console.log`, `console.info`, `console.warn`, and `console.error`
 during case-owned phases by default; log arguments are stored as JSON-safe
-values and rendered with the JSON viewer, collapsed previews include best-effort
-code locations when stack data is available, previews are capped, and logs
-inside cached operations are not replayed from cache hits.
+values. Logs inside cached operations are not replayed from cache hits.
 Use eval tags to target related coverage without naming every case:
 `AgentEvalsConfig.tags` applies workspace-wide tags, `defineEval({ tags })`
 adds eval tags, `case.tags` adds case-only tags, and `removeTags` disables a
@@ -209,10 +202,8 @@ For libraries or observability exporters that already emit span lifecycle
 events, use `evalTracer.startSpan(...)`, `evalTracer.updateSpan(...)`,
 `evalTracer.endSpan(...)`, or `evalTracer.recordSpan(...)` to translate those
 events into the eval trace tree without wrapping the upstream work in a
-callback. Pass the upstream span id and parent id when available so the UI keeps
-the original hierarchy. The Trace tab can switch between that recorded hierarchy
-and UI-only timeline nesting for flat exported traces; saved trace JSON and
-`deriveFromTracing` continue to use the recorded parent ids.
+callback. Pass the upstream span id and parent id when available so saved trace
+JSON and `deriveFromTracing` use the recorded hierarchy.
 
 ### Eval file (thin)
 
@@ -287,20 +278,19 @@ defineEval<z.infer<typeof inputSchema>>({
 });
 ```
 
-The web UI opens a modal driven by the descriptor derived from the schema
-(`z.string` → text, `z.enum` → select, `z.boolean` → checkbox, etc.; nested
-shapes fall back to a JSON textarea). The CLI accepts `--input '<json>'` for a
+`manualInput` configures the local app form descriptor derived from the schema
+(`z.string` -> text, `z.enum` -> select, `z.boolean` -> checkbox, etc.; nested
+shapes fall back to JSON input). The CLI accepts `--input '<json>'` for a
 single targeted eval or `--input-file <path>` mapping eval keys/ids to inputs.
 Each run produces one synthetic case `<evalId>-manual` with the validated
 submission; mixing `manualInput` with `cases` is rejected at discovery time.
 
 For file or image fields, set `{ asFile: true, accept?, maxSizeBytes? }` and
-type the field with `manualInputFileValueSchema`. The widget supports click,
-drag-and-drop, and clipboard paste (so a screenshot capture flows in
-directly). The runtime value carries `{ name, mimeType, sizeBytes, sha256,
-path }`, where `path` is a workspace-relative run artifact. Use
-`readManualInputFile(value)` when bytes, `Blob`, `File`, text, or parsed JSON
-are needed. In CLI runs, provide path objects such as
+type the field with `manualInputFileValueSchema`. The runtime value carries
+`{ name, mimeType, sizeBytes, sha256, path }`, where `path` is a
+workspace-relative run artifact. Use `readManualInputFile(value)` when bytes,
+`Blob`, `File`, text, or parsed JSON are needed. In CLI runs, provide path
+objects such as
 `{ "image": { "path": "./screenshot.png" } }`; the CLI stages the file before
 starting the run.
 
@@ -350,12 +340,8 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   `ColumnFormat` union and `EvalColumnOverride` in the types. Global
   `columns` in `agent-evals.config.ts` apply to every eval; eval-level
   `columns` override matching global keys. Use `hideIfNoValue: true` to hide a
-  column from the runs table when every rendered row is missing the value,
-  `null`, or an empty string; `0` and `false` still count as values, and the
-  value remains available in case details and raw output data.
-  In the case detail Output tab, string outputs that look like Markdown render
-  as Markdown even without `format: 'markdown'`, with a Preview/Raw toggle for
-  inspecting the original text.
+  column when every row is missing the value, `null`, or an empty string; `0`
+  and `false` still count as values.
 - `deriveFromTracing` can be authored globally in `agent-evals.config.ts` or
   locally on one eval. Prefer the keyed map form for shared metrics:
   `deriveFromTracing: { toolCalls: ({ trace }) => trace.findSpansByKind('tool').length }`.
@@ -382,20 +368,17 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   `placements: ['header' | 'body']`). `derivedAttributes` can be a keyed map
   for one-off fields or one callback that returns multiple path/value pairs.
   Derived keys are dot-paths under `span.attributes`; return `undefined` to
-  skip one span or one returned key. For saved runs,
-  the case drawer more menu can recalculate configured LLM/API derived
-  attributes for one case and persist the updated trace artifacts without
-  re-running the eval.
+  skip one span or one returned key.
 - Default usage config derives missing eval outputs from matching LLM/API spans
   before `outputsSchema` and scores run: `apiCalls`, `costUsd`, `llmTurns`,
   `inputTokens`, `outputTokens`, `totalTokens`, `cachedInputTokens`,
   `cacheCreationInputTokens`, `reasoningTokens`, and `llmDurationMs`. Authored
   outputs and column overrides win. Default usage columns, stats, and charts
-  use `hideIfNoValue: true`, so the UI hides them until matching LLM/API span
-  data exists. Default LLM usage charts render cost, input tokens, and output
-  tokens separately and use `dedupeConsecutiveValues: true` to skip repeated
-  adjacent chart values. `totalTokens` is input + output only; cache read/write
-  tokens stay separate and affect `costUsd` at their own rates.
+  use `hideIfNoValue: true`. Default LLM usage charts configure cost, input
+  tokens, and output tokens separately and use `dedupeConsecutiveValues: true`
+  to skip repeated adjacent chart values. `totalTokens` is input + output only;
+  cache read/write tokens stay separate and affect `costUsd` at their own
+  rates.
   Derived base input cost uses `inputTokens - cachedInputTokens -
 cacheCreationInputTokens` so cache details are not double-counted.
   `cacheCreationInputTokens` is the total cache-write count; optional
@@ -419,16 +402,14 @@ cacheCreationInputTokens` so cache details are not double-counted.
   without persisting console calls to case details. Manual `evalLog(...)` calls
   are still captured.
 
-Stats rows and history charts on the eval card can be authored via `stats` /
-`charts` on the eval definition. Global `stats` in `agent-evals.config.ts`
-render before eval-level stats. Usage stats and LLM usage charts are added by
-default unless removed with `removeDefaultConfig`. Column stats can override
-`format` and `numberFormat`, otherwise they inherit from the matching column.
-Number formats use `maxDecimalPlaces` to cap decimals and `minDecimalPlaces`
-to pad trailing zeroes. Without `maxDecimalPlaces`, they render up to 3 decimal
-places. Stats and charts support `hideIfNoValue: true`; stats hide when they
-would otherwise render an empty value, and charts hide when no plotted metric or
-tooltip extra has a numeric value in the rendered history window. Charts support
+Stats rows and history charts can be authored via `stats` / `charts` on the eval
+definition. Global `stats` in `agent-evals.config.ts` combine with eval-level
+stats. Usage stats and LLM usage charts are added by default unless removed with
+`removeDefaultConfig`. Column stats can override `format` and `numberFormat`,
+otherwise they inherit from the matching column. Number formats use
+`maxDecimalPlaces` to cap decimals and `minDecimalPlaces` to pad trailing
+zeroes. Without `maxDecimalPlaces`, the default cap is 3 decimal places. Stats
+and charts support `hideIfNoValue: true`. Charts support
 `dedupeConsecutiveValues: true` to omit consecutive points whose plotted metrics
 and tooltip extras match the previous kept point.
 Their shapes live in the types; no need to memorize the option set.
@@ -522,13 +503,7 @@ Mental model:
 - Authored raw cache keys are stored for debugging under
   `.agent-evals/cache-debug/<sanitizedNamespace>/<keyHash>.json`. This folder
   may include prompts, user inputs, full serialized cache payloads, or other
-  sensitive data, should be gitignored, and is not needed for cache reuse. The
-  UI Cache tab shows the raw key when it is available and can be filtered to
-  hits or new entries added by cache misses/refreshes. Stored rows can compare
-  raw keys against another saved run/case/cache entry from the same eval using
-  a stable, sorted JSON diff with selectable split/unified and scroll/wrap
-  views. Misses/refreshes with `cache.store: false` are shown as non-stored
-  activity without fetch/delete controls.
+  sensitive data, should be gitignored, and is not needed for cache reuse.
 - Cached payloads use JSON-safe tagged serialization, so return values and
   recorded SDK effects preserve richer built-ins such as `Date`, `Map`, `Set`,
   typed arrays, `URL`, `Headers`, `Blob`, and `File` on hits. Undefined values
@@ -543,11 +518,11 @@ Mental model:
 Run output lives under `.agent-evals/runs/<run-id>/`. Cache metadata lives under
 `.agent-evals/cache/<sanitizedNamespace>/<keyHash>.json.br`. Do not rely on a
 specific cache filename when authoring evals; configure cache namespaces
-manually in eval code, then use `agent-evals cache list` or the UI Cache tab to
-inspect the persisted namespace/key entries. Files in a run directory include
-run metadata, a run summary, per-case results, and per-case trace JSON. Inspect
-run files when debugging persisted output, costs, columns, traces, or failures;
-inspect cache entries when debugging replayed span/value-cache results.
+manually in eval code, then use `agent-evals cache list` to inspect the
+persisted namespace/key entries. Files in a run directory include run metadata,
+a run summary, per-case results, and per-case trace JSON. Inspect run files when
+debugging persisted output, costs, columns, traces, or failures; inspect cache
+entries when debugging replayed span/value-cache results.
 Targeted evals in `run.json` are recorded by exact `evalKeys`
 (`filePath + evalId`) rather than authored eval ids, so duplicate eval ids stay
 unambiguous in saved history.
@@ -610,8 +585,7 @@ When adding or changing evals:
 4. Surface reviewable values through execute-context `setOutput` or ambient
    `setEvalOutput` in shared workflow code, and shape them with `columns`
    formats from the `ColumnFormat` type.
-5. Promote high-signal span attributes with `traceDisplay` so they surface in
-   the trace tree and detail pane.
+5. Promote high-signal span attributes with `traceDisplay`.
 6. Cache costly pure spans with `cache: { namespace, key }` and pure spanless
    values with `evalTracer.cache(...)`; never cache operations whose external
    side effects you depend on.
