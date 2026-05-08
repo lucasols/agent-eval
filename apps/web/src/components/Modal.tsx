@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
 import {
@@ -142,7 +143,7 @@ export function Modal({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <Overlay
       topLayer={topLayer}
       onClick={onClose}
@@ -170,6 +171,7 @@ export function Modal({
         <Body>{children}</Body>
         {footer ? <Footer>{footer}</Footer> : null}
       </Dialog>
-    </Overlay>
+    </Overlay>,
+    document.body,
   );
 }

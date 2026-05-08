@@ -18,6 +18,8 @@ import {
   useRef,
   useState,
 } from 'react';
+import { createPortal } from 'react-dom';
+import { resultify } from 't-result';
 import { styled } from 'vindur';
 import { IconButton } from '#src/components/IconButton';
 import {
@@ -171,7 +173,7 @@ const ToggleButton = styled.button`
 const FullscreenOverlay = styled.div`
   position: fixed;
   inset: 0;
-  z-index: 85;
+  z-index: 1000;
   background: ${colors.black.alpha(0.5)};
   padding: 16px;
 `;
@@ -358,6 +360,20 @@ function isUnknownArray(value: unknown): value is unknown[] {
   return Array.isArray(value);
 }
 
+function formatRootPrimitiveValue(value: unknown): string {
+  if (typeof value === 'string') return formatRootStringValue(value);
+  return formatPrimitiveValue(value);
+}
+
+function formatRootStringValue(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed.startsWith('"') || !trimmed.endsWith('"')) return value;
+
+  const parsed = resultify((): unknown => JSON.parse(trimmed));
+  if (parsed.error || typeof parsed.value !== 'string') return value;
+  return parsed.value;
+}
+
 function readRowTextValue(
   parentValue: unknown,
   keyName: unknown,
@@ -472,6 +488,7 @@ function JsonContent({
   }
 
   if (typeof value === 'string') {
+    const displayText = formatRootStringValue(value);
     return (
       <>
         <PrimitiveValue
@@ -479,17 +496,17 @@ function JsonContent({
             if (!event.altKey) return;
             event.preventDefault();
             event.stopPropagation();
-            openTextValue(value, undefined);
+            openTextValue(displayText, undefined);
           }}
         >
-          {formatPrimitiveValue(value)}
+          {displayText}
         </PrimitiveValue>
         {textModal}
       </>
     );
   }
 
-  return <PrimitiveValue>{formatPrimitiveValue(value)}</PrimitiveValue>;
+  return <PrimitiveValue>{formatRootPrimitiveValue(value)}</PrimitiveValue>;
 }
 
 function JsonFullscreenModal({
@@ -557,7 +574,7 @@ function JsonFullscreenModal({
 
   const viewerIsCollapsedAll = viewerCollapsed === true;
 
-  return (
+  return createPortal(
     <FullscreenOverlay
       role="dialog"
       aria-modal="true"
@@ -699,7 +716,8 @@ function JsonFullscreenModal({
           )}
         </FullscreenBody>
       </FullscreenDialog>
-    </FullscreenOverlay>
+    </FullscreenOverlay>,
+    document.body,
   );
 }
 
@@ -721,11 +739,16 @@ export function JsonViewer({
   const cardRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(false);
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  const [rootTextOpen, setRootTextOpen] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
   const displayValue = useMemo(
     () => deserializeSerializedValue(value),
     [value],
   );
+  const rootStringValue =
+    typeof displayValue === 'string'
+      ? formatRootStringValue(displayValue)
+      : undefined;
 
   useLayoutEffect(() => {
     if (!maxHeight || expanded) return;
@@ -780,11 +803,27 @@ export function JsonViewer({
       {showToggle ? (
         <ToggleButton
           type="button"
-          onClick={() => setExpanded((v) => !v)}
-          aria-expanded={expanded}
+          onClick={() => {
+            if (rootStringValue !== undefined) {
+              setRootTextOpen(true);
+              return;
+            }
+            setExpanded((v) => !v);
+          }}
+          aria-expanded={
+            rootStringValue === undefined ? expanded : rootTextOpen
+          }
         >
           {expanded ? 'Collapse' : 'Expand'}
         </ToggleButton>
+      ) : null}
+      {rootTextOpen && rootStringValue !== undefined ? (
+        <TextViewModal
+          isOpen
+          title="JSON text value"
+          text={rootStringValue}
+          onClose={() => setRootTextOpen(false)}
+        />
       ) : null}
       {fullscreenOpen ? (
         <JsonFullscreenModal
