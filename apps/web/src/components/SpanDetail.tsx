@@ -13,8 +13,8 @@ import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
 import { formatDuration } from '#src/utils/formatters';
 import {
+  type DiagnosticOutputMatch,
   findDiagnosticOutputMatch,
-  formatDiagnosticOutputMessage,
 } from '#src/utils/outputDiagnostics';
 import {
   formatTraceAttributeValue,
@@ -27,6 +27,7 @@ const DetailRoot = styled.div`
 `;
 
 const errorCoreFields = new Set(['name', 'message', 'stack', 'capturedAt']);
+const OUTPUT_WARNING_TITLE_VALUE_LIMIT = 140;
 
 const DetailTitle = styled.div`
   ${monoFont};
@@ -128,16 +129,7 @@ export function SpanDetail({ span, spans, traceDisplay }: SpanDetailProps) {
   const lastCapturedError = capturedErrors.at(-1);
   const outputWarningItems =
     outputDiagnosticMatch !== undefined
-      ? [
-          toDiagnosticDetailItem({
-            diagnostic: {
-              message: formatDiagnosticOutputMessage(outputDiagnosticMatch),
-              name: 'DiagnosticOutputWarning',
-            },
-            id: `output-diagnostic-${outputDiagnosticMatch.path}`,
-            meta: undefined,
-          }),
-        ]
+      ? [toOutputWarningDetailItem(outputDiagnosticMatch)]
       : [];
   const capturedWarningItems = capturedWarnings.map((warning, index) =>
     toDiagnosticDetailItem({
@@ -149,7 +141,6 @@ export function SpanDetail({ span, spans, traceDisplay }: SpanDetailProps) {
           : undefined,
     }),
   );
-  const warningItems = [...outputWarningItems, ...capturedWarningItems];
   const showTerminalError =
     span.error !== undefined &&
     (lastCapturedError === undefined ||
@@ -253,12 +244,22 @@ export function SpanDetail({ span, spans, traceDisplay }: SpanDetailProps) {
         />
       ) : null}
 
-      {warningItems.length > 0 ? (
+      {outputWarningItems.length > 0 ? (
+        <ErrorDetails
+          label={`Output ${
+            outputWarningItems.length === 1 ? 'warning' : 'warnings'
+          }`}
+          errors={outputWarningItems}
+          tone="warning"
+        />
+      ) : null}
+
+      {capturedWarnings.length > 0 ? (
         <ErrorDetails
           label={`Captured ${
-            warningItems.length === 1 ? 'warning' : 'warnings'
+            capturedWarnings.length === 1 ? 'warning' : 'warnings'
           }`}
-          errors={warningItems}
+          errors={capturedWarningItems}
           tone="warning"
         />
       ) : null}
@@ -347,6 +348,27 @@ function toDiagnosticDetailItem({
     meta,
     stack: diagnostic.stack,
     attributes: hasAttributes ? attributes : undefined,
+  };
+}
+
+function toOutputWarningDetailItem(
+  match: DiagnosticOutputMatch,
+): ErrorDetailItem {
+  const shouldShowValueInTitle =
+    match.valueText.length <= OUTPUT_WARNING_TITLE_VALUE_LIMIT;
+  const titleValue = shouldShowValueInTitle
+    ? match.valueText
+    : `${match.valueText.slice(0, OUTPUT_WARNING_TITLE_VALUE_LIMIT - 1)}…`;
+
+  return {
+    id: `output-diagnostic-${match.path}`,
+    name: null,
+    message: `${match.path}: ${titleValue}`,
+    meta: undefined,
+    stack: undefined,
+    attributes: shouldShowValueInTitle
+      ? undefined
+      : { path: match.path, value: match.value },
   };
 }
 

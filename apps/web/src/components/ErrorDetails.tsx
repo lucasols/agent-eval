@@ -86,7 +86,7 @@ const JsonSectionLabel = styled.div`
 
 export type ErrorDetailItem = {
   id: string;
-  name: string | undefined;
+  name: string | null | undefined;
   message: string;
   meta: string | undefined;
   stack: string | undefined;
@@ -113,7 +113,9 @@ export function ErrorDetails({
           warning={isWarning}
         >
           <ErrorTitle>
-            {error.name ?? 'Error'}: {error.message}
+            {error.name === null
+              ? error.message
+              : `${error.name ?? 'Error'}: ${error.message}`}
           </ErrorTitle>
           {error.meta !== undefined ? (
             <ErrorMeta warning={isWarning}>{error.meta}</ErrorMeta>
