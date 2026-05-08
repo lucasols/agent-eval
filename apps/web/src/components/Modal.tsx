@@ -18,7 +18,7 @@ const Overlay = styled.div`
   z-index: 60;
 `;
 
-const Dialog = styled.div`
+const Dialog = styled.div<{ wide: boolean }>`
   ${stack({ gap: 0 })}
   background: ${colors.bg.var};
   border: 1px solid ${colors.borderStrong.var};
@@ -29,6 +29,11 @@ const Dialog = styled.div`
   max-height: calc(100vh - 64px);
   overflow: hidden;
   ${transition({ property: 'opacity, transform' })}
+
+  &.wide {
+    width: min(1180px, calc(100vw - 32px));
+    max-width: min(1180px, calc(100vw - 32px));
+  }
 `;
 
 const Header = styled.header`
@@ -95,6 +100,7 @@ type ModalProps = {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  wide?: boolean;
 };
 
 /**
@@ -109,6 +115,7 @@ export function Modal({
   onClose,
   children,
   footer,
+  wide = false,
 }: ModalProps) {
   useEffect(() => {
     if (!isOpen) return;
@@ -123,7 +130,10 @@ export function Modal({
 
   return (
     <Overlay onClick={onClose}>
-      <Dialog onClick={(event) => event.stopPropagation()}>
+      <Dialog
+        wide={wide}
+        onClick={(event) => event.stopPropagation()}
+      >
         <Header>
           <TitleStack>
             <Title>{title}</Title>

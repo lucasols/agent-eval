@@ -4,11 +4,12 @@ import {
   type CacheEntryWithDebugKey,
 } from '@agent-evals/shared';
 import { useActionFn } from '@ls-stack/react-utils/useActionFn';
-import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, GitCompare, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { resultify } from 't-result';
 import { styled } from 'vindur';
 import { Button } from '#src/components/Button';
+import { CacheRawKeyCompareModal } from '#src/components/CacheRawKeyCompareModal';
 import { JsonViewer } from '#src/components/JsonViewer';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
@@ -223,10 +224,25 @@ function formatCacheAge(entry: CacheActivityEntry): string | null {
  * `returnValue` and `finalAttributes` (when present) can be inspected via a
  * `JsonViewer`.
  */
-export function CacheHitRow({ entry }: { entry: CacheActivityEntry }) {
+type CacheHitRowProps = {
+  entry: CacheActivityEntry;
+  currentRunId: string;
+  currentCaseKey: string;
+  currentEvalKey: string;
+  currentCacheIndex: number;
+};
+
+export function CacheHitRow({
+  entry,
+  currentRunId,
+  currentCaseKey,
+  currentEvalKey,
+  currentCacheIndex,
+}: CacheHitRowProps) {
   const [expanded, setExpanded] = useState(false);
   const [fetchState, setFetchState] = useState<FetchState>({ status: 'idle' });
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [compareOpen, setCompareOpen] = useState(false);
   const canLoadEntry = entry.stored;
 
   async function loadEntry() {
@@ -308,141 +324,164 @@ export function CacheHitRow({ entry }: { entry: CacheActivityEntry }) {
     finalAttributes !== null && Object.keys(finalAttributes).length > 0;
 
   return (
-    <Card>
-      <HeaderButton
-        type="button"
-        onClick={handleToggle}
-        aria-expanded={expanded}
-      >
-        <Caret>{expanded ? <ChevronDown /> : <ChevronRight />}</Caret>
-        <StatusChip
-          hit={entry.action === 'hit'}
-          added={entry.action === 'added'}
+    <>
+      <Card>
+        <HeaderButton
+          type="button"
+          onClick={handleToggle}
+          aria-expanded={expanded}
         >
-          {getStatusLabel(entry)}
-        </StatusChip>
-        <TypeChip>{entry.source === 'span' ? 'SPAN' : 'VALUE'}</TypeChip>
-        <HeaderName>{entry.name}</HeaderName>
-        {entry.origin === 'caseRoot' ? (
-          <OriginTag>(case root)</OriginTag>
-        ) : null}
-        <HeaderMeta>
-          {fetchState.status === 'deleted' ? <span>deleted</span> : null}
-          {ageLabel !== null ? <span>{ageLabel}</span> : null}
-          {entry.action === 'added' && entry.status === 'miss' ? (
-            <span>created</span>
+          <Caret>{expanded ? <ChevronDown /> : <ChevronRight />}</Caret>
+          <StatusChip
+            hit={entry.action === 'hit'}
+            added={entry.action === 'added'}
+          >
+            {getStatusLabel(entry)}
+          </StatusChip>
+          <TypeChip>{entry.source === 'span' ? 'SPAN' : 'VALUE'}</TypeChip>
+          <HeaderName>{entry.name}</HeaderName>
+          {entry.origin === 'caseRoot' ? (
+            <OriginTag>(case root)</OriginTag>
           ) : null}
-          {entry.status === 'refresh' ? <span>refreshed</span> : null}
-          {!entry.stored ? <span>not stored</span> : null}
-          <span>{truncateKey(entry.key)}</span>
-        </HeaderMeta>
-      </HeaderButton>
-
-      {expanded ? (
-        <Body>
-          <MetaRow>
-            <MetaItem>
-              <MetaLabel>NS</MetaLabel>
-              <MetaValue>{entry.namespace}</MetaValue>
-            </MetaItem>
-            {storedAt !== undefined ? (
-              <MetaItem>
-                <MetaLabel>STORED</MetaLabel>
-                <MetaValue>{formatTimestamp(storedAt)}</MetaValue>
-              </MetaItem>
+          <HeaderMeta>
+            {fetchState.status === 'deleted' ? <span>deleted</span> : null}
+            {ageLabel !== null ? <span>{ageLabel}</span> : null}
+            {entry.action === 'added' && entry.status === 'miss' ? (
+              <span>created</span>
             ) : null}
-            <MetaItem>
-              <MetaLabel>STATUS</MetaLabel>
-              <MetaValue>{entry.status}</MetaValue>
-            </MetaItem>
-            <MetaItem>
-              <MetaLabel>KEY</MetaLabel>
-              <MetaValue>{entry.key}</MetaValue>
-            </MetaItem>
-          </MetaRow>
+            {entry.status === 'refresh' ? <span>refreshed</span> : null}
+            {!entry.stored ? <span>not stored</span> : null}
+            <span>{truncateKey(entry.key)}</span>
+          </HeaderMeta>
+        </HeaderButton>
 
-          {fetchState.status === 'loading' ? (
-            <StatusMessage>Loading cached value…</StatusMessage>
-          ) : null}
-
-          {!entry.stored ? (
-            <StatusMessage>
-              This cache operation executed without storing an entry.
-            </StatusMessage>
-          ) : null}
-
-          {fetchState.status === 'error' ? (
-            <ErrorMessage>
-              Could not load cached value: {fetchState.message}
-            </ErrorMessage>
-          ) : null}
-
-          {deleteError !== null ? (
-            <ErrorMessage>
-              Could not delete cached value: {deleteError}
-            </ErrorMessage>
-          ) : null}
-
-          {fetchState.status === 'deleted' ? (
-            <StatusMessage>Cached entry deleted.</StatusMessage>
-          ) : null}
-
-          {fetchState.status === 'loaded' ? (
-            <>
-              {fetchState.entry.debugKey !== undefined ? (
-                <SectionWrapper>
-                  <SectionLabel>Raw cache key</SectionLabel>
-                  <JsonViewer
-                    value={fetchState.entry.debugKey.rawKey}
-                    compact
-                    maxHeight="raw"
-                    collapsed={4}
-                  />
-                </SectionWrapper>
+        {expanded ? (
+          <Body>
+            <MetaRow>
+              <MetaItem>
+                <MetaLabel>NS</MetaLabel>
+                <MetaValue>{entry.namespace}</MetaValue>
+              </MetaItem>
+              {storedAt !== undefined ? (
+                <MetaItem>
+                  <MetaLabel>STORED</MetaLabel>
+                  <MetaValue>{formatTimestamp(storedAt)}</MetaValue>
+                </MetaItem>
               ) : null}
-              <SectionWrapper>
-                <SectionLabel>Cached return value</SectionLabel>
-                <JsonViewer
-                  value={fetchState.entry.recording.returnValue}
-                  compact
-                  maxHeight="raw"
-                  collapsed={6}
-                />
-              </SectionWrapper>
-              {hasFinalAttributes ? (
+              <MetaItem>
+                <MetaLabel>STATUS</MetaLabel>
+                <MetaValue>{entry.status}</MetaValue>
+              </MetaItem>
+              <MetaItem>
+                <MetaLabel>KEY</MetaLabel>
+                <MetaValue>{entry.key}</MetaValue>
+              </MetaItem>
+            </MetaRow>
+
+            {fetchState.status === 'loading' ? (
+              <StatusMessage>Loading cached value…</StatusMessage>
+            ) : null}
+
+            {!entry.stored ? (
+              <StatusMessage>
+                This cache operation executed without storing an entry.
+              </StatusMessage>
+            ) : null}
+
+            {fetchState.status === 'error' ? (
+              <ErrorMessage>
+                Could not load cached value: {fetchState.message}
+              </ErrorMessage>
+            ) : null}
+
+            {deleteError !== null ? (
+              <ErrorMessage>
+                Could not delete cached value: {deleteError}
+              </ErrorMessage>
+            ) : null}
+
+            {fetchState.status === 'deleted' ? (
+              <StatusMessage>Cached entry deleted.</StatusMessage>
+            ) : null}
+
+            {fetchState.status === 'loaded' ? (
+              <>
+                {fetchState.entry.debugKey !== undefined ? (
+                  <SectionWrapper>
+                    <SectionLabel>Raw cache key</SectionLabel>
+                    <JsonViewer
+                      value={fetchState.entry.debugKey.rawKey}
+                      compact
+                      maxHeight="raw"
+                      collapsed={4}
+                    />
+                  </SectionWrapper>
+                ) : null}
                 <SectionWrapper>
-                  <SectionLabel>Replayed span attributes</SectionLabel>
+                  <SectionLabel>Cached return value</SectionLabel>
                   <JsonViewer
-                    value={finalAttributes}
+                    value={fetchState.entry.recording.returnValue}
                     compact
                     maxHeight="raw"
                     collapsed={6}
                   />
                 </SectionWrapper>
-              ) : null}
-            </>
-          ) : null}
-          {entry.stored ? (
-            <BodyActions>
-              <Button
-                variant="danger"
-                leftIcon={<Trash2 />}
-                disabled={
-                  fetchState.status === 'deleted' || deleteAction.isInProgress
-                }
-                onClick={() => {
-                  void deleteAction.call();
-                }}
-              >
-                {fetchState.status === 'deleted'
-                  ? 'Deleted'
-                  : 'Delete cache entry'}
-              </Button>
-            </BodyActions>
-          ) : null}
-        </Body>
+                {hasFinalAttributes ? (
+                  <SectionWrapper>
+                    <SectionLabel>Replayed span attributes</SectionLabel>
+                    <JsonViewer
+                      value={finalAttributes}
+                      compact
+                      maxHeight="raw"
+                      collapsed={6}
+                    />
+                  </SectionWrapper>
+                ) : null}
+              </>
+            ) : null}
+            {entry.stored ? (
+              <BodyActions>
+                <Button
+                  variant="secondary"
+                  leftIcon={<GitCompare />}
+                  disabled={
+                    fetchState.status === 'deleted' || currentRunId.length === 0
+                  }
+                  onClick={() => setCompareOpen(true)}
+                >
+                  Compare raw key
+                </Button>
+                <Button
+                  variant="danger"
+                  leftIcon={<Trash2 />}
+                  disabled={
+                    fetchState.status === 'deleted' || deleteAction.isInProgress
+                  }
+                  onClick={() => {
+                    void deleteAction.call();
+                  }}
+                >
+                  {fetchState.status === 'deleted'
+                    ? 'Deleted'
+                    : 'Delete cache entry'}
+                </Button>
+              </BodyActions>
+            ) : null}
+          </Body>
+        ) : null}
+      </Card>
+      {compareOpen ? (
+        <CacheRawKeyCompareModal
+          isOpen={compareOpen}
+          currentEntry={entry}
+          currentRunId={currentRunId}
+          currentCaseKey={currentCaseKey}
+          currentEvalKey={currentEvalKey}
+          currentCacheIndex={currentCacheIndex}
+          onClose={() => setCompareOpen(false)}
+        />
       ) : null}
-    </Card>
+    </>
   );
 }
 

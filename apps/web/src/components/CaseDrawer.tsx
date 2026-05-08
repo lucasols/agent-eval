@@ -692,12 +692,21 @@ export function CaseDrawer() {
             </CacheToolbar>
             {filteredCacheEntries.length > 0 ? (
               <CacheEntriesList>
-                {filteredCacheEntries.map((entry) => (
-                  <CacheHitRow
-                    key={entry.id}
-                    entry={entry}
-                  />
-                ))}
+                {filteredCacheEntries.map((entry) => {
+                  const cacheIndex = cacheEntries.findIndex(
+                    (cacheEntry) => cacheEntry.id === entry.id,
+                  );
+                  return (
+                    <CacheHitRow
+                      key={entry.id}
+                      entry={entry}
+                      currentRunId={selectedCaseRunId ?? ''}
+                      currentCaseKey={d.caseKey ?? d.caseId}
+                      currentEvalKey={d.evalKey ?? d.evalId}
+                      currentCacheIndex={cacheIndex < 0 ? 0 : cacheIndex}
+                    />
+                  );
+                })}
               </CacheEntriesList>
             ) : (
               <EmptyState

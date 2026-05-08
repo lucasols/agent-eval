@@ -6,6 +6,7 @@
     "dev": "vite",
     "build": "tsgo && vite build",
     "preview": "vite preview",
+    "test": "vitest run",
     "tsc": "tsgo --noEmit",
     "lint": "tsgo --noEmit && eslint .",
     "eslint": "eslint ."
@@ -15,6 +16,7 @@
     "@floating-ui/react": "^0.27.19",
     "@ls-stack/react-utils": "^0.12.1",
     "@ls-stack/utils": "^3.77.0",
+    "@pierre/diffs": "1.1.21",
     "@uiw/react-json-view": "2.0.0-alpha.42",
     "hono": "^4.9.9",
     "lucide-react": "^1.8.0",
@@ -40,6 +42,7 @@
     "babel-plugin-react-compiler": "^1.0.0",
     "typescript": "^5.9.2",
     "vite": "^7.1.7",
-    "vite-plugin-pwa": "^1.0.0"
+    "vite-plugin-pwa": "^1.0.0",
+    "vitest": "^3.2.4"
   }
 }

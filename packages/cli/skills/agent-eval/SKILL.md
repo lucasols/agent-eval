@@ -524,9 +524,10 @@ Mental model:
   may include prompts, user inputs, full serialized cache payloads, or other
   sensitive data, should be gitignored, and is not needed for cache reuse. The
   UI Cache tab shows the raw key when it is available and can be filtered to
-  hits or new entries added by cache misses/refreshes. Misses/refreshes with
-  `cache.store: false` are shown as non-stored activity without fetch/delete
-  controls.
+  hits or new entries added by cache misses/refreshes. Stored rows can compare
+  raw keys against another saved run/case/cache entry from the same eval using
+  a stable, sorted JSON diff. Misses/refreshes with `cache.store: false` are
+  shown as non-stored activity without fetch/delete controls.
 - Cached payloads use JSON-safe tagged serialization, so return values and
   recorded SDK effects preserve richer built-ins such as `Date`, `Map`, `Set`,
   typed arrays, `URL`, `Headers`, `Blob`, and `File` on hits. Undefined values
