@@ -54,7 +54,8 @@ Once the implementation is in place, complete the following before marking the t
 - Make sure `examples/basic-agent` exercises the new feature/adjustment. If coverage is missing, extend the example. Examples must reflect real production flows — no fake, synthetic, or placeholder scenarios.
 - Add or update CLI tests against `examples/basic-agent` when the change can be covered automatically. If that is not practical, smoke-test the example via the CLI (`pnpm eval list` and `pnpm eval run`) to confirm the feature behaves as intended end-to-end. For user-requested UI checks, use `pnpm dev`, not `pnpm eval app`.
 - Update the root `README.md` whenever user-facing behavior, APIs, CLI flags, config, or commands change.
-- Update `templates/agent-eval/SKILL.md` whenever new features, behavior changes, APIs, CLI flags, config, commands, artifacts, or recommended eval workflows change, so the copy-paste Agent Skill template stays accurate for library users. Only add info that is relevant to coding agents.
+- Update `packages/cli/skills/agent-eval/SKILL.md` whenever new features, behavior changes, APIs, CLI flags, config, commands, artifacts, or recommended eval workflows change, so the packaged Agent Skill stays accurate for library users. Only add info that is relevant to coding agents.
+- The Agent Eval skill is for coding agents. Document APIs, config, commands, artifacts, and recommended eval workflows. Do not add details about how the UI shows things, such as which tab, drawer, modal, banner, picker, preview, or visual state displays a value, except for how to configure the UI.
 - Add or update JSDoc on every public API touched (exports from `packages/sdk`, `packages/shared`, `packages/runner`, and `packages/cli`). Document intent, parameters, return values, and notable edge cases.
 - Present to the user which evals in app exercise the adjusts so they can test them out.
 

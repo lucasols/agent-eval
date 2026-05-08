@@ -1238,11 +1238,12 @@ expanded row also shows the authored cache key. Stored rows can compare that
 raw key against another saved run/case/cache entry from the same eval; the app
 defaults to the previous run, matching case, and same Cache-tab index, then
 renders a stable, sorted JSON diff for quick inspection. The modal shows the
-current run and includes diff-style and overflow controls, defaulting to split
-diff with horizontal scrolling. Use the row's delete action to remove that
-single persisted cache entry. Bypasses remain visible inline as per-span badges
-in the **Trace** tab because they do not write cache entries; non-stored
-misses/refreshes are shown as cache activity without fetch/delete actions.
+current run and includes diff-style, line-diff, overflow, and copy controls,
+defaulting to split diff with horizontal scrolling. Use the row's delete action
+to remove that single persisted cache entry. Bypasses remain visible inline as
+per-span badges in the **Trace** tab because they do not write cache entries;
+non-stored misses/refreshes are shown as cache activity without fetch/delete
+actions.
 
 ### Cache controls
 

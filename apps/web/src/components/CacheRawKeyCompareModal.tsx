@@ -10,8 +10,10 @@ import {
 import {
   MultiFileDiff,
   type FileContents,
+  type LineDiffTypes,
   type MultiFileDiffProps,
 } from '@pierre/diffs/react';
+import { Copy } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { resultify } from 't-result';
 import { styled } from 'vindur';
@@ -29,6 +31,7 @@ import {
   selectDefaultComparisonRunId,
   stringifyCanonicalJson,
 } from '#src/utils/cacheRawKeyCompare';
+import { copyTextToClipboard } from '#src/utils/clipboard';
 import { formatTimestamp } from '#src/utils/formatters';
 
 const SelectorGrid = styled.div`
@@ -201,6 +204,7 @@ type CacheRawKeyCompareModalProps = {
 
 type DiffStyle = 'split' | 'unified';
 type DiffOverflow = 'scroll' | 'wrap';
+type LineDiffType = LineDiffTypes;
 
 function cacheEntryUrl(entry: CacheActivityEntry): string {
   return apiUrl(
@@ -369,6 +373,7 @@ export function CacheRawKeyCompareModal({
   >(null);
   const [diffStyle, setDiffStyle] = useState<DiffStyle>('split');
   const [diffOverflow, setDiffOverflow] = useState<DiffOverflow>('scroll');
+  const [lineDiffType, setLineDiffType] = useState<LineDiffType>('word');
   const [caseDetailState, setCaseDetailState] = useState<CaseDetailState>({
     status: 'idle',
   });
@@ -484,10 +489,11 @@ export function CacheRawKeyCompareModal({
         diffStyle,
         overflow: diffOverflow,
         themeType: 'light',
-        lineDiffType: 'word',
+        lineDiffType,
+        maxLineDiffLength: Number.MAX_SAFE_INTEGER,
         collapsedContextThreshold: 6,
       }),
-      [diffOverflow, diffStyle],
+      [diffOverflow, diffStyle, lineDiffType],
     );
 
   function handleRunChange(nextRunId: string) {
@@ -504,6 +510,27 @@ export function CacheRawKeyCompareModal({
   function handleCaseChange(nextCaseKey: string) {
     setSelectedCaseKey(nextCaseKey);
     setSelectedCacheEntryId(null);
+  }
+
+  function updateLineDiffType(value: string) {
+    if (
+      value === 'word-alt' ||
+      value === 'word' ||
+      value === 'char' ||
+      value === 'none'
+    ) {
+      setLineDiffType(value);
+    }
+  }
+
+  async function handleCopyLeft() {
+    if (comparisonRawKeyJson === null) return;
+    await copyTextToClipboard(comparisonRawKeyJson, 'Copy left raw key');
+  }
+
+  async function handleCopyRight() {
+    if (currentRawKeyJson === null) return;
+    await copyTextToClipboard(currentRawKeyJson, 'Copy right raw key');
   }
 
   return (
@@ -657,6 +684,20 @@ export function CacheRawKeyCompareModal({
                 </CompactSelectInput>
               </DiffControl>
               <DiffControl>
+                <DiffControlLabel>Line diff</DiffControlLabel>
+                <CompactSelectInput
+                  value={lineDiffType}
+                  onChange={(event) =>
+                    updateLineDiffType(event.currentTarget.value)
+                  }
+                >
+                  <option value="word">Word</option>
+                  <option value="word-alt">Word alt</option>
+                  <option value="char">Character</option>
+                  <option value="none">None</option>
+                </CompactSelectInput>
+              </DiffControl>
+              <DiffControl>
                 <DiffControlLabel>Overflow</DiffControlLabel>
                 <CompactSelectInput
                   value={diffOverflow}
@@ -670,6 +711,20 @@ export function CacheRawKeyCompareModal({
                   <option value="wrap">Wrap</option>
                 </CompactSelectInput>
               </DiffControl>
+              <Button
+                variant="secondary"
+                leftIcon={<Copy />}
+                onClick={() => void handleCopyLeft()}
+              >
+                Copy left
+              </Button>
+              <Button
+                variant="secondary"
+                leftIcon={<Copy />}
+                onClick={() => void handleCopyRight()}
+              >
+                Copy right
+              </Button>
             </DiffControls>
           </DiffHeader>
           <DiffPanel wrap={diffOverflow === 'wrap'}>
