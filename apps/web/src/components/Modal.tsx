@@ -9,13 +9,17 @@ import {
   transition,
 } from '#src/style/helpers';
 
-const Overlay = styled.div`
+const Overlay = styled.div<{ topLayer: boolean }>`
   ${fillContainer};
   ${centerContent};
   position: fixed;
   inset: 0;
   background: ${colors.black.alpha(0.4)};
   z-index: 60;
+
+  &.topLayer {
+    z-index: 100;
+  }
 `;
 
 const Dialog = styled.div<{ wide: boolean }>`
@@ -101,6 +105,7 @@ type ModalProps = {
   children: ReactNode;
   footer?: ReactNode;
   wide?: boolean;
+  topLayer?: boolean;
 };
 
 /**
@@ -116,6 +121,7 @@ export function Modal({
   children,
   footer,
   wide = false,
+  topLayer = false,
 }: ModalProps) {
   useEffect(() => {
     if (!isOpen) return;
@@ -129,7 +135,10 @@ export function Modal({
   if (!isOpen) return null;
 
   return (
-    <Overlay onClick={onClose}>
+    <Overlay
+      topLayer={topLayer}
+      onClick={onClose}
+    >
       <Dialog
         wide={wide}
         onClick={(event) => event.stopPropagation()}

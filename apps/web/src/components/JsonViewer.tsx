@@ -26,6 +26,7 @@ import {
   resolveSearchResult,
   type SearchMode,
 } from '#src/components/JsonViewer.search';
+import { TextViewModal } from '#src/components/TextViewModal';
 import { Tooltip } from '#src/components/Tooltip';
 import { colors } from '#src/style/colors';
 import {
@@ -35,6 +36,8 @@ import {
   transition,
 } from '#src/style/helpers';
 import { deserializeSerializedValue } from '#src/utils/serializedValues';
+
+const newlineRegex = /\n/;
 
 const ViewerWrapper = styled.div`
   position: relative;
@@ -347,6 +350,35 @@ const EmptySearchResult = styled.div`
   font-size: 13px;
 `;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isUnknownArray(value: unknown): value is unknown[] {
+  return Array.isArray(value);
+}
+
+function readRowTextValue(
+  parentValue: unknown,
+  keyName: unknown,
+): string | null {
+  if (isUnknownArray(parentValue)) {
+    const index =
+      typeof keyName === 'number'
+        ? keyName
+        : typeof keyName === 'string'
+          ? Number.parseInt(keyName, 10)
+          : Number.NaN;
+    if (!Number.isInteger(index)) return null;
+    const value = parentValue[index];
+    return typeof value === 'string' ? value : null;
+  }
+
+  if (!isRecord(parentValue) || typeof keyName !== 'string') return null;
+  const value = parentValue[keyName];
+  return typeof value === 'string' ? value : null;
+}
+
 function JsonContent({
   value,
   collapsed,
@@ -360,15 +392,100 @@ function JsonContent({
   enableClipboard: boolean;
   displayDataTypes: boolean;
 }) {
+  const [selectedText, setSelectedText] = useState<{
+    title: string;
+    subtitle: string | undefined;
+    text: string;
+  } | null>(null);
+
+  function openTextValue(text: string, keyName: unknown) {
+    setSelectedText({
+      title: 'JSON text value',
+      subtitle:
+        typeof keyName === 'string' || typeof keyName === 'number'
+          ? String(keyName)
+          : undefined,
+      text,
+    });
+  }
+
+  const textModal =
+    selectedText === null ? null : (
+      <TextViewModal
+        key={`${selectedText.subtitle ?? 'value'}-${selectedText.text}`}
+        isOpen
+        title={selectedText.title}
+        subtitle={selectedText.subtitle}
+        text={selectedText.text}
+        onClose={() => setSelectedText(null)}
+      />
+    );
+
   if (typeof value === 'object' && value !== null) {
     return (
-      <JsonView
-        value={value}
-        collapsed={collapsed}
-        displayDataTypes={displayDataTypes}
-        shortenTextAfterLength={collapseStringsAfterLength}
-        enableClipboard={enableClipboard}
-      />
+      <>
+        <JsonView
+          value={value}
+          collapsed={collapsed}
+          displayDataTypes={displayDataTypes}
+          shortenTextAfterLength={collapseStringsAfterLength}
+          enableClipboard={enableClipboard}
+        >
+          <JsonView.String
+            render={({ children, ...reset }, { type }) => {
+              if (type === 'type') {
+                return <span />;
+              }
+              if (typeof children === 'string' && newlineRegex.test(children)) {
+                return (
+                  <span {...reset}>"{children.replaceAll('\n', '\\n')}"</span>
+                );
+              }
+
+              return;
+            }}
+          />
+          <JsonView.Row
+            as="div"
+            render={(props, { keyName, parentValue }) => {
+              const textValue = readRowTextValue(parentValue, keyName);
+              return (
+                <div
+                  {...props}
+                  onClick={(event) => {
+                    if (textValue !== null && event.altKey) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      openTextValue(textValue, keyName);
+                      return;
+                    }
+                    props.onClick?.(event);
+                  }}
+                />
+              );
+            }}
+          />
+        </JsonView>
+        {textModal}
+      </>
+    );
+  }
+
+  if (typeof value === 'string') {
+    return (
+      <>
+        <PrimitiveValue
+          onClick={(event) => {
+            if (!event.altKey) return;
+            event.preventDefault();
+            event.stopPropagation();
+            openTextValue(value, undefined);
+          }}
+        >
+          {formatPrimitiveValue(value)}
+        </PrimitiveValue>
+        {textModal}
+      </>
     );
   }
 

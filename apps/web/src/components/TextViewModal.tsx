@@ -1,4 +1,4 @@
-import { Code2, Eye } from 'lucide-react';
+import { Check, Code2, Copy, Eye } from 'lucide-react';
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -7,6 +7,7 @@ import { Button } from '#src/components/Button';
 import { Modal } from '#src/components/Modal';
 import { colors } from '#src/style/colors';
 import { inline, monoFont, stack, transition } from '#src/style/helpers';
+import { copyTextToClipboard } from '#src/utils/clipboard';
 
 type TextViewMode = 'plain' | 'markdown';
 
@@ -17,6 +18,10 @@ const Body = styled.div`
 
 const Toolbar = styled.div`
   ${inline({ justify: 'right', align: 'center' })}
+`;
+
+const FooterActions = styled.div`
+  ${inline({ align: 'center', gap: 8 })}
 `;
 
 const ModeToggle = styled.div`
@@ -208,6 +213,13 @@ export function TextViewModal({
   onClose: () => void;
 }) {
   const [mode, setMode] = useState<TextViewMode>(initialMode);
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    await copyTextToClipboard(text, 'Copy text');
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1400);
+  }
 
   return (
     <Modal
@@ -216,15 +228,25 @@ export function TextViewModal({
       subtitle={subtitle}
       onClose={onClose}
       wide
+      topLayer
       footer={
         <>
           <span />
-          <Button
-            variant="secondary"
-            onClick={onClose}
-          >
-            Close
-          </Button>
+          <FooterActions>
+            <Button
+              variant="secondary"
+              leftIcon={copied ? <Check /> : <Copy />}
+              onClick={() => void handleCopy()}
+            >
+              {copied ? 'Copied' : 'Copy'}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={onClose}
+            >
+              Close
+            </Button>
+          </FooterActions>
         </>
       }
     >
