@@ -22,7 +22,7 @@ import {
   formatSpanDiagnosticTooltip,
   formatSpanOutputDiagnosticTooltip,
   formatSpanDuration,
-  getSpanOutputDiagnosticKey,
+  getSpanOutputDiagnosticMatch,
   type SpanBar,
   type TraceNestingMode,
 } from '#src/components/TraceTree.helpers';
@@ -746,19 +746,20 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
                   ? formatCheckpointPreview(span.attributes?.value)
                   : null;
                 const hasError = span.status === 'error';
-                const outputDiagnosticKey = getSpanOutputDiagnosticKey(span);
+                const outputDiagnosticMatch =
+                  getSpanOutputDiagnosticMatch(span);
                 const hasSpanWarning =
                   span.warning !== undefined ||
                   (span.warnings?.length ?? 0) > 0;
                 const hasWarning =
                   !hasError &&
-                  (hasSpanWarning || outputDiagnosticKey !== undefined);
+                  (hasSpanWarning || outputDiagnosticMatch !== undefined);
                 const diagnosticTooltip = hasError
                   ? formatSpanDiagnosticTooltip(span, 'error')
                   : hasWarning
-                    ? hasSpanWarning || outputDiagnosticKey === undefined
+                    ? hasSpanWarning || outputDiagnosticMatch === undefined
                       ? formatSpanDiagnosticTooltip(span, 'warning')
-                      : formatSpanOutputDiagnosticTooltip(outputDiagnosticKey)
+                      : formatSpanOutputDiagnosticTooltip(outputDiagnosticMatch)
                     : undefined;
                 const diagnosticLabel = hasError
                   ? 'Errored span'

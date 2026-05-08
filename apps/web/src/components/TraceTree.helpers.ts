@@ -1,5 +1,9 @@
 import type { EvalTraceSpan } from '@agent-evals/shared';
-import { findDiagnosticOutputKey } from '#src/utils/outputDiagnostics';
+import {
+  findDiagnosticOutputMatch,
+  formatDiagnosticOutputMessage,
+  type DiagnosticOutputMatch,
+} from '#src/utils/outputDiagnostics';
 
 type VisibleRow = { span: EvalTraceSpan; depth: number; hasChildren: boolean };
 
@@ -244,14 +248,16 @@ export function formatSpanDiagnosticTooltip(
   return `${label}: ${diagnostic.message}`;
 }
 
-export function formatSpanOutputDiagnosticTooltip(key: string): string {
-  return `Output may contain a diagnostic key: "${key}".`;
+export function formatSpanOutputDiagnosticTooltip(
+  match: DiagnosticOutputMatch,
+): string {
+  return formatDiagnosticOutputMessage(match);
 }
 
-export function getSpanOutputDiagnosticKey(
+export function getSpanOutputDiagnosticMatch(
   span: EvalTraceSpan,
-): string | undefined {
-  return findDiagnosticOutputKey(span.attributes?.output);
+): DiagnosticOutputMatch | undefined {
+  return findDiagnosticOutputMatch(span.attributes?.output);
 }
 
 function clamp(value: number, min: number, max: number): number {

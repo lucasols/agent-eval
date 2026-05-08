@@ -12,7 +12,10 @@ import { JsonViewer } from '#src/components/JsonViewer';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
 import { formatDuration } from '#src/utils/formatters';
-import { findDiagnosticOutputKey } from '#src/utils/outputDiagnostics';
+import {
+  findDiagnosticOutputMatch,
+  formatDiagnosticOutputMessage,
+} from '#src/utils/outputDiagnostics';
 import {
   formatTraceAttributeValue,
   getTraceAttributeItems,
@@ -119,17 +122,19 @@ export function SpanDetail({ span, spans, traceDisplay }: SpanDetailProps) {
     remainingAttributes !== null && Object.keys(remainingAttributes).length > 0;
   const capturedErrors = span.errors ?? [];
   const capturedWarnings = span.warnings ?? [];
-  const outputDiagnosticKey = findDiagnosticOutputKey(span.attributes?.output);
+  const outputDiagnosticMatch = findDiagnosticOutputMatch(
+    span.attributes?.output,
+  );
   const lastCapturedError = capturedErrors.at(-1);
   const outputWarningItems =
-    outputDiagnosticKey !== undefined
+    outputDiagnosticMatch !== undefined
       ? [
           toDiagnosticDetailItem({
             diagnostic: {
-              message: `Output may contain a diagnostic key: "${outputDiagnosticKey}".`,
+              message: formatDiagnosticOutputMessage(outputDiagnosticMatch),
               name: 'DiagnosticOutputWarning',
             },
-            id: `output-diagnostic-${outputDiagnosticKey}`,
+            id: `output-diagnostic-${outputDiagnosticMatch.path}`,
             meta: undefined,
           }),
         ]

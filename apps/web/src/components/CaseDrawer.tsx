@@ -52,7 +52,7 @@ import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
 import { formatNumericCellValue } from '#src/utils/formatters';
 import {
-  findDiagnosticOutputKey,
+  findDiagnosticOutputMatch,
   formatDiagnosticOutputTooltip,
 } from '#src/utils/outputDiagnostics';
 import {
@@ -835,17 +835,17 @@ function ColumnCell({
   value: CellValue | undefined;
 }) {
   const label = getDisplayColumnLabel(def);
-  const diagnosticKey = findDiagnosticOutputKey(value, def.key);
+  const diagnosticMatch = findDiagnosticOutputMatch(value, def.key);
   return (
     <OutputBlock>
       <OutputLabelRow>
         <OutputLabel>{label}</OutputLabel>
-        {diagnosticKey !== undefined ? (
+        {diagnosticMatch !== undefined ? (
           <Tooltip
-            content={formatDiagnosticOutputTooltip(diagnosticKey, label)}
+            content={formatDiagnosticOutputTooltip(diagnosticMatch, label)}
           >
             <OutputWarningIcon
-              aria-label={`Output contains ${diagnosticKey} key`}
+              aria-label={`Output contains ${diagnosticMatch.key} key`}
             >
               <TriangleAlert />
             </OutputWarningIcon>
