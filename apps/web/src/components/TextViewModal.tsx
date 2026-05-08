@@ -9,7 +9,7 @@ import { colors } from '#src/style/colors';
 import { inline, monoFont, stack, transition } from '#src/style/helpers';
 import { copyTextToClipboard } from '#src/utils/clipboard';
 
-type TextViewMode = 'plain' | 'markdown';
+export type TextViewMode = 'plain' | 'markdown';
 
 const Body = styled.div`
   ${stack({ gap: 12 })}

@@ -19,7 +19,7 @@ const Overlay = styled.div<{ topLayer: boolean }>`
   z-index: 60;
 
   &.topLayer {
-    z-index: 100;
+    z-index: 1100;
   }
 `;
 
@@ -146,7 +146,9 @@ export function Modal({
   return createPortal(
     <Overlay
       topLayer={topLayer}
-      onClick={onClose}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
     >
       <Dialog
         wide={wide}

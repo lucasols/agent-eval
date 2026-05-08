@@ -6,6 +6,7 @@ import { z } from 'zod/v4';
 import { CaseDrawer } from '#src/components/CaseDrawer';
 import { EmptyState } from '#src/components/EmptyState';
 import { FolderView } from '#src/components/FolderView';
+import { GlobalModalHost } from '#src/components/GlobalModalHost';
 import { RunDrawer } from '#src/components/RunDrawer';
 import { Sidebar } from '#src/components/Sidebar';
 import { SingleEvalView } from '#src/components/SingleEvalView';
@@ -186,6 +187,7 @@ export function AppShell() {
       </MainPanel>
       {selectedCaseId ? <CaseDrawer /> : null}
       {selectedRunId ? <RunDrawer /> : null}
+      <GlobalModalHost />
     </Root>
   );
 }

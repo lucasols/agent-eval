@@ -127,8 +127,24 @@ defineEval<{ orderId: string }>({
           });
 
         const response = `Queued a retry for order ${input.orderId} after webhook rejection.`;
+        const retryPlan = [
+          `Webhook recovery note for order ${input.orderId}`,
+          '',
+          'The refund webhook rejected the first submission, so the workflow kept the customer-facing response calm and queued a retry instead of failing the case.',
+          '',
+          'Retry plan:',
+          '- Preserve the original refund decision and order id.',
+          '- Wait for the webhook cool-down window before retrying.',
+          '- Send the same refund payload with a new idempotency key.',
+          '- Keep the case in the operations queue until the webhook accepts the retry.',
+          '- Escalate to manual review only if the second attempt is rejected.',
+          '',
+          'Operator note:',
+          'This text is intentionally multiline because long trace notes should be readable as text. The JSON viewer should show the string directly in the trace detail and the Expand button should open the text viewer modal.',
+        ].join('\n');
         setEvalOutput('response', response);
-        evalSpan.setAttribute('output', { response });
+        evalTracer.checkpoint('webhook-retry-plan', retryPlan);
+        evalSpan.setAttribute('output', retryPlan);
       },
     );
   },

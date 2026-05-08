@@ -17,8 +17,8 @@ import {
 } from '#src/components/LlmCallBreakdownTable';
 import { formatCostScenarioLabel } from '#src/components/LlmCostScenarioToolbar';
 import { StatusBadge } from '#src/components/StatusBadge';
-import { TextViewModal } from '#src/components/TextViewModal';
 import { Tooltip } from '#src/components/Tooltip';
+import { openTextViewModal } from '#src/stores/modalStore';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
 import { formatDuration, formatNumber } from '#src/utils/formatters';
@@ -328,57 +328,39 @@ function RawSection({ label, data }: { label: string; data: unknown }) {
 }
 
 function MessagesSection({ input }: { input: unknown }) {
-  const [selectedMessage, setSelectedMessage] = useState<{
-    role: string;
-    text: string;
-    index: number;
-  } | null>(null);
   const messages = getSimplifiedLlmMessages(input);
   if (messages.length === 0) return null;
 
   return (
-    <>
-      <RawSectionWrapper>
-        <RawLabel>Messages</RawLabel>
-        <MessagesWrapper>
-          {messages.map((message, index) => (
-            <MessageCard key={`${message.role}-${String(index)}`}>
-              <MessageHeader>
-                <MessageRole>{message.role}</MessageRole>
-                <Tooltip content="View full message">
-                  <IconButton
-                    aria-label="View full message"
-                    onClick={() =>
-                      setSelectedMessage({
-                        role: message.role,
-                        text: message.text,
-                        index,
-                      })
-                    }
-                  >
-                    <Maximize2 />
-                  </IconButton>
-                </Tooltip>
-              </MessageHeader>
-              <MessageText>
-                {message.text.length > 0 ? message.text : LLM_CALL_EM_DASH}
-              </MessageText>
-            </MessageCard>
-          ))}
-        </MessagesWrapper>
-      </RawSectionWrapper>
-
-      {selectedMessage !== null ? (
-        <TextViewModal
-          key={`${selectedMessage.role}-${String(selectedMessage.index)}`}
-          isOpen
-          title="LLM message"
-          subtitle={selectedMessage.role}
-          text={selectedMessage.text}
-          onClose={() => setSelectedMessage(null)}
-        />
-      ) : null}
-    </>
+    <RawSectionWrapper>
+      <RawLabel>Messages</RawLabel>
+      <MessagesWrapper>
+        {messages.map((message, index) => (
+          <MessageCard key={`${message.role}-${String(index)}`}>
+            <MessageHeader>
+              <MessageRole>{message.role}</MessageRole>
+              <Tooltip content="View full message">
+                <IconButton
+                  aria-label="View full message"
+                  onClick={() =>
+                    openTextViewModal({
+                      title: 'LLM message',
+                      subtitle: message.role,
+                      text: message.text,
+                    })
+                  }
+                >
+                  <Maximize2 />
+                </IconButton>
+              </Tooltip>
+            </MessageHeader>
+            <MessageText>
+              {message.text.length > 0 ? message.text : LLM_CALL_EM_DASH}
+            </MessageText>
+          </MessageCard>
+        ))}
+      </MessagesWrapper>
+    </RawSectionWrapper>
   );
 }
 

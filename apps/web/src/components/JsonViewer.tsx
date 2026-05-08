@@ -1,42 +1,17 @@
 import JsonView, { type JsonViewProps } from '@uiw/react-json-view';
-import {
-  Braces,
-  ChevronsDownUp,
-  ChevronsUpDown,
-  Hash,
-  KeyRound,
-  Layers,
-  Maximize2,
-  Search,
-  X,
-} from 'lucide-react';
-import {
-  useDeferredValue,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
-import { createPortal } from 'react-dom';
+import { Maximize2 } from 'lucide-react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { resultify } from 't-result';
 import { styled } from 'vindur';
 import { IconButton } from '#src/components/IconButton';
-import {
-  formatPrimitiveValue,
-  keyFilterSyntaxTooltip,
-  resolveSearchResult,
-  type SearchMode,
-} from '#src/components/JsonViewer.search';
-import { TextViewModal } from '#src/components/TextViewModal';
+import { formatPrimitiveValue } from '#src/components/JsonViewer.search';
 import { Tooltip } from '#src/components/Tooltip';
-import { colors } from '#src/style/colors';
 import {
-  centerContent,
-  inline,
-  monoFont,
-  transition,
-} from '#src/style/helpers';
+  openJsonFullscreenModal,
+  openTextViewModal,
+} from '#src/stores/modalStore';
+import { colors } from '#src/style/colors';
+import { inline, monoFont, transition } from '#src/style/helpers';
 import { deserializeSerializedValue } from '#src/utils/serializedValues';
 
 const newlineRegex = /\n/;
@@ -170,165 +145,6 @@ const ToggleButton = styled.button`
   }
 `;
 
-const FullscreenOverlay = styled.div`
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: ${colors.black.alpha(0.5)};
-  padding: 16px;
-`;
-
-const FullscreenDialog = styled.div`
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  width: 100%;
-  height: 100%;
-  background: ${colors.bg.var};
-  border: 1px solid ${colors.borderStrong.var};
-  border-radius: var(--radius-md);
-  box-shadow: 0 30px 80px -30px ${colors.black.alpha(0.45)};
-  overflow: hidden;
-`;
-
-const FullscreenHeader = styled.header`
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px 12px;
-  align-items: center;
-  padding: 12px 14px;
-  border-bottom: 1px solid ${colors.border.var};
-  background: ${colors.bgElevated.var};
-`;
-
-const FullscreenTitleRow = styled.div`
-  ${inline({ justify: 'space-between', align: 'center', gap: 12 })}
-  min-width: 0;
-`;
-
-const FullscreenTitle = styled.h2`
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: ${colors.text.var};
-`;
-
-const SearchBar = styled.div`
-  ${inline({ align: 'center', gap: 8 })}
-  grid-column: 1 / -1;
-`;
-
-const SearchInputWrap = styled.label`
-  ${inline({ align: 'center', gap: 7 })}
-  flex: 1;
-  min-width: 0;
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid ${colors.borderStrong.var};
-  border-radius: var(--radius-md);
-  background: ${colors.bg.var};
-  color: ${colors.textDim.var};
-  ${transition({ property: 'border-color, box-shadow' })}
-
-  &:focus-within {
-    border-color: ${colors.accent.var};
-    box-shadow: 0 0 0 3px ${colors.accent.alpha(0.18)};
-  }
-
-  & svg {
-    width: 14px;
-    height: 14px;
-    flex-shrink: 0;
-  }
-`;
-
-const SearchInput = styled.input`
-  flex: 1;
-  min-width: 0;
-  border: none;
-  outline: none;
-  background: transparent;
-  color: ${colors.text.var};
-  font: inherit;
-  font-size: 12px;
-`;
-
-const SearchModeButton = styled.button<{ active: boolean }>`
-  ${centerContent};
-  width: 32px;
-  height: 32px;
-  border: 1px solid ${colors.borderStrong.var};
-  border-radius: var(--radius-md);
-  background: ${colors.bg.var};
-  color: ${colors.textMuted.var};
-  cursor: pointer;
-  ${transition({ property: 'background, border-color, color, box-shadow' })}
-
-  &.active {
-    background: ${colors.accent.alpha(0.14)};
-    border-color: ${colors.accent.alpha(0.7)};
-    color: ${colors.accentDim.var};
-  }
-
-  &:hover {
-    background: ${colors.surfaceHover.var};
-    color: ${colors.text.var};
-  }
-
-  &:focus-visible {
-    outline: 2px solid ${colors.accent.var};
-    outline-offset: 2px;
-  }
-
-  & svg {
-    width: 14px;
-    height: 14px;
-  }
-`;
-
-const SearchMessage = styled.div`
-  grid-column: 1 / -1;
-  margin-top: -2px;
-  font-size: 12px;
-  color: ${colors.textMuted.var};
-`;
-
-const FullscreenBody = styled.div`
-  min-height: 0;
-  padding: 12px;
-  overflow: hidden;
-
-  ${ViewerWrapper} {
-    height: 100%;
-  }
-
-  ${ViewerCard} {
-    height: 100%;
-    max-height: none;
-  }
-`;
-
-const FullscreenCloseButton = styled.button`
-  ${centerContent};
-  width: 30px;
-  height: 30px;
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-sm);
-  color: ${colors.textMuted.var};
-  cursor: pointer;
-  ${transition({ property: 'background, color' })}
-
-  &:hover {
-    background: ${colors.surfaceHover.var};
-    color: ${colors.text.var};
-  }
-
-  &:focus-visible {
-    outline: 2px solid ${colors.accent.var};
-    outline-offset: 2px;
-  }
-`;
-
 type JsonViewerProps = {
   value: unknown;
   compact?: boolean;
@@ -344,12 +160,6 @@ const PrimitiveValue = styled.pre`
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-`;
-
-const EmptySearchResult = styled.div`
-  padding: 14px;
-  color: ${colors.textMuted.var};
-  font-size: 13px;
 `;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -408,14 +218,8 @@ function JsonContent({
   enableClipboard: boolean;
   displayDataTypes: boolean;
 }) {
-  const [selectedText, setSelectedText] = useState<{
-    title: string;
-    subtitle: string | undefined;
-    text: string;
-  } | null>(null);
-
   function openTextValue(text: string, keyName: unknown) {
-    setSelectedText({
+    openTextViewModal({
       title: 'JSON text value',
       subtitle:
         typeof keyName === 'string' || typeof keyName === 'number'
@@ -424,18 +228,6 @@ function JsonContent({
       text,
     });
   }
-
-  const textModal =
-    selectedText === null ? null : (
-      <TextViewModal
-        key={`${selectedText.subtitle ?? 'value'}-${selectedText.text}`}
-        isOpen
-        title={selectedText.title}
-        subtitle={selectedText.subtitle}
-        text={selectedText.text}
-        onClose={() => setSelectedText(null)}
-      />
-    );
 
   if (typeof value === 'object' && value !== null) {
     return (
@@ -482,7 +274,6 @@ function JsonContent({
             }}
           />
         </JsonView>
-        {textModal}
       </>
     );
   }
@@ -501,7 +292,6 @@ function JsonContent({
         >
           {displayText}
         </PrimitiveValue>
-        {textModal}
       </>
     );
   }
@@ -509,222 +299,11 @@ function JsonContent({
   return <PrimitiveValue>{formatRootPrimitiveValue(value)}</PrimitiveValue>;
 }
 
-function JsonFullscreenModal({
-  value,
-  collapsed,
-  collapseStringsAfterLength,
-  enableClipboard,
-  onClose,
-}: {
-  value: unknown;
-  collapsed: JsonViewProps<object>['collapsed'];
-  collapseStringsAfterLength: number;
-  enableClipboard: boolean;
-  onClose: () => void;
-}) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const deferredSearchQuery = useDeferredValue(searchQuery);
-  const [searchMode, setSearchMode] = useState<SearchMode>('text');
-  const [showOriginalIndexes, setShowOriginalIndexes] = useState(false);
-  const [showDataTypes, setShowDataTypes] = useState(false);
-  const [viewerCollapsed, setViewerCollapsed] =
-    useState<JsonViewProps<object>['collapsed']>(collapsed);
-  const [lastExpandLevel, setLastExpandLevel] = useState(2);
-  const [viewerRevision, setViewerRevision] = useState(0);
-  const searchResult = useMemo(
-    () =>
-      resolveSearchResult(
-        value,
-        deferredSearchQuery,
-        searchMode,
-        showOriginalIndexes,
-      ),
-    [deferredSearchQuery, searchMode, showOriginalIndexes, value],
-  );
-
-  useEffect(() => {
-    function handleKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
-    }
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [onClose]);
-
-  function updateViewerCollapsed(
-    nextCollapsed: JsonViewProps<object>['collapsed'],
-  ) {
-    setViewerCollapsed(nextCollapsed);
-    setViewerRevision((current) => current + 1);
-  }
-
-  function handleExpandToLevel() {
-    const rawLevel = globalThis.prompt(
-      'Expand JSON up to which level?',
-      String(lastExpandLevel),
-    );
-    if (rawLevel === null) return;
-
-    const parsed = Number.parseInt(rawLevel, 10);
-    if (Number.isNaN(parsed)) return;
-
-    const nextLevel = Math.max(0, Math.min(parsed, 20));
-    setLastExpandLevel(nextLevel);
-    updateViewerCollapsed(nextLevel);
-  }
-
-  const viewerIsCollapsedAll = viewerCollapsed === true;
-
-  return createPortal(
-    <FullscreenOverlay
-      role="dialog"
-      aria-modal="true"
-      aria-label="JSON viewer"
-      onClick={onClose}
-    >
-      <FullscreenDialog onClick={(event) => event.stopPropagation()}>
-        <FullscreenHeader>
-          <FullscreenTitleRow>
-            <FullscreenTitle>JSON</FullscreenTitle>
-          </FullscreenTitleRow>
-          <FullscreenCloseButton
-            type="button"
-            aria-label="Close fullscreen JSON viewer"
-            onClick={onClose}
-          >
-            <X size={16} />
-          </FullscreenCloseButton>
-          <SearchBar>
-            <SearchInputWrap>
-              <Search />
-              <SearchInput
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder={
-                  searchMode === 'keys'
-                    ? 'Filter keys with patterns'
-                    : 'Search keys and values'
-                }
-                aria-label={
-                  searchMode === 'keys'
-                    ? 'Filter JSON keys'
-                    : 'Search JSON keys and values'
-                }
-              />
-            </SearchInputWrap>
-            <Tooltip
-              content={keyFilterSyntaxTooltip}
-              placement="bottom-end"
-            >
-              <SearchModeButton
-                type="button"
-                active={searchMode === 'keys'}
-                aria-label="Filter keys only"
-                aria-pressed={searchMode === 'keys'}
-                onClick={() =>
-                  setSearchMode((current) =>
-                    current === 'keys' ? 'text' : 'keys',
-                  )
-                }
-              >
-                <KeyRound />
-              </SearchModeButton>
-            </Tooltip>
-            <Tooltip
-              content={
-                viewerIsCollapsedAll
-                  ? 'Expand all JSON nodes'
-                  : 'Collapse all JSON nodes'
-              }
-              placement="bottom-end"
-            >
-              <SearchModeButton
-                type="button"
-                active={viewerIsCollapsedAll}
-                aria-label={
-                  viewerIsCollapsedAll
-                    ? 'Expand all JSON nodes'
-                    : 'Collapse all JSON nodes'
-                }
-                aria-pressed={viewerIsCollapsedAll}
-                onClick={() =>
-                  updateViewerCollapsed(viewerIsCollapsedAll ? false : true)
-                }
-              >
-                {viewerIsCollapsedAll ? <ChevronsUpDown /> : <ChevronsDownUp />}
-              </SearchModeButton>
-            </Tooltip>
-            <Tooltip
-              content="Expand JSON up to a level"
-              placement="bottom-end"
-            >
-              <SearchModeButton
-                type="button"
-                active={typeof viewerCollapsed === 'number'}
-                aria-label="Expand JSON up to a level"
-                aria-pressed={typeof viewerCollapsed === 'number'}
-                onClick={handleExpandToLevel}
-              >
-                <Layers />
-              </SearchModeButton>
-            </Tooltip>
-            <Tooltip
-              content="Show original array indexes in filtered results"
-              placement="bottom-end"
-            >
-              <SearchModeButton
-                type="button"
-                active={showOriginalIndexes}
-                aria-label="Show original array indexes"
-                aria-pressed={showOriginalIndexes}
-                onClick={() => setShowOriginalIndexes((current) => !current)}
-              >
-                <Hash />
-              </SearchModeButton>
-            </Tooltip>
-            <Tooltip
-              content="Show JSON value data types"
-              placement="bottom-end"
-            >
-              <SearchModeButton
-                type="button"
-                active={showDataTypes}
-                aria-label="Show JSON value data types"
-                aria-pressed={showDataTypes}
-                onClick={() => setShowDataTypes((current) => !current)}
-              >
-                <Braces />
-              </SearchModeButton>
-            </Tooltip>
-          </SearchBar>
-          {searchResult.message ? (
-            <SearchMessage>{searchResult.message}</SearchMessage>
-          ) : null}
-        </FullscreenHeader>
-        <FullscreenBody>
-          {searchResult.isEmpty ? (
-            <EmptySearchResult>No matches</EmptySearchResult>
-          ) : (
-            <JsonViewer
-              key={viewerRevision}
-              value={searchResult.value}
-              collapsed={viewerCollapsed}
-              collapseStringsAfterLength={collapseStringsAfterLength}
-              enableClipboard={enableClipboard}
-              fullscreen={false}
-              displayDataTypes={showDataTypes}
-            />
-          )}
-        </FullscreenBody>
-      </FullscreenDialog>
-    </FullscreenOverlay>,
-    document.body,
-  );
-}
-
 /**
  * Renders a JSON value with syntax highlighting. When `maxHeight` is set and
- * the content overflows, a toggle button lets the user expand the viewer to
- * its natural height and collapse it back.
+ * the content overflows, a toggle button expands object/array values inline.
+ * Root string values open `TextViewModal` instead so long text is inspected as
+ * text rather than as a JSON string literal.
  */
 export function JsonViewer({
   value,
@@ -738,8 +317,6 @@ export function JsonViewer({
 }: JsonViewerProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(false);
-  const [fullscreenOpen, setFullscreenOpen] = useState(false);
-  const [rootTextOpen, setRootTextOpen] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
   const displayValue = useMemo(
     () => deserializeSerializedValue(value),
@@ -775,10 +352,35 @@ export function JsonViewer({
     <ViewerWrapper>
       {fullscreen ? (
         <ViewerActions>
-          <Tooltip content="View fullscreen">
+          <Tooltip
+            content={
+              rootStringValue === undefined
+                ? 'View JSON fullscreen'
+                : 'View text fullscreen'
+            }
+          >
             <IconButton
-              aria-label="View JSON fullscreen"
-              onClick={() => setFullscreenOpen(true)}
+              aria-label={
+                rootStringValue === undefined
+                  ? 'View JSON fullscreen'
+                  : 'View text fullscreen'
+              }
+              onClick={() => {
+                if (rootStringValue !== undefined) {
+                  openTextViewModal({
+                    title: 'JSON text value',
+                    text: rootStringValue,
+                  });
+                  return;
+                }
+
+                openJsonFullscreenModal({
+                  value: displayValue,
+                  collapsed,
+                  collapseStringsAfterLength,
+                  enableClipboard,
+                });
+              }}
             >
               <Maximize2 />
             </IconButton>
@@ -805,34 +407,18 @@ export function JsonViewer({
           type="button"
           onClick={() => {
             if (rootStringValue !== undefined) {
-              setRootTextOpen(true);
+              openTextViewModal({
+                title: 'JSON text value',
+                text: rootStringValue,
+              });
               return;
             }
             setExpanded((v) => !v);
           }}
-          aria-expanded={
-            rootStringValue === undefined ? expanded : rootTextOpen
-          }
+          aria-expanded={rootStringValue === undefined ? expanded : false}
         >
           {expanded ? 'Collapse' : 'Expand'}
         </ToggleButton>
-      ) : null}
-      {rootTextOpen && rootStringValue !== undefined ? (
-        <TextViewModal
-          isOpen
-          title="JSON text value"
-          text={rootStringValue}
-          onClose={() => setRootTextOpen(false)}
-        />
-      ) : null}
-      {fullscreenOpen ? (
-        <JsonFullscreenModal
-          value={displayValue}
-          collapsed={collapsed}
-          collapseStringsAfterLength={collapseStringsAfterLength}
-          enableClipboard={enableClipboard}
-          onClose={() => setFullscreenOpen(false)}
-        />
       ) : null}
     </ViewerWrapper>
   );
