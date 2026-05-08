@@ -738,6 +738,77 @@ test('runCase waits for fire-and-forget spans before finalizing traces', async (
   expect(result.caseDetail.columns.lateOutput).toBe('recorded');
 });
 
+test('fire-and-forget spans do not become parents of later sibling spans', async () => {
+  const result = await runCase({
+    evalDef: {
+      id: 'background-span-parent-eval',
+      cases: [{ id: 'case-one', input: {} }],
+      execute: async () => {
+        await evalTracer.span(
+          { kind: 'agent', name: 'agent-run' },
+          async () => {
+            void evalTracer.span(
+              {
+                kind: 'api',
+                name: 'POST v4/internal/resource-register/ai-token',
+              },
+              async () => {
+                await delay(10);
+                evalSpan.setAttribute('backgroundDone', true);
+              },
+            );
+
+            await delay(1);
+
+            await evalTracer.span(
+              { kind: 'api', name: 'POST v3/conversation-messages' },
+              () => {
+                evalSpan.setAttribute('messageCreated', true);
+              },
+            );
+          },
+        );
+      },
+    },
+    evalId: 'background-span-parent-eval',
+    evalCase: { id: 'case-one', input: {} },
+    globalTraceDisplay: undefined,
+    trial: 0,
+    startTime: Date.now(),
+    cacheAdapter: null,
+    cacheMode: 'use',
+    moduleIsolation: undefined,
+    evalFilePath: '/repo/evals/support/background-span-parent.eval.ts',
+    workspaceRoot: '/repo',
+    artifactDir: '/repo/.agent-evals/runs/run-id/artifacts',
+    runId: 'run-id',
+  });
+
+  const agentSpan = result.caseDetail.trace.find(
+    (span) => span.name === 'agent-run',
+  );
+  const backgroundSpan = result.caseDetail.trace.find(
+    (span) => span.name === 'POST v4/internal/resource-register/ai-token',
+  );
+  const siblingSpan = result.caseDetail.trace.find(
+    (span) => span.name === 'POST v3/conversation-messages',
+  );
+
+  if (
+    agentSpan === undefined ||
+    backgroundSpan === undefined ||
+    siblingSpan === undefined
+  ) {
+    throw new Error('Expected agent, background, and sibling spans');
+  }
+
+  expect(backgroundSpan.parentId).toBe(agentSpan.id);
+  expect(siblingSpan.parentId).toBe(agentSpan.id);
+  expect(siblingSpan.parentId).not.toBe(backgroundSpan.id);
+  expect(backgroundSpan.attributes?.backgroundDone).toBe(true);
+  expect(siblingSpan.attributes?.messageCreated).toBe(true);
+});
+
 test('runCase waits for explicit and nested background jobs', async () => {
   const result = await runCase({
     evalDef: {

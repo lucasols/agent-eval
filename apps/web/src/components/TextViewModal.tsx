@@ -20,10 +20,6 @@ const Toolbar = styled.div`
   ${inline({ justify: 'right', align: 'center' })}
 `;
 
-const FooterActions = styled.div`
-  ${inline({ align: 'center', gap: 8 })}
-`;
-
 const ModeToggle = styled.div`
   ${inline()}
   padding: 1px;
@@ -229,24 +225,24 @@ export function TextViewModal({
       onClose={onClose}
       wide
       topLayer
+      headerActions={
+        <Button
+          variant="secondary"
+          leftIcon={copied ? <Check /> : <Copy />}
+          onClick={() => void handleCopy()}
+        >
+          {copied ? 'Copied' : 'Copy'}
+        </Button>
+      }
       footer={
         <>
           <span />
-          <FooterActions>
-            <Button
-              variant="secondary"
-              leftIcon={copied ? <Check /> : <Copy />}
-              onClick={() => void handleCopy()}
-            >
-              {copied ? 'Copied' : 'Copy'}
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={onClose}
-            >
-              Close
-            </Button>
-          </FooterActions>
+          <Button
+            variant="secondary"
+            onClick={onClose}
+          >
+            Close
+          </Button>
         </>
       }
     >

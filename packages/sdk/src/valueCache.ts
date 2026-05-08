@@ -12,7 +12,11 @@ import {
   serializeCacheRecording,
 } from './cacheSerialization.ts';
 import type { CacheRecordingFrame } from './runtime.ts';
-import { getCurrentScope, getRealDateNowMs } from './runtime.ts';
+import {
+  getCurrentActiveSpan,
+  getCurrentScope,
+  getRealDateNowMs,
+} from './runtime.ts';
 
 /** Info accepted by `evalTracer.cache(info, fn)` for spanless value caching. */
 export type TraceCacheInfo = {
@@ -52,7 +56,7 @@ export function createTraceCache(generateSpanId: () => string): {
       { namespace, key: info.key },
       { serializeFileBytes: info.serializeFileBytes === true },
     );
-    const activeSpan = scope.activeSpanStack.at(-1);
+    const activeSpan = getCurrentActiveSpan();
     const canRead = cacheCtx.mode === 'use' && cacheCtx.read !== false;
     const canStore = cacheCtx.mode !== 'bypass' && cacheCtx.store !== false;
 

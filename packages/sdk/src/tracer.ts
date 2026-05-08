@@ -16,8 +16,10 @@ import {
 } from './cacheSerialization.ts';
 import type { CacheRecordingFrame, EvalCaseScope } from './runtime.ts';
 import {
+  getCurrentActiveSpan,
   getCurrentScope,
   getRealDateNowMs,
+  runWithActiveSpan,
   startEvalBackgroundJob,
 } from './runtime.ts';
 import {
@@ -144,8 +146,7 @@ function generateSpanId(): string {
 }
 
 function updateCurrentSpan(update: (currentSpan: EvalTraceSpan) => void): void {
-  const scope = getCurrentScope();
-  const currentSpan = scope?.activeSpanStack.at(-1);
+  const currentSpan = getCurrentActiveSpan();
   if (!currentSpan) return;
   update(currentSpan);
 }
@@ -347,11 +348,10 @@ function findSpan(scope: EvalCaseScope, id: string): EvalTraceSpan | undefined {
 }
 
 function resolveExternalParentId(
-  scope: EvalCaseScope,
   parentId: string | null | undefined,
 ): string | null {
   if (parentId !== undefined) return parentId;
-  return scope.activeSpanStack.at(-1)?.id ?? null;
+  return getCurrentActiveSpan()?.id ?? null;
 }
 
 function startExternalSpan(
@@ -363,7 +363,7 @@ function startExternalSpan(
 
   const existing = findSpan(scope, id);
   if (existing) {
-    existing.parentId = resolveExternalParentId(scope, info.parentId);
+    existing.parentId = resolveExternalParentId(info.parentId);
     existing.kind = info.kind;
     existing.name = info.name;
     existing.startedAt = toIsoTimestamp(info.startedAt);
@@ -377,7 +377,7 @@ function startExternalSpan(
 
   scope.spans.push({
     id,
-    parentId: resolveExternalParentId(scope, info.parentId),
+    parentId: resolveExternalParentId(info.parentId),
     caseId: scope.caseId,
     kind: info.kind,
     name: info.name,
@@ -432,7 +432,7 @@ function recordExternalSpan(info: TraceExternalSpanRecordInfo): string {
   const status = info.status ?? (info.error ? 'error' : 'ok');
 
   if (existing) {
-    existing.parentId = resolveExternalParentId(scope, info.parentId);
+    existing.parentId = resolveExternalParentId(info.parentId);
     existing.kind = info.kind;
     existing.name = info.name;
     existing.startedAt = startedAt;
@@ -447,7 +447,7 @@ function recordExternalSpan(info: TraceExternalSpanRecordInfo): string {
 
   scope.spans.push({
     id,
-    parentId: resolveExternalParentId(scope, info.parentId),
+    parentId: resolveExternalParentId(info.parentId),
     caseId: scope.caseId,
     kind: info.kind,
     name: info.name,
@@ -604,7 +604,7 @@ async function traceSpanInternal(
   }
 
   const id = generateSpanId();
-  const parentId = scope.activeSpanStack.at(-1)?.id ?? null;
+  const parentId = getCurrentActiveSpan()?.id ?? null;
   const realStartedAt = getRealDateNowMs();
 
   const spanRecord: EvalTraceSpan = {
@@ -620,138 +620,135 @@ async function traceSpanInternal(
   };
 
   scope.spans.push(spanRecord);
-  scope.spanStack.push(id);
-  scope.activeSpanStack.push(spanRecord);
 
   const activeSpan = createSpanHandle(spanRecord);
 
-  try {
-    const cacheOpts = info.cache;
-    const cacheCtx = scope.cacheContext;
-    if (
-      cacheOpts !== undefined &&
-      cacheCtx !== undefined &&
-      scope.replayingDepth === 0
-    ) {
-      const ctx = cacheCtx;
-      const namespace = getRequiredSpanCacheNamespace(cacheOpts);
-      const keyHash = await hashCacheKey(
-        { namespace, key: cacheOpts.key },
-        { serializeFileBytes: cacheOpts.serializeFileBytes === true },
-      );
-      const canRead = ctx.mode === 'use' && ctx.read !== false;
-      const canStore = ctx.mode !== 'bypass' && ctx.store !== false;
+  return await runWithActiveSpan(spanRecord, async () => {
+    try {
+      const cacheOpts = info.cache;
+      const cacheCtx = scope.cacheContext;
+      if (
+        cacheOpts !== undefined &&
+        cacheCtx !== undefined &&
+        scope.replayingDepth === 0
+      ) {
+        const ctx = cacheCtx;
+        const namespace = getRequiredSpanCacheNamespace(cacheOpts);
+        const keyHash = await hashCacheKey(
+          { namespace, key: cacheOpts.key },
+          { serializeFileBytes: cacheOpts.serializeFileBytes === true },
+        );
+        const canRead = ctx.mode === 'use' && ctx.read !== false;
+        const canStore = ctx.mode !== 'bypass' && ctx.store !== false;
 
-      mergeSpanAttributes(spanRecord, {
-        'cache.key': keyHash,
-        'cache.namespace': namespace,
-      });
+        mergeSpanAttributes(spanRecord, {
+          'cache.key': keyHash,
+          'cache.namespace': namespace,
+        });
 
-      if (canRead) {
-        const hit = await ctx.adapter.lookup(namespace, keyHash);
-        if (hit) {
-          const storedAt = hit.storedAt;
-          const age = getRealDateNowMs() - new Date(storedAt).getTime();
+        if (canRead) {
+          const hit = await ctx.adapter.lookup(namespace, keyHash);
+          if (hit) {
+            const storedAt = hit.storedAt;
+            const age = getRealDateNowMs() - new Date(storedAt).getTime();
+            mergeSpanAttributes(spanRecord, {
+              'cache.status': 'hit',
+              'cache.storedAt': storedAt,
+              'cache.age': age,
+            });
+            const recording = deserializeCacheRecording(hit.recording);
+            replayRecording(scope, spanRecord, recording, { generateSpanId });
+            spanRecord.status =
+              recording.finalStatus ??
+              (hasSpanError(spanRecord) ? 'error' : 'ok');
+            spanRecord.endedAt = addElapsedMsToTimestamp(
+              spanRecord.startedAt,
+              getRealDateNowMs() - realStartedAt,
+            );
+            return recording.returnValue;
+          }
           mergeSpanAttributes(spanRecord, {
-            'cache.status': 'hit',
-            'cache.storedAt': storedAt,
-            'cache.age': age,
+            'cache.status': 'miss',
+            ...(canStore ? {} : { 'cache.stored': false }),
           });
-          const recording = deserializeCacheRecording(hit.recording);
-          replayRecording(scope, spanRecord, recording, { generateSpanId });
-          spanRecord.status =
-            recording.finalStatus ??
-            (hasSpanError(spanRecord) ? 'error' : 'ok');
-          spanRecord.endedAt = addElapsedMsToTimestamp(
-            spanRecord.startedAt,
-            getRealDateNowMs() - realStartedAt,
-          );
-          return recording.returnValue;
+        } else if (ctx.mode === 'use' && canStore) {
+          mergeSpanAttributes(spanRecord, {
+            'cache.status': 'miss',
+            'cache.read': false,
+          });
+        } else if (ctx.mode === 'refresh') {
+          mergeSpanAttributes(spanRecord, {
+            'cache.status': 'refresh',
+            ...(canStore ? {} : { 'cache.stored': false }),
+          });
+        } else {
+          mergeSpanAttributes(spanRecord, { 'cache.status': 'bypass' });
         }
-        mergeSpanAttributes(spanRecord, {
-          'cache.status': 'miss',
-          ...(canStore ? {} : { 'cache.stored': false }),
-        });
-      } else if (ctx.mode === 'use' && canStore) {
-        mergeSpanAttributes(spanRecord, {
-          'cache.status': 'miss',
-          'cache.read': false,
-        });
-      } else if (ctx.mode === 'refresh') {
-        mergeSpanAttributes(spanRecord, {
-          'cache.status': 'refresh',
-          ...(canStore ? {} : { 'cache.stored': false }),
-        });
-      } else {
-        mergeSpanAttributes(spanRecord, { 'cache.status': 'bypass' });
+
+        const frame: CacheRecordingFrame = {
+          baseSpanIndex: scope.spans.length,
+          replayParentSpanId: id,
+          ops: [],
+        };
+        scope.recordingStack.push(frame);
+
+        let bodyResult: unknown;
+        try {
+          bodyResult = await fn(activeSpan);
+        } finally {
+          scope.recordingStack.pop();
+        }
+
+        appendSubSpanOps(scope, frame);
+        finishSpanWithoutThrownError(spanRecord, realStartedAt);
+
+        if (canStore) {
+          const recording: CacheRecording = {
+            returnValue: bodyResult,
+            finalAttributes: stripCacheAttributes(spanRecord.attributes),
+            finalStatus: spanRecord.status,
+            finalError: spanRecord.error,
+            finalErrors: spanRecord.errors,
+            finalWarning: spanRecord.warning,
+            finalWarnings: spanRecord.warnings,
+            ops: frame.ops,
+          };
+          const entry: CacheEntry = {
+            version: 1,
+            key: keyHash,
+            namespace,
+            operationType: 'span',
+            operationName: info.name,
+            spanName: info.name,
+            spanKind: info.kind,
+            storedAt: new Date(getRealDateNowMs()).toISOString(),
+            recording: await serializeCacheRecording(recording, {
+              externalJsonStore: ctx.adapter.externalJsonStore,
+            }),
+          };
+          await ctx.adapter.write(entry, {
+            rawKey: cacheOpts.key,
+            operationType: 'span',
+            operationName: info.name,
+          });
+        }
+
+        return bodyResult;
       }
 
-      const frame: CacheRecordingFrame = {
-        baseSpanIndex: scope.spans.length,
-        replayParentSpanId: id,
-        ops: [],
-      };
-      scope.recordingStack.push(frame);
-
-      let bodyResult: unknown;
-      try {
-        bodyResult = await fn(activeSpan);
-      } finally {
-        scope.recordingStack.pop();
-      }
-
-      appendSubSpanOps(scope, frame);
+      const result = await fn(activeSpan);
       finishSpanWithoutThrownError(spanRecord, realStartedAt);
-
-      if (canStore) {
-        const recording: CacheRecording = {
-          returnValue: bodyResult,
-          finalAttributes: stripCacheAttributes(spanRecord.attributes),
-          finalStatus: spanRecord.status,
-          finalError: spanRecord.error,
-          finalErrors: spanRecord.errors,
-          finalWarning: spanRecord.warning,
-          finalWarnings: spanRecord.warnings,
-          ops: frame.ops,
-        };
-        const entry: CacheEntry = {
-          version: 1,
-          key: keyHash,
-          namespace,
-          operationType: 'span',
-          operationName: info.name,
-          spanName: info.name,
-          spanKind: info.kind,
-          storedAt: new Date(getRealDateNowMs()).toISOString(),
-          recording: await serializeCacheRecording(recording, {
-            externalJsonStore: ctx.adapter.externalJsonStore,
-          }),
-        };
-        await ctx.adapter.write(entry, {
-          rawKey: cacheOpts.key,
-          operationType: 'span',
-          operationName: info.name,
-        });
-      }
-
-      return bodyResult;
+      return result;
+    } catch (error) {
+      spanRecord.status = 'error';
+      spanRecord.endedAt = addElapsedMsToTimestamp(
+        spanRecord.startedAt,
+        getRealDateNowMs() - realStartedAt,
+      );
+      spanRecord.error = normalizeTraceError(error);
+      throw error;
     }
-
-    const result = await fn(activeSpan);
-    finishSpanWithoutThrownError(spanRecord, realStartedAt);
-    return result;
-  } catch (error) {
-    spanRecord.status = 'error';
-    spanRecord.endedAt = addElapsedMsToTimestamp(
-      spanRecord.startedAt,
-      getRealDateNowMs() - realStartedAt,
-    );
-    spanRecord.error = normalizeTraceError(error);
-    throw error;
-  } finally {
-    scope.spanStack.pop();
-    scope.activeSpanStack.pop();
-  }
+  });
 }
 
 function getRequiredSpanCacheNamespace(cacheOpts: unknown): string {
@@ -821,7 +818,7 @@ export const evalTracer = {
     if (!scope) return;
     scope.checkpoints.set(name, data);
     const id = generateSpanId();
-    const parentId = scope.spanStack.at(-1) ?? null;
+    const parentId = getCurrentActiveSpan()?.id ?? null;
     scope.spans.push({
       id,
       parentId,

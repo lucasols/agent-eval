@@ -124,8 +124,6 @@ export type EvalCaseScope = {
   logs: RunLogEntry[];
   spans: EvalTraceSpan[];
   checkpoints: Map<string, unknown>;
-  spanStack: string[];
-  activeSpanStack: EvalTraceSpan[];
   /**
    * Stack of active cache recorders. Ops are written to the top-most frame
    * when it exists and `replayingDepth === 0`.
@@ -166,6 +164,7 @@ export type EvalRuntimeScope =
 const scopeStorage = new AsyncLocalStorage<EvalCaseScope>();
 const runtimeScopeStorage = new AsyncLocalStorage<EvalRuntimeScope>();
 const evalClockStorage = new AsyncLocalStorage<EvalClockState>();
+const activeSpanStackStorage = new AsyncLocalStorage<EvalTraceSpan[]>();
 let activeEvalScopeCount = 0;
 let activeEvalRuntimeScopeCount = 0;
 let consoleCaptureEnabled = true;
@@ -395,6 +394,21 @@ export async function runWithEvalClock<T>(
 export function getCurrentScope(): EvalCaseScope | undefined {
   if (activeEvalScopeCount === 0) return undefined;
   return scopeStorage.getStore();
+}
+
+/** Return the span currently active in this async execution, if any. */
+export function getCurrentActiveSpan(): EvalTraceSpan | undefined {
+  if (activeEvalScopeCount === 0) return undefined;
+  return activeSpanStackStorage.getStore()?.at(-1);
+}
+
+/** Execute a callback with a span added to this async execution's active stack. */
+export async function runWithActiveSpan<T>(
+  span: EvalTraceSpan,
+  fn: () => Promise<T> | T,
+): Promise<T> {
+  const currentStack = activeSpanStackStorage.getStore() ?? [];
+  return await activeSpanStackStorage.run([...currentStack, span], fn);
 }
 
 /**
@@ -832,8 +846,6 @@ export async function runInEvalScope<T>(
     logs: [],
     spans: [],
     checkpoints: new Map(),
-    spanStack: [],
-    activeSpanStack: [],
     recordingStack: [],
     replayingDepth: 0,
     cacheContext: options.cacheContext,

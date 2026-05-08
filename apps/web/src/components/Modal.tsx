@@ -46,8 +46,14 @@ const Header = styled.header`
   border-bottom: 1px solid ${colors.border.var};
 `;
 
+const HeaderRight = styled.div`
+  ${inline({ align: 'center', gap: 8 })}
+  flex-shrink: 0;
+`;
+
 const TitleStack = styled.div`
   ${stack({ gap: 4 })}
+  min-width: 0;
 `;
 
 const Title = styled.h2`
@@ -104,6 +110,7 @@ type ModalProps = {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  headerActions?: ReactNode;
   wide?: boolean;
   topLayer?: boolean;
 };
@@ -120,6 +127,7 @@ export function Modal({
   onClose,
   children,
   footer,
+  headerActions,
   wide = false,
   topLayer = false,
 }: ModalProps) {
@@ -148,13 +156,16 @@ export function Modal({
             <Title>{title}</Title>
             {subtitle ? <Subtitle>{subtitle}</Subtitle> : null}
           </TitleStack>
-          <CloseButton
-            type="button"
-            aria-label="Close"
-            onClick={onClose}
-          >
-            ×
-          </CloseButton>
+          <HeaderRight>
+            {headerActions}
+            <CloseButton
+              type="button"
+              aria-label="Close"
+              onClick={onClose}
+            >
+              ×
+            </CloseButton>
+          </HeaderRight>
         </Header>
         <Body>{children}</Body>
         {footer ? <Footer>{footer}</Footer> : null}
