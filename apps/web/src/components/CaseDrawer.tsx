@@ -1,8 +1,6 @@
 import {
   extractApiCalls,
-  extractCacheEntries,
   extractLlmCalls,
-  type CacheActivityEntry,
   type CellValue,
   type ColumnDef,
   type LlmCostScenario,
@@ -53,6 +51,10 @@ import {
 import { workspaceConfigStore } from '#src/stores/workspaceConfigStore';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
+import {
+  getScopedCacheActivityEntries,
+  type ScopedCacheActivityEntry,
+} from '#src/utils/cacheActivity';
 import { formatNumericCellValue } from '#src/utils/formatters';
 import {
   findDiagnosticOutputMatch,
@@ -364,14 +366,20 @@ function parseTab(value: string): Tab | null {
   }
 }
 
-type CacheFilter = 'all' | 'hits' | 'added';
+type CacheFilter =
+  | 'execute'
+  | 'all'
+  | 'hits'
+  | 'added'
+  | 'scoringHits'
+  | 'scoringAdded';
 
 export function CaseDrawer() {
   const searchParams = useSearchParams();
   const [logPhaseFilter, setLogPhaseFilter] = useState<RunLogPhase | 'all'>(
     'all',
   );
-  const [cacheFilter, setCacheFilter] = useState<CacheFilter>('all');
+  const [cacheFilter, setCacheFilter] = useState<CacheFilter>('execute');
   const [costScenario, setCostScenario] = useState<LlmCostScenario>('actual');
   const { selectedCaseDetail, selectedCaseRunId, selectedCaseId } =
     runStore.useSelectorRC((s) => ({
@@ -453,7 +461,13 @@ export function CaseDrawer() {
   const scoringTraceEntries = Object.entries(scoringTraces);
   const llmCallEntries = extractLlmCalls(d.trace, llmCallsConfig);
   const apiCallEntries = extractApiCalls(d.trace, apiCallsConfig);
-  const cacheEntries = extractCacheEntries(d.trace, d.cacheRefs);
+  const cacheEntries = getScopedCacheActivityEntries({
+    caseDetail: d,
+    scoreLabels: scoreColumns.map((scoreColumn) => ({
+      key: scoreColumn.key,
+      label: scoreColumn.label,
+    })),
+  });
   const filteredCacheEntries = filterCacheEntries(cacheEntries, cacheFilter);
   const logPhases = getLogPhases(d.logs);
   const selectedLogPhase =
@@ -652,21 +666,25 @@ export function CaseDrawer() {
                 }}
                 aria-label="Filter cache entries"
               >
+                <option value="execute">All execute cache</option>
                 <option value="all">All cache</option>
                 <option value="hits">Hits</option>
                 <option value="added">New entries</option>
+                <option value="scoringHits">Scoring hits</option>
+                <option value="scoringAdded">Scoring new entries</option>
               </CacheFilterSelect>
             </CacheToolbar>
             {filteredCacheEntries.length > 0 ? (
               <CacheEntriesList>
-                {filteredCacheEntries.map((entry) => {
+                {filteredCacheEntries.map((scopedEntry) => {
                   const cacheIndex = cacheEntries.findIndex(
-                    (cacheEntry) => cacheEntry.id === entry.id,
+                    (cacheEntry) => cacheEntry.id === scopedEntry.id,
                   );
                   return (
                     <CacheHitRow
-                      key={entry.id}
-                      entry={entry}
+                      key={scopedEntry.id}
+                      entry={scopedEntry.entry}
+                      phase={scopedEntry.phase}
                       currentRunId={selectedCaseRunId ?? ''}
                       currentCaseKey={d.caseKey ?? d.caseId}
                       currentEvalKey={d.evalKey ?? d.evalId}
@@ -794,21 +812,43 @@ function orderOutputColumnDefs(
 }
 
 function filterCacheEntries(
-  entries: CacheActivityEntry[],
+  entries: ScopedCacheActivityEntry[],
   filter: CacheFilter,
-): CacheActivityEntry[] {
+): ScopedCacheActivityEntry[] {
   switch (filter) {
+    case 'execute':
+      return entries.filter((entry) => entry.phase.kind === 'case');
     case 'hits':
-      return entries.filter((entry) => entry.action === 'hit');
+      return entries.filter((entry) => entry.entry.action === 'hit');
     case 'added':
-      return entries.filter((entry) => entry.action === 'added');
+      return entries.filter((entry) => entry.entry.action === 'added');
+    case 'scoringHits':
+      return entries.filter(
+        (entry) =>
+          entry.phase.kind === 'scoring' && entry.entry.action === 'hit',
+      );
+    case 'scoringAdded':
+      return entries.filter(
+        (entry) =>
+          entry.phase.kind === 'scoring' && entry.entry.action === 'added',
+      );
     case 'all':
       return entries;
   }
 }
 
 function parseCacheFilter(value: string): CacheFilter {
-  return value === 'hits' || value === 'added' ? value : 'all';
+  if (
+    value === 'execute' ||
+    value === 'hits' ||
+    value === 'added' ||
+    value === 'scoringHits' ||
+    value === 'scoringAdded'
+  ) {
+    return value;
+  }
+
+  return 'all';
 }
 
 function ColumnCell({

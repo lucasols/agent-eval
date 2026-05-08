@@ -303,7 +303,8 @@ or if the case errors. Scores without `passThreshold` are informational.
 Score functions run in their own trace scope, separate from the execution
 trace, so LLM-as-judge scorers can use `evalTracer.span(...)` and cached spans
 without polluting the agent trajectory. Outputs set inside a scorer stay
-private to that score.
+private to that score. Spanless `evalTracer.cache(...)` calls made directly
+inside a scorer are stored on that score trace's `cacheRefs` payload.
 
 `manualScores` declares score columns that reviewers fill in after a run.
 Pending values keep the eval in an `unscored` state instead of failing.
@@ -473,7 +474,8 @@ Mental model:
   span, that span gets a `cache.refs` entry with the value cache name, key,
   namespace, and hit/miss status. When called directly from the case body
   (no surrounding span), the ref is recorded on the case detail's `cacheRefs`
-  array.
+  array. When called directly from a scorer, the ref is recorded on that
+  scoring trace's `cacheRefs` array.
 - Cache identity is the namespace plus the authored key. Source-file
   fingerprints are tracked for run freshness separately, but do not participate
   in cache-key hashing.

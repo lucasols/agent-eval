@@ -249,6 +249,11 @@ export type RunLogEntry = z.infer<typeof runLogEntrySchema>;
 export const scoreTraceSchema = z.object({
   trace: z.array(traceSpanSchema),
   traceDisplay: traceDisplayConfigSchema,
+  /**
+   * Value-cache refs recorded by `evalTracer.cache(...)` calls made directly
+   * from the score compute body, with no surrounding scorer span.
+   */
+  cacheRefs: z.array(traceCacheRefSchema).default([]),
 });
 /** Trace payload captured while computing one score for a case. */
 export type ScoreTrace = z.infer<typeof scoreTraceSchema>;

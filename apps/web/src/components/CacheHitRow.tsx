@@ -14,6 +14,7 @@ import { JsonViewer } from '#src/components/JsonViewer';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
 import { apiUrl } from '#src/utils/apiUrl';
+import type { ScopedCacheActivityPhase } from '#src/utils/cacheActivity';
 import { formatTimestamp } from '#src/utils/formatters';
 
 const Card = styled.div`
@@ -226,6 +227,7 @@ function formatCacheAge(entry: CacheActivityEntry): string | null {
  */
 type CacheHitRowProps = {
   entry: CacheActivityEntry;
+  phase: ScopedCacheActivityPhase;
   currentRunId: string;
   currentCaseKey: string;
   currentEvalKey: string;
@@ -234,6 +236,7 @@ type CacheHitRowProps = {
 
 export function CacheHitRow({
   entry,
+  phase,
   currentRunId,
   currentCaseKey,
   currentEvalKey,
@@ -340,6 +343,9 @@ export function CacheHitRow({
           </StatusChip>
           <TypeChip>{entry.source === 'span' ? 'SPAN' : 'VALUE'}</TypeChip>
           <HeaderName>{entry.name}</HeaderName>
+          {phase.kind === 'scoring' ? (
+            <OriginTag>({phase.scoreLabel})</OriginTag>
+          ) : null}
           {entry.origin === 'caseRoot' ? (
             <OriginTag>(case root)</OriginTag>
           ) : null}

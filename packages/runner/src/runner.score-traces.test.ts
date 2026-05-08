@@ -63,6 +63,17 @@ defineEval({
       label: 'Quality',
       passThreshold: 0.8,
       compute: async ({ input, outputs }) => {
+        const judgeHint = await evalTracer.cache(
+          {
+            name: 'judge-hint',
+            namespace: 'score-trace-eval.judge-hint',
+            key: {
+              prompt: input.prompt,
+              response: outputs.response,
+            },
+          },
+          async () => 'strict',
+        );
         const score = await evalTracer.span(
           {
             kind: 'scorer',
@@ -72,6 +83,7 @@ defineEval({
               key: {
                 prompt: input.prompt,
                 response: outputs.response,
+                judgeHint,
                 rubricVersion: 1,
               },
             },
@@ -129,6 +141,14 @@ defineEval({
     expect(firstDetail?.columns).not.toHaveProperty('privateJudgeNote');
     expect(firstDetail).not.toHaveProperty('cost');
     const firstScoreTrace = requireScoreTrace(firstDetail, 'quality');
+    expect(firstScoreTrace.cacheRefs).toMatchObject([
+      {
+        type: 'value',
+        name: 'judge-hint',
+        namespace: 'score-trace-eval.judge-hint',
+        status: 'miss',
+      },
+    ]);
     expect(firstScoreTrace.trace).toHaveLength(1);
     expect(firstScoreTrace.trace[0]).toMatchObject({
       kind: 'scorer',
@@ -158,6 +178,14 @@ defineEval({
     );
     expect(secondDetail).not.toHaveProperty('cost');
     const secondScoreTrace = requireScoreTrace(secondDetail, 'quality');
+    expect(secondScoreTrace.cacheRefs).toMatchObject([
+      {
+        type: 'value',
+        name: 'judge-hint',
+        namespace: 'score-trace-eval.judge-hint',
+        status: 'hit',
+      },
+    ]);
     expect(secondScoreTrace.trace[0]).toMatchObject({
       kind: 'scorer',
       name: 'llm-judge',

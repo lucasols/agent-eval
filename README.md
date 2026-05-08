@@ -1231,11 +1231,13 @@ span. SDK-mediated effects inside the callback still replay on hits, including
 nested spans, checkpoints, output helper calls, and active span attributes
 changed by the callback.
 
-The case-run drawer adds a **Cache** tab whenever a case run produced cache
-hits, wrote new cache entries, or executed cached operations with storage
-disabled. Use the selector to show all cache activity, only hits, or only new
-entries added by misses/refreshes. It lists every span- and value-cache entry
-(including spanless ones tagged "case root") with
+The case-run drawer adds a **Cache** tab whenever a case run or scoring phase
+produced cache hits, wrote new cache entries, or executed cached operations
+with storage disabled. Use the selector to show execute-phase cache activity
+(the default), all cache activity, only hits, only new entries added by
+misses/refreshes, scoring hits, or scoring new entries. It lists every span- and
+value-cache entry (including spanless ones tagged "case root", and scoring
+entries tagged with their score label) with
 namespace, status, age when available, stored-at timestamp when known, and
 truncated key. Each row expands to fetch the persisted entry from
 `GET /api/cache/:namespace/:key` and render its cached `returnValue` (and any

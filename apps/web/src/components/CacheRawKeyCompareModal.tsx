@@ -1,7 +1,6 @@
 import {
   cacheEntryWithDebugKeySchema,
   caseDetailSchema,
-  extractCacheEntries,
   getCaseRowCaseKey,
   type CacheActivityEntry,
   type CaseDetail,
@@ -24,9 +23,12 @@ import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
 import { apiUrl } from '#src/utils/apiUrl';
 import {
+  getScopedCacheActivityEntries,
+  type ScopedCacheActivityEntry,
+} from '#src/utils/cacheActivity';
+import {
   getSameEvalCases,
   getSameEvalRuns,
-  selectDefaultComparisonCacheEntry,
   selectDefaultComparisonCaseKey,
   selectDefaultComparisonRunId,
   stringifyCanonicalJson,
@@ -240,9 +242,11 @@ function getCaseLabel(caseRow: CaseRow): string {
   return `${caseRow.caseId} · trial ${String(caseRow.trial)}`;
 }
 
-function getCacheLabel(entry: CacheActivityEntry, index: number): string {
-  const status = entry.action === 'hit' ? 'hit' : entry.action;
-  return `#${String(index + 1)} · ${entry.name} · ${status}`;
+function getCacheLabel(entry: ScopedCacheActivityEntry, index: number): string {
+  const status = entry.entry.action === 'hit' ? 'hit' : entry.entry.action;
+  const phase =
+    entry.phase.kind === 'scoring' ? `${entry.phase.scoreLabel} · ` : '';
+  return `#${String(index + 1)} · ${phase}${entry.entry.name} · ${status}`;
 }
 
 function useRawCacheKey(entry: CacheActivityEntry | null): RawKeyState {
@@ -316,18 +320,17 @@ function useRawCacheKey(entry: CacheActivityEntry | null): RawKeyState {
 }
 
 function selectedEntryFromEntries(params: {
-  entries: CacheActivityEntry[];
+  entries: ScopedCacheActivityEntry[];
   selectedEntryId: string | null;
   currentCacheIndex: number;
-}): CacheActivityEntry | null {
+}): ScopedCacheActivityEntry | null {
   const selectedEntry = params.entries.find(
-    (entry) => entry.id === params.selectedEntryId && entry.stored,
+    (entry) => entry.id === params.selectedEntryId && entry.entry.stored,
   );
   if (selectedEntry !== undefined) return selectedEntry;
-  return selectDefaultComparisonCacheEntry({
-    entries: params.entries,
-    currentCacheIndex: params.currentCacheIndex,
-  });
+  const sameIndexEntry = params.entries[params.currentCacheIndex];
+  if (sameIndexEntry?.entry.stored === true) return sameIndexEntry;
+  return params.entries.find((entry) => entry.entry.stored) ?? null;
 }
 
 export function CacheRawKeyCompareModal({
@@ -434,18 +437,17 @@ export function CacheRawKeyCompareModal({
 
   const comparisonEntries =
     caseDetailState.status === 'loaded'
-      ? extractCacheEntries(
-          caseDetailState.detail.trace,
-          caseDetailState.detail.cacheRefs,
-        )
+      ? getScopedCacheActivityEntries({ caseDetail: caseDetailState.detail })
       : [];
-  const selectedComparisonEntry = selectedEntryFromEntries({
+  const selectedComparisonScopedEntry = selectedEntryFromEntries({
     entries: comparisonEntries,
     selectedEntryId: selectedCacheEntryId,
     currentCacheIndex,
   });
   const currentRawKeyState = useRawCacheKey(currentEntry);
-  const comparisonRawKeyState = useRawCacheKey(selectedComparisonEntry);
+  const comparisonRawKeyState = useRawCacheKey(
+    selectedComparisonScopedEntry?.entry ?? null,
+  );
   const currentRawKeyJson = useMemo(
     () =>
       currentRawKeyState.status === 'loaded'
@@ -467,7 +469,7 @@ export function CacheRawKeyCompareModal({
           name: 'comparison.raw-key.json',
           contents: comparisonRawKeyJson,
           lang: 'json',
-          cacheKey: `comparison:${selectedComparisonEntry?.namespace ?? ''}:${selectedComparisonEntry?.key ?? ''}:${comparisonRawKeyJson.length}`,
+          cacheKey: `comparison:${selectedComparisonScopedEntry?.entry.namespace ?? ''}:${selectedComparisonScopedEntry?.entry.key ?? ''}:${comparisonRawKeyJson.length}`,
         };
   const currentFile: FileContents | null =
     currentRawKeyJson === null
@@ -478,7 +480,7 @@ export function CacheRawKeyCompareModal({
           lang: 'json',
           cacheKey: `current:${currentEntry.namespace}:${currentEntry.key}:${currentRawKeyJson.length}`,
         };
-  const selectedComparisonEntryId = selectedComparisonEntry?.id ?? '';
+  const selectedComparisonEntryId = selectedComparisonScopedEntry?.id ?? '';
   const currentRunLabel = getCurrentRunLabel({
     runs: runOptions,
     currentRunId,
@@ -608,7 +610,7 @@ export function CacheRawKeyCompareModal({
               <option
                 key={entry.id}
                 value={entry.id}
-                disabled={!entry.stored}
+                disabled={!entry.entry.stored}
               >
                 {getCacheLabel(entry, index)}
               </option>
@@ -635,7 +637,7 @@ export function CacheRawKeyCompareModal({
       ) : null}
       {caseDetailState.status === 'loaded' &&
       comparisonEntries.length > 0 &&
-      selectedComparisonEntry === null ? (
+      selectedComparisonScopedEntry === null ? (
         <StatusMessage>
           The selected case has no stored cache entries to compare.
         </StatusMessage>
@@ -659,8 +661,8 @@ export function CacheRawKeyCompareModal({
             <DiffTitle>
               <DiffLabel>Raw key diff</DiffLabel>
               <DiffMeta>
-                {selectedComparisonEntry?.namespace ?? ''} ·{' '}
-                {selectedComparisonEntry?.key ?? ''}
+                {selectedComparisonScopedEntry?.entry.namespace ?? ''} ·{' '}
+                {selectedComparisonScopedEntry?.entry.key ?? ''}
               </DiffMeta>
             </DiffTitle>
             {currentRawKeyJson === comparisonRawKeyJson ? (

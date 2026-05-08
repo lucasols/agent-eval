@@ -404,8 +404,12 @@ export async function runCase<
       scope.logs.push(
         ...scoreRun.scope.logs.map((entry) => ({ ...entry, source: key })),
       );
-      if (trace.length > 0) {
-        scoringTraces[key] = { trace, traceDisplay };
+      if (trace.length > 0 || scoreRun.scope.caseCacheRefs.length > 0) {
+        scoringTraces[key] = {
+          trace,
+          traceDisplay,
+          cacheRefs: scoreRun.scope.caseCacheRefs,
+        };
       }
 
       const rawValue = scoreRun.result;
