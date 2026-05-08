@@ -262,10 +262,14 @@ const ScorePass = styled.span`
 
 const ScoringTraceList = styled.div`
   ${stack({ gap: 18 })}
+  height: 100%;
+  min-height: 320px;
 `;
 
 const ScoringTraceSection = styled.section`
   ${stack({ gap: 10 })}
+  flex: 1 1 360px;
+  min-height: 280px;
 `;
 
 const ScoringTraceHeader = styled.div`
@@ -276,6 +280,11 @@ const ScoringTraceTitle = styled.div`
   font-size: 12.5px;
   font-weight: 600;
   color: ${colors.text.var};
+`;
+
+const ScoringTraceFrame = styled.div`
+  flex: 1;
+  min-height: 0;
 `;
 
 const LlmCallsList = styled.div`
@@ -686,10 +695,12 @@ export function CaseDrawer() {
                       {scoreColumn?.label ?? scoreKey}
                     </ScoringTraceTitle>
                   </ScoringTraceHeader>
-                  <TraceTree
-                    spans={scoreTrace.trace}
-                    traceDisplay={scoreTrace.traceDisplay}
-                  />
+                  <ScoringTraceFrame>
+                    <TraceTree
+                      spans={scoreTrace.trace}
+                      traceDisplay={scoreTrace.traceDisplay}
+                    />
+                  </ScoringTraceFrame>
                 </ScoringTraceSection>
               );
             })}
