@@ -1,9 +1,6 @@
 import {
-  cacheEntryWithDebugKeySchema,
-  caseDetailSchema,
   getCaseRowCaseKey,
   type CacheActivityEntry,
-  type CaseDetail,
   type CaseRow,
 } from '@agent-evals/shared';
 import {
@@ -13,15 +10,15 @@ import {
   type MultiFileDiffProps,
 } from '@pierre/diffs/react';
 import { Copy } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { resultify } from 't-result';
+import { useMemo, useState } from 'react';
 import { styled } from 'vindur';
 import { Button } from '#src/components/Button';
 import { Modal } from '#src/components/Modal';
-import { historyStore } from '#src/stores/historyStore';
+import { cacheEntryStore } from '#src/stores/cacheStore';
+import { runHistoryStore } from '#src/stores/historyStore';
+import { caseDetailStore } from '#src/stores/runStore';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
-import { apiUrl } from '#src/utils/apiUrl';
 import {
   getScopedCacheActivityEntries,
   type ScopedCacheActivityEntry,
@@ -182,12 +179,6 @@ const FooterActions = styled.div`
   width: 100%;
 `;
 
-type CaseDetailState =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'loaded'; detail: CaseDetail }
-  | { status: 'error'; message: string };
-
 type RawKeyState =
   | { status: 'idle' }
   | { status: 'loading' }
@@ -207,18 +198,6 @@ type CacheRawKeyCompareModalProps = {
 type DiffStyle = 'split' | 'unified';
 type DiffOverflow = 'scroll' | 'wrap';
 type LineDiffType = LineDiffTypes;
-
-function cacheEntryUrl(entry: CacheActivityEntry): string {
-  return apiUrl(
-    `/api/cache/${encodeURIComponent(entry.namespace)}/${encodeURIComponent(entry.key)}`,
-  );
-}
-
-function caseDetailUrl(runId: string, caseKey: string): string {
-  return apiUrl(
-    `/api/runs/${encodeURIComponent(runId)}/cases/${encodeURIComponent(caseKey)}`,
-  );
-}
 
 function getRunLabel(run: {
   manifest: { shortId: string; startedAt: string; id: string };
@@ -250,73 +229,31 @@ function getCacheLabel(entry: ScopedCacheActivityEntry, index: number): string {
 }
 
 function useRawCacheKey(entry: CacheActivityEntry | null): RawKeyState {
-  const [state, setState] = useState<RawKeyState>({ status: 'idle' });
-  const entryIdentity =
-    entry === null
-      ? ''
-      : `${entry.namespace}:${entry.key}:${String(entry.stored)}`;
+  const payload = useMemo(
+    () =>
+      entry?.stored === true
+        ? { namespace: entry.namespace, key: entry.key }
+        : null,
+    [entry],
+  );
+  const cacheEntry = cacheEntryStore.useItem(payload);
 
-  useEffect(() => {
-    if (entry === null) {
-      setState({ status: 'idle' });
-      return;
-    }
-    if (!entry.stored) {
-      setState({
-        status: 'error',
-        message: 'This cache entry was not stored.',
-      });
-      return;
-    }
-
-    const targetEntry = entry;
-    let active = true;
-    setState({ status: 'loading' });
-    async function loadRawKey() {
-      const fetchResult = await resultify(() =>
-        fetch(cacheEntryUrl(targetEntry)),
-      );
-      if (!active) return;
-      if (fetchResult.error) {
-        setState({ status: 'error', message: fetchResult.error.message });
-        return;
-      }
-      if (!fetchResult.value.ok) {
-        setState({
-          status: 'error',
-          message: `Cache entry not available (${String(fetchResult.value.status)})`,
-        });
-        return;
-      }
-      const jsonResult = await resultify(() => fetchResult.value.json());
-      if (jsonResult.error) {
-        setState({ status: 'error', message: jsonResult.error.message });
-        return;
-      }
-      const parseResult = resultify(() =>
-        cacheEntryWithDebugKeySchema.parse(jsonResult.value),
-      );
-      if (parseResult.error) {
-        setState({ status: 'error', message: parseResult.error.message });
-        return;
-      }
-      if (parseResult.value.debugKey === undefined) {
-        setState({
-          status: 'error',
-          message: 'Raw cache key debug data is not available.',
-        });
-        return;
-      }
-      setState({ status: 'loaded', rawKey: parseResult.value.debugKey.rawKey });
-    }
-
-    void loadRawKey();
-    return () => {
-      active = false;
+  if (entry === null) return { status: 'idle' };
+  if (!entry.stored) {
+    return { status: 'error', message: 'This cache entry was not stored.' };
+  }
+  if (cacheEntry.isLoading) return { status: 'loading' };
+  if (cacheEntry.error !== null) {
+    return { status: 'error', message: cacheEntry.error.message };
+  }
+  if (cacheEntry.data === null) return { status: 'idle' };
+  if (cacheEntry.data.debugKey === undefined) {
+    return {
+      status: 'error',
+      message: 'Raw cache key debug data is not available.',
     };
-  }, [entryIdentity]);
-
-  return state;
+  }
+  return { status: 'loaded', rawKey: cacheEntry.data.debugKey.rawKey };
 }
 
 function selectedEntryFromEntries(params: {
@@ -342,7 +279,7 @@ export function CacheRawKeyCompareModal({
   currentCacheIndex,
   onClose,
 }: CacheRawKeyCompareModalProps) {
-  const { runs } = historyStore.useSelectorRC((s) => ({ runs: s.runs }));
+  const runs = runHistoryStore.useDocument().data ?? [];
   const runOptions = useMemo(
     () => getSameEvalRuns(runs, currentEvalKey),
     [currentEvalKey, runs],
@@ -377,67 +314,15 @@ export function CacheRawKeyCompareModal({
   const [diffStyle, setDiffStyle] = useState<DiffStyle>('split');
   const [diffOverflow, setDiffOverflow] = useState<DiffOverflow>('scroll');
   const [lineDiffType, setLineDiffType] = useState<LineDiffType>('word');
-  const [caseDetailState, setCaseDetailState] = useState<CaseDetailState>({
-    status: 'idle',
-  });
-
-  useEffect(() => {
-    if (effectiveRunId.length === 0 || effectiveCaseKey.length === 0) {
-      setCaseDetailState({ status: 'idle' });
-      return;
-    }
-
-    let active = true;
-    setCaseDetailState({ status: 'loading' });
-    async function loadCaseDetail() {
-      const fetchResult = await resultify(() =>
-        fetch(caseDetailUrl(effectiveRunId, effectiveCaseKey)),
-      );
-      if (!active) return;
-      if (fetchResult.error) {
-        setCaseDetailState({
-          status: 'error',
-          message: fetchResult.error.message,
-        });
-        return;
-      }
-      if (!fetchResult.value.ok) {
-        setCaseDetailState({
-          status: 'error',
-          message: `Case detail not available (${String(fetchResult.value.status)})`,
-        });
-        return;
-      }
-      const jsonResult = await resultify(() => fetchResult.value.json());
-      if (jsonResult.error) {
-        setCaseDetailState({
-          status: 'error',
-          message: jsonResult.error.message,
-        });
-        return;
-      }
-      const parseResult = resultify(() =>
-        caseDetailSchema.parse(jsonResult.value),
-      );
-      if (parseResult.error) {
-        setCaseDetailState({
-          status: 'error',
-          message: parseResult.error.message,
-        });
-        return;
-      }
-      setCaseDetailState({ status: 'loaded', detail: parseResult.value });
-    }
-
-    void loadCaseDetail();
-    return () => {
-      active = false;
-    };
-  }, [effectiveCaseKey, effectiveRunId]);
+  const comparisonCaseDetail = caseDetailStore.useItem(
+    effectiveRunId.length === 0 || effectiveCaseKey.length === 0
+      ? null
+      : { runId: effectiveRunId, caseId: effectiveCaseKey },
+  );
 
   const comparisonEntries =
-    caseDetailState.status === 'loaded'
-      ? getScopedCacheActivityEntries({ caseDetail: caseDetailState.detail })
+    comparisonCaseDetail.data !== null
+      ? getScopedCacheActivityEntries({ caseDetail: comparisonCaseDetail.data })
       : [];
   const selectedComparisonScopedEntry = selectedEntryFromEntries({
     entries: comparisonEntries,
@@ -624,18 +509,18 @@ export function CacheRawKeyCompareModal({
           No saved runs for this eval are available.
         </StatusMessage>
       ) : null}
-      {caseDetailState.status === 'loading' ? (
+      {comparisonCaseDetail.isLoading ? (
         <StatusMessage>Loading comparison case...</StatusMessage>
       ) : null}
-      {caseDetailState.status === 'error' ? (
-        <ErrorMessage>{caseDetailState.message}</ErrorMessage>
+      {comparisonCaseDetail.error !== null ? (
+        <ErrorMessage>{comparisonCaseDetail.error.message}</ErrorMessage>
       ) : null}
-      {caseDetailState.status === 'loaded' && comparisonEntries.length === 0 ? (
+      {comparisonCaseDetail.data !== null && comparisonEntries.length === 0 ? (
         <StatusMessage>
           The selected case has no cache entries to compare.
         </StatusMessage>
       ) : null}
-      {caseDetailState.status === 'loaded' &&
+      {comparisonCaseDetail.data !== null &&
       comparisonEntries.length > 0 &&
       selectedComparisonScopedEntry === null ? (
         <StatusMessage>

@@ -41,14 +41,18 @@ import {
   useSearchParams,
 } from '#src/hooks/useSearchParams';
 import { useWindowWidth } from '#src/hooks/useWindowWidth';
-import { evalsStore } from '#src/stores/evalsStore';
+import { evalSummariesStore } from '#src/stores/evalsStore';
 import { layoutStore } from '#src/stores/layoutStore';
 import {
+  caseDetailStore,
   closeCase,
   recalculateDerivedAttributesForCase,
   runStore,
 } from '#src/stores/runStore';
-import { workspaceConfigStore } from '#src/stores/workspaceConfigStore';
+import {
+  DEFAULT_WORKSPACE_CONFIG,
+  workspaceConfigStore,
+} from '#src/stores/workspaceConfigStore';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
 import {
@@ -103,6 +107,12 @@ const DrawerLoading = styled.div`
   color: ${colors.textMuted.var};
   font-size: 12px;
   flex-shrink: 0;
+`;
+
+const DrawerError = styled(DrawerLoading)`
+  color: ${colors.error.var};
+  padding: 20px;
+  text-align: center;
 `;
 
 const DrawerRoot = styled.div`
@@ -381,22 +391,25 @@ export function CaseDrawer() {
   );
   const [cacheFilter, setCacheFilter] = useState<CacheFilter>('execute');
   const [costScenario, setCostScenario] = useState<LlmCostScenario>('actual');
-  const { selectedCaseDetail, selectedCaseRunId, selectedCaseId } =
-    runStore.useSelectorRC((s) => ({
-      selectedCaseDetail: s.selectedCaseDetail,
-      selectedCaseRunId: s.selectedCaseRunId,
-      selectedCaseId: s.selectedCaseId,
-    }));
-  const { evals } = evalsStore.useSelectorRC((s) => ({ evals: s.evals }));
+  const { selectedCaseRunId, selectedCaseId } = runStore.useSelectorRC((s) => ({
+    selectedCaseRunId: s.selectedCaseRunId,
+    selectedCaseId: s.selectedCaseId,
+  }));
+  const selectedCaseResult = caseDetailStore.useItem(
+    selectedCaseRunId === null || selectedCaseId === null
+      ? null
+      : { runId: selectedCaseRunId, caseId: selectedCaseId },
+  );
+  const selectedCaseDetail = selectedCaseResult.data;
+  const evals = evalSummariesStore.useDocument().data ?? [];
   const { sidebarWidth } = layoutStore.useSelectorRC((s) => ({
     sidebarWidth: s.sidebarWidth,
   }));
-  const { workspaceRoot, llmCallsConfig, apiCallsConfig } =
-    workspaceConfigStore.useSelectorRC((s) => ({
-      workspaceRoot: s.workspaceRoot,
-      llmCallsConfig: s.llmCalls,
-      apiCallsConfig: s.apiCalls,
-    }));
+  const workspaceConfig =
+    workspaceConfigStore.useDocument().data ?? DEFAULT_WORKSPACE_CONFIG;
+  const workspaceRoot = workspaceConfig.workspaceRoot;
+  const llmCallsConfig = workspaceConfig.llmCalls;
+  const apiCallsConfig = workspaceConfig.apiCalls;
   const windowWidth = useWindowWidth();
   const minWidth = 360;
   const maxWidth = Math.max(minWidth, windowWidth - sidebarWidth);
@@ -436,6 +449,14 @@ export function CaseDrawer() {
       caseId: selectedCaseId,
     });
   });
+
+  if (selectedCaseResult.error !== null && selectedCaseDetail === null) {
+    return (
+      <DrawerError style={{ width: `${width}px` }}>
+        {selectedCaseResult.error.message}
+      </DrawerError>
+    );
+  }
 
   if (!selectedCaseDetail) {
     return (

@@ -38,8 +38,8 @@ import { Tooltip } from '#src/components/Tooltip';
 import { useElapsedRunTime } from '#src/hooks/useElapsedRunTime';
 import { useManualInputRun } from '#src/hooks/useManualInputRun';
 import { useSearchParams } from '#src/hooks/useSearchParams';
-import { evalsStore, openEvalInEditor } from '#src/stores/evalsStore';
-import { getRunsForEval, historyStore } from '#src/stores/historyStore';
+import { evalSummariesStore, openEvalInEditor } from '#src/stores/evalsStore';
+import { getRunsForEval, runHistoryStore } from '#src/stores/historyStore';
 import {
   cleanRunsForEval,
   cancelRun,
@@ -50,7 +50,10 @@ import {
   startRun,
 } from '#src/stores/runStore';
 import { selectEval, selectFolder } from '#src/stores/selectionStore';
-import { workspaceConfigStore } from '#src/stores/workspaceConfigStore';
+import {
+  DEFAULT_WORKSPACE_CONFIG,
+  workspaceConfigStore,
+} from '#src/stores/workspaceConfigStore';
 import { colors } from '#src/style/colors';
 import {
   ellipsis,
@@ -285,8 +288,10 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const isStacked = mode === 'stacked';
   const isSingle = mode === 'single';
 
-  const { runs } = historyStore.useSelectorRC((s) => ({ runs: s.runs }));
-  const { evals } = evalsStore.useSelectorRC((s) => ({ evals: s.evals }));
+  const runs = runHistoryStore.useDocument().data ?? [];
+  const evals = evalSummariesStore.useDocument().data ?? [];
+  const workspaceConfig =
+    workspaceConfigStore.useDocument().data ?? DEFAULT_WORKSPACE_CONFIG;
   const { currentRun } = runStore.useSelectorRC((s) => ({
     currentRun: s.currentRun,
   }));
@@ -564,10 +569,9 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   }
 
   async function handleCopyCliRunCommand() {
-    const { packageManager } = workspaceConfigStore.state;
     await copyTextToClipboard(
       buildEvalRunCliCommand({
-        packageManager,
+        packageManager: workspaceConfig.packageManager,
         evalId: evalSummary.id,
         filePath: evalSummary.filePath,
       }),
@@ -576,10 +580,9 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   }
 
   async function handleCopyCliDebugCommand() {
-    const { packageManager } = workspaceConfigStore.state;
     await copyTextToClipboard(
       buildEvalDebugCliCommand({
-        packageManager,
+        packageManager: workspaceConfig.packageManager,
         evalId: evalSummary.id,
         filePath: evalSummary.filePath,
       }),

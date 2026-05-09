@@ -2,7 +2,10 @@ import { styled } from 'vindur';
 import { CollapsibleDetails } from '#src/components/CollapsibleDetails';
 import { JsonViewer } from '#src/components/JsonViewer';
 import { StackTraceViewer } from '#src/components/StackTraceViewer';
-import { workspaceConfigStore } from '#src/stores/workspaceConfigStore';
+import {
+  DEFAULT_WORKSPACE_CONFIG,
+  workspaceConfigStore,
+} from '#src/stores/workspaceConfigStore';
 import { colors } from '#src/style/colors';
 import { kicker, monoFont, stack } from '#src/style/helpers';
 
@@ -94,9 +97,9 @@ export function ErrorDetails({
   tone?: ErrorDetailTone;
 }) {
   const isWarning = tone === 'warning';
-  const { workspaceRoot } = workspaceConfigStore.useSelectorRC((s) => ({
-    workspaceRoot: s.workspaceRoot,
-  }));
+  const workspaceRoot =
+    workspaceConfigStore.useDocument().data?.workspaceRoot ??
+    DEFAULT_WORKSPACE_CONFIG.workspaceRoot;
 
   return (
     <ErrorContainer warning={isWarning}>

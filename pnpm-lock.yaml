@@ -135,6 +135,9 @@ importers:
       t-state-form:
         specifier: ^2.1.0
         version: 2.1.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      tsdf:
+        specifier: 17.0.0-alpha.14
+        version: 17.0.0-alpha.14(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       vindur:
         specifier: ^0.10.6
         version: 0.10.6(react@19.2.4)(vite@7.3.1(@types/node@24.12.0)(jiti@2.6.1)(terser@5.46.2))
@@ -3037,6 +3040,10 @@ packages:
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
 
+  klona@2.0.6:
+    resolution: {integrity: sha512-dhG34DXATL5hSxJbIexCft8FChFXtmskoZYnoPWjXQuebWYCNkVeV3KkGegCK9CP1oswI/vQibS2GY7Em/sJJA==}
+    engines: {node: '>= 8'}
+
   launch-editor@2.13.2:
     resolution: {integrity: sha512-4VVDnbOpLXy/s8rdRCSXb+zfMeFR0WlJWpET1iA9CQdlZDfwyLjUuGQzXU4VeOoey6AicSAluWan7Etga6Kcmg==}
 
@@ -3595,6 +3602,10 @@ packages:
     resolution: {integrity: sha512-4f2CrY7H+sXkKXJn/cE6qRA3z+NMVO7zvlZ/nUV0e62yWftpiLAfw5eV9ZdomzWd2TXWwEIiGjAT57+lWIzzvA==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
+  runcheck@1.15.0:
+    resolution: {integrity: sha512-Ysv2X3FWkrD2dLd/53Hl9FIw1+gTfaG7a7mGsEqbm+IU2yFV6gJkmkpI6/MFMEbCEhioL16wdVsq5g8qFP0fhA==}
+    engines: {node: '>=14.6.0'}
+
   safe-array-concat@1.1.4:
     resolution: {integrity: sha512-wtZlHyOje6OZTGqAoaDKxFkgRtkF9CnHAVnCHKfuj200wAgL+bSJhdsCD2l0Qx/2ekEXjPWcyKkfGb5CPboslg==}
     engines: {node: '>=0.4'}
@@ -3894,6 +3905,13 @@ packages:
     engines: {node: '>=18.12'}
     peerDependencies:
       typescript: '>=4.8.4'
+
+  tsdf@17.0.0-alpha.14:
+    resolution: {integrity: sha512-9J00Q19sEDtJFW6K0zfhHebZizMhTAKv3rajjCaqpQQiX8Wrxd7zIqadm509GgnGAjOkJKtWTviIBS4wepAoQw==}
+    engines: {node: '>=16.0.0'}
+    peerDependencies:
+      react: ^18.0.0||^19.0.0
+      react-dom: ^18.0.0||^19.0.0
 
   tsdown@0.21.10:
     resolution: {integrity: sha512-3wk73yBhZe/wX7REqSdivNQ84TDs1mJ+IlnzrrEREP70xlJ/AEIzqaI04l/TzMKVIdkTdC3CPaADn2Lk/0SkdA==}
@@ -7078,6 +7096,8 @@ snapshots:
     dependencies:
       json-buffer: 3.0.1
 
+  klona@2.0.6: {}
+
   launch-editor@2.13.2:
     dependencies:
       picocolors: 1.1.1
@@ -7922,6 +7942,8 @@ snapshots:
       subsume: 4.0.0
       type-fest: 2.19.0
 
+  runcheck@1.15.0: {}
+
   safe-array-concat@1.1.4:
     dependencies:
       call-bind: 1.0.9
@@ -8231,6 +8253,21 @@ snapshots:
   ts-api-utils@2.5.0(typescript@5.9.3):
     dependencies:
       typescript: 5.9.3
+
+  tsdf@17.0.0-alpha.14(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+    dependencies:
+      '@evtmitter/react': 0.1.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@ls-stack/browser-utils': 0.3.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@ls-stack/react-utils': 0.12.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@ls-stack/utils': 3.77.0
+      '@standard-schema/spec': 1.1.0
+      evtmitter: 1.0.2
+      klona: 2.0.6
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
+      runcheck: 1.15.0
+      t-result: 0.6.1
+      t-state: 9.8.2(react@19.2.4)
 
   tsdown@0.21.10(@typescript/native-preview@7.0.0-dev.20260414.1)(typescript@5.9.3):
     dependencies:

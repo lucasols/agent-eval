@@ -11,8 +11,13 @@ import { RunDrawer } from '#src/components/RunDrawer';
 import { Sidebar } from '#src/components/Sidebar';
 import { SingleEvalView } from '#src/components/SingleEvalView';
 import { useSearchParams } from '#src/hooks/useSearchParams';
-import { evalsStore, fetchEvals } from '#src/stores/evalsStore';
-import { refetchHistory } from '#src/stores/historyStore';
+import { dataStoreManager } from '#src/stores/dataStoreManager';
+import {
+  discoveryIssuesStore,
+  evalSummariesStore,
+  invalidateEvalResources,
+} from '#src/stores/evalsStore';
+import { invalidateRunHistory } from '#src/stores/historyStore';
 import {
   clearRunStartError,
   runStore,
@@ -24,7 +29,7 @@ import {
   syncSelectionFromSearchParams,
 } from '#src/stores/selectionStore';
 import {
-  fetchWorkspaceConfig,
+  DEFAULT_WORKSPACE_CONFIG,
   setConfigReloadState,
   workspaceConfigStore,
 } from '#src/stores/workspaceConfigStore';
@@ -123,28 +128,27 @@ export function AppShell() {
   const sideDrawerOpen = selectedCaseId !== null || selectedRunId !== null;
 
   useEffect(() => {
-    void fetchEvals();
-    void refetchHistory();
-    void fetchWorkspaceConfig();
-  }, []);
-
-  useEffect(() => {
     syncSelectionFromSearchParams(new URLSearchParams(search));
   }, [search, selectedEvalId, selectedFolderPath]);
 
   useEffect(() => {
-    void syncCaseSelectionFromSearchParams(new URLSearchParams(search));
+    syncCaseSelectionFromSearchParams(new URLSearchParams(search));
   }, [search, selectedCaseRunId, selectedCaseFromUrl]);
 
   useEffect(() => {
-    void syncRunSelectionFromSearchParams(new URLSearchParams(search));
+    syncRunSelectionFromSearchParams(new URLSearchParams(search));
   }, [search, selectedRunFromUrl, selectedCaseRunId, selectedCaseFromUrl]);
 
   useEffect(() => {
     const eventSource = new EventSource(apiUrl('/api/evals/events'));
+    let hasOpened = false;
+    eventSource.addEventListener('open', () => {
+      if (hasOpened) dataStoreManager.onTransportReconnect();
+      hasOpened = true;
+    });
     eventSource.addEventListener('discovery.updated', () => {
-      void fetchEvals();
-      void refetchHistory();
+      invalidateEvalResources('realtimeUpdate');
+      invalidateRunHistory('realtimeUpdate');
     });
     let appliedNoticeTimer: ReturnType<typeof setTimeout> | undefined;
     eventSource.addEventListener('config.reload', (event) => {
@@ -161,9 +165,9 @@ export function AppShell() {
         return;
       }
 
-      void fetchWorkspaceConfig();
-      void fetchEvals();
-      void refetchHistory();
+      workspaceConfigStore.invalidateData('realtimeUpdate');
+      invalidateEvalResources('realtimeUpdate');
+      invalidateRunHistory('realtimeUpdate');
       setShowReloadApplied(true);
       if (appliedNoticeTimer !== undefined) clearTimeout(appliedNoticeTimer);
       appliedNoticeTimer = setTimeout(() => {
@@ -196,16 +200,19 @@ function MainContent({ showReloadApplied }: { showReloadApplied: boolean }) {
   const { selection } = selectionStore.useSelectorRC((s) => ({
     selection: s.selection,
   }));
-  const { configReload } = workspaceConfigStore.useSelectorRC((s) => ({
-    configReload: s.configReload,
-  }));
+  const workspaceConfigResult = workspaceConfigStore.useDocument();
+  const configReload =
+    workspaceConfigResult.data?.configReload ??
+    DEFAULT_WORKSPACE_CONFIG.configReload;
   const { runStartError } = runStore.useSelectorRC((s) => ({
     runStartError: s.runStartError,
   }));
-  const { evals, discoveryIssues } = evalsStore.useSelectorRC((s) => ({
-    evals: s.evals,
-    discoveryIssues: s.discoveryIssues,
-  }));
+  const evalsResult = evalSummariesStore.useDocument();
+  const discoveryIssuesResult = discoveryIssuesStore.useDocument();
+  const evals = evalsResult.data ?? [];
+  const discoveryIssues = discoveryIssuesResult.data ?? [];
+  const evalLoadError =
+    evalsResult.error?.message ?? discoveryIssuesResult.error?.message ?? null;
   const folderPath = selection.kind === 'folder' ? selection.path : '';
   const issueBanner =
     discoveryIssues.length > 0 ? (
@@ -239,7 +246,17 @@ function MainContent({ showReloadApplied }: { showReloadApplied: boolean }) {
 
   if (selection.kind === 'eval') {
     const ev = evals.find((e) => e.key === selection.id);
-    if (!ev) return <PendingState />;
+    if (!ev) {
+      if (evalLoadError !== null && evals.length === 0) {
+        return (
+          <EmptyState
+            title="Could not load evals"
+            description={evalLoadError}
+          />
+        );
+      }
+      return <PendingState />;
+    }
     return (
       <>
         {issueBanner}
@@ -251,6 +268,15 @@ function MainContent({ showReloadApplied }: { showReloadApplied: boolean }) {
   }
 
   const inFolder = collectEvalsInFolder(evals, folderPath);
+
+  if (evalLoadError !== null && evals.length === 0) {
+    return (
+      <EmptyState
+        title="Could not load evals"
+        description={evalLoadError}
+      />
+    );
+  }
 
   return (
     <>

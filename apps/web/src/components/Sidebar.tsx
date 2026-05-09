@@ -6,7 +6,7 @@ import { EvalTree } from '#src/components/EvalTree';
 import { ResizeHandle } from '#src/components/ResizeHandle';
 import { Tooltip } from '#src/components/Tooltip';
 import { useResizableWidth } from '#src/hooks/useResizableWidth';
-import { evalsStore } from '#src/stores/evalsStore';
+import { evalSummariesStore } from '#src/stores/evalsStore';
 import {
   setSidebarWidth,
   SIDEBAR_DEFAULT_WIDTH,
@@ -319,7 +319,7 @@ const ScrollArea = styled.div`
 `;
 
 export function Sidebar() {
-  const { evals } = evalsStore.useSelectorRC((s) => ({ evals: s.evals }));
+  const evals = evalSummariesStore.useDocument().data ?? [];
   const { collapsedFolders, selection, statusFilters, searchQuery } =
     selectionStore.useSelectorRC((s) => ({
       collapsedFolders: s.collapsedFolders,

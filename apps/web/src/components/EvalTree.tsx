@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { css, styled } from 'vindur';
 import { StatusDot } from '#src/components/StatusBadge';
 import { Tooltip } from '#src/components/Tooltip';
-import { evalsStore } from '#src/stores/evalsStore';
+import { evalSummariesStore } from '#src/stores/evalsStore';
 import { runStore } from '#src/stores/runStore';
 import {
   expandFolder,
@@ -217,11 +217,9 @@ const RowCounter = styled.span`
 `;
 
 export function EvalTree() {
-  const { evals, hasLoaded, error } = evalsStore.useSelectorRC((s) => ({
-    evals: s.evals,
-    hasLoaded: s.hasLoaded,
-    error: s.error,
-  }));
+  const evalsResult = evalSummariesStore.useDocument();
+  const evals = evalsResult.data ?? [];
+  const error = evalsResult.error?.message ?? null;
   const { selection, collapsedFolders, statusFilters, searchQuery } =
     selectionStore.useSelectorRC((s) => ({
       selection: s.selection,
@@ -252,7 +250,7 @@ export function EvalTree() {
     }
   }, [selection, evals]);
 
-  if (!hasLoaded) {
+  if (evalsResult.isLoading && evals.length === 0) {
     return (
       <Empty>
         <EmptyTitle>Loading evals</EmptyTitle>

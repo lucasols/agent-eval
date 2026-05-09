@@ -17,17 +17,21 @@ import type { SplitButtonMenuEntry } from '#src/components/SplitButton';
 import { StatusBadge } from '#src/components/StatusBadge';
 import { useResizableWidth } from '#src/hooks/useResizableWidth';
 import { useWindowWidth } from '#src/hooks/useWindowWidth';
-import { evalsStore } from '#src/stores/evalsStore';
+import { evalSummariesStore } from '#src/stores/evalsStore';
 import { layoutStore } from '#src/stores/layoutStore';
 import {
   closeRun,
   cancelRun,
   deleteRun,
+  runDetailStore,
   runStore,
   selectCase,
 } from '#src/stores/runStore';
 import { selectionStore } from '#src/stores/selectionStore';
-import { workspaceConfigStore } from '#src/stores/workspaceConfigStore';
+import {
+  DEFAULT_WORKSPACE_CONFIG,
+  workspaceConfigStore,
+} from '#src/stores/workspaceConfigStore';
 import { colors } from '#src/style/colors';
 import {
   ellipsis,
@@ -51,6 +55,12 @@ const DrawerLoading = styled.div`
   color: ${colors.textMuted.var};
   font-size: 12px;
   flex-shrink: 0;
+`;
+
+const DrawerError = styled(DrawerLoading)`
+  color: ${colors.error.var};
+  padding: 20px;
+  text-align: center;
 `;
 
 const DrawerRoot = styled.div`
@@ -475,22 +485,24 @@ function getSelectedRunErrorEvalIds(params: {
 }
 
 export function RunDrawer() {
-  const { selectedRunDetail, selectedRunScope } = runStore.useSelectorRC(
-    (s) => ({
-      selectedRunDetail: s.selectedRunDetail,
-      selectedRunScope: s.selectedRunScope,
-    }),
+  const { selectedRunId, selectedRunScope } = runStore.useSelectorRC((s) => ({
+    selectedRunId: s.selectedRunId,
+    selectedRunScope: s.selectedRunScope,
+  }));
+  const selectedRunResult = runDetailStore.useItem(
+    selectedRunId === null ? null : { runId: selectedRunId },
   );
-  const { evals } = evalsStore.useSelectorRC((s) => ({ evals: s.evals }));
+  const selectedRunDetail = selectedRunResult.data;
+  const evals = evalSummariesStore.useDocument().data ?? [];
   const { sidebarWidth } = layoutStore.useSelectorRC((s) => ({
     sidebarWidth: s.sidebarWidth,
   }));
   const { selection } = selectionStore.useSelectorRC((s) => ({
     selection: s.selection,
   }));
-  const { workspaceRoot } = workspaceConfigStore.useSelectorRC((s) => ({
-    workspaceRoot: s.workspaceRoot,
-  }));
+  const workspaceRoot =
+    workspaceConfigStore.useDocument().data?.workspaceRoot ??
+    DEFAULT_WORKSPACE_CONFIG.workspaceRoot;
   const windowWidth = useWindowWidth();
   const minWidth = 360;
   const maxWidth = Math.max(minWidth, windowWidth - sidebarWidth);
@@ -502,6 +514,14 @@ export function RunDrawer() {
       defaultWidth: 540,
       edge: 'left',
     });
+
+  if (selectedRunResult.error !== null && selectedRunDetail === null) {
+    return (
+      <DrawerError style={{ width: `${width}px` }}>
+        {selectedRunResult.error.message}
+      </DrawerError>
+    );
+  }
 
   if (!selectedRunDetail) {
     return (

@@ -1,12 +1,11 @@
 import { ChevronDown, ChevronRight, SquareArrowOutUpRight } from 'lucide-react';
 import { useState } from 'react';
-import { resultify } from 't-result';
 import { styled } from 'vindur';
+import { apiClient, getRpcResult } from '#src/api/client';
 import { IconButton } from '#src/components/IconButton';
 import { Tooltip } from '#src/components/Tooltip';
 import { colors } from '#src/style/colors';
 import { inline, monoFont, stack } from '#src/style/helpers';
-import { apiUrl } from '#src/utils/apiUrl';
 
 export type StackFrameLocation = { file: string; line: number; column: number };
 
@@ -289,11 +288,7 @@ function formatWorkspaceRelativeFile(
 async function openStackFrameInEditor(
   location: StackFrameLocation,
 ): Promise<void> {
-  await resultify(() =>
-    fetch(apiUrl('/api/runs/actions/open-location'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(location),
-    }),
+  await getRpcResult(
+    apiClient.api.runs.actions['open-location'].$post({ json: location }),
   );
 }

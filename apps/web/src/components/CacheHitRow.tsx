@@ -1,19 +1,14 @@
-import {
-  cacheEntryWithDebugKeySchema,
-  type CacheActivityEntry,
-  type CacheEntryWithDebugKey,
-} from '@agent-evals/shared';
+import { type CacheActivityEntry } from '@agent-evals/shared';
 import { useActionFn } from '@ls-stack/react-utils/useActionFn';
 import { ChevronDown, ChevronRight, GitCompare, Trash2 } from 'lucide-react';
-import { useState } from 'react';
-import { resultify } from 't-result';
+import { useMemo, useState } from 'react';
 import { styled } from 'vindur';
 import { Button } from '#src/components/Button';
 import { CacheRawKeyCompareModal } from '#src/components/CacheRawKeyCompareModal';
 import { JsonViewer } from '#src/components/JsonViewer';
+import { cacheEntryStore, deleteCacheEntry } from '#src/stores/cacheStore';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
-import { apiUrl } from '#src/utils/apiUrl';
 import type { ScopedCacheActivityPhase } from '#src/utils/cacheActivity';
 import { formatTimestamp } from '#src/utils/formatters';
 
@@ -166,19 +161,6 @@ function truncateKey(key: string): string {
   return `${key.slice(0, 12)}…`;
 }
 
-type FetchState =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'loaded'; entry: CacheEntryWithDebugKey }
-  | { status: 'deleted' }
-  | { status: 'error'; message: string };
-
-function cacheEntryUrl(entry: CacheActivityEntry): string {
-  return apiUrl(
-    `/api/cache/${encodeURIComponent(entry.namespace)}/${encodeURIComponent(entry.key)}`,
-  );
-}
-
 function getNonNegativeCacheAge(entry: CacheActivityEntry): number | null {
   if (entry.storedAt !== undefined) {
     const storedAtMs = Date.parse(entry.storedAt);
@@ -243,67 +225,29 @@ export function CacheHitRow({
   currentCacheIndex,
 }: CacheHitRowProps) {
   const [expanded, setExpanded] = useState(false);
-  const [fetchState, setFetchState] = useState<FetchState>({ status: 'idle' });
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [compareOpen, setCompareOpen] = useState(false);
   const canLoadEntry = entry.stored;
-
-  async function loadEntry() {
-    if (
-      !canLoadEntry ||
-      fetchState.status === 'loading' ||
-      fetchState.status === 'loaded' ||
-      fetchState.status === 'deleted'
-    ) {
-      return;
-    }
-    setFetchState({ status: 'loading' });
-    const fetchResult = await resultify(() => fetch(cacheEntryUrl(entry)));
-    if (fetchResult.error) {
-      setFetchState({ status: 'error', message: fetchResult.error.message });
-      return;
-    }
-    const response = fetchResult.value;
-    if (!response.ok) {
-      setFetchState({
-        status: 'error',
-        message: `cache entry not available (${String(response.status)})`,
-      });
-      return;
-    }
-    const jsonResult = await resultify(() => response.json());
-    if (jsonResult.error) {
-      setFetchState({ status: 'error', message: jsonResult.error.message });
-      return;
-    }
-    const parseResult = resultify(() =>
-      cacheEntryWithDebugKeySchema.parse(jsonResult.value),
-    );
-    if (parseResult.error) {
-      setFetchState({ status: 'error', message: parseResult.error.message });
-      return;
-    }
-    setFetchState({ status: 'loaded', entry: parseResult.value });
-  }
+  const cacheEntryPayload = useMemo(
+    () =>
+      canLoadEntry && expanded
+        ? { namespace: entry.namespace, key: entry.key }
+        : null,
+    [canLoadEntry, entry.key, entry.namespace, expanded],
+  );
+  const cacheEntryResult = cacheEntryStore.useItem(cacheEntryPayload);
+  const cacheEntry = cacheEntryResult.data;
+  const cacheEntryDeleted = cacheEntryResult.status === 'deleted';
 
   const deleteAction = useActionFn(async () => {
     if (!canLoadEntry) return;
     if (!window.confirm('Delete this cached entry?')) return;
     setDeleteError(null);
-    const deleteResult = await resultify(() =>
-      fetch(cacheEntryUrl(entry), { method: 'DELETE' }),
-    );
-    if (deleteResult.error) {
-      setDeleteError(deleteResult.error.message);
-      return;
-    }
-    if (!deleteResult.value.ok && deleteResult.value.status !== 404) {
-      setDeleteError(
-        `cache entry could not be deleted (${String(deleteResult.value.status)})`,
-      );
-      return;
-    }
-    setFetchState({ status: 'deleted' });
+    const errorMessage = await deleteCacheEntry({
+      namespace: entry.namespace,
+      key: entry.key,
+    });
+    setDeleteError(errorMessage);
   });
 
   function handleToggle() {
@@ -312,17 +256,11 @@ export function CacheHitRow({
       return;
     }
     setExpanded(true);
-    if (canLoadEntry) void loadEntry();
   }
 
   const ageLabel = formatCacheAge(entry);
-  const storedAt =
-    entry.storedAt ??
-    (fetchState.status === 'loaded' ? fetchState.entry.storedAt : undefined);
-  const finalAttributes =
-    fetchState.status === 'loaded'
-      ? fetchState.entry.recording.finalAttributes
-      : null;
+  const storedAt = entry.storedAt ?? cacheEntry?.storedAt;
+  const finalAttributes = cacheEntry?.recording.finalAttributes ?? null;
   const hasFinalAttributes =
     finalAttributes !== null && Object.keys(finalAttributes).length > 0;
 
@@ -350,7 +288,7 @@ export function CacheHitRow({
             <OriginTag>(case root)</OriginTag>
           ) : null}
           <HeaderMeta>
-            {fetchState.status === 'deleted' ? <span>deleted</span> : null}
+            {cacheEntryDeleted ? <span>deleted</span> : null}
             {ageLabel !== null ? <span>{ageLabel}</span> : null}
             {entry.action === 'added' && entry.status === 'miss' ? (
               <span>created</span>
@@ -384,7 +322,7 @@ export function CacheHitRow({
               </MetaItem>
             </MetaRow>
 
-            {fetchState.status === 'loading' ? (
+            {cacheEntryResult.isLoading ? (
               <StatusMessage>Loading cached value…</StatusMessage>
             ) : null}
 
@@ -394,9 +332,9 @@ export function CacheHitRow({
               </StatusMessage>
             ) : null}
 
-            {fetchState.status === 'error' ? (
+            {cacheEntryResult.error !== null ? (
               <ErrorMessage>
-                Could not load cached value: {fetchState.message}
+                Could not load cached value: {cacheEntryResult.error.message}
               </ErrorMessage>
             ) : null}
 
@@ -406,17 +344,17 @@ export function CacheHitRow({
               </ErrorMessage>
             ) : null}
 
-            {fetchState.status === 'deleted' ? (
+            {cacheEntryDeleted ? (
               <StatusMessage>Cached entry deleted.</StatusMessage>
             ) : null}
 
-            {fetchState.status === 'loaded' ? (
+            {cacheEntry !== null ? (
               <>
-                {fetchState.entry.debugKey !== undefined ? (
+                {cacheEntry.debugKey !== undefined ? (
                   <SectionWrapper>
                     <SectionLabel>Raw cache key</SectionLabel>
                     <JsonViewer
-                      value={fetchState.entry.debugKey.rawKey}
+                      value={cacheEntry.debugKey.rawKey}
                       compact
                       maxHeight="raw"
                       collapsed={4}
@@ -426,7 +364,7 @@ export function CacheHitRow({
                 <SectionWrapper>
                   <SectionLabel>Cached return value</SectionLabel>
                   <JsonViewer
-                    value={fetchState.entry.recording.returnValue}
+                    value={cacheEntry.recording.returnValue}
                     compact
                     maxHeight="raw"
                     collapsed={6}
@@ -450,9 +388,7 @@ export function CacheHitRow({
                 <Button
                   variant="secondary"
                   leftIcon={<GitCompare />}
-                  disabled={
-                    fetchState.status === 'deleted' || currentRunId.length === 0
-                  }
+                  disabled={cacheEntryDeleted || currentRunId.length === 0}
                   onClick={() => setCompareOpen(true)}
                 >
                   Compare raw key
@@ -460,16 +396,12 @@ export function CacheHitRow({
                 <Button
                   variant="danger"
                   leftIcon={<Trash2 />}
-                  disabled={
-                    fetchState.status === 'deleted' || deleteAction.isInProgress
-                  }
+                  disabled={cacheEntryDeleted || deleteAction.isInProgress}
                   onClick={() => {
                     void deleteAction.call();
                   }}
                 >
-                  {fetchState.status === 'deleted'
-                    ? 'Deleted'
-                    : 'Delete cache entry'}
+                  {cacheEntryDeleted ? 'Deleted' : 'Delete cache entry'}
                 </Button>
               </BodyActions>
             ) : null}

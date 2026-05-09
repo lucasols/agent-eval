@@ -6,20 +6,35 @@ import {
   runSummarySchema,
   type CacheMode,
   type CaseRow,
+  type CreateRunRequest,
   type RunManifest,
   type RunSummary,
   type CaseDetail,
 } from '@agent-evals/shared';
 import { resultify } from 't-result';
 import { Store } from 't-state';
+import { createCollectionStore } from 'tsdf';
 import { z } from 'zod/v4';
+import {
+  apiClient,
+  getRpcResult,
+  getRpcResultUnwrap,
+  type RpcResponseError,
+} from '#src/api/client';
 import {
   getCurrentSearchParams,
   updateSearchParams,
 } from '#src/hooks/useSearchParams';
-import { evalsStore, fetchEvals } from '#src/stores/evalsStore';
-import { refetchHistory } from '#src/stores/historyStore';
-import { workspaceConfigStore } from '#src/stores/workspaceConfigStore';
+import { dataStoreManager } from '#src/stores/dataStoreManager';
+import {
+  evalSummariesStore,
+  invalidateEvalSummaries,
+} from '#src/stores/evalsStore';
+import { invalidateRunHistory } from '#src/stores/historyStore';
+import {
+  getWorkspaceConfig,
+  setConfigReloadState,
+} from '#src/stores/workspaceConfigStore';
 import { apiUrl } from '#src/utils/apiUrl';
 
 const createRunResponseSchema = z.object({
@@ -52,16 +67,16 @@ export type RunDetail = {
 type CaseSelection = { runId: string; caseId: string };
 type RunScope = { kind: 'eval'; id: string } | { kind: 'folder'; path: string };
 type RunSelection = { runId: string; scope: RunScope | null };
+type CaseDetailPayload = { runId: string; caseId: string };
+type RunDetailPayload = { runId: string };
 
 type RunState = {
   currentRun: RunDetail | null;
   runStartError: string | null;
   selectedCaseRunId: string | null;
   selectedCaseId: string | null;
-  selectedCaseDetail: CaseDetail | null;
   selectedRunId: string | null;
   selectedRunScope: RunScope | null;
-  selectedRunDetail: RunDetail | null;
   trials: number;
   eventSource: EventSource | null;
 };
@@ -104,7 +119,6 @@ function setCaseSelectionState(selection: CaseSelection | null): void {
   runStore.setPartialState({
     selectedCaseRunId: selection?.runId ?? null,
     selectedCaseId: selection?.caseId ?? null,
-    selectedCaseDetail: null,
   });
 }
 
@@ -112,10 +126,8 @@ export function clearDrawerSelectionState(): void {
   runStore.setPartialState({
     selectedCaseRunId: null,
     selectedCaseId: null,
-    selectedCaseDetail: null,
     selectedRunId: null,
     selectedRunScope: null,
-    selectedRunDetail: null,
   });
 }
 
@@ -141,7 +153,6 @@ function setRunSelectionState(selection: RunSelection | null): void {
   runStore.setPartialState({
     selectedRunId: selection?.runId ?? null,
     selectedRunScope: selection?.scope ?? null,
-    selectedRunDetail: null,
   });
 }
 
@@ -165,44 +176,54 @@ function setRunSelection(selection: RunSelection | null): void {
   });
 }
 
-async function fetchCaseDetail(runId: string, caseId: string): Promise<void> {
-  const fetchResult = await resultify(() =>
-    fetch(
-      apiUrl(
-        `/api/runs/${encodeURIComponent(runId)}/cases/${encodeURIComponent(caseId)}`,
+export const caseDetailStore = createCollectionStore<
+  CaseDetail,
+  CaseDetailPayload
+>({
+  id: 'collection-case-details',
+  storeManager: dataStoreManager,
+  usesRealTimeUpdates: true,
+  getCollectionItemKey: (payload) => [payload.runId, payload.caseId],
+  fetchFn: async (payload, signal) => {
+    return getRpcResultUnwrap(
+      apiClient.api.runs[':runId'].cases[':caseId'].$get(
+        {
+          param: {
+            runId: encodeURIComponent(payload.runId),
+            caseId: encodeURIComponent(payload.caseId),
+          },
+        },
+        { init: { signal } },
       ),
-    ),
-  );
-  if (fetchResult.error) return;
-  const jsonResult = await resultify(() => fetchResult.value.json());
-  if (jsonResult.error) return;
-  const parseResult = resultify(() => caseDetailSchema.parse(jsonResult.value));
-  if (parseResult.error) return;
+    );
+  },
+});
 
-  if (
-    runStore.state.selectedCaseRunId !== runId ||
-    runStore.state.selectedCaseId !== caseId
-  ) {
-    return;
-  }
+export const runDetailStore = createCollectionStore<
+  RunDetail,
+  RunDetailPayload
+>({
+  id: 'collection-run-details',
+  storeManager: dataStoreManager,
+  usesRealTimeUpdates: true,
+  getCollectionItemKey: (payload) => payload.runId,
+  fetchFn: async (payload, signal) => {
+    return getRpcResultUnwrap(
+      apiClient.api.runs[':runId'].$get(
+        { param: { runId: encodeURIComponent(payload.runId) } },
+        { init: { signal } },
+      ),
+    );
+  },
+});
 
-  runStore.setPartialState({ selectedCaseDetail: parseResult.value });
-}
+type RunInvalidationPriority = Parameters<
+  typeof runDetailStore.invalidateItem
+>[1];
 
-async function fetchRunDetail(runId: string): Promise<void> {
-  const fetchResult = await resultify(() =>
-    fetch(apiUrl(`/api/runs/${runId}`)),
-  );
-  if (fetchResult.error) return;
-  const jsonResult = await resultify(() => fetchResult.value.json());
-  if (jsonResult.error) return;
-  const parseResult = resultify(() =>
-    createRunResponseSchema.parse(jsonResult.value),
-  );
-  if (parseResult.error) return;
-
-  if (runStore.state.selectedRunId !== runId) return;
-  runStore.setPartialState({ selectedRunDetail: parseResult.value });
+function invalidateRunDerivedData(priority?: RunInvalidationPriority): void {
+  invalidateRunHistory(priority);
+  invalidateEvalSummaries(priority);
 }
 
 const initialSearchParams = getCurrentSearchParams();
@@ -219,10 +240,8 @@ export const runStore = new Store<RunState>({
     runStartError: null,
     selectedCaseRunId: initialCaseSelection?.runId ?? null,
     selectedCaseId: initialCaseSelection?.caseId ?? null,
-    selectedCaseDetail: null,
     selectedRunId: initialRunSelection?.runId ?? null,
     selectedRunScope: initialRunSelection?.scope ?? null,
-    selectedRunDetail: null,
     trials: 1,
     eventSource: null,
   },
@@ -282,7 +301,6 @@ const genericErrorBodySchema = z.object({
   error: z.string(),
   message: z.string().optional(),
 });
-
 /** Per-eval manual-input failure surfaced from a 400 `POST /api/runs` response. */
 export type ManualInputStartRunFailure = z.infer<
   typeof manualInputValidationFailureSchema
@@ -299,6 +317,7 @@ export type StartRunResult =
 const LARGE_APP_RUN_CONFIRM_EVAL_COUNT = 5;
 
 function getRunTargetEvalCount(target: RunTarget): number {
+  const evals = evalSummariesStore.store.state.data ?? [];
   if (target.mode === 'evalIds') {
     return new Set(target.evalKeys ?? target.evalIds ?? target.files ?? [])
       .size;
@@ -307,9 +326,9 @@ function getRunTargetEvalCount(target: RunTarget): number {
     const evalTargets = target.evalKeys ?? target.evalIds ?? target.files;
     return evalTargets && evalTargets.length > 0
       ? new Set(evalTargets).size
-      : evalsStore.state.evals.length;
+      : evals.length;
   }
-  return evalsStore.state.evals.length;
+  return evals.length;
 }
 
 function confirmLargeAppRun(target: RunTarget): boolean {
@@ -320,12 +339,42 @@ function confirmLargeAppRun(target: RunTarget): boolean {
   );
 }
 
+function handleStartRunError(error: RpcResponseError): StartRunResult {
+  const validationParse = manualInputValidationErrorBodySchema.safeParse(
+    error.response,
+  );
+  if (validationParse.success) {
+    return {
+      status: 'manual-input-error',
+      failures: validationParse.data.failures,
+    };
+  }
+  const configReloadParse = configReloadPendingErrorBodySchema.safeParse(
+    error.response,
+  );
+  if (configReloadParse.success) {
+    setConfigReloadState(configReloadParse.data.configReload);
+    runStore.setPartialState({ runStartError: configReloadParse.data.error });
+    return {
+      status: 'config-reload-pending',
+      message: configReloadParse.data.error,
+    };
+  }
+  const genericErrorParse = genericErrorBodySchema.safeParse(error.response);
+
+  const message = genericErrorParse.success
+    ? (genericErrorParse.data.message ?? genericErrorParse.data.error)
+    : error.message || `Server responded ${String(error.status)}`;
+  runStore.setPartialState({ runStartError: message });
+  return { status: 'error', message };
+}
+
 export async function startRun(
   target: RunTarget,
   options: StartRunOptions = {},
 ): Promise<StartRunResult> {
   clearRunStartError();
-  if (workspaceConfigStore.state.configReload.status !== 'idle') {
+  if (getWorkspaceConfig().configReload.status !== 'idle') {
     const message = 'Config is reloading. Try again after it finishes.';
     runStore.setPartialState({ runStartError: message });
     return { status: 'config-reload-pending', message };
@@ -335,68 +384,19 @@ export async function startRun(
 
   const { trials } = runStore.state;
   const cacheMode = options.cacheMode ?? 'use';
-  const body: Record<string, unknown> = {
-    target,
-    trials,
-    cache: { mode: cacheMode },
-  };
+  const body: CreateRunRequest = { target, trials, cache: { mode: cacheMode } };
   if (options.temporary === true) body.temporary = true;
   if (options.manualInputs) body.manualInputs = options.manualInputs;
 
-  const fetchResult = await resultify(() =>
-    fetch(apiUrl('/api/runs'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }),
+  const runResult = await getRpcResult(
+    apiClient.api.runs.$post({ json: body }),
   );
-  if (fetchResult.error) {
-    runStore.setPartialState({ runStartError: fetchResult.error.message });
-    return { status: 'error', message: fetchResult.error.message };
-  }
-
-  const jsonResult = await resultify(() => fetchResult.value.json());
-  if (jsonResult.error) {
-    const message = 'Server returned non-JSON response';
-    runStore.setPartialState({ runStartError: message });
-    return { status: 'error', message };
-  }
-
-  if (!fetchResult.value.ok) {
-    const validationParse = manualInputValidationErrorBodySchema.safeParse(
-      jsonResult.value,
-    );
-    if (validationParse.success) {
-      return {
-        status: 'manual-input-error',
-        failures: validationParse.data.failures,
-      };
-    }
-    const configReloadParse = configReloadPendingErrorBodySchema.safeParse(
-      jsonResult.value,
-    );
-    if (configReloadParse.success) {
-      workspaceConfigStore.setPartialState({
-        configReload: configReloadParse.data.configReload,
-      });
-      runStore.setPartialState({ runStartError: configReloadParse.data.error });
-      return {
-        status: 'config-reload-pending',
-        message: configReloadParse.data.error,
-      };
-    }
-    const genericErrorParse = genericErrorBodySchema.safeParse(
-      jsonResult.value,
-    );
-    const message = genericErrorParse.success
-      ? (genericErrorParse.data.message ?? genericErrorParse.data.error)
-      : `Server responded ${String(fetchResult.value.status)}`;
-    runStore.setPartialState({ runStartError: message });
-    return { status: 'error', message };
+  if (runResult.error) {
+    return handleStartRunError(runResult.error);
   }
 
   const parseResult = resultify(() =>
-    createRunResponseSchema.parse(jsonResult.value),
+    createRunResponseSchema.parse(runResult.value),
   );
   if (parseResult.error) {
     const message = 'Run response did not match schema';
@@ -408,6 +408,10 @@ export async function startRun(
     currentRun: parseResult.value,
     runStartError: null,
   });
+  runDetailStore.addItemToState(
+    { runId: parseResult.value.manifest.id },
+    parseResult.value,
+  );
   setCaseSelection(null);
 
   subscribeToRunEvents(parseResult.value.manifest.id);
@@ -428,6 +432,51 @@ function safeParseJson<T>(schema: z.ZodType<T>, raw: string): T | null {
   return parsed.data;
 }
 
+function getCaseRowIdentity(caseRow: CaseRow): string {
+  return caseRow.caseKey ?? caseRow.caseId;
+}
+
+function updateCachedRunStatus(params: {
+  runId: string;
+  status: RunManifest['status'];
+  summary?: RunSummary;
+  errorMessage?: string;
+}): void {
+  runDetailStore.updateItemState({ runId: params.runId }, (draft) => {
+    draft.manifest.status = params.status;
+    draft.summary.status = params.status;
+    if (params.summary !== undefined) draft.summary = params.summary;
+    if (params.errorMessage !== undefined) {
+      draft.summary.errorMessage = params.errorMessage;
+    }
+  });
+}
+
+function updateCachedRunCase(runId: string, caseRow: CaseRow): void {
+  runDetailStore.updateItemState({ runId }, (draft) => {
+    const nextCases = draft.cases.map((current) =>
+      getCaseRowIdentity(current) === getCaseRowIdentity(caseRow) &&
+      current.trial === caseRow.trial
+        ? caseRow
+        : current,
+    );
+    const hasCase = nextCases.some(
+      (current) =>
+        getCaseRowIdentity(current) === getCaseRowIdentity(caseRow) &&
+        current.trial === caseRow.trial,
+    );
+    draft.cases = hasCase ? nextCases : [...nextCases, caseRow];
+  });
+}
+
+function invalidateCaseDetailForRow(runId: string, caseRow: CaseRow): void {
+  const caseIdentity = getCaseRowIdentity(caseRow);
+  caseDetailStore.invalidateItem(
+    (payload) => payload.runId === runId && payload.caseId === caseIdentity,
+    'realtimeUpdate',
+  );
+}
+
 function subscribeToRunEvents(runId: string): void {
   const existing = runStore.state.eventSource;
   if (existing) existing.close();
@@ -444,6 +493,9 @@ function subscribeToRunEvents(runId: string): void {
         ...prev,
         currentRun: { ...prev.currentRun, summary: envelope.payload },
       };
+    });
+    runDetailStore.updateItemState({ runId }, (draft) => {
+      draft.summary = envelope.payload;
     });
   });
 
@@ -473,6 +525,8 @@ function subscribeToRunEvents(runId: string): void {
         },
       };
     });
+    updateCachedRunCase(runId, envelope.payload);
+    invalidateCaseDetailForRow(runId, envelope.payload);
   }
 
   es.addEventListener('case.updated', (e) => applyCaseUpdate(e.data));
@@ -493,8 +547,13 @@ function subscribeToRunEvents(runId: string): void {
       };
     });
     es.close();
-    void refetchHistory();
-    void fetchEvals();
+    updateCachedRunStatus({
+      runId,
+      status: 'completed',
+      summary: envelope?.payload,
+    });
+    runDetailStore.invalidateItem({ runId }, 'realtimeUpdate');
+    invalidateRunDerivedData('realtimeUpdate');
   });
 
   es.addEventListener('run.cancelled', () => {
@@ -507,26 +566,13 @@ function subscribeToRunEvents(runId: string): void {
           summary: { ...prev.currentRun.summary, status: 'cancelled' },
           manifest: { ...prev.currentRun.manifest, status: 'cancelled' },
         },
-        selectedRunDetail:
-          prev.selectedRunDetail?.manifest.id === prev.currentRun.manifest.id
-            ? {
-                ...prev.selectedRunDetail,
-                summary: {
-                  ...prev.selectedRunDetail.summary,
-                  status: 'cancelled',
-                },
-                manifest: {
-                  ...prev.selectedRunDetail.manifest,
-                  status: 'cancelled',
-                },
-              }
-            : prev.selectedRunDetail,
         eventSource: null,
       };
     });
     es.close();
-    void refetchHistory();
-    void fetchEvals();
+    updateCachedRunStatus({ runId, status: 'cancelled' });
+    runDetailStore.invalidateItem({ runId }, 'realtimeUpdate');
+    invalidateRunDerivedData('realtimeUpdate');
   });
 
   es.addEventListener('run.error', (e) => {
@@ -548,37 +594,27 @@ function subscribeToRunEvents(runId: string): void {
               envelope?.payload.message ?? prev.currentRun.summary.errorMessage,
           },
         },
-        selectedRunDetail:
-          prev.selectedRunDetail?.manifest.id === prev.currentRun.manifest.id
-            ? {
-                ...prev.selectedRunDetail,
-                manifest: {
-                  ...prev.selectedRunDetail.manifest,
-                  status: 'error',
-                },
-                summary: {
-                  ...prev.selectedRunDetail.summary,
-                  status: 'error',
-                  errorMessage:
-                    envelope?.payload.message ??
-                    prev.selectedRunDetail.summary.errorMessage,
-                },
-              }
-            : prev.selectedRunDetail,
         eventSource: null,
       };
     });
     es.close();
-    void refetchHistory();
-    void fetchEvals();
+    updateCachedRunStatus({
+      runId,
+      status: 'error',
+      errorMessage: envelope?.payload.message,
+    });
+    runDetailStore.invalidateItem({ runId }, 'realtimeUpdate');
+    invalidateRunDerivedData('realtimeUpdate');
   });
 }
 
 export async function cancelRun(runId?: string): Promise<void> {
   const targetRunId = runId ?? runStore.state.currentRun?.manifest.id;
   if (!targetRunId) return;
-  const cancelResult = await resultify(() =>
-    fetch(apiUrl(`/api/runs/${targetRunId}/cancel`), { method: 'POST' }),
+  const cancelResult = await getRpcResult(
+    apiClient.api.runs[':runId'].cancel.$post({
+      param: { runId: encodeURIComponent(targetRunId) },
+    }),
   );
   if (cancelResult.error) return;
 
@@ -595,39 +631,27 @@ export async function cancelRun(runId?: string): Promise<void> {
             summary: { ...prev.currentRun.summary, status: 'cancelled' },
           }
         : prev.currentRun,
-    selectedRunDetail:
-      prev.selectedRunDetail?.manifest.id === targetRunId
-        ? {
-            ...prev.selectedRunDetail,
-            manifest: {
-              ...prev.selectedRunDetail.manifest,
-              status: 'cancelled',
-            },
-            summary: { ...prev.selectedRunDetail.summary, status: 'cancelled' },
-          }
-        : prev.selectedRunDetail,
     eventSource: null,
   }));
-  void refetchHistory();
-  void fetchEvals();
+  updateCachedRunStatus({ runId: targetRunId, status: 'cancelled' });
+  runDetailStore.invalidateItem({ runId: targetRunId });
+  invalidateRunDerivedData();
 }
 
-export async function selectCase(runId: string, caseId: string): Promise<void> {
+export function selectCase(runId: string, caseId: string): void {
   setCaseSelection({ runId, caseId });
   setRunSelectionState(null);
-  await fetchCaseDetail(runId, caseId);
 }
 
-export async function syncCaseSelectionFromSearchParams(
+export function syncCaseSelectionFromSearchParams(
   searchParams: URLSearchParams,
-): Promise<void> {
+): void {
   const selection = readCaseSelectionFromSearchParams(searchParams);
 
   if (!selection) {
     const caseIsAlreadyClosed =
       runStore.state.selectedCaseRunId === null &&
-      runStore.state.selectedCaseId === null &&
-      runStore.state.selectedCaseDetail === null;
+      runStore.state.selectedCaseId === null;
     if (caseIsAlreadyClosed) return;
     setCaseSelectionState(null);
     return;
@@ -639,43 +663,31 @@ export async function syncCaseSelectionFromSearchParams(
 
   if (!sameSelection) {
     setCaseSelectionState(selection);
-    runStore.setPartialState({
-      selectedRunId: null,
-      selectedRunScope: null,
-      selectedRunDetail: null,
-    });
+    runStore.setPartialState({ selectedRunId: null, selectedRunScope: null });
   }
-
-  if (sameSelection && runStore.state.selectedCaseDetail) return;
-  await fetchCaseDetail(selection.runId, selection.caseId);
 }
 
 export function closeCase(): void {
   setCaseSelection(null);
 }
 
-export async function selectRun(
-  runId: string,
-  scope: RunScope | null = null,
-): Promise<void> {
+export function selectRun(runId: string, scope: RunScope | null = null): void {
   setRunSelection({ runId, scope });
   setCaseSelectionState(null);
-  await fetchRunDetail(runId);
 }
 
 export function closeRun(): void {
   setRunSelection(null);
 }
 
-export async function syncRunSelectionFromSearchParams(
+export function syncRunSelectionFromSearchParams(
   searchParams: URLSearchParams,
-): Promise<void> {
+): void {
   const caseSelection = readCaseSelectionFromSearchParams(searchParams);
   if (caseSelection) {
     const runIsAlreadyClosed =
       runStore.state.selectedRunId === null &&
-      runStore.state.selectedRunScope === null &&
-      runStore.state.selectedRunDetail === null;
+      runStore.state.selectedRunScope === null;
     if (runIsAlreadyClosed) return;
     setRunSelectionState(null);
     return;
@@ -685,8 +697,7 @@ export async function syncRunSelectionFromSearchParams(
   if (!selection) {
     const runIsAlreadyClosed =
       runStore.state.selectedRunId === null &&
-      runStore.state.selectedRunScope === null &&
-      runStore.state.selectedRunDetail === null;
+      runStore.state.selectedRunScope === null;
     if (runIsAlreadyClosed) return;
     setRunSelectionState(null);
     return;
@@ -699,9 +710,6 @@ export async function syncRunSelectionFromSearchParams(
   } else if (!sameRunScope(runStore.state.selectedRunScope, selection.scope)) {
     runStore.setPartialState({ selectedRunScope: selection.scope });
   }
-
-  if (sameSelection && runStore.state.selectedRunDetail) return;
-  await fetchRunDetail(selection.runId);
 }
 
 export function setTrials(trials: number): void {
@@ -712,27 +720,20 @@ export function setTrials(trials: number): void {
  * Delete cache entries recorded by saved runs for a single exact eval identity.
  */
 export async function clearCacheForEval(evalKey: string): Promise<void> {
-  await resultify(() =>
-    fetch(
-      apiUrl(`/api/cache/actions/eval?evalKey=${encodeURIComponent(evalKey)}`),
-      { method: 'DELETE' },
-    ),
+  await getRpcResult(
+    apiClient.api.cache.actions.eval.$delete({ query: { evalKey } }),
   );
 }
 
 export async function recomputeStatusesForEval(evalId: string): Promise<void> {
-  await resultify(() =>
-    fetch(
-      apiUrl(
-        `/api/runs/actions/recompute-status/${encodeURIComponent(evalId)}`,
-      ),
-      { method: 'POST' },
-    ),
+  await getRpcResult(
+    apiClient.api.runs.actions['recompute-status'][':evalId'].$post({
+      param: { evalId: encodeURIComponent(evalId) },
+    }),
   );
   closeRun();
   closeCase();
-  await refetchHistory();
-  await fetchEvals();
+  invalidateRunDerivedData();
 }
 
 export async function updateManualScore(params: {
@@ -741,85 +742,70 @@ export async function updateManualScore(params: {
   scoreKey: string;
   value: number | null;
 }): Promise<void> {
-  const result = await resultify(() =>
-    fetch(
-      apiUrl(
-        `/api/runs/${encodeURIComponent(params.runId)}/cases/${encodeURIComponent(params.caseId)}/manual-scores/${encodeURIComponent(params.scoreKey)}`,
-      ),
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: params.value }),
+  const result = await getRpcResult(
+    apiClient.api.runs[':runId'].cases[':caseId']['manual-scores'][
+      ':scoreKey'
+    ].$patch({
+      param: {
+        runId: encodeURIComponent(params.runId),
+        caseId: encodeURIComponent(params.caseId),
+        scoreKey: encodeURIComponent(params.scoreKey),
       },
-    ),
+      json: { value: params.value },
+    }),
   );
   if (result.error) return;
-  if (!result.value.ok) return;
-  const jsonResult = await resultify(() => result.value.json());
-  const parseResult = jsonResult.error
-    ? null
-    : updateManualScoreResponseSchema.safeParse(jsonResult.value);
-  if (
-    parseResult?.success &&
-    runStore.state.currentRun?.manifest.id === params.runId
-  ) {
-    runStore.setPartialState({ currentRun: parseResult.data.run });
+  const parseResult = resultify(() =>
+    updateManualScoreResponseSchema.parse(result.value),
+  );
+  if (parseResult.error) return;
+  if (runStore.state.currentRun?.manifest.id === params.runId) {
+    runStore.setPartialState({ currentRun: parseResult.value.run });
   }
 
-  await refetchHistory();
-  await fetchEvals();
-  if (
-    runStore.state.selectedCaseRunId === params.runId &&
-    runStore.state.selectedCaseId === params.caseId
-  ) {
-    await fetchCaseDetail(params.runId, params.caseId);
-  }
-  if (runStore.state.selectedRunId === params.runId) {
-    await fetchRunDetail(params.runId);
-  }
+  runDetailStore.addItemToState({ runId: params.runId }, parseResult.value.run);
+  caseDetailStore.addItemToState(
+    { runId: params.runId, caseId: params.caseId },
+    parseResult.value.caseDetail,
+  );
+  invalidateRunDerivedData();
 }
 
 export async function recalculateDerivedAttributesForCase(params: {
   runId: string;
   caseId: string;
 }): Promise<void> {
-  const result = await resultify(() =>
-    fetch(
-      apiUrl(
-        `/api/runs/${encodeURIComponent(params.runId)}/cases/${encodeURIComponent(params.caseId)}/actions/recalculate-derived-attributes`,
-      ),
-      { method: 'POST' },
-    ),
+  const result = await getRpcResult(
+    apiClient.api.runs[':runId'].cases[':caseId'].actions[
+      'recalculate-derived-attributes'
+    ].$post({
+      param: {
+        runId: encodeURIComponent(params.runId),
+        caseId: encodeURIComponent(params.caseId),
+      },
+    }),
   );
   if (result.error) return;
-  if (!result.value.ok) return;
+  const parseResult = resultify(() =>
+    recalculateDerivedAttributesResponseSchema.parse(result.value),
+  );
+  if (parseResult.error) return;
 
-  const jsonResult = await resultify(() => result.value.json());
-  const parseResult = jsonResult.error
-    ? null
-    : recalculateDerivedAttributesResponseSchema.safeParse(jsonResult.value);
-  if (!parseResult?.success) return;
-
-  if (
-    runStore.state.selectedCaseRunId === params.runId &&
-    runStore.state.selectedCaseId === params.caseId
-  ) {
-    runStore.setPartialState({
-      selectedCaseDetail: parseResult.data.caseDetail,
-    });
-  }
+  caseDetailStore.addItemToState(
+    { runId: params.runId, caseId: params.caseId },
+    parseResult.value.caseDetail,
+  );
 }
 
 export async function cleanRunsForEval(evalId: string): Promise<void> {
-  await resultify(() =>
-    fetch(apiUrl(`/api/runs/actions/clean/${encodeURIComponent(evalId)}`), {
-      method: 'POST',
+  await getRpcResult(
+    apiClient.api.runs.actions.clean[':evalId'].$post({
+      param: { evalId: encodeURIComponent(evalId) },
     }),
   );
   closeRun();
   closeCase();
-  await refetchHistory();
-  await fetchEvals();
+  invalidateRunDerivedData();
 }
 
 /**
@@ -829,19 +815,19 @@ export async function cleanRunsForEval(evalId: string): Promise<void> {
  * after the delete so affected aggregates (last run status, counts) update.
  */
 export async function deleteRun(runId: string): Promise<void> {
-  const result = await resultify(() =>
-    fetch(apiUrl(`/api/runs/${encodeURIComponent(runId)}`), {
-      method: 'DELETE',
+  const result = await getRpcResult(
+    apiClient.api.runs[':runId'].$delete({
+      param: { runId: encodeURIComponent(runId) },
     }),
   );
   if (result.error) return;
-  if (!result.value.ok) return;
 
   if (runStore.state.selectedRunId === runId) closeRun();
   if (runStore.state.selectedCaseRunId === runId) closeCase();
+  runDetailStore.deleteItemState({ runId });
+  caseDetailStore.deleteItemState((payload) => payload.runId === runId);
 
-  await refetchHistory();
-  await fetchEvals();
+  invalidateRunDerivedData();
 }
 
 /**
@@ -856,9 +842,9 @@ export async function deleteRuns(runIds: string[]): Promise<void> {
 
   await Promise.all(
     Array.from(runIdSet, (runId) =>
-      resultify(() =>
-        fetch(apiUrl(`/api/runs/${encodeURIComponent(runId)}`), {
-          method: 'DELETE',
+      getRpcResult(
+        apiClient.api.runs[':runId'].$delete({
+          param: { runId: encodeURIComponent(runId) },
         }),
       ),
     ),
@@ -883,6 +869,7 @@ export async function deleteRuns(runIds: string[]): Promise<void> {
     closeCase();
   }
 
-  await refetchHistory();
-  await fetchEvals();
+  runDetailStore.deleteItemState((payload) => runIdSet.has(payload.runId));
+  caseDetailStore.deleteItemState((payload) => runIdSet.has(payload.runId));
+  invalidateRunDerivedData();
 }
