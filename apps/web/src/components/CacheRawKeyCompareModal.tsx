@@ -13,6 +13,7 @@ import { Copy } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { styled } from 'vindur';
 import { Button } from '#src/components/Button';
+import { LoadingLine } from '#src/components/LoadingState';
 import { Modal } from '#src/components/Modal';
 import { cacheEntryStore } from '#src/stores/cacheStore';
 import { runHistoryStore } from '#src/stores/historyStore';
@@ -279,7 +280,9 @@ export function CacheRawKeyCompareModal({
   currentCacheIndex,
   onClose,
 }: CacheRawKeyCompareModalProps) {
-  const runs = runHistoryStore.useDocument().data ?? [];
+  const runHistoryResult = runHistoryStore.useDocument();
+  const runs = runHistoryResult.data ?? [];
+  const runHistoryIsLoading = runHistoryResult.isLoading && runs.length === 0;
   const runOptions = useMemo(
     () => getSameEvalRuns(runs, currentEvalKey),
     [currentEvalKey, runs],
@@ -449,7 +452,7 @@ export function CacheRawKeyCompareModal({
           <FieldLabel>Comparison run</FieldLabel>
           <SelectInput
             value={effectiveRunId}
-            disabled={runOptions.length === 0}
+            disabled={runHistoryIsLoading || runOptions.length === 0}
             onChange={(event) => handleRunChange(event.currentTarget.value)}
           >
             {runOptions.map((run) => (
@@ -504,13 +507,20 @@ export function CacheRawKeyCompareModal({
         </Field>
       </SelectorGrid>
 
-      {runOptions.length === 0 ? (
+      {runHistoryIsLoading ? (
+        <StatusMessage>
+          <LoadingLine>Loading saved runs</LoadingLine>
+        </StatusMessage>
+      ) : null}
+      {!runHistoryIsLoading && runOptions.length === 0 ? (
         <StatusMessage>
           No saved runs for this eval are available.
         </StatusMessage>
       ) : null}
       {comparisonCaseDetail.isLoading ? (
-        <StatusMessage>Loading comparison case...</StatusMessage>
+        <StatusMessage>
+          <LoadingLine>Loading comparison case</LoadingLine>
+        </StatusMessage>
       ) : null}
       {comparisonCaseDetail.error !== null ? (
         <ErrorMessage>{comparisonCaseDetail.error.message}</ErrorMessage>
@@ -529,7 +539,9 @@ export function CacheRawKeyCompareModal({
       ) : null}
       {currentRawKeyState.status === 'loading' ||
       comparisonRawKeyState.status === 'loading' ? (
-        <StatusMessage>Loading raw cache keys...</StatusMessage>
+        <StatusMessage>
+          <LoadingLine>Loading raw cache keys</LoadingLine>
+        </StatusMessage>
       ) : null}
       {currentRawKeyState.status === 'error' ? (
         <ErrorMessage>Current entry: {currentRawKeyState.message}</ErrorMessage>

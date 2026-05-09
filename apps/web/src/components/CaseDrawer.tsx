@@ -29,6 +29,7 @@ import { InputViewer } from '#src/components/InputViewer';
 import { JsonViewer } from '#src/components/JsonViewer';
 import { LlmCallRow } from '#src/components/LlmCallRow';
 import { LlmCostScenarioToolbar } from '#src/components/LlmCostScenarioToolbar';
+import { LoadingLine } from '#src/components/LoadingState';
 import { MenuButton } from '#src/components/MenuButton';
 import { ResizeHandle } from '#src/components/ResizeHandle';
 import type { SplitButtonMenuEntry } from '#src/components/SplitButton';
@@ -461,7 +462,7 @@ export function CaseDrawer() {
   if (!selectedCaseDetail) {
     return (
       <DrawerLoading style={{ width: `${width}px` }}>
-        Loading case...
+        <LoadingLine>Loading case</LoadingLine>
       </DrawerLoading>
     );
   }

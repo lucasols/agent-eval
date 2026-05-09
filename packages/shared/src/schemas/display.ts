@@ -25,6 +25,7 @@ export const repoFileRefSchema = z.object({
   source: z.literal('repo'),
   path: z.string(),
   mimeType: z.string().optional(),
+  sizeBytes: z.number().int().nonnegative().optional(),
 });
 /** Reference to a file that lives in the authored workspace. */
 export type RepoFileRef = z.infer<typeof repoFileRefSchema>;
@@ -34,6 +35,7 @@ export const runArtifactRefSchema = z.object({
   artifactId: z.string(),
   mimeType: z.string(),
   fileName: z.string().optional(),
+  sizeBytes: z.number().int().nonnegative().optional(),
 });
 /** Reference to a generated artifact stored under a specific run. */
 export type RunArtifactRef = z.infer<typeof runArtifactRefSchema>;
@@ -93,6 +95,8 @@ export const columnFormatSchema = z.enum([
   'markdown',
   'json',
   'image',
+  'html',
+  'pdf',
   'audio',
   'video',
   'file',

@@ -6,6 +6,7 @@ import { styled } from 'vindur';
 import { Button } from '#src/components/Button';
 import { CacheRawKeyCompareModal } from '#src/components/CacheRawKeyCompareModal';
 import { JsonViewer } from '#src/components/JsonViewer';
+import { LoadingLine } from '#src/components/LoadingState';
 import { cacheEntryStore, deleteCacheEntry } from '#src/stores/cacheStore';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
@@ -323,7 +324,9 @@ export function CacheHitRow({
             </MetaRow>
 
             {cacheEntryResult.isLoading ? (
-              <StatusMessage>Loading cached value…</StatusMessage>
+              <StatusMessage>
+                <LoadingLine>Loading cached value</LoadingLine>
+              </StatusMessage>
             ) : null}
 
             {!entry.stored ? (

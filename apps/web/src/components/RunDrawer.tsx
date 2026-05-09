@@ -11,6 +11,7 @@ import {
   type ErrorDetailItem,
 } from '#src/components/ErrorDetails';
 import { IconButton } from '#src/components/IconButton';
+import { LoadingLine } from '#src/components/LoadingState';
 import { MenuButton } from '#src/components/MenuButton';
 import { ResizeHandle } from '#src/components/ResizeHandle';
 import type { SplitButtonMenuEntry } from '#src/components/SplitButton';
@@ -526,7 +527,7 @@ export function RunDrawer() {
   if (!selectedRunDetail) {
     return (
       <DrawerLoading style={{ width: `${width}px` }}>
-        Loading run...
+        <LoadingLine>Loading run</LoadingLine>
       </DrawerLoading>
     );
   }

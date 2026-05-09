@@ -9,6 +9,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { type MouseEvent } from 'react';
 import { styled } from 'vindur';
 import { summarizeCellValue } from '#src/components/FormattedCellValue';
+import { LoadingLine } from '#src/components/LoadingState';
 import { ManualScoreCell, ScoreCell } from '#src/components/ScoreCell';
 import { StatusBadge } from '#src/components/StatusBadge';
 import { Tooltip } from '#src/components/Tooltip';
@@ -46,6 +47,7 @@ type EvalRunsTableProps = {
   onToggleExpandedRun: (runId: string) => void;
   runScope: RunScope | null;
   emptyMessage?: string;
+  isLoading?: boolean;
 };
 
 const Empty = styled.div`
@@ -376,6 +378,7 @@ export function EvalRunsTable({
   onToggleExpandedRun,
   runScope,
   emptyMessage = 'Run this eval to see results',
+  isLoading = false,
 }: EvalRunsTableProps) {
   const { selectedRunId, selectedCaseRunId, selectedCaseId } =
     runStore.useSelectorRC((s) => ({
@@ -383,6 +386,14 @@ export function EvalRunsTable({
       selectedCaseRunId: s.selectedCaseRunId,
       selectedCaseId: s.selectedCaseId,
     }));
+
+  if (isLoading && runs.length === 0) {
+    return (
+      <Empty>
+        <LoadingLine>Loading runs</LoadingLine>
+      </Empty>
+    );
+  }
 
   if (runs.length === 0) {
     return <Empty>{emptyMessage}</Empty>;

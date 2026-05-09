@@ -7,6 +7,7 @@ import { CaseDrawer } from '#src/components/CaseDrawer';
 import { EmptyState } from '#src/components/EmptyState';
 import { FolderView } from '#src/components/FolderView';
 import { GlobalModalHost } from '#src/components/GlobalModalHost';
+import { LoadingState } from '#src/components/LoadingState';
 import { RunDrawer } from '#src/components/RunDrawer';
 import { Sidebar } from '#src/components/Sidebar';
 import { SingleEvalView } from '#src/components/SingleEvalView';
@@ -211,6 +212,7 @@ function MainContent({ showReloadApplied }: { showReloadApplied: boolean }) {
   const discoveryIssuesResult = discoveryIssuesStore.useDocument();
   const evals = evalsResult.data ?? [];
   const discoveryIssues = discoveryIssuesResult.data ?? [];
+  const evalsAreLoading = evalsResult.isLoading && evals.length === 0;
   const evalLoadError =
     evalsResult.error?.message ?? discoveryIssuesResult.error?.message ?? null;
   const folderPath = selection.kind === 'folder' ? selection.path : '';
@@ -244,17 +246,31 @@ function MainContent({ showReloadApplied }: { showReloadApplied: boolean }) {
       </RunStartErrorBanner>
     ) : null;
 
+  if (evalLoadError !== null && evals.length === 0) {
+    return (
+      <EmptyState
+        title="Could not load evals"
+        description={evalLoadError}
+      />
+    );
+  }
+
+  if (evalsAreLoading) {
+    return (
+      <>
+        {configReloadBanner}
+        {runStartErrorBanner}
+        <LoadingState
+          title="Loading evals"
+          description="Discovering eval files and saved run summaries."
+        />
+      </>
+    );
+  }
+
   if (selection.kind === 'eval') {
     const ev = evals.find((e) => e.key === selection.id);
     if (!ev) {
-      if (evalLoadError !== null && evals.length === 0) {
-        return (
-          <EmptyState
-            title="Could not load evals"
-            description={evalLoadError}
-          />
-        );
-      }
       return <PendingState />;
     }
     return (
@@ -268,15 +284,6 @@ function MainContent({ showReloadApplied }: { showReloadApplied: boolean }) {
   }
 
   const inFolder = collectEvalsInFolder(evals, folderPath);
-
-  if (evalLoadError !== null && evals.length === 0) {
-    return (
-      <EmptyState
-        title="Could not load evals"
-        description={evalLoadError}
-      />
-    );
-  }
 
   return (
     <>
@@ -293,7 +300,7 @@ function MainContent({ showReloadApplied }: { showReloadApplied: boolean }) {
 
 function PendingState() {
   return (
-    <EmptyState
+    <LoadingState
       title="Loading"
       description="Resolving the selected eval."
     />

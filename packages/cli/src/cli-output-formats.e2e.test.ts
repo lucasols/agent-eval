@@ -60,21 +60,37 @@ describe('CLI output formats', () => {
                   "artifactId": "<run-id>__all-column-formats__t0__attachment__refund-template.txt",
                   "fileName": "refund-template.txt",
                   "mimeType": "text/plain",
+                  "sizeBytes": 146,
                   "source": "run",
                 },
                 "audioBrief": {
                   "artifactId": "<run-id>__all-column-formats__t0__audioBrief__chime.wav",
                   "fileName": "chime.wav",
                   "mimeType": "audio/wav",
+                  "sizeBytes": 1644,
                   "source": "run",
                 },
                 "automatedQuality": 0.8,
                 "confidence": 0.93,
                 "generatedAt": "<timestamp>",
                 "handlingCostUsd": 1.25,
+                "htmlReport": {
+                  "artifactId": "<run-id>__all-column-formats__t0__htmlReport__refund-report.html",
+                  "fileName": "refund-report.html",
+                  "mimeType": "text/html",
+                  "sizeBytes": 858,
+                  "source": "run",
+                },
                 "inferredMarkdownSummary": "- Order \`A-1024\` is ready for review
         - Confirmation can be sent from the refund queue",
                 "llmTurns": 0,
+                "pdfReport": {
+                  "artifactId": "<run-id>__all-column-formats__t0__pdfReport__refund-report.pdf",
+                  "fileName": "refund-report.pdf",
+                  "mimeType": "application/pdf",
+                  "sizeBytes": 721,
+                  "source": "run",
+                },
                 "plainTextSummary": "Order: A-1024
         Status: refund package ready
         Next step: send confirmation",
@@ -82,6 +98,7 @@ describe('CLI output formats', () => {
                   "artifactId": "<run-id>__all-column-formats__t0__previewCard__previewCard.svg",
                   "fileName": "previewCard.svg",
                   "mimeType": "image/svg+xml",
+                  "sizeBytes": 1151,
                   "source": "run",
                 },
                 "rawToolEvents": [
@@ -147,6 +164,8 @@ describe('CLI output formats', () => {
           "persistedArtifactFiles": [
             "<run-id>__all-column-formats__t0__attachment__refund-template.txt",
             "<run-id>__all-column-formats__t0__audioBrief__chime.wav",
+            "<run-id>__all-column-formats__t0__htmlReport__refund-report.html",
+            "<run-id>__all-column-formats__t0__pdfReport__refund-report.pdf",
             "<run-id>__all-column-formats__t0__previewCard__previewCard.svg",
           ],
         }
@@ -170,6 +189,47 @@ describe('CLI output formats', () => {
         'utf8',
       );
       expect(previewCardArtifact).toContain('Refund Review');
+
+      const htmlReportArtifactName = persistedArtifactFiles.find((fileName) =>
+        fileName.includes('__htmlReport__'),
+      );
+      if (htmlReportArtifactName === undefined) {
+        throw new Error('Expected HTML report artifact to be persisted');
+      }
+
+      const htmlReportArtifact = await readFile(
+        resolve(
+          workspacePath,
+          '.agent-evals/runs',
+          artifacts.manifest.id,
+          'artifacts',
+          htmlReportArtifactName,
+        ),
+        'utf8',
+      );
+      expect(htmlReportArtifact).toContain(
+        '<title>Refund Package Report</title>',
+      );
+
+      const pdfReportArtifactName = persistedArtifactFiles.find((fileName) =>
+        fileName.includes('__pdfReport__'),
+      );
+      if (pdfReportArtifactName === undefined) {
+        throw new Error('Expected PDF report artifact to be persisted');
+      }
+
+      const pdfReportArtifact = await readFile(
+        resolve(
+          workspacePath,
+          '.agent-evals/runs',
+          artifacts.manifest.id,
+          'artifacts',
+          pdfReportArtifactName,
+        ),
+        'utf8',
+      );
+      expect(pdfReportArtifact).toContain('%PDF-1.4');
+      expect(pdfReportArtifact).toContain('Refund Package Report');
     });
   });
 });

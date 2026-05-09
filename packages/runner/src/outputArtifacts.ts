@@ -57,7 +57,13 @@ export async function persistInlineArtifact({
   const bytes = new Uint8Array(await value.arrayBuffer());
   await writeFile(targetPath, bytes);
 
-  return { source: 'run', artifactId, mimeType, fileName };
+  return {
+    source: 'run',
+    artifactId,
+    mimeType,
+    fileName,
+    sizeBytes: bytes.byteLength,
+  };
 }
 
 /** Resolve a persisted run artifact path from its artifact id. */

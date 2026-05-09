@@ -1019,6 +1019,8 @@ columns: {
   locale: { label: 'Locale' },
   toolCalls: { label: 'Tool Calls', format: 'number', hideIfNoValue: true },
   previewCard: { label: 'Preview Card', format: 'image', hideInTable: true },
+  htmlReport: { label: 'HTML Report', format: 'html', hideInTable: true },
+  pdfReport: { label: 'PDF Report', format: 'pdf', hideInTable: true },
 }
 ```
 
@@ -1398,8 +1400,12 @@ output type as the second generic, `outputsSchema` is required:
 
 Use the eval `columns` option to control labels, authored column order,
 alignment, visibility, and rendering format. Supported `columns.format` values
-include `boolean`, `markdown`, `json`, `image`, `audio`, `video`, `file`,
-`percent`, `duration`, `number`, `passFail`, and `stars`.
+include `boolean`, `markdown`, `json`, `image`, `html`, `pdf`, `audio`,
+`video`, `file`, `percent`, `duration`, `number`, `passFail`, and `stars`.
+Image, HTML, PDF, and generic file references render as artifact cards in the
+case detail view. HTML and PDF cards open a preview modal; generic file cards
+download the artifact. Cards show file sizes when the output reference includes
+one, including `Blob` and `File` outputs persisted by the runner.
 
 In the case detail Output tab, string outputs that look like Markdown are
 rendered as Markdown even without `format: 'markdown'`. Markdown-rendered
@@ -1439,6 +1445,7 @@ defineEval({
   columns: {
     response: { label: 'Response', format: 'markdown' },
     receipt: { label: 'Receipt', format: 'image', hideInTable: true },
+    receiptPdf: { label: 'Receipt PDF', format: 'pdf', hideInTable: true },
     toolResult: { label: 'Tool Result', format: 'json' },
   },
   execute: ({ setOutput }) => {
@@ -1446,6 +1453,10 @@ defineEval({
     setOutput(
       'receipt',
       new File([imageBytes], 'receipt-1.png', { type: 'image/png' }),
+    );
+    setOutput(
+      'receiptPdf',
+      new File([pdfBytes], 'receipt-1.pdf', { type: 'application/pdf' }),
     );
     setOutput('toolResult', { matched: true, confidence: 0.93 });
   },

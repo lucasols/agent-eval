@@ -288,7 +288,8 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const isStacked = mode === 'stacked';
   const isSingle = mode === 'single';
 
-  const runs = runHistoryStore.useDocument().data ?? [];
+  const runHistoryResult = runHistoryStore.useDocument();
+  const runs = runHistoryResult.data ?? [];
   const evals = evalSummariesStore.useDocument().data ?? [];
   const workspaceConfig =
     workspaceConfigStore.useDocument().data ?? DEFAULT_WORKSPACE_CONFIG;
@@ -803,6 +804,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
               runs={visibleRunRows}
               columnDefs={evalSummary.columnDefs}
               evalKey={evalSummary.key}
+              isLoadingRuns={runHistoryResult.isLoading && runs.length === 0}
             />
           </Section>
         </Body>

@@ -553,21 +553,37 @@ describe('CLI eval features', () => {
                   "artifactId": "<run-id>__all-column-formats__t0__attachment__refund-template.txt",
                   "fileName": "refund-template.txt",
                   "mimeType": "text/plain",
+                  "sizeBytes": 146,
                   "source": "run",
                 },
                 "audioBrief": {
                   "artifactId": "<run-id>__all-column-formats__t0__audioBrief__chime.wav",
                   "fileName": "chime.wav",
                   "mimeType": "audio/wav",
+                  "sizeBytes": 1644,
                   "source": "run",
                 },
                 "automatedQuality": 0.8,
                 "confidence": 0.93,
                 "generatedAt": "<timestamp>",
                 "handlingCostUsd": 1.25,
+                "htmlReport": {
+                  "artifactId": "<run-id>__all-column-formats__t0__htmlReport__refund-report.html",
+                  "fileName": "refund-report.html",
+                  "mimeType": "text/html",
+                  "sizeBytes": 858,
+                  "source": "run",
+                },
                 "inferredMarkdownSummary": "- Order \`A-1024\` is ready for review
         - Confirmation can be sent from the refund queue",
                 "llmTurns": 0,
+                "pdfReport": {
+                  "artifactId": "<run-id>__all-column-formats__t0__pdfReport__refund-report.pdf",
+                  "fileName": "refund-report.pdf",
+                  "mimeType": "application/pdf",
+                  "sizeBytes": 721,
+                  "source": "run",
+                },
                 "plainTextSummary": "Order: A-1024
         Status: refund package ready
         Next step: send confirmation",
@@ -575,6 +591,7 @@ describe('CLI eval features', () => {
                   "artifactId": "<run-id>__all-column-formats__t0__previewCard__previewCard.svg",
                   "fileName": "previewCard.svg",
                   "mimeType": "image/svg+xml",
+                  "sizeBytes": 1151,
                   "source": "run",
                 },
                 "rawToolEvents": [

@@ -109,8 +109,8 @@ export type EvalColumnOverride = {
    * Presentation preset for the value.
    *
    * Use this to control how the UI renders the cell and infer table behavior,
-   * for example `number`, `boolean`, `duration`, `markdown`, `json`, or
-   * file/media previews.
+   * for example `number`, `boolean`, `duration`, `markdown`, `json`,
+   * `image`, `html`, `pdf`, or file/media previews.
    */
   format?: ColumnFormat;
   /**

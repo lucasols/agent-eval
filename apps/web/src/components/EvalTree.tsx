@@ -2,6 +2,7 @@ import { getEvalTitle } from '@agent-evals/shared';
 import { ChevronRight } from 'lucide-react';
 import { useEffect } from 'react';
 import { css, styled } from 'vindur';
+import { LoadingLine } from '#src/components/LoadingState';
 import { StatusDot } from '#src/components/StatusBadge';
 import { Tooltip } from '#src/components/Tooltip';
 import { evalSummariesStore } from '#src/stores/evalsStore';
@@ -49,6 +50,7 @@ const Empty = styled.div`
 `;
 
 const EmptyTitle = styled.div`
+  ${inline({ gap: 8, align: 'center' })}
   color: ${colors.textMuted.var};
   font-size: 11.5px;
   font-weight: 600;
@@ -253,7 +255,9 @@ export function EvalTree() {
   if (evalsResult.isLoading && evals.length === 0) {
     return (
       <Empty>
-        <EmptyTitle>Loading evals</EmptyTitle>
+        <EmptyTitle>
+          <LoadingLine>Loading evals</LoadingLine>
+        </EmptyTitle>
         <EmptyBody>Waiting for the sidebar tree to load.</EmptyBody>
       </Empty>
     );

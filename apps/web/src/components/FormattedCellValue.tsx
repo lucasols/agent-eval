@@ -1,10 +1,11 @@
 import type { CellValue, ColumnDef, FileRef } from '@agent-evals/shared';
-import { Code2, Eye } from 'lucide-react';
+import { Code2, Download, Eye, FileCode2, FileText } from 'lucide-react';
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { styled } from 'vindur';
 import { JsonViewer } from '#src/components/JsonViewer';
+import { Modal } from '#src/components/Modal';
 import { useImageLightbox } from '#src/components/useImageLightbox';
 import { colors } from '#src/style/colors';
 import { inline, monoFont, stack, transition } from '#src/style/helpers';
@@ -202,8 +203,137 @@ const VideoValue = styled.video`
   border-radius: var(--radius-md);
 `;
 
-const FileLink = styled.a`
-  color: ${colors.accent.var};
+const ArtifactPreviewButton = styled.button`
+  ${inline({ align: 'stretch', gap: 12 })}
+  width: 100%;
+  min-height: 76px;
+  padding: 12px;
+  border: 1px solid ${colors.borderStrong.var};
+  border-radius: var(--radius-md);
+  background: ${colors.bg.var};
+  color: ${colors.text.var};
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  ${transition({ property: 'background, border-color' })}
+
+  &:hover {
+    background: ${colors.bgElevated.var};
+    border-color: ${colors.accent.alpha(0.45)};
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${colors.accent.var};
+    outline-offset: 2px;
+  }
+`;
+
+const ArtifactDownloadLink = styled.a`
+  ${inline({ align: 'stretch', gap: 12 })}
+  width: 100%;
+  min-height: 76px;
+  padding: 12px;
+  border: 1px solid ${colors.borderStrong.var};
+  border-radius: var(--radius-md);
+  background: ${colors.bg.var};
+  color: ${colors.text.var};
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  ${transition({ property: 'background, border-color' })}
+
+  &:hover {
+    background: ${colors.bgElevated.var};
+    border-color: ${colors.accent.alpha(0.45)};
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${colors.accent.var};
+    outline-offset: 2px;
+  }
+`;
+
+const ArtifactIconWrap = styled.span`
+  ${inline({ align: 'center', justify: 'center' })}
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-sm);
+  background: ${colors.surface.var};
+  color: ${colors.accentDim.var};
+
+  & svg {
+    width: 18px;
+    height: 18px;
+  }
+`;
+
+const ArtifactPreviewMeta = styled.span`
+  ${stack({ gap: 4 })}
+  min-width: 0;
+  flex: 1 1 auto;
+`;
+
+const ArtifactPreviewTitle = styled.span`
+  color: ${colors.text.var};
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const ArtifactPreviewSubtitle = styled.span`
+  ${inline({ align: 'center', gap: 8 })}
+  min-width: 0;
+  max-width: 100%;
+  color: ${colors.textMuted.var};
+  font-size: 12px;
+`;
+
+const ArtifactPreviewSubtitleText = styled.span`
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const ArtifactPreviewSize = styled.span`
+  flex: 0 0 auto;
+  color: ${colors.textDim.var};
+  white-space: nowrap;
+`;
+
+const ArtifactPreviewAction = styled.span`
+  ${inline({ align: 'center', justify: 'center' })}
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-sm);
+  background: ${colors.surface.var};
+  color: ${colors.textMuted.var};
+
+  & svg {
+    width: 14px;
+    height: 14px;
+  }
+`;
+
+const PreviewFrameWrap = styled.div`
+  width: min(100%, 1120px);
+  height: min(74vh, 820px);
+  border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-md);
+  background: ${colors.white.var};
+  overflow: hidden;
+`;
+
+const PreviewFrame = styled.iframe`
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: ${colors.white.var};
 `;
 
 export function FormattedCellValue({
@@ -251,6 +381,18 @@ export function FormattedCellValue({
     );
   }
 
+  if ((def.format === 'html' || def.format === 'pdf') && isFileRef(value)) {
+    return (
+      <ArtifactPreviewCell
+        kind={def.format}
+        src={getFileUrl(value)}
+        title={def.label}
+        fileName={getFileLabel(value)}
+        sizeBytes={value.sizeBytes}
+      />
+    );
+  }
+
   if (def.format === 'audio' && isFileRef(value)) {
     return (
       <AudioValue
@@ -271,12 +413,12 @@ export function FormattedCellValue({
 
   if (def.format === 'file' && isFileRef(value)) {
     return (
-      <FileLink
-        href={getFileUrl(value)}
-        download
-      >
-        {getFileLabel(value)}
-      </FileLink>
+      <ArtifactDownloadCell
+        src={getFileUrl(value)}
+        title={def.label}
+        fileName={getFileLabel(value)}
+        sizeBytes={value.sizeBytes}
+      />
     );
   }
 
@@ -400,6 +542,166 @@ function ImageCell({ src, alt }: { src: string; alt: string }) {
   );
 }
 
+function ArtifactPreviewCell({
+  kind,
+  src,
+  title,
+  fileName,
+  sizeBytes,
+}: {
+  kind: 'html' | 'pdf';
+  src: string;
+  title: string;
+  fileName: string;
+  sizeBytes: number | undefined;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const Icon = kind === 'html' ? FileCode2 : FileText;
+  const typeLabel = kind === 'html' ? 'HTML preview' : 'PDF preview';
+
+  return (
+    <>
+      <ArtifactPreviewButton
+        type="button"
+        aria-label={`Open ${title} preview`}
+        onClick={() => setIsOpen(true)}
+      >
+        <ArtifactIconWrap>
+          <Icon />
+        </ArtifactIconWrap>
+        <ArtifactPreviewMeta>
+          <ArtifactPreviewTitle>{title}</ArtifactPreviewTitle>
+          <ArtifactPreviewSubtitle>
+            <ArtifactPreviewSubtitleText>
+              {formatArtifactSubtitleText({ actionLabel: typeLabel, fileName })}
+            </ArtifactPreviewSubtitleText>
+            <ArtifactSizeLabel sizeBytes={sizeBytes} />
+          </ArtifactPreviewSubtitle>
+        </ArtifactPreviewMeta>
+        <ArtifactPreviewAction>
+          <Eye />
+        </ArtifactPreviewAction>
+      </ArtifactPreviewButton>
+      <ArtifactPreviewModal
+        isOpen={isOpen}
+        kind={kind}
+        src={src}
+        title={title}
+        fileName={fileName}
+        onClose={() => setIsOpen(false)}
+      />
+    </>
+  );
+}
+
+function ArtifactSizeLabel({ sizeBytes }: { sizeBytes: number | undefined }) {
+  const formattedSize = formatBytes(sizeBytes);
+  if (formattedSize === undefined) return null;
+  return <ArtifactPreviewSize>{formattedSize}</ArtifactPreviewSize>;
+}
+
+function ArtifactDownloadCell({
+  src,
+  title,
+  fileName,
+  sizeBytes,
+}: {
+  src: string;
+  title: string;
+  fileName: string;
+  sizeBytes: number | undefined;
+}) {
+  return (
+    <ArtifactDownloadLink
+      href={src}
+      download
+      aria-label={`Download ${title}`}
+    >
+      <ArtifactIconWrap>
+        <FileText />
+      </ArtifactIconWrap>
+      <ArtifactPreviewMeta>
+        <ArtifactPreviewTitle>{title}</ArtifactPreviewTitle>
+        <ArtifactPreviewSubtitle>
+          <ArtifactPreviewSubtitleText>
+            {formatArtifactSubtitleText({
+              actionLabel: 'File download',
+              fileName,
+            })}
+          </ArtifactPreviewSubtitleText>
+          <ArtifactSizeLabel sizeBytes={sizeBytes} />
+        </ArtifactPreviewSubtitle>
+      </ArtifactPreviewMeta>
+      <ArtifactPreviewAction>
+        <Download />
+      </ArtifactPreviewAction>
+    </ArtifactDownloadLink>
+  );
+}
+
+function ArtifactPreviewModal({
+  isOpen,
+  kind,
+  src,
+  title,
+  fileName,
+  onClose,
+}: {
+  isOpen: boolean;
+  kind: 'html' | 'pdf';
+  src: string;
+  title: string;
+  fileName: string;
+  onClose: () => void;
+}) {
+  return (
+    <Modal
+      isOpen={isOpen}
+      title={title}
+      subtitle={fileName}
+      onClose={onClose}
+      wide
+      topLayer
+    >
+      <PreviewFrameWrap>
+        <PreviewFrame
+          title={`${title} preview`}
+          src={src}
+          sandbox={kind === 'html' ? '' : undefined}
+        />
+      </PreviewFrameWrap>
+    </Modal>
+  );
+}
+
+function formatArtifactSubtitleText({
+  actionLabel,
+  fileName,
+}: {
+  actionLabel: string;
+  fileName: string;
+}): string {
+  return `${actionLabel} - ${fileName}`;
+}
+
+function formatBytes(sizeBytes: number | undefined): string | undefined {
+  if (sizeBytes === undefined) return undefined;
+  if (!Number.isFinite(sizeBytes)) return undefined;
+
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let value = sizeBytes;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  const unit = units[unitIndex];
+  if (unit === undefined) return undefined;
+  if (unitIndex === 0) return `${String(sizeBytes)} ${unit}`;
+  return `${value.toFixed(value >= 10 ? 1 : 2)} ${unit}`;
+}
+
 export function summarizeCellValue(
   def: ColumnDef,
   value: CellValue | undefined,
@@ -424,6 +726,8 @@ export function hasRichColumnFormat(def: ColumnDef): boolean {
     def.format === 'markdown' ||
     def.format === 'json' ||
     def.format === 'image' ||
+    def.format === 'html' ||
+    def.format === 'pdf' ||
     def.format === 'audio' ||
     def.format === 'video' ||
     def.format === 'file'

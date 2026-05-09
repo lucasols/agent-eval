@@ -18,6 +18,66 @@ const attachmentText = readFileSync(
   new URL('../../datasets/assets/refund-template.txt', import.meta.url),
 );
 
+const htmlReport = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Refund Package Report</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 32px; color: #0a0b0d; }
+      h1 { font-size: 24px; margin: 0 0 12px; }
+      .status { display: inline-block; padding: 4px 8px; border: 1px solid #16a34a; border-radius: 6px; color: #166534; }
+      table { border-collapse: collapse; margin-top: 20px; width: 100%; }
+      th, td { border: 1px solid #e8e8eb; padding: 10px; text-align: left; }
+    </style>
+  </head>
+  <body>
+    <h1>Refund Package Report</h1>
+    <span class="status">Ready for review</span>
+    <table>
+      <tr><th>Order</th><td>A-1024</td></tr>
+      <tr><th>Next step</th><td>Send confirmation from the refund queue</td></tr>
+      <tr><th>Confidence</th><td>93%</td></tr>
+    </table>
+  </body>
+</html>`;
+
+function createRefundSummaryPdf(): Uint8Array {
+  const stream = [
+    'BT',
+    '/F1 18 Tf',
+    '72 720 Td',
+    '(Refund Package Report) Tj',
+    '/F1 12 Tf',
+    '0 -32 Td',
+    '(Order A-1024 is ready for review.) Tj',
+    '0 -20 Td',
+    '(Next step: send confirmation from the refund queue.) Tj',
+    'ET',
+  ].join('\n');
+  const objects = [
+    '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj',
+    '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj',
+    '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj',
+    `4 0 obj\n<< /Length ${String(stream.length)} >>\nstream\n${stream}\nendstream\nendobj`,
+    '5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj',
+  ];
+  const offsets: number[] = [];
+  let pdf = '%PDF-1.4\n';
+  for (const object of objects) {
+    offsets.push(pdf.length);
+    pdf += `${object}\n`;
+  }
+  const xrefStart = pdf.length;
+  const entries = offsets
+    .map((offset) => `${String(offset).padStart(10, '0')} 00000 n `)
+    .join('\n');
+  pdf += `xref\n0 ${String(objects.length + 1)}\n0000000000 65535 f \n${entries}\ntrailer\n<< /Size ${String(
+    objects.length + 1,
+  )} /Root 1 0 R >>\nstartxref\n${String(xrefStart)}\n%%EOF\n`;
+  return new TextEncoder().encode(pdf);
+}
+
 defineEval({
   id: 'format-gallery',
   title: 'Format Gallery',
@@ -40,6 +100,8 @@ defineEval({
     toolResult: { label: 'Tool Result', format: 'json' },
     requiresManualReview: { label: 'Manual Review', format: 'boolean' },
     previewCard: { label: 'Preview Card', format: 'image', hideInTable: true },
+    htmlReport: { label: 'HTML Report', format: 'html', hideInTable: true },
+    pdfReport: { label: 'PDF Report', format: 'pdf', hideInTable: true },
     audioBrief: { label: 'Audio Brief', format: 'audio', hideInTable: true },
     attachment: { label: 'Attachment', format: 'file', hideInTable: true },
     confidence: { label: 'Confidence', format: 'percent' },
@@ -160,6 +222,16 @@ defineEval({
     setEvalOutput(
       'previewCard',
       new Blob([previewCardSvg], { type: 'image/svg+xml' }),
+    );
+    setEvalOutput(
+      'htmlReport',
+      new File([htmlReport], 'refund-report.html', { type: 'text/html' }),
+    );
+    setEvalOutput(
+      'pdfReport',
+      new File([createRefundSummaryPdf()], 'refund-report.pdf', {
+        type: 'application/pdf',
+      }),
     );
     setEvalOutput(
       'audioBrief',

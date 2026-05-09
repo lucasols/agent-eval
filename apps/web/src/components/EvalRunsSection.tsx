@@ -151,12 +151,14 @@ type EvalRunsSectionProps = {
   runs: ScopedRunRow[];
   columnDefs: ColumnDef[];
   evalKey: string;
+  isLoadingRuns?: boolean;
 };
 
 export function EvalRunsSection({
   runs,
   columnDefs,
   evalKey,
+  isLoadingRuns = false,
 }: EvalRunsSectionProps) {
   const searchParams = useSearchParams();
   const [expandedRunIds, setExpandedRunIds] = useState<Set<string>>(() => {
@@ -205,6 +207,7 @@ export function EvalRunsSection({
   }
 
   const runCountLabel = (() => {
+    if (isLoadingRuns && runs.length === 0) return 'loading runs';
     if (runFilter === 'all') {
       if (runs.length === 0) return 'no runs';
       const totalLabel = `${runs.length} ${runs.length === 1 ? 'run' : 'runs'}`;
@@ -276,6 +279,7 @@ export function EvalRunsSection({
         expandedRunIds={expandedRunIds}
         onToggleExpandedRun={toggleExpandedRun}
         runScope={{ kind: 'eval', id: evalKey }}
+        isLoading={isLoadingRuns}
         emptyMessage={
           runFilter === 'all' ? undefined : 'No runs match this filter'
         }

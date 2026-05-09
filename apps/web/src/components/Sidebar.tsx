@@ -3,6 +3,7 @@ import { ChevronsDownUp, ChevronsUpDown, Search, X } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { styled } from 'vindur';
 import { EvalTree } from '#src/components/EvalTree';
+import { LoadingIcon } from '#src/components/LoadingState';
 import { ResizeHandle } from '#src/components/ResizeHandle';
 import { Tooltip } from '#src/components/Tooltip';
 import { useResizableWidth } from '#src/hooks/useResizableWidth';
@@ -319,7 +320,9 @@ const ScrollArea = styled.div`
 `;
 
 export function Sidebar() {
-  const evals = evalSummariesStore.useDocument().data ?? [];
+  const evalsResult = evalSummariesStore.useDocument();
+  const evals = evalsResult.data ?? [];
+  const evalsAreLoading = evalsResult.isLoading && evals.length === 0;
   const { collapsedFolders, selection, statusFilters, searchQuery } =
     selectionStore.useSelectorRC((s) => ({
       collapsedFolders: s.collapsedFolders,
@@ -362,7 +365,7 @@ export function Sidebar() {
     count: statusBreakdown[status],
     active: statusFilters.has(status),
     tone: getStatusTone(status),
-  })).filter(({ count, active }) => count > 0 || active);
+  })).filter(({ count, active }) => !evalsAreLoading && (count > 0 || active));
   const collapsiblePaths = useMemo(
     () => collectCollapsiblePaths(buildEvalTree(filteredEvals)),
     [filteredEvals],
@@ -469,9 +472,13 @@ export function Sidebar() {
             </IconButton>
           </Tooltip>
           <SectionCounter>
-            {statusFilters.size > 0 || hasActiveSearch
-              ? `${filteredEvals.length}/${evals.length}`
-              : evals.length}
+            {evalsAreLoading ? (
+              <LoadingIcon size="small" />
+            ) : statusFilters.size > 0 || hasActiveSearch ? (
+              `${filteredEvals.length}/${evals.length}`
+            ) : (
+              evals.length
+            )}
           </SectionCounter>
         </SectionActions>
       </SectionHeader>

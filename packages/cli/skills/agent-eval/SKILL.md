@@ -342,7 +342,12 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   `columns` in `agent-evals.config.ts` apply to every eval; eval-level
   `columns` override matching global keys. Use `hideIfNoValue: true` to hide a
   column when every row is missing the value, `null`, or an empty string; `0`
-  and `false` still count as values.
+  and `false` still count as values. Use `format: 'image'`, `'html'`, `'pdf'`,
+  `'audio'`, `'video'`, or `'file'` for `Blob`/`File` outputs or `repoFile(...)`
+  references that should render as reviewable artifacts. Persisted `Blob`/`File`
+  artifacts include byte sizes in their run artifact refs; pass the optional
+  `repoFile(..., ..., sizeBytes)` hint when a repository file card should show
+  a size.
 - `deriveFromTracing` can be authored globally in `agent-evals.config.ts` or
   locally on one eval. Prefer the keyed map form for shared metrics:
   `deriveFromTracing: { toolCalls: ({ trace }) => trace.findSpansByKind('tool').length }`.
