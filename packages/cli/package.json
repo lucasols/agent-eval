@@ -1,6 +1,6 @@
 {
   "name": "@ls-stack/agent-eval",
-  "version": "0.52.3",
+  "version": "0.53.0",
   "type": "module",
   "bin": {
     "agent-evals": "./src/bin.ts"
