@@ -48,7 +48,10 @@ import {
 } from '#src/utils/traceKindColors';
 
 const NARROW_BREAKPOINT = 720;
-const TIMELINE_INNER_RIGHT_PADDING = 40;
+const TIMELINE_DURATION_LABEL_GAP = 6;
+const TIMELINE_DURATION_LABEL_END_PADDING = 12;
+const TIMELINE_DURATION_LABEL_MIN_RIGHT_PADDING = 32;
+const TIMELINE_DURATION_LABEL_CHAR_WIDTH = 6;
 
 type TraceKindBarStyle = TraceKindStyle & { left: string; width: string };
 
@@ -66,6 +69,16 @@ function getCheckpointMarkerStyle(
   bar: SpanBar,
 ): CheckpointMarkerStyle {
   return { ...kindStyle, left: `${bar.leftPct}%` };
+}
+
+function formatSpanBarDuration(bar: SpanBar): string {
+  return `${formatSpanDuration(bar.durationMs)}${bar.isRunning ? '…' : ''}`;
+}
+
+function estimateDurationLabelWidth(value: string): number {
+  return Math.ceil(
+    Array.from(value).length * TIMELINE_DURATION_LABEL_CHAR_WIDTH,
+  );
 }
 
 const Root = styled.div`
@@ -310,11 +323,9 @@ const TimelineInner = styled.div<{ timelineCollapsed: boolean }>`
   display: flex;
   flex-direction: column;
   min-width: 560px;
-  padding-right: ${TIMELINE_INNER_RIGHT_PADDING}px;
 
   &.timelineCollapsed {
     min-width: 0;
-    padding-right: 0;
   }
 `;
 
@@ -552,13 +563,15 @@ const CheckpointMarker = styled.div`
 
 const BarDurationLabel = styled.span`
   ${monoFont};
+  display: block;
   position: absolute;
   top: 5px;
   font-size: 9.5px;
   font-variant-numeric: tabular-nums;
   color: ${colors.textMuted.var};
   white-space: nowrap;
-  pointer-events: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
 
 const ToggleButton = styled.button<{ open: boolean }>`
@@ -819,6 +832,23 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
     }
     return maxWidth;
   }, [visibleRows]);
+  const timelineInnerRightPadding = useMemo(() => {
+    let maxDurationLabelWidth = 0;
+    for (const row of visibleRows) {
+      if (row.span.kind === 'checkpoint') continue;
+      const bar = computeSpanBar(row.span, metrics);
+      maxDurationLabelWidth = Math.max(
+        maxDurationLabelWidth,
+        estimateDurationLabelWidth(formatSpanBarDuration(bar)),
+      );
+    }
+    return Math.max(
+      TIMELINE_DURATION_LABEL_MIN_RIGHT_PADDING,
+      maxDurationLabelWidth +
+        TIMELINE_DURATION_LABEL_GAP +
+        TIMELINE_DURATION_LABEL_END_PADDING,
+    );
+  }, [metrics, visibleRows]);
   const timelineGridTemplateColumns = timelineCollapsed
     ? '1fr'
     : `${String(labelColumnWidth)}px minmax(${String(
@@ -828,7 +858,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
     ? labelColumnWidth
     : labelColumnWidth +
       TIMELINE_COLUMN_MIN_WIDTH +
-      TIMELINE_INNER_RIGHT_PADDING;
+      timelineInnerRightPadding;
 
   const selectedSpan = selectedSpanId
     ? (displayedSpans.find((s) => s.id === selectedSpanId) ?? null)
@@ -958,7 +988,10 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
         <TimelineScroll>
           <TimelineInner
             timelineCollapsed={timelineCollapsed}
-            style={{ minWidth: timelineInnerMinWidth }}
+            style={{
+              minWidth: timelineInnerMinWidth,
+              paddingRight: timelineCollapsed ? 0 : timelineInnerRightPadding,
+            }}
           >
             <RulerRow
               timelineCollapsed={timelineCollapsed}
@@ -1056,6 +1089,14 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
                   'tree',
                 );
                 const durationLeft = bar.leftPct + bar.widthPct;
+                const durationText = formatSpanBarDuration(bar);
+                const durationRemainingPct =
+                  Math.round(Math.max(0, 100 - durationLeft) * 100) / 100;
+                const durationLabelMaxWidth = `calc(${String(
+                  durationRemainingPct,
+                )}% + ${String(
+                  timelineInnerRightPadding - TIMELINE_DURATION_LABEL_GAP,
+                )}px)`;
                 const checkpointPreview = isCheckpoint
                   ? formatCheckpointPreview(span.attributes?.value)
                   : null;
@@ -1157,12 +1198,21 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
                               isError={span.status === 'error'}
                               style={getTraceKindBarStyle(kindStyle, bar)}
                             />
-                            <BarDurationLabel
-                              style={{ left: `calc(${durationLeft}% + 6px)` }}
+                            <Tooltip
+                              content={durationText}
+                              placement="top"
                             >
-                              {formatSpanDuration(bar.durationMs)}
-                              {bar.isRunning ? '…' : ''}
-                            </BarDurationLabel>
+                              <BarDurationLabel
+                                style={{
+                                  left: `calc(${durationLeft}% + ${String(
+                                    TIMELINE_DURATION_LABEL_GAP,
+                                  )}px)`,
+                                  maxWidth: durationLabelMaxWidth,
+                                }}
+                              >
+                                {durationText}
+                              </BarDurationLabel>
+                            </Tooltip>
                           </>
                         )}
                       </TimelineCell>
