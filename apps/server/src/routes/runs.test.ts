@@ -8,8 +8,11 @@ import { runsRoutes } from './runs.ts';
 
 const mockRunner = vi.hoisted(() => ({
   getConfigReloadState: vi.fn(),
+  getEvals: vi.fn(),
+  getRun: vi.fn(),
   validateManualInputs: vi.fn(),
   startRun: vi.fn(),
+  subscribe: vi.fn(),
   promoteRun: vi.fn(),
   getWorkspaceRoot: vi.fn(),
 }));
@@ -31,7 +34,10 @@ beforeEach(() => {
     lastChangedAt: null,
     lastReloadedAt: null,
   });
+  mockRunner.getEvals.mockReturnValue([]);
+  mockRunner.getRun.mockReturnValue(undefined);
   mockRunner.validateManualInputs.mockReturnValue({ ok: true });
+  mockRunner.subscribe.mockReturnValue(() => {});
   mockRunner.startRun.mockResolvedValue({
     manifest: {
       id: 'run-1',
@@ -137,6 +143,122 @@ describe('manual input file upload route', () => {
 });
 
 describe('runs route config reload guard', () => {
+  test('logs targeted evals when an app run starts', async () => {
+    mockRunner.getEvals.mockReturnValue([
+      {
+        key: 'evals%2Frefund-workflow.eval.ts#refund-workflow',
+        id: 'refund-workflow',
+        title: 'Refund Workflow',
+        filePath: 'evals/refund-workflow.eval.ts',
+        tags: [],
+        stale: false,
+        outdated: false,
+        freshnessStatus: 'fresh',
+        latestRunAt: null,
+        latestRunCommitSha: null,
+        currentCommitSha: null,
+        columnDefs: [],
+        caseCount: 2,
+        lastRunStatus: null,
+      },
+      {
+        key: 'evals%2Fsupport%2Fplayground%2Fformat-gallery.eval.ts#format-gallery',
+        id: 'format-gallery',
+        title: 'Format Gallery',
+        filePath: 'evals/support/playground/format-gallery.eval.ts',
+        tags: [],
+        stale: false,
+        outdated: false,
+        freshnessStatus: 'fresh',
+        latestRunAt: null,
+        latestRunCommitSha: null,
+        currentCommitSha: null,
+        columnDefs: [],
+        caseCount: 1,
+        lastRunStatus: null,
+      },
+    ]);
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    onTestFinished(() => {
+      infoSpy.mockRestore();
+    });
+
+    const response = await app.request('/runs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        target: { mode: 'evalIds', evalIds: ['refund-workflow'] },
+        trials: 1,
+      }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(infoSpy.mock.calls).toEqual([
+      ['[agent-evals] Starting app run r0 (run-1) with 1 eval:'],
+      ['  - Refund Workflow (evals/refund-workflow.eval.ts#refund-workflow)'],
+    ]);
+  });
+
+  test('logs a short run result summary when an app run finishes', async () => {
+    const unsubscribe = vi.fn();
+    mockRunner.subscribe.mockReturnValue(unsubscribe);
+    mockRunner.getRun.mockReturnValue({
+      manifest: {
+        id: 'run-1',
+        shortId: 'r0',
+        status: 'completed',
+        temporary: false,
+        startedAt: '2026-05-01T00:00:00.000Z',
+        endedAt: '2026-05-01T00:00:02.500Z',
+        commitSha: null,
+        evalSourceFingerprints: {},
+        target: { mode: 'all' },
+        trials: 1,
+        trialSelection: 'lowestScore',
+        cacheMode: 'use',
+      },
+      summary: {
+        runId: 'run-1',
+        status: 'completed',
+        totalCases: 4,
+        passedCases: 3,
+        failedCases: 1,
+        errorCases: 0,
+        cancelledCases: 0,
+        totalDurationMs: 2500,
+        errorMessage: null,
+      },
+      cases: [],
+    });
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    onTestFinished(() => {
+      infoSpy.mockRestore();
+    });
+
+    const response = await app.request('/runs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target: { mode: 'all' }, trials: 1 }),
+    });
+
+    expect(response.status).toBe(201);
+    const listener = mockRunner.subscribe.mock.calls[0]?.[1];
+    if (typeof listener !== 'function') {
+      throw new Error('Expected route to subscribe to run events');
+    }
+    listener({
+      type: 'run.finished',
+      runId: 'run-1',
+      timestamp: '2026-05-01T00:00:02.500Z',
+      payload: {},
+    });
+
+    expect(unsubscribe).toHaveBeenCalledOnce();
+    expect(infoSpy.mock.calls).toContainEqual([
+      '[agent-evals] Run r0 (run-1) completed: 4 total, 3 passed, 1 failed, 0 errors in 2.5s',
+    ]);
+  });
+
   test('passes temporary run creation through to the runner', async () => {
     const body = {
       target: { mode: 'evalIds', evalIds: ['example-eval'] },

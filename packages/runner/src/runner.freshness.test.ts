@@ -162,6 +162,74 @@ defineEval({
     }
   }, 10_000);
 
+  test('runs each eval case in a fresh child process', async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), 'agent-evals-runner-case-child-'),
+    );
+    createdWorkspaces.push(workspacePath);
+
+    await mkdir(join(workspacePath, 'evals'), { recursive: true });
+    await writeFile(
+      join(workspacePath, 'agent-evals.config.ts'),
+      `export default {
+  include: ['evals/**/*.eval.ts'],
+};
+`,
+    );
+    await writeFile(
+      join(workspacePath, 'evals', 'process-isolation.eval.ts'),
+      `import { defineEval, evalAssert, setEvalOutput } from '@agent-evals/sdk';
+
+let executionCount = 0;
+
+defineEval({
+  id: 'process-isolation',
+  title: 'Process Isolation',
+  cases: [
+    { id: 'case-1', input: {} },
+    { id: 'case-2', input: {} },
+  ],
+  execute: () => {
+    executionCount += 1;
+    setEvalOutput('pid', process.pid);
+    setEvalOutput('executionCount', executionCount);
+    evalAssert(executionCount === 1, 'case process should start with fresh module state');
+  },
+});
+`,
+    );
+
+    const previousCwd = process.cwd();
+    process.chdir(workspacePath);
+    let runner: ReturnType<typeof createRunner> | undefined;
+
+    try {
+      const activeRunner = createRunner({ watchForChanges: false });
+      runner = activeRunner;
+      await activeRunner.init();
+
+      const run = await activeRunner.startRun({
+        target: { mode: 'evalIds', evalIds: ['process-isolation'] },
+        trials: 1,
+      });
+      await expect
+        .poll(() => activeRunner.getRun(run.manifest.id)?.manifest.status, {
+          timeout: 10_000,
+        })
+        .toBe('completed');
+
+      const firstCase = activeRunner.getCaseDetail(run.manifest.id, 'case-1');
+      const secondCase = activeRunner.getCaseDetail(run.manifest.id, 'case-2');
+
+      expect(firstCase?.columns.executionCount).toBe(1);
+      expect(secondCase?.columns.executionCount).toBe(1);
+      expect(firstCase?.columns.pid).not.toBe(secondCase?.columns.pid);
+    } finally {
+      await runner?.close();
+      process.chdir(previousCwd);
+    }
+  }, 10_000);
+
   test('reloads workspace modules between runs in the same runner process', async () => {
     const workspacePath = await mkdtemp(
       join(tmpdir(), 'agent-evals-runner-module-isolation-'),
@@ -390,6 +458,7 @@ defineEval({
   });
 
   test('marks an eval outdated when its latest run is old and from another commit', async () => {
+    const evalKey = 'evals%2Foutdated.eval.ts#outdated-eval';
     const workspacePath = await mkdtemp(
       join(tmpdir(), 'agent-evals-runner-outdated-status-'),
     );
@@ -448,7 +517,11 @@ defineEval({
           startedAt: '2026-04-01T12:00:00.000Z',
           endedAt: '2026-04-01T12:00:02.000Z',
           commitSha: '1111111111111111111111111111111111111111',
-          target: { mode: 'evalIds', evalIds: ['outdated-eval'] },
+          target: {
+            mode: 'evalIds',
+            evalIds: ['outdated-eval'],
+            evalKeys: [evalKey],
+          },
           trials: 1,
           cacheMode: 'use',
         },
@@ -491,6 +564,7 @@ defineEval({
       `${JSON.stringify({
         caseId: 'saved-case',
         evalId: 'outdated-eval',
+        evalKey,
         status: 'pass',
         durationMs: 234,
         costUsd: 0.12,

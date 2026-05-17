@@ -3,8 +3,13 @@ import type {
   CaseRow,
   TraceDisplayInputConfig,
 } from '@agent-evals/shared';
+import type { PendingCacheWrite } from './cacheStore.ts';
 
-export type QueuedCaseExecution = { caseDetail: CaseDetail; caseRow: CaseRow };
+export type QueuedCaseExecution = {
+  caseDetail: CaseDetail;
+  caseRow: CaseRow;
+  pendingCacheWrites: PendingCacheWrite[];
+};
 
 export type QueuedCaseRun = {
   execute: (params: {

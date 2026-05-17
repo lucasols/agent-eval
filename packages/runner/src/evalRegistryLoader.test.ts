@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -46,5 +46,63 @@ defineEval({
     });
 
     expect([...registry.keys()]).toEqual(['isolated-package-eval']);
+  });
+
+  test('does not isolate installed node_modules dependencies', async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), 'agent-evals-registry-dependency-'),
+    );
+    createdWorkspaces.push(workspacePath);
+
+    await mkdir(join(workspacePath, 'node_modules', 'stable-dependency'), {
+      recursive: true,
+    });
+    await writeFile(
+      join(workspacePath, 'node_modules', 'stable-dependency', 'package.json'),
+      JSON.stringify({ name: 'stable-dependency', main: 'index.js' }),
+    );
+    await writeFile(
+      join(workspacePath, 'node_modules', 'stable-dependency', 'index.js'),
+      `globalThis.__agentEvalsStableDependencyLoads =
+  (globalThis.__agentEvalsStableDependencyLoads ?? 0) + 1;
+
+exports.loadCount = globalThis.__agentEvalsStableDependencyLoads;
+`,
+    );
+
+    const evalPath = join(workspacePath, 'dependency.eval.ts');
+    await writeFile(
+      evalPath,
+      `import { defineEval } from '@agent-evals/sdk';
+import stableDependency from 'stable-dependency';
+
+defineEval({
+  id: 'dependency-eval',
+  title: String(stableDependency.loadCount),
+});
+`,
+    );
+
+    const firstRegistry = await loadIsolatedEvalRegistry({
+      evalFilePath: evalPath,
+      sourceFingerprint: 'dependency-first',
+      moduleIsolation: {
+        key: 'dependency:first',
+        workspaceRoot: workspacePath,
+      },
+      runtimeScope: 'env',
+    });
+    const secondRegistry = await loadIsolatedEvalRegistry({
+      evalFilePath: evalPath,
+      sourceFingerprint: 'dependency-second',
+      moduleIsolation: {
+        key: 'dependency:second',
+        workspaceRoot: workspacePath,
+      },
+      runtimeScope: 'env',
+    });
+
+    expect(firstRegistry.get('dependency-eval')?.title).toBe('1');
+    expect(secondRegistry.get('dependency-eval')?.title).toBe('1');
   });
 });

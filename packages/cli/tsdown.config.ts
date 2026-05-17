@@ -20,7 +20,12 @@ export default defineConfig([
       { from: '../../apps/web/dist/**/*', to: 'dist/web', flatten: false },
     ],
     dts: false,
-    entry: ['src/index.ts', 'src/bin.ts', 'src/runChild.ts'],
+    entry: [
+      'src/index.ts',
+      'src/bin.ts',
+      'src/caseChild.ts',
+      'src/runChild.ts',
+    ],
     name: 'cli-js',
   },
   {

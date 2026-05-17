@@ -20,6 +20,7 @@ import { z } from 'zod/v4';
 import { createFsCacheStore } from './cacheStore.ts';
 import { loadConfig } from './config.ts';
 import { parseEvalDiscovery } from './discovery.ts';
+import { registerAgentEvalsPackageResolutionHooks } from './moduleIsolation.ts';
 import type { RunChildContext, RunChildMessage } from './runChildProtocol.ts';
 import { persistRunState } from './runMaintenance.ts';
 import {
@@ -195,6 +196,7 @@ async function main(): Promise<void> {
   const context = await readContext(process.argv[2]);
   activeContext = context;
   process.chdir(context.workspaceRoot);
+  registerAgentEvalsPackageResolutionHooks();
 
   const config = await loadConfig();
   configureEvalRunLogs({

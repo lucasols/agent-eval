@@ -20,6 +20,7 @@ const agentPackageUrlBySpecifier = new Map(
     '@agent-evals/sdk',
     '@agent-evals/shared',
     '@agent-evals/runner',
+    '@agent-evals/runner/case-child',
     '@agent-evals/runner/run-child',
   ].flatMap((specifier) => {
     try {
@@ -82,7 +83,9 @@ function isIsolatableFilePath(
   }
 
   const segments = relativePath.split(pathSegmentSeparatorPattern);
-  return !segments.includes('.agent-evals');
+  return (
+    !segments.includes('.agent-evals') && !segments.includes('node_modules')
+  );
 }
 
 function isAgentEvalsPackageFilePath(filePath: string): boolean {
@@ -135,6 +138,10 @@ function registerModuleIsolationHooks(): void {
       };
     },
   });
+}
+
+export function registerAgentEvalsPackageResolutionHooks(): void {
+  registerModuleIsolationHooks();
 }
 
 function clearWorkspaceRequireCacheOnce(context: ModuleIsolationContext): void {

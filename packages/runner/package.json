@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./case-child": "./src/caseChild.ts",
     "./run-child": "./src/runChild.ts"
   },
   "tsdown": {
@@ -20,6 +21,7 @@
     },
     "entry": [
       "src/index.ts",
+      "src/caseChild.ts",
       "src/runChild.ts"
     ],
     "format": "esm",

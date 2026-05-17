@@ -2,9 +2,14 @@ import { existsSync } from 'node:fs';
 import { isAbsolute, resolve as resolvePath, sep } from 'node:path';
 import {
   createRunRequestSchema,
+  getEvalTitle,
+  type CreateRunRequest,
+  type EvalSummary,
+  type RunSummary,
   updateManualScoreRequestSchema,
 } from '@agent-evals/shared';
 import { zValidator } from '@hono/zod-validator';
+import type { EvalRunner } from '@ls-stack/agent-eval';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import launch from 'launch-editor';
@@ -18,6 +23,132 @@ const openRunLocationRequestSchema = z.object({
   column: z.number().int().min(1),
 });
 const importQuerySeparatorRegex = /[?#]/;
+
+function escapeRegex(value: string): string {
+  return value.replace(/[|\\{}()[\]^$+?.]/g, '\\$&');
+}
+
+function globToRegex(pattern: string): RegExp {
+  const normalized = pattern.replaceAll('\\', '/');
+  let regex = '^';
+  for (let i = 0; i < normalized.length; i++) {
+    const char = normalized[i];
+    const next = normalized[i + 1];
+    if (char === '*' && next === '*') {
+      regex += '.*';
+      i++;
+    } else if (char === '*') {
+      regex += '[^/]*';
+    } else if (char === '?') {
+      regex += '[^/]';
+    } else {
+      regex += escapeRegex(char ?? '');
+    }
+  }
+  return new RegExp(`${regex}$`);
+}
+
+function fileMatches(pattern: string, filePath: string): boolean {
+  const normalizedPattern = pattern.replaceAll('\\', '/');
+  if (normalizedPattern === filePath) return true;
+  return globToRegex(normalizedPattern).test(filePath);
+}
+
+function matchesRunTarget(
+  ev: EvalSummary,
+  target: CreateRunRequest['target'],
+): boolean {
+  if (target.evalKeys !== undefined && target.evalKeys.length > 0) {
+    if (!target.evalKeys.includes(ev.key)) return false;
+  }
+  if (target.evalIds !== undefined && target.evalIds.length > 0) {
+    if (!target.evalIds.includes(ev.id)) return false;
+  }
+  if (target.files !== undefined && target.files.length > 0) {
+    if (!target.files.some((file) => fileMatches(file, ev.filePath))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function getRunTargetEvalSummaries(
+  evals: EvalSummary[],
+  target: CreateRunRequest['target'],
+): EvalSummary[] {
+  return evals
+    .filter((ev) => matchesRunTarget(ev, target))
+    .toSorted(
+      (left, right) =>
+        left.filePath.localeCompare(right.filePath) ||
+        left.id.localeCompare(right.id),
+    );
+}
+
+function logStartedAppRunEvals(params: {
+  runId: string;
+  shortId: string;
+  evals: EvalSummary[];
+  target: CreateRunRequest['target'];
+}): void {
+  const targetEvals = getRunTargetEvalSummaries(params.evals, params.target);
+  if (targetEvals.length === 0) return;
+
+  const label = targetEvals.length === 1 ? 'eval' : 'evals';
+  console.info(
+    `[agent-evals] Starting app run ${params.shortId} (${params.runId}) with ${String(targetEvals.length)} ${label}:`,
+  );
+  for (const ev of targetEvals) {
+    console.info(`  - ${getEvalTitle(ev)} (${ev.filePath}#${ev.id})`);
+  }
+}
+
+function formatDurationMs(durationMs: number | null): string {
+  if (durationMs === null) return '';
+  if (durationMs < 1000) return ` in ${String(durationMs)}ms`;
+  return ` in ${(durationMs / 1000).toFixed(1)}s`;
+}
+
+function formatRunResultSummary(summary: RunSummary): string {
+  const cancelled =
+    summary.cancelledCases > 0
+      ? `, ${String(summary.cancelledCases)} cancelled`
+      : '';
+  return `${summary.status}: ${String(summary.totalCases)} total, ${String(summary.passedCases)} passed, ${String(summary.failedCases)} failed, ${String(summary.errorCases)} errors${cancelled}${formatDurationMs(summary.totalDurationMs)}`;
+}
+
+function isTerminalRunEvent(eventType: string): boolean {
+  return (
+    eventType === 'run.finished' ||
+    eventType === 'run.error' ||
+    eventType === 'run.cancelled'
+  );
+}
+
+function subscribeToAppRunResultLog(params: {
+  runner: Pick<EvalRunner, 'getRun' | 'subscribe'>;
+  runId: string;
+  shortId: string;
+}): void {
+  let unsubscribe: (() => void) | undefined;
+  unsubscribe = params.runner.subscribe(params.runId, (event) => {
+    if (!isTerminalRunEvent(event.type)) return;
+    unsubscribe?.();
+    unsubscribe = undefined;
+
+    const run = params.runner.getRun(params.runId);
+    if (run === undefined) {
+      console.info(
+        `[agent-evals] Run ${params.shortId} (${params.runId}) finished.`,
+      );
+      return;
+    }
+
+    console.info(
+      `[agent-evals] Run ${params.shortId} (${params.runId}) ${formatRunResultSummary(run.summary)}`,
+    );
+  });
+}
 
 function isInsideWorkspace(path: string, workspaceRoot: string): boolean {
   return path === workspaceRoot || path.startsWith(workspaceRoot + sep);
@@ -84,6 +215,7 @@ export const runsRoutes = new Hono()
         400,
       );
     }
+    const evalsForTerminalLog = runner.getEvals();
     const runResult = await resultify(() => runner.startRun(body));
     if (runResult.error) {
       return c.json(
@@ -94,6 +226,17 @@ export const runsRoutes = new Hono()
         500,
       );
     }
+    logStartedAppRunEvals({
+      runId: runResult.value.manifest.id,
+      shortId: runResult.value.manifest.shortId,
+      evals: evalsForTerminalLog,
+      target: body.target,
+    });
+    subscribeToAppRunResultLog({
+      runner,
+      runId: runResult.value.manifest.id,
+      shortId: runResult.value.manifest.shortId,
+    });
     return c.json(runResult.value, 201);
   })
   .post(

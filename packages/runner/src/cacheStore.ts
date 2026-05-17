@@ -67,7 +67,23 @@ export type BufferedCacheStore = CacheAdapter & {
   commit(): Promise<void>;
   /** Return the entries written during the buffered session. */
   getPendingEntries(): CacheEntry[];
+  /** Return the entries and debug metadata written during the buffered session. */
+  getPendingWrites(): PendingCacheWrite[];
 };
+
+export type PendingCacheWrite = {
+  entry: CacheEntry;
+  debugKey: CacheDebugKeyWrite | undefined;
+};
+
+export async function commitPendingCacheWrites(params: {
+  backingStore: CacheAdapter;
+  pendingWrites: readonly PendingCacheWrite[];
+}): Promise<void> {
+  for (const pendingWrite of params.pendingWrites) {
+    await params.backingStore.write(pendingWrite.entry, pendingWrite.debugKey);
+  }
+}
 
 /**
  * Create a filesystem-backed cache adapter rooted at `<workspaceRoot>/<dir>`.
@@ -276,13 +292,20 @@ export function createBufferedCacheStore(
     },
 
     async commit() {
-      for (const pending of pendingEntries.values()) {
-        await backingStore.write(pending.entry, pending.debugKey);
-      }
+      await commitPendingCacheWrites({
+        backingStore,
+        pendingWrites: [...pendingEntries.values()].map((pending) => ({
+          ...pending,
+        })),
+      });
     },
 
     getPendingEntries() {
       return [...pendingEntries.values()].map((pending) => pending.entry);
+    },
+
+    getPendingWrites() {
+      return [...pendingEntries.values()].map((pending) => ({ ...pending }));
     },
   };
 }

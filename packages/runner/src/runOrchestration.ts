@@ -22,29 +22,21 @@ import type {
 import {
   deriveStatusFromCaseRows,
   getCaseRowCaseKey,
-  resolveApiCallsConfig,
-  resolveLlmCallsConfig,
 } from '@agent-evals/shared';
 import {
-  createBufferedCacheStore,
-  type BufferedCacheStore,
+  commitPendingCacheWrites,
   type FsCacheStore,
+  type PendingCacheWrite,
 } from './cacheStore.ts';
+import { executeCaseChild } from './caseChildManager.ts';
 import { validateCharts } from './chartValidation.ts';
 import { buildDeclaredColumnDefs } from './columnBuilder.ts';
 import { resolveEvalDefaultConfig } from './defaultConfig.ts';
-import {
-  loadIsolatedEvalRegistry,
-  useIsolatedEvalDefinition,
-} from './evalRegistryLoader.ts';
+import { loadIsolatedEvalRegistry } from './evalRegistryLoader.ts';
 import { parseManualInputValues } from './manualInput/walker.ts';
 import { runWithModuleIsolation } from './moduleIsolation.ts';
 import type { ModuleIsolationContext } from './moduleIsolation.ts';
-import {
-  filterEvalCases,
-  resolveRunnableEvalCases,
-  runCase,
-} from './runExecution.ts';
+import { filterEvalCases, resolveRunnableEvalCases } from './runExecution.ts';
 import { persistRunState } from './runMaintenance.ts';
 import { persistCaseDetail, type EvalLatestRunInfo } from './runPersistence.ts';
 import { executeQueuedCases, type QueuedCaseRun } from './runQueue.ts';
@@ -98,7 +90,7 @@ export type RunState = {
 type TrialExecutionResult = {
   caseDetail: CaseDetail;
   caseRow: CaseRow;
-  bufferedCacheStore: BufferedCacheStore | null;
+  pendingCacheWrites: PendingCacheWrite[];
 };
 
 type PreparedEvalCase = {
@@ -120,24 +112,6 @@ function toOptionalSourceFingerprint(
   sourceFingerprint: string,
 ): string | undefined {
   return sourceFingerprint.length > 0 ? sourceFingerprint : undefined;
-}
-
-function buildCaseModuleIsolation(params: {
-  runId: string;
-  evalKey: string;
-  caseId: string;
-  trial: number;
-  workspaceRoot: string;
-}): ModuleIsolationContext {
-  return {
-    key: [
-      params.runId,
-      params.evalKey,
-      params.caseId,
-      `trial-${String(params.trial)}`,
-    ].join(':'),
-    workspaceRoot: params.workspaceRoot,
-  };
 }
 
 function buildEvalPreparationModuleIsolation(params: {
@@ -291,6 +265,7 @@ function buildRunErrorMessage(errors: EvalRunError[]): string {
 async function finalizePreparedCase(params: {
   runState: RunState;
   runDir: string;
+  cacheStore: FsCacheStore;
   preparedEval: PreparedEvalRun;
   preparedCase: PreparedEvalCase;
   onCaseFinished: ExecuteRunParams['onCaseFinished'];
@@ -313,8 +288,11 @@ async function finalizePreparedCase(params: {
     scoreKeys: preparedEval.scoreKeys,
   });
 
-  if (winningTrial.bufferedCacheStore !== null) {
-    await winningTrial.bufferedCacheStore.commit();
+  if (winningTrial.pendingCacheWrites.length > 0) {
+    await commitPendingCacheWrites({
+      backingStore: params.cacheStore,
+      pendingWrites: winningTrial.pendingCacheWrites,
+    });
   }
 
   const artifactFileId = getCaseArtifactFileId(runState, winningTrial.caseRow);
@@ -425,9 +403,6 @@ export async function executeRun({
     const preparedEvals: PreparedEvalRun[] = [];
     const cacheMode: CacheMode = runState.manifest.cacheMode ?? 'use';
     const cacheEnabled = config.cache?.enabled !== false;
-    const llmCallsConfig = resolveLlmCallsConfig(config.llmCalls);
-    const apiCallsConfig = resolveApiCallsConfig(config.apiCalls);
-
     for (const evalMeta of targetEvals) {
       const evalFilePath = evalMeta.sourceFilePath;
       const evalModuleIsolation = buildEvalPreparationModuleIsolation({
@@ -633,83 +608,40 @@ export async function executeRun({
                 preparedCases.push(preparedCase);
 
                 for (let trial = 0; trial < request.trials; trial++) {
-                  const bufferedCacheStore =
-                    cacheEnabled && cacheMode !== 'bypass'
-                      ? createBufferedCacheStore(cacheStore)
-                      : null;
-                  const caseModuleIsolation = buildCaseModuleIsolation({
-                    runId: runState.manifest.id,
-                    evalKey: evalMeta.key,
-                    caseId: evalCase.id,
-                    trial,
-                    workspaceRoot,
-                  });
-
                   queuedCases.push({
-                    execute: async ({ startTime, globalTraceDisplay }) => {
-                      const { caseDetail, caseRowUpdate } =
-                        await useIsolatedEvalDefinition({
-                          evalId: evalMeta.id,
-                          evalFilePath,
-                          sourceFingerprint:
-                            toOptionalSourceFingerprint(sourceFingerprint),
-                          moduleIsolation: caseModuleIsolation,
-                          runtimeScope: 'env',
-                          use: async (isolatedEvalDef) =>
-                            await runCase({
-                              evalDef: isolatedEvalDef,
-                              evalId: evalMeta.id,
-                              evalKey: evalMeta.key,
-                              evalCase,
-                              globalTraceDisplay,
-                              globalColumns: config.columns,
-                              globalDeriveFromTracing: config.deriveFromTracing,
-                              llmCallsConfig,
-                              apiCallsConfig,
-                              globalRemoveDefaultConfig:
-                                config.removeDefaultConfig,
-                              trial,
-                              startTime,
-                              cacheAdapter:
-                                bufferedCacheStore ??
-                                (cacheEnabled ? cacheStore : null),
-                              cacheMode,
-                              moduleIsolation: caseModuleIsolation,
-                              evalFilePath,
-                              evalFileRelativePath: evalMeta.filePath,
-                              workspaceRoot,
-                              artifactDir: join(runDir, 'artifacts'),
-                              runId: runState.manifest.id,
-                            }),
-                        });
-
-                      return {
-                        caseDetail,
-                        caseRow: {
-                          caseId: evalCase.id,
-                          evalId: evalMeta.id,
-                          evalKey: evalMeta.key,
-                          caseKey: caseDetail.caseKey,
-                          tags: caseDetail.tags,
-                          status: caseRowUpdate.status ?? 'pending',
-                          durationMs: caseRowUpdate.durationMs ?? null,
-                          cacheHits: caseRowUpdate.cacheHits ?? 0,
-                          cacheOperations: caseRowUpdate.cacheOperations ?? 0,
-                          columns: caseRowUpdate.columns ?? {},
-                          trial,
-                        },
-                      };
-                    },
-                    onComplete: async ({ caseDetail, caseRow }) => {
+                    execute: async ({ startTime, globalTraceDisplay }) =>
+                      await executeCaseChild({
+                        evalId: evalMeta.id,
+                        evalKey: evalMeta.key,
+                        evalFilePath,
+                        evalFileRelativePath: evalMeta.filePath,
+                        sourceFingerprint:
+                          toOptionalSourceFingerprint(sourceFingerprint),
+                        evalCase,
+                        trial,
+                        startTime,
+                        cacheMode,
+                        cacheEnabled,
+                        globalTraceDisplay,
+                        workspaceRoot,
+                        artifactDir: join(runDir, 'artifacts'),
+                        runId: runState.manifest.id,
+                      }),
+                    onComplete: async ({
+                      caseDetail,
+                      caseRow,
+                      pendingCacheWrites,
+                    }) => {
                       trialResults.push({
                         caseDetail,
                         caseRow,
-                        bufferedCacheStore,
+                        pendingCacheWrites,
                       });
                       if (trialResults.length !== request.trials) return;
                       await finalizePreparedCase({
                         runState,
                         runDir,
+                        cacheStore,
                         preparedEval,
                         preparedCase,
                         onCaseFinished,
@@ -762,6 +694,7 @@ export async function executeRun({
         await finalizePreparedCase({
           runState,
           runDir,
+          cacheStore,
           preparedEval,
           preparedCase,
           onCaseFinished,
