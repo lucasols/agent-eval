@@ -483,8 +483,9 @@ type EvalDefinitionBase<
    * When provided, the stats render in order, left to right.
    *
    * Built-in kinds (`cases`, `passRate`, `duration`, `cacheHits`) read from
-   * the latest run summary. `cacheHits` counts Agent Eval operation-level cache
-   * hits over total cache operations, not LLM provider prompt-cache read
+   * the latest run. `duration` aggregates finite per-case durations using the
+   * same modes as column stats. `cacheHits` counts Agent Eval operation-level
+   * cache hits over total cache operations, not LLM provider prompt-cache read
    * tokens. `kind: 'column'` aggregates a score or numeric output column across
    * the latest run's cases — `key` must match one of the eval's score or column
    * keys, and only finite numeric values participate in the reduction. When no
@@ -494,7 +495,8 @@ type EvalDefinitionBase<
    */
   stats?: EvalStatsConfig;
   /**
-   * Initial aggregate mode used for this eval's column stats in the web UI.
+   * Initial aggregate mode used for this eval's duration and column stats in
+   * the web UI.
    *
    * Overrides `AgentEvalsConfig.defaultStatAggregate`. Individual stat
    * `aggregate` values still define their authored reducer and remain the

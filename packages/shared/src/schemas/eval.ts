@@ -16,7 +16,8 @@ export const evalFreshnessStatusSchema = z.enum(['fresh', 'stale', 'outdated']);
 export type EvalFreshnessStatus = z.infer<typeof evalFreshnessStatusSchema>;
 
 /**
- * Reducer used to collapse a column's per-case values into a single stat.
+ * Reducer used to collapse per-case values into a single duration or column
+ * stat.
  * `best` selects the highest finite value and `worst` selects the lowest.
  */
 export const evalStatAggregateSchema = z.enum([
@@ -28,7 +29,8 @@ export const evalStatAggregateSchema = z.enum([
   'worst',
 ]);
 /**
- * Reducer used to collapse a column's per-case values into a single stat.
+ * Reducer used to collapse per-case values into a single duration or column
+ * stat.
  * `best` selects the highest finite value and `worst` selects the lowest.
  */
 export type EvalStatAggregate = z.infer<typeof evalStatAggregateSchema>;
@@ -43,10 +45,11 @@ const hideIfNoValueShape = {
 };
 
 /**
- * One entry in the EvalCard stats row. Built-in kinds use latest run totals;
- * `cacheHits` counts Agent Eval operation-level cache hits from spans and
- * `evalTracer.cache(...)` refs, not LLM provider prompt-cache read tokens.
- * `column` aggregates a score or numeric output column across the latest run.
+ * One entry in the EvalCard stats row. Built-in kinds read from the latest run;
+ * `duration` aggregates per-case durations, `cacheHits` counts Agent Eval
+ * operation-level cache hits from spans and `evalTracer.cache(...)` refs, not
+ * LLM provider prompt-cache read tokens. `column` aggregates a score or numeric
+ * output column across the latest run.
  */
 export const evalStatItemSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('cases'), ...hideIfNoValueShape }),
@@ -55,7 +58,11 @@ export const evalStatItemSchema = z.discriminatedUnion('kind', [
     accent: z.boolean().optional(),
     ...hideIfNoValueShape,
   }),
-  z.object({ kind: z.literal('duration'), ...hideIfNoValueShape }),
+  z.object({
+    kind: z.literal('duration'),
+    aggregate: evalStatAggregateSchema.optional(),
+    ...hideIfNoValueShape,
+  }),
   z.object({ kind: z.literal('cacheHits'), ...hideIfNoValueShape }),
   z.object({
     kind: z.literal('column'),
@@ -116,8 +123,8 @@ export const evalSummarySchema = z.object({
    */
   stats: evalStatsConfigSchema.optional(),
   /**
-   * Initial aggregate mode used for column stats on this eval card. Overrides
-   * workspace-level `defaultStatAggregate` when present.
+   * Initial aggregate mode used for duration and column stats on this eval
+   * card. Overrides workspace-level `defaultStatAggregate` when present.
    */
   defaultStatAggregate: evalStatAggregateSchema.optional(),
   /**

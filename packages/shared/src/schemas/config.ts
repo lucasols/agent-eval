@@ -842,7 +842,8 @@ export type AgentEvalsConfig = {
    */
   stats?: EvalStatsConfig;
   /**
-   * Initial aggregate mode used for column stats on every eval card.
+   * Initial aggregate mode used for duration and column stats on every eval
+   * card.
    *
    * Per-eval `defaultStatAggregate` overrides this value. Individual stat
    * `aggregate` values still define their authored reducer and remain the

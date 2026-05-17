@@ -219,7 +219,7 @@ build also bundles the web UI assets used by `agent-evals app`.
 | `columns`              | `EvalColumns?`                  | Global column display overrides applied to every eval                                   |
 | `deriveFromTracing`    | `EvalDeriveConfig?`             | Global trace-derived outputs applied to every eval case                                 |
 | `stats`                | `EvalStatsConfig?`              | Global stats prepended to every eval card                                               |
-| `defaultStatAggregate` | `EvalStatAggregate?`            | Initial aggregate mode for column stats on every eval card                              |
+| `defaultStatAggregate` | `EvalStatAggregate?`            | Initial aggregate mode for duration and column stats on every eval card                 |
 | `llmCalls`             | `LlmCallsConfig?`               | LLM calls tab config for the case-run drawer (kinds, attribute paths, pricing, metrics) |
 | `removeDefaultConfig`  | `true \| DefaultConfigKey[]?`   | Remove built-in eval-level outputs, columns, stats, and charts                          |
 | `apiCalls`             | `ApiCallsConfig?`               | API calls tab config for the case-run drawer (kinds, attribute paths, custom metrics)   |
@@ -266,27 +266,27 @@ export const config: AgentEvalsConfig = {
 
 `defineEval` takes a single definition object:
 
-| Field                   | Required   | Purpose                                                                         |
-| ----------------------- | ---------- | ------------------------------------------------------------------------------- |
-| `id`                    | yes        | Eval id, unique within one eval file                                            |
-| `title`                 |            | Display title (defaults to a humanized version of `id`)                         |
-| `tags`                  |            | Eval tags inherited by every case                                               |
-| `removeTags`            |            | Workspace tags this eval should not inherit                                     |
-| `cache`                 |            | Per-eval cache controls: `{ read?: boolean; store?: boolean }`                  |
-| `cases`                 | yes        | `EvalCase[]` or `() => Promise<EvalCase[]>` (async loader for dynamic datasets) |
-| `execute`               | yes        | `async ({ input }) => { ... }`                                                  |
-| `outputsSchema`         | `TOutputs` | Zod schema that validates and types collected outputs before scoring            |
-| `traceDisplay`          |            | Per-eval trace attribute display overrides for the UI                           |
-| `waitForBackgroundJobs` |            | Set `false` to skip waiting for registered background work before finalization  |
-| `startTime`             |            | Initial Date clock for this eval (default `2026-04-10T00:00:00.000Z`)           |
-| `freezeTime`            |            | Set `true` to keep Date frozen until `evalTime.advance(...)` is called          |
-| `deriveFromTracing`     |            | Derive output columns from the finished trace tree                              |
-| `scores`                |            | Record of scoring functions returning `0..1`                                    |
-| `columns`               |            | Custom columns shown in the results table                                       |
-| `stats`                 |            | Opt-in stats row on the eval page (see [Stats row](#stats-row))                 |
-| `defaultStatAggregate`  |            | Override the global initial aggregate mode for this eval's column stats         |
-| `charts`                |            | Opt-in history charts on the eval page (see [History charts](#history-charts))  |
-| `removeDefaultConfig`   |            | Remove built-in output, column, stat, and chart defaults for this eval          |
+| Field                   | Required   | Purpose                                                                          |
+| ----------------------- | ---------- | -------------------------------------------------------------------------------- |
+| `id`                    | yes        | Eval id, unique within one eval file                                             |
+| `title`                 |            | Display title (defaults to a humanized version of `id`)                          |
+| `tags`                  |            | Eval tags inherited by every case                                                |
+| `removeTags`            |            | Workspace tags this eval should not inherit                                      |
+| `cache`                 |            | Per-eval cache controls: `{ read?: boolean; store?: boolean }`                   |
+| `cases`                 | yes        | `EvalCase[]` or `() => Promise<EvalCase[]>` (async loader for dynamic datasets)  |
+| `execute`               | yes        | `async ({ input }) => { ... }`                                                   |
+| `outputsSchema`         | `TOutputs` | Zod schema that validates and types collected outputs before scoring             |
+| `traceDisplay`          |            | Per-eval trace attribute display overrides for the UI                            |
+| `waitForBackgroundJobs` |            | Set `false` to skip waiting for registered background work before finalization   |
+| `startTime`             |            | Initial Date clock for this eval (default `2026-04-10T00:00:00.000Z`)            |
+| `freezeTime`            |            | Set `true` to keep Date frozen until `evalTime.advance(...)` is called           |
+| `deriveFromTracing`     |            | Derive output columns from the finished trace tree                               |
+| `scores`                |            | Record of scoring functions returning `0..1`                                     |
+| `columns`               |            | Custom columns shown in the results table                                        |
+| `stats`                 |            | Opt-in stats row on the eval page (see [Stats row](#stats-row))                  |
+| `defaultStatAggregate`  |            | Override the global initial aggregate mode for this eval's duration/column stats |
+| `charts`                |            | Opt-in history charts on the eval page (see [History charts](#history-charts))   |
+| `removeDefaultConfig`   |            | Remove built-in output, column, stat, and chart defaults for this eval           |
 
 ### Cases
 
@@ -1075,7 +1075,7 @@ declare authored stats, including score and numeric output columns. Usage
 defaults are appended automatically unless removed with
 `removeDefaultConfig`. Global `stats` from `agent-evals.config.ts` render before
 eval-level stats. Set `defaultStatAggregate` globally or on an eval to choose
-the initial aggregate mode for all column stats on that eval card:
+the initial aggregate mode for all duration and column stats on that eval card:
 
 ```ts
 defaultStatAggregate: 'avg',
@@ -1106,7 +1106,8 @@ Supported kinds:
 
 - `cases` — declared case count.
 - `passRate` — latest run's `passed/total`. Set `accent: true` to tint the value.
-- `duration` — latest run's total duration.
+- `duration` — aggregate latest run case durations. Uses the same aggregate
+  modes and click-to-cycle behavior as column stats.
 - `cacheHits` — latest run's Agent Eval operation-level cache hits over total
   cache operations, shown as `hits/total` using the same span and
   `evalTracer.cache(...)` refs that feed the Cache tab. This is separate from
@@ -1117,9 +1118,9 @@ Supported kinds:
   and `worst` uses the lowest finite value. `label`, `format`, and `numberFormat`
   default to the matching column definition. Only finite numeric values
   participate; if none exist the stat renders an em dash. In the UI, clicking a
-  column stat's aggregate label cycles all column stats on the card through the
-  supported aggregate modes, and hovering a column stat value shows the other
-  aggregate values.
+  duration or column stat's aggregate label cycles all numeric stats on the
+  card through the supported aggregate modes, and hovering a duration or column
+  stat value shows the other aggregate values.
 - `hideIfNoValue` — hide the stat instead of rendering an em dash when the
   current run has no value.
 

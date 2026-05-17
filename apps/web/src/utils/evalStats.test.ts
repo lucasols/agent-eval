@@ -28,12 +28,16 @@ function summary(overrides: Partial<ScopedCaseSummary>): ScopedCaseSummary {
   };
 }
 
-function caseRow(caseId: string, columns: CaseRow['columns']): CaseRow {
+function caseRow(
+  caseId: string,
+  columns: CaseRow['columns'],
+  durationMs = 1,
+): CaseRow {
   return {
     caseId,
     evalId: 'eval',
     status: 'pass',
-    durationMs: 1,
+    durationMs,
     columns,
     trial: 0,
   };
@@ -110,6 +114,32 @@ test('computeStatDisplay applies a shared aggregate override to column stats', (
     aggregateTooltip:
       'AVG: 175\nMAX: 250\nMIN: 100\nSUM: 350\nBEST: 250\nWORST: 100',
     value: '250',
+    hasValue: true,
+  });
+});
+
+test('computeStatDisplay aggregates duration like a numeric stat', () => {
+  expect(
+    computeStatDisplay(
+      { kind: 'duration' },
+      {
+        evalSummary,
+        latestSummary: summary({ totalDurationMs: 900 }),
+        latestCases: [
+          caseRow('a', {}, 100),
+          caseRow('b', {}, 250),
+          caseRow('c', {}, 550),
+        ],
+        aggregateModeOverride: 'avg',
+      },
+    ),
+  ).toMatchObject({
+    label: 'Duration',
+    aggregateLabel: 'avg',
+    aggregateMode: 'avg',
+    aggregateTooltip:
+      'AVG: 300ms\nMAX: 550ms\nMIN: 100ms\nSUM: 900ms\nBEST: 550ms\nWORST: 100ms',
+    value: '300ms',
     hasValue: true,
   });
 });

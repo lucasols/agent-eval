@@ -70,15 +70,7 @@ export function computeStatDisplay(
     };
   }
   if (stat.kind === 'duration') {
-    return {
-      label: 'Duration',
-      aggregateLabel: undefined,
-      aggregateMode: undefined,
-      aggregateTooltip: undefined,
-      value: formatDuration(ctx.latestSummary?.totalDurationMs ?? null),
-      hasValue: ctx.latestSummary !== null,
-      accent: false,
-    };
+    return computeDurationStat(stat, ctx);
   }
   if (stat.kind === 'cacheHits') {
     const s = ctx.latestSummary;
@@ -96,6 +88,41 @@ export function computeStatDisplay(
     };
   }
   return computeColumnStat(stat, ctx);
+}
+
+function computeDurationStat(
+  stat: Extract<EvalStatItem, { kind: 'duration' }>,
+  ctx: EvalStatContext,
+): EvalStatDisplay {
+  const values = collectDurationValues(ctx.latestCases);
+  const aggregateMode = ctx.aggregateModeOverride ?? stat.aggregate ?? 'sum';
+  const aggregated = aggregateColumn(values, aggregateMode);
+  const aggregateLabel = formatAggregateLabel(aggregateMode);
+  if (aggregated === null) {
+    return {
+      label: 'Duration',
+      aggregateLabel,
+      aggregateMode,
+      aggregateTooltip: undefined,
+      value: EM_DASH,
+      hasValue: false,
+      accent: false,
+    };
+  }
+  return {
+    label: 'Duration',
+    aggregateLabel,
+    aggregateMode,
+    aggregateTooltip: formatAggregateTooltip(values, {
+      key: 'durationMs',
+      label: 'Duration',
+      kind: 'number',
+      format: 'duration',
+    }),
+    value: formatDuration(aggregated),
+    hasValue: true,
+    accent: false,
+  };
 }
 
 function computeColumnStat(
@@ -158,6 +185,16 @@ function collectNumericValues(cases: CaseRow[], key: string): number[] {
     const value = row.columns[key];
     if (typeof value === 'number' && Number.isFinite(value)) {
       values.push(value);
+    }
+  }
+  return values;
+}
+
+function collectDurationValues(cases: CaseRow[]): number[] {
+  const values: number[] = [];
+  for (const row of cases) {
+    if (typeof row.durationMs === 'number' && Number.isFinite(row.durationMs)) {
+      values.push(row.durationMs);
     }
   }
   return values;
