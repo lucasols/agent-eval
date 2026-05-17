@@ -1,10 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import {
-  getEvalRegistry,
-  runInEvalRuntimeScope,
-  runWithEvalClock,
-} from '@agent-evals/sdk';
+import { runInEvalRuntimeScope, runWithEvalClock } from '@agent-evals/sdk';
 import type {
   AgentEvalsConfig,
   CacheMode,
@@ -36,9 +32,13 @@ import {
 import { validateCharts } from './chartValidation.ts';
 import { buildDeclaredColumnDefs } from './columnBuilder.ts';
 import { resolveEvalDefaultConfig } from './defaultConfig.ts';
-import { loadEvalModule } from './evalModuleLoader.ts';
+import {
+  loadIsolatedEvalRegistry,
+  useIsolatedEvalDefinition,
+} from './evalRegistryLoader.ts';
 import { parseManualInputValues } from './manualInput/walker.ts';
 import { runWithModuleIsolation } from './moduleIsolation.ts';
+import type { ModuleIsolationContext } from './moduleIsolation.ts';
 import {
   filterEvalCases,
   resolveRunnableEvalCases,
@@ -113,6 +113,41 @@ type PreparedEvalRun = {
 };
 
 type EvalRunError = { evalId: string; details: string };
+
+function toOptionalSourceFingerprint(
+  sourceFingerprint: string,
+): string | undefined {
+  return sourceFingerprint.length > 0 ? sourceFingerprint : undefined;
+}
+
+function buildCaseModuleIsolation(params: {
+  runId: string;
+  evalKey: string;
+  caseId: string;
+  trial: number;
+  workspaceRoot: string;
+}): ModuleIsolationContext {
+  return {
+    key: [
+      params.runId,
+      params.evalKey,
+      params.caseId,
+      `trial-${String(params.trial)}`,
+    ].join(':'),
+    workspaceRoot: params.workspaceRoot,
+  };
+}
+
+function buildEvalPreparationModuleIsolation(params: {
+  runId: string;
+  evalKey: string;
+  workspaceRoot: string;
+}): ModuleIsolationContext {
+  return {
+    key: [params.runId, params.evalKey, 'prepare'].join(':'),
+    workspaceRoot: params.workspaceRoot,
+  };
+}
 
 type ExecuteRunParams = {
   runState: RunState;
@@ -388,12 +423,16 @@ export async function executeRun({
     const preparedEvals: PreparedEvalRun[] = [];
     const cacheMode: CacheMode = runState.manifest.cacheMode ?? 'use';
     const cacheEnabled = config.cache?.enabled !== false;
-    const moduleIsolation = { key: runState.manifest.id, workspaceRoot };
     const llmCallsConfig = resolveLlmCallsConfig(config.llmCalls);
     const apiCallsConfig = resolveApiCallsConfig(config.apiCalls);
 
     for (const evalMeta of targetEvals) {
       const evalFilePath = evalMeta.sourceFilePath;
+      const evalModuleIsolation = buildEvalPreparationModuleIsolation({
+        runId: runState.manifest.id,
+        evalKey: evalMeta.key,
+        workspaceRoot,
+      });
       let sourceFingerprint = '';
       try {
         const source = await readFile(evalFilePath, 'utf-8');
@@ -411,11 +450,11 @@ export async function executeRun({
       }
 
       try {
-        const registry = getEvalRegistry();
-        await runWithModuleIsolation(moduleIsolation, async () => {
-          await runInEvalRuntimeScope('env', async () => {
-            await loadEvalModule(evalFilePath, sourceFingerprint);
-          });
+        const registry = await loadIsolatedEvalRegistry({
+          evalFilePath,
+          sourceFingerprint: toOptionalSourceFingerprint(sourceFingerprint),
+          moduleIsolation: evalModuleIsolation,
+          runtimeScope: 'env',
         });
 
         const entry = registry.get(evalMeta.id);
@@ -427,7 +466,7 @@ export async function executeRun({
           continue;
         }
 
-        await runWithModuleIsolation(moduleIsolation, async () => {
+        await runWithModuleIsolation(evalModuleIsolation, async () => {
           await runInEvalRuntimeScope('cases', async () => {
             await entry.use(async (evalDef) => {
               const evalTagsResult = resolveEvalTags({
@@ -593,33 +632,51 @@ export async function executeRun({
                     cacheEnabled && cacheMode !== 'bypass'
                       ? createBufferedCacheStore(cacheStore)
                       : null;
+                  const caseModuleIsolation = buildCaseModuleIsolation({
+                    runId: runState.manifest.id,
+                    evalKey: evalMeta.key,
+                    caseId: evalCase.id,
+                    trial,
+                    workspaceRoot,
+                  });
 
                   queuedCases.push({
                     execute: async ({ startTime, globalTraceDisplay }) => {
-                      const { caseDetail, caseRowUpdate } = await runCase({
-                        evalDef,
-                        evalId: evalMeta.id,
-                        evalKey: evalMeta.key,
-                        evalCase,
-                        globalTraceDisplay,
-                        globalColumns: config.columns,
-                        globalDeriveFromTracing: config.deriveFromTracing,
-                        llmCallsConfig,
-                        apiCallsConfig,
-                        globalRemoveDefaultConfig: config.removeDefaultConfig,
-                        trial,
-                        startTime,
-                        cacheAdapter:
-                          bufferedCacheStore ??
-                          (cacheEnabled ? cacheStore : null),
-                        cacheMode,
-                        moduleIsolation,
-                        evalFilePath,
-                        evalFileRelativePath: evalMeta.filePath,
-                        workspaceRoot,
-                        artifactDir: join(runDir, 'artifacts'),
-                        runId: runState.manifest.id,
-                      });
+                      const { caseDetail, caseRowUpdate } =
+                        await useIsolatedEvalDefinition({
+                          evalId: evalMeta.id,
+                          evalFilePath,
+                          sourceFingerprint:
+                            toOptionalSourceFingerprint(sourceFingerprint),
+                          moduleIsolation: caseModuleIsolation,
+                          runtimeScope: 'env',
+                          use: async (isolatedEvalDef) =>
+                            await runCase({
+                              evalDef: isolatedEvalDef,
+                              evalId: evalMeta.id,
+                              evalKey: evalMeta.key,
+                              evalCase,
+                              globalTraceDisplay,
+                              globalColumns: config.columns,
+                              globalDeriveFromTracing: config.deriveFromTracing,
+                              llmCallsConfig,
+                              apiCallsConfig,
+                              globalRemoveDefaultConfig:
+                                config.removeDefaultConfig,
+                              trial,
+                              startTime,
+                              cacheAdapter:
+                                bufferedCacheStore ??
+                                (cacheEnabled ? cacheStore : null),
+                              cacheMode,
+                              moduleIsolation: caseModuleIsolation,
+                              evalFilePath,
+                              evalFileRelativePath: evalMeta.filePath,
+                              workspaceRoot,
+                              artifactDir: join(runDir, 'artifacts'),
+                              runId: runState.manifest.id,
+                            }),
+                        });
 
                       return {
                         caseDetail,

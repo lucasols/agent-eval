@@ -10,6 +10,7 @@ const mockRunner = vi.hoisted(() => ({
   getConfigReloadState: vi.fn(),
   validateManualInputs: vi.fn(),
   startRun: vi.fn(),
+  promoteRun: vi.fn(),
   getWorkspaceRoot: vi.fn(),
 }));
 
@@ -58,6 +59,37 @@ beforeEach(() => {
       errorMessage: null,
     },
     cases: [],
+  });
+  mockRunner.promoteRun.mockResolvedValue({
+    promoted: true,
+    run: {
+      manifest: {
+        id: 'run-1',
+        shortId: 'r0',
+        status: 'completed',
+        temporary: false,
+        startedAt: '2026-05-01T00:00:00.000Z',
+        endedAt: '2026-05-01T00:00:01.000Z',
+        commitSha: null,
+        evalSourceFingerprints: {},
+        target: { mode: 'all' },
+        trials: 1,
+        trialSelection: 'lowestScore',
+        cacheMode: 'use',
+      },
+      summary: {
+        runId: 'run-1',
+        status: 'completed',
+        totalCases: 0,
+        passedCases: 0,
+        failedCases: 0,
+        errorCases: 0,
+        cancelledCases: 0,
+        totalDurationMs: 1000,
+        errorMessage: null,
+      },
+      cases: [],
+    },
   });
 });
 
@@ -171,5 +203,32 @@ describe('runs route config reload guard', () => {
     expect(responseBody.message).toContain(
       'manual input file vanished before run start',
     );
+  });
+
+  test('promotes a temporary run through to the runner', async () => {
+    const response = await app.request('/runs/run-1/promote', {
+      method: 'POST',
+    });
+
+    expect(response.status).toBe(200);
+    expect(mockRunner.promoteRun).toHaveBeenCalledWith('run-1');
+    await expect(response.json()).resolves.toMatchObject({
+      promoted: true,
+      run: { manifest: { id: 'run-1', temporary: false } },
+    });
+  });
+
+  test('returns not found when promoting a missing run', async () => {
+    mockRunner.promoteRun.mockResolvedValue({ promoted: false });
+
+    const response = await app.request('/runs/missing-run/promote', {
+      method: 'POST',
+    });
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({
+      error: 'Run not found',
+      promoted: false,
+    });
   });
 });

@@ -363,6 +363,10 @@ function normalizeDynamicString(workspacePath: string, value: string): string {
       '?v=<source-fingerprint>&agent-evals-isolate=',
     )
     .replace(/\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z_[a-z0-9]+/g, '<run-id>')
+    .replace(
+      /agent-evals-isolate=<run-id>(?:%3A[^:)\s"]+)*/g,
+      'agent-evals-isolate=<run-id>',
+    )
     .replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/g, '<timestamp>')
     .replace(/span_\d+_\d+/g, '<span-id>')
     .replace(/http:\/\/127\.0\.0\.1:\d+/g, 'http://127.0.0.1:<port>')

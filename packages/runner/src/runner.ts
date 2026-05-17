@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import { resolve, join, relative } from 'node:path';
-import { getEvalRegistry, type EvalManualInputConfig } from '@agent-evals/sdk';
+import type { EvalManualInputConfig } from '@agent-evals/sdk';
 import type {
   EvalSummary,
   RunManifest,
@@ -30,7 +30,7 @@ import { loadConfig } from './config.ts';
 import { createConfigReloadController } from './configReload.ts';
 import { resolveEvalDefaultConfig } from './defaultConfig.ts';
 import { parseEvalDiscovery } from './discovery.ts';
-import { loadEvalModule } from './evalModuleLoader.ts';
+import { loadIsolatedEvalRegistry } from './evalRegistryLoader.ts';
 import { buildEvalSummary, setLatestRunInfoMap } from './evalSummaries.ts';
 import { readGitWorktreeState } from './gitState.ts';
 import { resolveManualInputDiscovery } from './manualInput/discovery.ts';
@@ -100,6 +100,7 @@ export function createRunner({
   let runHistoryWatcher: FSWatcher | undefined;
   let discoveryRefreshTimer: ReturnType<typeof setTimeout> | undefined;
   let runHistoryRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+  let registryLoadCounter = 0;
   const configReload = createConfigReloadController({
     getActiveRunCount,
     closeRunnerWatchers: closeWatchers,
@@ -130,6 +131,14 @@ export function createRunner({
     return createHash('sha256').update(source).digest('hex');
   }
 
+  function nextRegistryLoadIsolationKey(
+    prefix: string,
+    filePath: string,
+  ): string {
+    registryLoadCounter++;
+    return `${prefix}:${String(registryLoadCounter)}:${filePath}`;
+  }
+
   const runner: EvalRunner = {
     async init() {
       await loadRunnerState();
@@ -147,11 +156,18 @@ export function createRunner({
       const evalMeta = resolveEvalMeta(evalKey);
       if (!evalMeta) return { updatedRuns: 0 };
 
-      const registry = getEvalRegistry();
-      await loadEvalModule(
-        evalMeta.sourceFilePath,
-        evalMeta.sourceFingerprint ?? undefined,
-      );
+      const registry = await loadIsolatedEvalRegistry({
+        evalFilePath: evalMeta.sourceFilePath,
+        sourceFingerprint: evalMeta.sourceFingerprint ?? undefined,
+        moduleIsolation: {
+          key: nextRegistryLoadIsolationKey(
+            'recompute-status',
+            evalMeta.sourceFilePath,
+          ),
+          workspaceRoot,
+        },
+        runtimeScope: 'env',
+      });
       const entry = registry.get(evalMeta.id);
       if (!entry) return { updatedRuns: 0 };
 
@@ -291,6 +307,22 @@ export function createRunner({
       emitDiscoveryEvent();
       return { deleted: true };
     },
+    async promoteRun(runId) {
+      const run = runs.get(runId);
+      if (!run) return { promoted: false };
+
+      const wasTemporary = run.manifest.temporary === true;
+      if (wasTemporary) {
+        run.manifest.temporary = false;
+        await persistRunState(run);
+        emitDiscoveryEvent();
+      }
+
+      return {
+        promoted: wasTemporary,
+        run: { manifest: run.manifest, summary: run.summary, cases: run.cases },
+      };
+    },
     validateManualInputs(request) {
       return validateManualInputsForRequest({
         evalMetas: getSortedEvalMetas(),
@@ -359,18 +391,24 @@ export function createRunner({
             })),
           );
           const sourceFingerprint = getSourceFingerprint(content);
-          const registry = getEvalRegistry();
-          let moduleLoaded = false;
+          let loadedRegistry:
+            | Awaited<ReturnType<typeof loadIsolatedEvalRegistry>>
+            | undefined;
           try {
-            await loadEvalModule(filePath, sourceFingerprint);
-            moduleLoaded = true;
+            loadedRegistry = await loadIsolatedEvalRegistry({
+              evalFilePath: filePath,
+              sourceFingerprint,
+              moduleIsolation: {
+                key: nextRegistryLoadIsolationKey('discovery', filePath),
+                workspaceRoot,
+              },
+              runtimeScope: 'env',
+            });
           } catch {
             // Fall back to statically parsed metadata when the module fails to load.
           }
           for (const meta of discoveredMetas) {
-            const discoveredEntry = moduleLoaded
-              ? registry.get(meta.id)
-              : undefined;
+            const discoveredEntry = loadedRegistry?.get(meta.id);
             const title = meta.title;
             let columnDefs = buildDeclaredColumnDefs(
               undefined,

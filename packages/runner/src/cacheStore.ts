@@ -118,16 +118,20 @@ export function createFsCacheStore(options: {
       const entry = await readCacheEntry(cacheDir, namespace, keyHash);
       return entry === null
         ? null
-        : await materializeExternalJsonCacheEntry(entry, externalJsonStore);
+        : await materializeExternalJsonCacheEntryOrNull(
+            entry,
+            externalJsonStore,
+          );
     },
 
     async lookupWithDebug(namespace, keyHash) {
       const rawEntry = await readCacheEntry(cacheDir, namespace, keyHash);
       if (rawEntry === null) return null;
-      const entry = await materializeExternalJsonCacheEntry(
+      const entry = await materializeExternalJsonCacheEntryOrNull(
         rawEntry,
         externalJsonStore,
       );
+      if (entry === null) return null;
       const debugKey = await readDebugEntry(debugDir, namespace, keyHash);
       const deserializedEntry: CacheEntry = {
         ...entry,
@@ -255,7 +259,7 @@ export function createBufferedCacheStore(
       if (buffered !== undefined) {
         return backingStore.externalJsonStore === undefined
           ? buffered.entry
-          : await materializeExternalJsonCacheEntry(
+          : await materializeExternalJsonCacheEntryOrNull(
               buffered.entry,
               backingStore.externalJsonStore,
             );
@@ -739,6 +743,16 @@ async function materializeExternalJsonCacheEntry(
       await materializeExternalJsonValues(entry.recording, store),
     ),
   };
+}
+
+async function materializeExternalJsonCacheEntryOrNull(
+  entry: CacheEntry,
+  store: CacheSerializationExternalJsonStore,
+): Promise<CacheEntry | null> {
+  const result = await resultify(() =>
+    materializeExternalJsonCacheEntry(entry, store),
+  );
+  return result.error ? null : result.value;
 }
 
 async function pruneExternalJsonBlobs(

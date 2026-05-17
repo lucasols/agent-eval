@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const isolationParam = 'agent-evals-isolate';
 const pathSegmentSeparatorPattern = /[\\/]+/;
 
-type ModuleIsolationContext = { key: string; workspaceRoot: string };
+export type ModuleIsolationContext = { key: string; workspaceRoot: string };
 
 const isolationStorage = new AsyncLocalStorage<ModuleIsolationContext>();
 const activeIsolationRoots = new Map<string, string>();
@@ -53,13 +53,16 @@ function getIsolationKeyFromParent(
   return activeIsolationRoots.has(value ?? '') ? value : null;
 }
 
-function isWorkspaceFile(url: URL, workspaceRoot: string): boolean {
+function isIsolatableFile(url: URL, workspaceRoot: string): boolean {
   if (url.protocol !== 'file:') return false;
 
-  return isWorkspaceFilePath(fileURLToPath(url), workspaceRoot);
+  return isIsolatableFilePath(fileURLToPath(url), workspaceRoot);
 }
 
-function isWorkspaceFilePath(filePath: string, workspaceRoot: string): boolean {
+function isIsolatableFilePath(
+  filePath: string,
+  workspaceRoot: string,
+): boolean {
   const relativePath = relative(workspaceRoot, filePath);
   if (
     relativePath === '' ||
@@ -70,9 +73,7 @@ function isWorkspaceFilePath(filePath: string, workspaceRoot: string): boolean {
   }
 
   const segments = relativePath.split(pathSegmentSeparatorPattern);
-  return (
-    !segments.includes('node_modules') && !segments.includes('.agent-evals')
-  );
+  return !segments.includes('.agent-evals');
 }
 
 function addIsolationParam(url: string, key: string): string {
@@ -106,7 +107,7 @@ function registerModuleIsolationHooks(): void {
       if (workspaceRoot === undefined) return resolved;
 
       const resolvedUrl = new URL(resolved.url);
-      if (!isWorkspaceFile(resolvedUrl, workspaceRoot)) return resolved;
+      if (!isIsolatableFile(resolvedUrl, workspaceRoot)) return resolved;
 
       return {
         ...resolved,
@@ -121,20 +122,20 @@ function clearWorkspaceRequireCacheOnce(context: ModuleIsolationContext): void {
   clearedRequireCacheKeys.add(context.key);
 
   for (const filePath of Object.keys(requireFromRunner.cache)) {
-    if (isWorkspaceFilePath(filePath, context.workspaceRoot)) {
+    if (isIsolatableFilePath(filePath, context.workspaceRoot)) {
       delete requireFromRunner.cache[filePath];
     }
   }
 }
 
 /**
- * Execute module loading and eval code with fresh workspace module URLs.
+ * Execute module loading and eval code with fresh module URLs.
  *
  * Node does not expose an ESM cache reset API, so the runner appends a
- * run-scoped query parameter to workspace file imports. CommonJS modules use
- * `require.cache` behind ESM imports, so workspace entries are cleared once per
- * run. Package imports are left alone so SDK singletons, such as the eval
- * registry, remain shared.
+ * scoped query parameter to workspace and dependency file imports. CommonJS
+ * modules use `require.cache` behind ESM imports, so isolatable entries are
+ * cleared once per scope. Agent Evals package imports are left alone so SDK
+ * singletons, such as the eval registry, remain shared.
  */
 export async function runWithModuleIsolation<T>(
   context: ModuleIsolationContext,

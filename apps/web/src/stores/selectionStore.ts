@@ -27,6 +27,7 @@ type SelectionState = {
   selection: Selection;
   collapsedFolders: Set<string>;
   statusFilters: Set<EvalDisplayStatus>;
+  tagFilters: Set<string>;
   searchQuery: string;
 };
 
@@ -77,6 +78,38 @@ function writeStatusFiltersToSearchParams(
   }
 }
 
+function readTagFiltersFromSearchParams(
+  searchParams: URLSearchParams,
+): Set<string> {
+  const tagFilters = new Set<string>();
+  for (const rawValue of searchParams.getAll('tag')) {
+    for (const value of rawValue.split(',')) {
+      const trimmed = value.trim();
+      if (trimmed.length > 0) tagFilters.add(trimmed);
+    }
+  }
+  return tagFilters;
+}
+
+function sameTagFilters(left: Set<string>, right: Set<string>): boolean {
+  if (left.size !== right.size) return false;
+  for (const tag of left) {
+    if (!right.has(tag)) return false;
+  }
+  return true;
+}
+
+function writeTagFiltersToSearchParams(
+  searchParams: URLSearchParams,
+  tagFilters: Set<string>,
+): void {
+  searchParams.delete('tag');
+  const sortedTags = [...tagFilters].toSorted();
+  for (const tag of sortedTags) {
+    searchParams.append('tag', tag);
+  }
+}
+
 function readSelectionFromSearchParams(
   searchParams: URLSearchParams,
 ): Selection {
@@ -93,12 +126,16 @@ const initialSelection = readSelectionFromSearchParams(
 const initialStatusFilters = readStatusFiltersFromSearchParams(
   getCurrentSearchParams(),
 );
+const initialTagFilters = readTagFiltersFromSearchParams(
+  getCurrentSearchParams(),
+);
 
 export const selectionStore = new Store<SelectionState>({
   state: {
     selection: initialSelection,
     collapsedFolders: new Set<string>(),
     statusFilters: initialStatusFilters,
+    tagFilters: initialTagFilters,
     searchQuery: '',
   },
 });
@@ -130,6 +167,7 @@ function sameSelection(left: Selection, right: Selection): boolean {
 function applySelectionFromUrl(
   selection: Selection,
   statusFilters: Set<EvalDisplayStatus>,
+  tagFilters: Set<string>,
 ): void {
   selectionStore.setState((prev) => {
     let collapsedFolders = prev.collapsedFolders;
@@ -153,12 +191,18 @@ function applySelectionFromUrl(
       prev.statusFilters,
       statusFilters,
     );
+    const tagFiltersChanged = !sameTagFilters(prev.tagFilters, tagFilters);
 
-    if (!selectionChanged && !collapsedChanged && !statusFiltersChanged) {
+    if (
+      !selectionChanged &&
+      !collapsedChanged &&
+      !statusFiltersChanged &&
+      !tagFiltersChanged
+    ) {
       return prev;
     }
 
-    return { ...prev, selection, collapsedFolders, statusFilters };
+    return { ...prev, selection, collapsedFolders, statusFilters, tagFilters };
   });
 }
 
@@ -208,6 +252,33 @@ export function toggleEvalStatusFilter(status: EvalDisplayStatus): void {
   });
 }
 
+/**
+ * Toggle a tag in the active eval tag filter set. When at least one tag is
+ * active, eval lists keep only evals whose tags include any selected tag.
+ */
+export function toggleEvalTagFilter(tag: string): void {
+  const tagFilters = new Set(selectionStore.state.tagFilters);
+  if (tagFilters.has(tag)) {
+    tagFilters.delete(tag);
+  } else {
+    tagFilters.add(tag);
+  }
+
+  selectionStore.setPartialState({ tagFilters });
+  updateSearchParams((searchParams) => {
+    writeTagFiltersToSearchParams(searchParams, tagFilters);
+  });
+}
+
+/** Clear every active eval tag filter. */
+export function clearEvalTagFilters(): void {
+  if (selectionStore.state.tagFilters.size === 0) return;
+  selectionStore.setPartialState({ tagFilters: new Set<string>() });
+  updateSearchParams((searchParams) => {
+    searchParams.delete('tag');
+  });
+}
+
 export function toggleFolder(path: string): void {
   selectionStore.setState((prev) => {
     const next = new Set(prev.collapsedFolders);
@@ -248,5 +319,6 @@ export function syncSelectionFromSearchParams(
 ): void {
   const selection = readSelectionFromSearchParams(searchParams);
   const statusFilters = readStatusFiltersFromSearchParams(searchParams);
-  applySelectionFromUrl(selection, statusFilters);
+  const tagFilters = readTagFiltersFromSearchParams(searchParams);
+  applySelectionFromUrl(selection, statusFilters, tagFilters);
 }

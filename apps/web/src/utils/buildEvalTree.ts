@@ -264,6 +264,47 @@ export function filterEvalsByStatuses(
 }
 
 /**
+ * Filter evals by an active set of tag filters. An eval matches when its
+ * effective tags include at least one selected tag (OR semantics). Returns the
+ * input unchanged when no tag filters are active.
+ */
+export function filterEvalsByTags(
+  evals: EvalSummary[],
+  tags: Set<string>,
+): EvalSummary[] {
+  if (tags.size === 0) return evals;
+  return evals.filter((ev) => {
+    const evalTags = ev.tags;
+    if (!evalTags || evalTags.length === 0) return false;
+    return evalTags.some((tag) => tags.has(tag));
+  });
+}
+
+/**
+ * Aggregate the distinct tags discovered across the provided evals together
+ * with how many evals carry each tag. Returned entries are sorted by descending
+ * count, then alphabetically for stability.
+ */
+export function getTagBreakdown(
+  evals: EvalSummary[],
+): { tag: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const ev of evals) {
+    const tags = ev.tags;
+    if (!tags) continue;
+    for (const tag of tags) {
+      counts.set(tag, (counts.get(tag) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return a.tag.localeCompare(b.tag);
+    });
+}
+
+/**
  * Filter evals by a free-text query using fuzzy matching. Matches against the
  * eval id, the resolved title, and the file path so folder/file names are
  * searchable too. Returns the input unchanged when the query is empty.

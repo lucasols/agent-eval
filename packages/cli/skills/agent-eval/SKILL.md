@@ -30,7 +30,8 @@ display rules), read the TypeScript declarations shipped with the package:
   `agent-evals.config.ts` to opt into run-all CLI behavior.
 - `agent-evals run --temporary` persists a run like normal history, but deletes
   it before the next run starts. Temporary runs appear in `show-runs` while
-  present; normal runs are never deleted by temporary-run cleanup.
+  present; normal runs are never deleted by temporary-run cleanup. In the app,
+  the run drawer can promote a temporary run to durable history.
 - `agent-evals app` watches `agent-evals.config.ts` and reloads config in
   place when the runner is idle. If config changes during an active run, the
   reload applies after the current run reaches a terminal state.
@@ -566,6 +567,9 @@ For true module replacement inside an eval, register `mock.module(...)` from
 Node's `--experimental-test-module-mocks` flag automatically for CLI and app
 runs. Use dynamic
 `import(...)` inside `execute` — static imports happen too early.
+Each case/trial reloads the eval module graph in its own isolation scope, so
+module-level mock state in workspace files and ESM dependencies does not leak
+between concurrent cases.
 
 ```ts
 import { mock } from 'node:test';

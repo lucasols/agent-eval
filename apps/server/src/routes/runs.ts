@@ -139,6 +139,15 @@ export const runsRoutes = new Hono()
     await runner.cancelRun(runId);
     return c.json({ ok: true }, 200);
   })
+  .post('/:runId/promote', async (c) => {
+    const runId = c.req.param('runId');
+    const runner = getRunnerInstance();
+    const result = await runner.promoteRun(runId);
+    if (!('run' in result)) {
+      return c.json({ error: 'Run not found', promoted: false }, 404);
+    }
+    return c.json(result, 200);
+  })
   .delete('/:runId', async (c) => {
     const runId = c.req.param('runId');
     const runner = getRunnerInstance();

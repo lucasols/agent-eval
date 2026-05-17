@@ -70,7 +70,7 @@ pnpm add -D @ls-stack/agent-eval
    });
    ```
 
-3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). Use the sidebar status counts to filter visible evals by one or more states. Running evals show a blinking dot in navigation and an elapsed-time status badge on the eval page. On an eval page, the Run chevron can open a case picker for running a selected subset of authored cases; case-picked runs are temporary by default and can be made durable in the modal. The app can also filter the runs table by applicable result or recent-activity buckets, share that filter through the URL, and clear the currently filtered saved runs when needed. The run drawer can copy the saved run folder path for quick artifact inspection. Each eval's actions menu can copy matching CLI run and debug commands using the workspace package manager. The app watches `agent-evals.config.ts` and reloads config in place when idle; if the file changes during a run, the UI shows a pending banner and new runs are blocked until the current run finishes and the reload applies.
+3. **Open the UI** — `agent-evals app` serves it at `http://localhost:4100` (override with `--port`). Use the sidebar status counts to filter visible evals by one or more states, or open the **Tags** filter to narrow the list to evals carrying selected tags (the picker is searchable so workspaces with many tags stay compact); both filters can be combined and round-trip through URL search params (`?status=…`, `?tag=…`). Running evals show a blinking dot in navigation and an elapsed-time status badge on the eval page. On an eval page, the Run chevron can open a case picker for running a selected subset of authored cases; case-picked runs are temporary by default and can be made durable in the modal. The app can also filter the runs table by applicable result or recent-activity buckets, share that filter through the URL, and clear the currently filtered saved runs when needed. The run drawer can copy the saved run folder path for quick artifact inspection and can keep a temporary run as durable history. Each eval's actions menu can copy matching CLI run and debug commands using the workspace package manager. The app watches `agent-evals.config.ts` and reloads config in place when idle; if the file changes during a run, the UI shows a pending banner and new runs are blocked until the current run finishes and the reload applies.
 
 4. **Or use the CLI**:
 
@@ -89,7 +89,7 @@ pnpm add -D @ls-stack/agent-eval
 
    Use `agent-evals show-runs` to print saved run directories and stable artifact file paths. Run ids can be full timestamp ids, short ids such as `r0`, or `latest`.
 
-   Run artifacts are persisted under `.agent-evals/runs/<run-id>/` with `run.json`, `summary.json`, per-case `cases.jsonl`, case detail JSON files, and trace JSON files for the executed cases. In `run.json`, targeted evals are recorded by exact `evalKeys` (`filePath + evalId`) rather than authored eval ids, so duplicate eval ids stay unambiguous. Temporary runs are persisted and visible while present, then deleted before the next run starts.
+   Run artifacts are persisted under `.agent-evals/runs/<run-id>/` with `run.json`, `summary.json`, per-case `cases.jsonl`, case detail JSON files, and trace JSON files for the executed cases. In `run.json`, targeted evals are recorded by exact `evalKeys` (`filePath + evalId`) rather than authored eval ids, so duplicate eval ids stay unambiguous. Temporary runs are persisted and visible while present, then deleted before the next run starts unless promoted to durable history from the app run drawer.
 
 A complete working example lives at [`examples/basic-agent`](./examples/basic-agent).
 
@@ -117,6 +117,9 @@ convenience scripts.
 For true module replacement, use `mock.module(...)` from `node:test` and
 register the mock before dynamically importing the module graph you want to
 exercise.
+Each case/trial reloads the eval module graph in its own isolation scope, so
+module-level mock state in workspace files and ESM dependencies does not leak
+between concurrent cases.
 
 Node requires the `--experimental-test-module-mocks` flag for this API, and
 Agent Evals enables it automatically for CLI and app runs:
@@ -220,6 +223,10 @@ build also bundles the web UI assets used by `agent-evals app`.
 | `removeDefaultConfig` | `true \| DefaultConfigKey[]?`   | Remove built-in eval-level outputs, columns, stats, and charts                          |
 | `apiCalls`            | `ApiCallsConfig?`               | API calls tab config for the case-run drawer (kinds, attribute paths, custom metrics)   |
 | `runLogs`             | `{ captureConsole?: boolean }?` | Case log capture config; set `captureConsole: false` to stop persisting console calls   |
+
+Each run executes in a separate child process. Within that run, every case and
+trial gets its own module-isolation scope while still respecting `concurrency`,
+so module-level state used by mocks is not shared across parallel cases.
 
 When `trials > 1`, the runner executes the case repeatedly but persists a
 single winning result per case. `lowestScore` is the default. `median` uses the

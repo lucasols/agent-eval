@@ -24,7 +24,9 @@ async function writeTrialSelectionEval(
 
   await writeFile(
     join(workspacePath, 'evals', 'trial-selection.eval.ts'),
-    `import { defineEval, setEvalOutput, evalTracer, evalSpan } from '@ls-stack/agent-eval';
+    `import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { defineEval, setEvalOutput, evalTracer, evalSpan } from '@ls-stack/agent-eval';
 
 const candidates = [
   {
@@ -44,11 +46,18 @@ const candidates = [
   },
 ];
 
-let executionCount = 0;
+const counterPath = resolve('.agent-evals', 'trial-selection-counter.txt');
 
 function nextCandidate() {
+  const rawCount = existsSync(counterPath)
+    ? Number(readFileSync(counterPath, 'utf8'))
+    : 0;
+  const executionCount = Number.isFinite(rawCount) ? rawCount : 0;
+  writeFileSync(counterPath, String(executionCount + 1));
   const candidate = candidates[executionCount % candidates.length];
-  executionCount += 1;
+  if (candidate === undefined) {
+    throw new Error('Missing trial candidate');
+  }
   return candidate;
 }
 
@@ -517,7 +526,7 @@ defineEval({
       expect(summary.totalCases).toBe(1);
       expect(artifacts.manifest.target).toEqual({
         caseIds: ['simple-text'],
-        evalIds: ['refund-workflow'],
+        evalKeys: ['evals%2Frefund-workflow.eval.ts#refund-workflow'],
         mode: 'caseIds',
       });
       expect(artifacts.cases.map((caseRow) => caseRow.caseId)).toEqual([

@@ -30,6 +30,7 @@ import {
   deriveCombinedStatus,
   filterEvalsBySearchQuery,
   filterEvalsByStatuses,
+  filterEvalsByTags,
   formatStatusBreakdown,
   getEvalSummaryDisplayStatus,
   getStatusBreakdown,
@@ -222,13 +223,19 @@ export function EvalTree() {
   const evalsResult = evalSummariesStore.useDocument();
   const evals = evalsResult.data ?? [];
   const error = evalsResult.error?.message ?? null;
-  const { selection, collapsedFolders, statusFilters, searchQuery } =
-    selectionStore.useSelectorRC((s) => ({
-      selection: s.selection,
-      collapsedFolders: s.collapsedFolders,
-      statusFilters: s.statusFilters,
-      searchQuery: s.searchQuery,
-    }));
+  const {
+    selection,
+    collapsedFolders,
+    statusFilters,
+    tagFilters,
+    searchQuery,
+  } = selectionStore.useSelectorRC((s) => ({
+    selection: s.selection,
+    collapsedFolders: s.collapsedFolders,
+    statusFilters: s.statusFilters,
+    tagFilters: s.tagFilters,
+    searchQuery: s.searchQuery,
+  }));
   const { currentRun } = runStore.useSelectorRC((s) => ({
     currentRun: s.currentRun,
   }));
@@ -295,10 +302,8 @@ export function EvalTree() {
     statusFilters,
     isEvalRunning,
   );
-  const visibleEvals = filterEvalsBySearchQuery(
-    statusFilteredEvals,
-    searchQuery,
-  );
+  const tagFilteredEvals = filterEvalsByTags(statusFilteredEvals, tagFilters);
+  const visibleEvals = filterEvalsBySearchQuery(tagFilteredEvals, searchQuery);
   const hasActiveSearch = searchQuery.trim().length > 0;
 
   if (visibleEvals.length === 0) {
@@ -308,7 +313,7 @@ export function EvalTree() {
         <EmptyBody>
           {hasActiveSearch
             ? `No evals match "${searchQuery.trim()}".`
-            : 'The active status filters hide every eval.'}
+            : 'The active filters hide every eval.'}
         </EmptyBody>
       </Empty>
     );

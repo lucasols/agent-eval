@@ -80,7 +80,9 @@ defineEval({
             {
               "caseId": "invalid-output",
               "columns": {
+                "llmTurns": 0,
                 "response": 42,
+                "toolCalls": 0,
                 "unconfiguredNote": "kept as-is",
               },
               "status": "fail",

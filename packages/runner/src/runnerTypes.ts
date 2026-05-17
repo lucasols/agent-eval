@@ -131,6 +131,21 @@ export type EvalRunner = {
    */
   deleteRun(runId: string): Promise<{ deleted: boolean }>;
   /**
+   * Convert a temporary persisted run into durable run history.
+   *
+   * Returns the updated run when found. Already-durable runs are treated as a
+   * no-op success so UI callers can refresh their cached copy idempotently.
+   */
+  promoteRun(
+    runId: string,
+  ): Promise<
+    | {
+        promoted: boolean;
+        run: { manifest: RunManifest; summary: RunSummary; cases: CaseRow[] };
+      }
+    | { promoted: false }
+  >;
+  /**
    * Validate a `CreateRunRequest`'s `manualInputs` map against each targeted
    * eval's authored `manualInput.schema`. Returns `ok: true` with the parsed
    * values keyed by eval key, or `ok: false` with structured per-eval issues

@@ -5,6 +5,7 @@ import { styled } from 'vindur';
 import { EvalTree } from '#src/components/EvalTree';
 import { LoadingIcon } from '#src/components/LoadingState';
 import { ResizeHandle } from '#src/components/ResizeHandle';
+import { TagFilter } from '#src/components/TagFilter';
 import { Tooltip } from '#src/components/Tooltip';
 import { useResizableWidth } from '#src/hooks/useResizableWidth';
 import { evalSummariesStore } from '#src/stores/evalsStore';
@@ -17,6 +18,7 @@ import {
 } from '#src/stores/layoutStore';
 import { runStore } from '#src/stores/runStore';
 import {
+  clearEvalTagFilters,
   collapseAllFolders,
   EVAL_STATUS_FILTER_OPTIONS,
   expandAllFolders,
@@ -24,6 +26,7 @@ import {
   selectFolder,
   setSearchQuery,
   toggleEvalStatusFilter,
+  toggleEvalTagFilter,
 } from '#src/stores/selectionStore';
 import { colors } from '#src/style/colors';
 import { inline, kicker, stack, transition } from '#src/style/helpers';
@@ -32,7 +35,9 @@ import {
   collectCollapsiblePaths,
   filterEvalsBySearchQuery,
   filterEvalsByStatuses,
+  filterEvalsByTags,
   getStatusBreakdown,
+  getTagBreakdown,
 } from '#src/utils/buildEvalTree';
 
 const Root = styled.aside`
@@ -323,13 +328,19 @@ export function Sidebar() {
   const evalsResult = evalSummariesStore.useDocument();
   const evals = evalsResult.data ?? [];
   const evalsAreLoading = evalsResult.isLoading && evals.length === 0;
-  const { collapsedFolders, selection, statusFilters, searchQuery } =
-    selectionStore.useSelectorRC((s) => ({
-      collapsedFolders: s.collapsedFolders,
-      selection: s.selection,
-      statusFilters: s.statusFilters,
-      searchQuery: s.searchQuery,
-    }));
+  const {
+    collapsedFolders,
+    selection,
+    statusFilters,
+    tagFilters,
+    searchQuery,
+  } = selectionStore.useSelectorRC((s) => ({
+    collapsedFolders: s.collapsedFolders,
+    selection: s.selection,
+    statusFilters: s.statusFilters,
+    tagFilters: s.tagFilters,
+    searchQuery: s.searchQuery,
+  }));
   const { currentRun } = runStore.useSelectorRC((s) => ({
     currentRun: s.currentRun,
   }));
@@ -354,10 +365,8 @@ export function Sidebar() {
     statusFilters,
     isEvalRunning,
   );
-  const filteredEvals = filterEvalsBySearchQuery(
-    statusFilteredEvals,
-    searchQuery,
-  );
+  const tagFilteredEvals = filterEvalsByTags(statusFilteredEvals, tagFilters);
+  const filteredEvals = filterEvalsBySearchQuery(tagFilteredEvals, searchQuery);
   const hasActiveSearch = searchQuery.trim().length > 0;
   const statusBreakdown = getStatusBreakdown(evals, isEvalRunning);
   const statusFilterItems = EVAL_STATUS_FILTER_OPTIONS.map((status) => ({
@@ -366,6 +375,7 @@ export function Sidebar() {
     active: statusFilters.has(status),
     tone: getStatusTone(status),
   })).filter(({ count, active }) => !evalsAreLoading && (count > 0 || active));
+  const tagBreakdown = useMemo(() => getTagBreakdown(evals), [evals]);
   const collapsiblePaths = useMemo(
     () => collectCollapsiblePaths(buildEvalTree(filteredEvals)),
     [filteredEvals],
@@ -445,6 +455,14 @@ export function Sidebar() {
           ))}
         </StatusFilters>
       ) : null}
+      {!evalsAreLoading ? (
+        <TagFilter
+          availableTags={tagBreakdown}
+          selectedTags={tagFilters}
+          onToggleTag={toggleEvalTagFilter}
+          onClearAll={clearEvalTagFilters}
+        />
+      ) : null}
       <SectionHeader>
         <SectionLabel
           type="button"
@@ -474,7 +492,9 @@ export function Sidebar() {
           <SectionCounter>
             {evalsAreLoading ? (
               <LoadingIcon size="small" />
-            ) : statusFilters.size > 0 || hasActiveSearch ? (
+            ) : statusFilters.size > 0 ||
+              tagFilters.size > 0 ||
+              hasActiveSearch ? (
               `${filteredEvals.length}/${evals.length}`
             ) : (
               evals.length

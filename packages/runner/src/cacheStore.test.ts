@@ -288,6 +288,39 @@ describe('filesystem cache store raw-key debug storage', () => {
     expect(existsSync(resolve(store.blobDir(), blobPath))).toBe(false);
   });
 
+  test('treats entries with missing external JSON blobs as cache misses', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
+    const rows = Array.from({ length: 160 }, (_, index) => ({
+      index,
+      message: 'repeatable nested tree payload',
+      status: index % 2 === 0 ? 'pass' : 'fail',
+    }));
+    const entry = cacheEntry({ key: 'hashed-key' });
+    entry.recording = await serializeCacheRecording(
+      { returnValue: { payload: { rows } }, finalAttributes: {}, ops: [] },
+      { externalJsonStore: store.externalJsonStore },
+    );
+
+    await store.write(entry, {
+      rawKey: { prompt: 'serializable' },
+      operationType: 'span',
+      operationName: 'expensive-op',
+    });
+
+    const cacheFile = await readCacheEntry(workspacePath, 'hashed-key');
+    const blobRef = getNestedExternalJsonRef(cacheFile.recording.returnValue);
+    const blobPath = getStringProperty(blobRef, 'path');
+    await rm(resolve(store.blobDir(), blobPath), { force: true });
+
+    await expect(
+      store.lookup(defaultNamespace, 'hashed-key'),
+    ).resolves.toBeNull();
+    await expect(
+      store.lookupWithDebug(defaultNamespace, 'hashed-key'),
+    ).resolves.toBeNull();
+  });
+
   test('reuses the same external blob path for identical nested JSON', async () => {
     const workspacePath = await createWorkspace();
     const store = createFsCacheStore({ workspaceRoot: workspacePath });

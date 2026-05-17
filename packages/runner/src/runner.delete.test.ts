@@ -1,6 +1,7 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { runManifestSchema } from '@agent-evals/shared';
 import { afterEach, describe, expect, test } from 'vitest';
 import { createRunner } from './runner.ts';
 
@@ -230,6 +231,54 @@ defineEval({ id: 'delete-eval', title: 'Delete Eval' });
       expect(runner.getRuns().map((run) => run.id)).toEqual([
         normalRun.manifest.id,
       ]);
+      await runner.close();
+    });
+  });
+
+  test('keeps a promoted temporary run when the next run starts', async () => {
+    const workspacePath = await createTemporaryRunWorkspace();
+
+    await withWorkspace(workspacePath, async () => {
+      const runner = createRunner({ watchForChanges: false });
+      await runner.init();
+
+      const temporaryRun = await runner.startRun({
+        target: { mode: 'evalIds', evalIds: ['fast-run'] },
+        trials: 1,
+        temporary: true,
+      });
+      await waitForRunStatus(runner, temporaryRun.manifest.id, 'completed');
+
+      const promoted = await runner.promoteRun(temporaryRun.manifest.id);
+      expect(promoted.promoted).toBe(true);
+      expect(runner.getRun(temporaryRun.manifest.id)?.manifest.temporary).toBe(
+        false,
+      );
+
+      const persistedManifest = runManifestSchema.parse(
+        JSON.parse(
+          await readFile(
+            join(
+              workspacePath,
+              '.agent-evals',
+              'runs',
+              temporaryRun.manifest.id,
+              'run.json',
+            ),
+            'utf-8',
+          ),
+        ),
+      );
+      expect(persistedManifest.temporary).toBe(false);
+
+      const normalRun = await runner.startRun({
+        target: { mode: 'evalIds', evalIds: ['fast-run'] },
+        trials: 1,
+      });
+      await waitForRunStatus(runner, normalRun.manifest.id, 'completed');
+
+      expect(runner.getRun(temporaryRun.manifest.id)).toBeDefined();
+      expect(runner.getRun(normalRun.manifest.id)).toBeDefined();
       await runner.close();
     });
   });

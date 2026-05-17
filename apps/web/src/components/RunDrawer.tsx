@@ -24,6 +24,7 @@ import {
   closeRun,
   cancelRun,
   deleteRun,
+  promoteRun,
   runDetailStore,
   runStore,
   selectCase,
@@ -587,6 +588,18 @@ export function RunDrawer() {
   }
 
   const menuEntries: SplitButtonMenuEntry[] = [
+    ...(manifest.temporary
+      ? [
+          {
+            id: 'promote-run',
+            label: 'Keep run',
+            description: 'Save this temporary run permanently.',
+            onSelect: () => {
+              void promoteRun(manifest.id);
+            },
+          },
+        ]
+      : []),
     {
       id: 'copy-run-folder-path',
       label: 'Copy run folder path',

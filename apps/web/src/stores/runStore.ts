@@ -47,6 +47,10 @@ const updateManualScoreResponseSchema = z.object({
   run: createRunResponseSchema,
   caseDetail: caseDetailSchema,
 });
+const promoteRunResponseSchema = z.object({
+  promoted: z.boolean(),
+  run: createRunResponseSchema,
+});
 const recalculateDerivedAttributesResponseSchema = z.object({
   updated: z.literal(true),
   caseDetail: caseDetailSchema,
@@ -827,6 +831,28 @@ export async function deleteRun(runId: string): Promise<void> {
   runDetailStore.deleteItemState({ runId });
   caseDetailStore.deleteItemState((payload) => payload.runId === runId);
 
+  invalidateRunDerivedData();
+}
+
+/**
+ * Convert a temporary run into durable run history and refresh run-derived UI.
+ */
+export async function promoteRun(runId: string): Promise<void> {
+  const result = await getRpcResult(
+    apiClient.api.runs[':runId'].promote.$post({
+      param: { runId: encodeURIComponent(runId) },
+    }),
+  );
+  if (result.error) return;
+  const parseResult = resultify(() =>
+    promoteRunResponseSchema.parse(result.value),
+  );
+  if (parseResult.error) return;
+
+  if (runStore.state.currentRun?.manifest.id === runId) {
+    runStore.setPartialState({ currentRun: parseResult.value.run });
+  }
+  runDetailStore.addItemToState({ runId }, parseResult.value.run);
   invalidateRunDerivedData();
 }
 

@@ -33,6 +33,7 @@ import { colors } from '#src/style/colors';
 import { inline, kicker, stack, transition } from '#src/style/helpers';
 import {
   filterEvalsByStatuses,
+  filterEvalsByTags,
   getStatusBreakdown,
 } from '#src/utils/buildEvalTree';
 
@@ -211,8 +212,9 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
   const { currentRun } = runStore.useSelectorRC((s) => ({
     currentRun: s.currentRun,
   }));
-  const { statusFilters } = selectionStore.useSelectorRC((s) => ({
+  const { statusFilters, tagFilters } = selectionStore.useSelectorRC((s) => ({
     statusFilters: s.statusFilters,
+    tagFilters: s.tagFilters,
   }));
   const displaySegments = folderPath
     .split('/')
@@ -227,11 +229,12 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
   const isEvalRunning = (evalKey: string): boolean =>
     currentRun?.manifest.status === 'running' &&
     targetIncludesEval(currentRun.manifest.target, evalKey);
-  const filteredEvals = filterEvalsByStatuses(
+  const statusFilteredEvals = filterEvalsByStatuses(
     evals,
     statusFilters,
     isEvalRunning,
   );
+  const filteredEvals = filterEvalsByTags(statusFilteredEvals, tagFilters);
   const evalKeys = filteredEvals.map((ev) => ev.key);
   const isRunning =
     currentRun?.manifest.status === 'running' &&
@@ -430,7 +433,7 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
             <Count>
               <TotalPill>
                 <TotalPillValue>
-                  {statusFilters.size > 0
+                  {statusFilters.size > 0 || tagFilters.size > 0
                     ? `${filteredEvals.length}/${evals.length}`
                     : evals.length}
                 </TotalPillValue>
@@ -494,7 +497,7 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
       ) : filteredEvals.length === 0 ? (
         <EmptyState
           title="No evals match"
-          description="The active status filters hide every eval in this folder."
+          description="The active filters hide every eval in this folder."
         />
       ) : (
         <Stack>

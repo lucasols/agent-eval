@@ -14,6 +14,69 @@ import {
 } from './cliTestUtils.ts';
 
 describe('CLI eval features', () => {
+  test('isolates module state between concurrent cases', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const result = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'case-isolation-demo',
+      ]);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe('');
+
+      const artifacts = await readSingleRunArtifacts(workspacePath);
+      expect(
+        normalizeSnapshotValue(workspacePath, {
+          caseRows: artifacts.cases.map((caseRow) => ({
+            caseId: caseRow.caseId,
+            columns: caseRow.columns,
+            status: caseRow.status,
+          })),
+          summary: artifacts.summary,
+        }),
+      ).toMatchInlineSnapshot(`
+        {
+          "caseRows": [
+            {
+              "caseId": "slow-approval-backend",
+              "columns": {
+                "backendMode": "approval",
+                "llmTurns": 0,
+                "response": "Mock backend approved: Approve the duplicate-charge refund",
+                "toolCalls": 0,
+                "usedExpectedBackend": 1,
+              },
+              "status": "pass",
+            },
+            {
+              "caseId": "fast-review-backend",
+              "columns": {
+                "backendMode": "manual-review",
+                "llmTurns": 0,
+                "response": "Mock backend requested manual review: Send the borderline refund to manual review",
+                "toolCalls": 0,
+                "usedExpectedBackend": 1,
+              },
+              "status": "pass",
+            },
+          ],
+          "summary": {
+            "cancelledCases": 0,
+            "errorCases": 0,
+            "errorMessage": null,
+            "failedCases": 0,
+            "passedCases": 2,
+            "runId": "<run-id>",
+            "status": "completed",
+            "totalCases": 2,
+            "totalDurationMs": "<totalDurationMs>",
+          },
+        }
+      `);
+    });
+  });
+
   test('runs a module-mocked eval without requiring a manual node flag', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const result = await runExampleCli(workspacePath, [

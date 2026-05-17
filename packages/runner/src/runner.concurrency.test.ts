@@ -98,4 +98,101 @@ defineEval({
       process.chdir(previousCwd);
     }
   }, 10_000);
+
+  test('isolates dependency module state between concurrent cases', async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), 'agent-evals-runner-case-isolation-'),
+    );
+    createdWorkspaces.push(workspacePath);
+
+    await mkdir(join(workspacePath, 'evals'), { recursive: true });
+    await mkdir(join(workspacePath, 'node_modules', 'case-backend-pkg'), {
+      recursive: true,
+    });
+    await writeFile(
+      join(workspacePath, 'agent-evals.config.ts'),
+      `export default {
+  include: ['evals/**/*.eval.ts'],
+  concurrency: 2,
+};
+`,
+    );
+    await writeFile(
+      join(workspacePath, 'node_modules', 'case-backend-pkg', 'package.json'),
+      `{
+  "name": "case-backend-pkg",
+  "type": "module",
+  "exports": "./index.js"
+}
+`,
+    );
+    await writeFile(
+      join(workspacePath, 'node_modules', 'case-backend-pkg', 'index.js'),
+      `let activeBackend = 'live';
+
+export function mockBackend(nextBackend) {
+  activeBackend = nextBackend;
+}
+
+export async function readBackend(delayMs) {
+  await new Promise((resolve) => {
+    setTimeout(resolve, delayMs);
+  });
+  return activeBackend;
+}
+`,
+    );
+    await writeFile(
+      join(workspacePath, 'evals', 'case-isolation.eval.ts'),
+      `import { defineEval, evalExpect, setEvalOutput } from '@agent-evals/sdk';
+import { mockBackend, readBackend } from 'case-backend-pkg';
+
+defineEval({
+  id: 'case-isolation-eval',
+  title: 'Case Isolation Eval',
+  cases: [
+    { id: 'slow-alpha', input: { backend: 'alpha', delayMs: 120 } },
+    { id: 'fast-beta', input: { backend: 'beta', delayMs: 10 } },
+  ],
+  execute: async ({ input }) => {
+    mockBackend(input.backend);
+    const observedBackend = await readBackend(input.delayMs);
+    setEvalOutput('observedBackend', observedBackend);
+    evalExpect(observedBackend).toBe(input.backend);
+  },
+});
+`,
+    );
+
+    const previousCwd = process.cwd();
+    process.chdir(workspacePath);
+
+    try {
+      const runner = createRunner({ watchForChanges: false });
+      await runner.init();
+
+      const startedRun = await runner.startRun({
+        target: { mode: 'evalIds', evalIds: ['case-isolation-eval'] },
+        trials: 1,
+      });
+
+      await expect
+        .poll(() => runner.getRun(startedRun.manifest.id)?.manifest.status, {
+          timeout: 10_000,
+        })
+        .toBe('completed');
+
+      const run = runner.getRun(startedRun.manifest.id);
+      expect(run?.cases).toHaveLength(2);
+      expect(run?.cases.map((caseRow) => caseRow.status)).toEqual([
+        'pass',
+        'pass',
+      ]);
+      expect(
+        run?.cases.map((caseRow) => caseRow.columns.observedBackend),
+      ).toEqual(['alpha', 'beta']);
+    } finally {
+      process.chdir(previousCwd);
+    }
+  }, 10_000);
 });

@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { EvalDefinition, EvalOutputs } from './types.ts';
 
 /**
@@ -16,10 +17,30 @@ export type EvalRegistryEntry = {
 };
 
 const evalRegistry = new Map<string, EvalRegistryEntry>();
+const evalRegistryStorage = new AsyncLocalStorage<
+  Map<string, EvalRegistryEntry>
+>();
 
 /** Return the in-memory registry of evals defined in the current process. */
 export function getEvalRegistry(): Map<string, EvalRegistryEntry> {
-  return evalRegistry;
+  return evalRegistryStorage.getStore() ?? evalRegistry;
+}
+
+/**
+ * Execute a callback with an empty async-local eval registry.
+ *
+ * Runner internals use this when importing eval modules concurrently so
+ * `defineEval(...)` calls from one import cannot overwrite another import's
+ * registered definitions. The callback receives the scoped registry populated
+ * during its async execution.
+ */
+export async function runWithEvalRegistry<T>(
+  fn: (registry: Map<string, EvalRegistryEntry>) => Promise<T> | T,
+): Promise<T> {
+  const scopedRegistry = new Map<string, EvalRegistryEntry>();
+  return await evalRegistryStorage.run(scopedRegistry, async () => {
+    return await fn(scopedRegistry);
+  });
 }
 
 /**
@@ -30,7 +51,7 @@ export function defineEval<
   TInput = unknown,
   TOutputs extends EvalOutputs = EvalOutputs,
 >(definition: EvalDefinition<TInput, TOutputs>): void {
-  evalRegistry.set(definition.id, {
+  getEvalRegistry().set(definition.id, {
     id: definition.id,
     title: definition.title,
     use: (fn) => fn(definition),
