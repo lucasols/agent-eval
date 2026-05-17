@@ -31,7 +31,7 @@ function sampleReviewConfidence(seed: string): number {
 
 export const refundWorkflowSharedConfig: Pick<
   EvalDefinition<WorkflowInput, RefundWorkflowOutputs>,
-  'outputsSchema' | 'columns' | 'traceDisplay' | 'execute' | 'scores'
+  'outputsSchema' | 'columns' | 'traceDisplay' | 'stats' | 'execute' | 'scores'
 > = {
   outputsSchema: refundWorkflowOutputsSchema,
   columns: {
@@ -39,6 +39,18 @@ export const refundWorkflowSharedConfig: Pick<
     reviewConfidence: { label: 'Review Confidence' },
     tagContext: { label: 'Tag Context' },
   },
+  stats: [
+    { kind: 'cases' },
+    { kind: 'passRate', accent: true },
+    {
+      kind: 'column',
+      key: 'reviewConfidence',
+      label: 'Review Confidence',
+      aggregate: 'avg',
+      numberFormat: { minDecimalPlaces: 2, maxDecimalPlaces: 2 },
+    },
+    { kind: 'duration' },
+  ],
   traceDisplay: {
     attributes: [
       { path: 'model', label: 'Model', placements: ['detail'] },

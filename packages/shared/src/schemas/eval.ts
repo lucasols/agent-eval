@@ -15,15 +15,22 @@ export const evalFreshnessStatusSchema = z.enum(['fresh', 'stale', 'outdated']);
 /** Freshness signal derived from the latest relevant run plus git state. */
 export type EvalFreshnessStatus = z.infer<typeof evalFreshnessStatusSchema>;
 
-/** Reducer used to collapse a column's per-case values into a single stat. */
+/**
+ * Reducer used to collapse a column's per-case values into a single stat.
+ * `best` selects the highest finite value and `worst` selects the lowest.
+ */
 export const evalStatAggregateSchema = z.enum([
   'avg',
   'min',
   'max',
   'sum',
-  'last',
+  'best',
+  'worst',
 ]);
-/** Reducer used to collapse a column's per-case values into a single stat. */
+/**
+ * Reducer used to collapse a column's per-case values into a single stat.
+ * `best` selects the highest finite value and `worst` selects the lowest.
+ */
 export type EvalStatAggregate = z.infer<typeof evalStatAggregateSchema>;
 
 const hideIfNoValueShape = {
@@ -108,6 +115,11 @@ export const evalSummarySchema = z.object({
    * omitted or empty, the UI renders no stats row at all.
    */
   stats: evalStatsConfigSchema.optional(),
+  /**
+   * Initial aggregate mode used for column stats on this eval card. Overrides
+   * workspace-level `defaultStatAggregate` when present.
+   */
+  defaultStatAggregate: evalStatAggregateSchema.optional(),
   /**
    * Ordered per-eval history chart configuration for the EvalCard. Opt-in:
    * when omitted or empty, the UI renders no history chart at all.

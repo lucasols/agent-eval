@@ -5,7 +5,12 @@ import {
   type ColumnFormat,
   type NumberDisplayOptions,
 } from './display.ts';
-import { evalStatsConfigSchema, type EvalStatsConfig } from './eval.ts';
+import {
+  evalStatAggregateSchema,
+  evalStatsConfigSchema,
+  type EvalStatAggregate,
+  type EvalStatsConfig,
+} from './eval.ts';
 import {
   traceDisplayInputConfigSchema,
   type EvalTraceSpan,
@@ -837,6 +842,14 @@ export type AgentEvalsConfig = {
    */
   stats?: EvalStatsConfig;
   /**
+   * Initial aggregate mode used for column stats on every eval card.
+   *
+   * Per-eval `defaultStatAggregate` overrides this value. Individual stat
+   * `aggregate` values still define their authored reducer and remain the
+   * fallback when no default aggregate is configured.
+   */
+  defaultStatAggregate?: EvalStatAggregate;
+  /**
    * Configuration for the "LLM calls" tab in the case-run drawer.
    *
    * Determines which trace spans are treated as LLM calls (`kinds`), how
@@ -951,6 +964,7 @@ export const agentEvalsConfigSchema = z.object({
   columns: evalColumnsSchema.optional(),
   deriveFromTracing: evalDeriveConfigSchema.optional(),
   stats: evalStatsConfigSchema.optional(),
+  defaultStatAggregate: evalStatAggregateSchema.optional(),
   llmCalls: llmCallsConfigSchema.optional(),
   removeDefaultConfig: removeDefaultConfigSchema.optional(),
   apiCalls: apiCallsConfigSchema.optional(),

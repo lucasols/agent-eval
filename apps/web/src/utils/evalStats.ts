@@ -14,15 +14,27 @@ export type EvalStatContext = {
   evalSummary: Pick<EvalSummary, 'caseCount' | 'columnDefs'>;
   latestSummary: ScopedCaseSummary | null;
   latestCases: CaseRow[];
+  aggregateModeOverride: EvalStatAggregate | undefined;
 };
 
 export type EvalStatDisplay = {
   label: string;
   aggregateLabel: string | undefined;
+  aggregateMode: EvalStatAggregate | undefined;
+  aggregateTooltip: string | undefined;
   value: string;
   hasValue: boolean;
   accent: boolean;
 };
+
+export const EVAL_STAT_AGGREGATE_MODES = [
+  'avg',
+  'max',
+  'min',
+  'sum',
+  'best',
+  'worst',
+] as const satisfies readonly EvalStatAggregate[];
 
 export function computeStatDisplay(
   stat: EvalStatItem,
@@ -32,6 +44,8 @@ export function computeStatDisplay(
     return {
       label: 'Cases',
       aggregateLabel: undefined,
+      aggregateMode: undefined,
+      aggregateTooltip: undefined,
       value:
         ctx.evalSummary.caseCount !== null
           ? String(ctx.evalSummary.caseCount)
@@ -45,6 +59,8 @@ export function computeStatDisplay(
     return {
       label: 'Pass rate',
       aggregateLabel: undefined,
+      aggregateMode: undefined,
+      aggregateTooltip: undefined,
       value:
         s && s.totalCases > 0
           ? `${String(s.passedCases)}/${String(s.totalCases)}`
@@ -57,6 +73,8 @@ export function computeStatDisplay(
     return {
       label: 'Duration',
       aggregateLabel: undefined,
+      aggregateMode: undefined,
+      aggregateTooltip: undefined,
       value: formatDuration(ctx.latestSummary?.totalDurationMs ?? null),
       hasValue: ctx.latestSummary !== null,
       accent: false,
@@ -67,6 +85,8 @@ export function computeStatDisplay(
     return {
       label: 'Cache hits',
       aggregateLabel: undefined,
+      aggregateMode: undefined,
+      aggregateTooltip: undefined,
       value:
         s !== null && s.cacheOperations > 0
           ? `${String(s.cacheHits)}/${String(s.cacheOperations)}`
@@ -85,12 +105,15 @@ function computeColumnStat(
   const columnDef = ctx.evalSummary.columnDefs.find((c) => c.key === stat.key);
   const label = stat.label ?? columnDef?.label ?? stat.key;
   const values = collectNumericValues(ctx.latestCases, stat.key);
-  const aggregated = aggregateColumn(values, stat.aggregate);
-  const aggregateLabel = formatAggregateLabel(stat.aggregate);
+  const aggregateMode = ctx.aggregateModeOverride ?? stat.aggregate;
+  const aggregated = aggregateColumn(values, aggregateMode);
+  const aggregateLabel = formatAggregateLabel(aggregateMode);
   if (aggregated === null) {
     return {
       label,
       aggregateLabel,
+      aggregateMode,
+      aggregateTooltip: undefined,
       value: EM_DASH,
       hasValue: false,
       accent: stat.accent ?? false,
@@ -100,6 +123,8 @@ function computeColumnStat(
   return {
     label,
     aggregateLabel,
+    aggregateMode,
+    aggregateTooltip: formatAggregateTooltip(values, effectiveDef),
     value: formatNumericCellValue(effectiveDef, aggregated),
     hasValue: true,
     accent: stat.accent ?? false,
@@ -111,7 +136,20 @@ function formatAggregateLabel(aggregate: EvalStatAggregate): string {
   if (aggregate === 'sum') return 'sum';
   if (aggregate === 'min') return 'min';
   if (aggregate === 'max') return 'max';
-  return 'last';
+  if (aggregate === 'best') return 'best';
+  return 'worst';
+}
+
+function formatAggregateTooltip(
+  values: number[],
+  columnDef: ColumnDef,
+): string {
+  return EVAL_STAT_AGGREGATE_MODES.map((mode) => {
+    const value = aggregateColumn(values, mode);
+    const rendered =
+      value === null ? EM_DASH : formatNumericCellValue(columnDef, value);
+    return `${formatAggregateLabel(mode).toUpperCase()}: ${rendered}`;
+  }).join('\n');
 }
 
 function collectNumericValues(cases: CaseRow[], key: string): number[] {
@@ -136,9 +174,8 @@ function aggregateColumn(
   if (mode === 'sum') {
     return values.reduce((a, b) => a + b, 0);
   }
-  if (mode === 'min') return Math.min(...values);
-  if (mode === 'max') return Math.max(...values);
-  return values[values.length - 1] ?? null;
+  if (mode === 'min' || mode === 'worst') return Math.min(...values);
+  return Math.max(...values);
 }
 
 function buildEffectiveColumnDef(

@@ -19,6 +19,7 @@ type EvalSummaryMeta = Pick<
   | 'caseCount'
   | 'caseIds'
   | 'stats'
+  | 'defaultStatAggregate'
   | 'charts'
 > & {
   sourceFingerprint: string | null;

@@ -2,6 +2,7 @@ import {
   getEvalDisplayStatus,
   getEvalTitle,
   type CacheMode,
+  type EvalStatAggregate,
   type EvalSummary,
 } from '@agent-evals/shared';
 import {
@@ -73,7 +74,11 @@ import {
 } from '#src/utils/cliCommand';
 import { copyTextToClipboard } from '#src/utils/clipboard';
 import { buildEvalScopedRunRows } from '#src/utils/evalRuns';
-import { computeStatDisplay } from '#src/utils/evalStats';
+import {
+  computeStatDisplay,
+  EVAL_STAT_AGGREGATE_MODES,
+  type EvalStatDisplay,
+} from '#src/utils/evalStats';
 import { getFreshnessTooltip } from '#src/utils/freshness';
 import { runTargetsEval as runTargetsEvalLocal } from '#src/utils/runTargeting';
 import {
@@ -83,6 +88,8 @@ import {
 import { shouldShowStatDisplay } from '#src/utils/statVisibility';
 
 type EvalCardProps = { evalSummary: EvalSummary; mode: 'single' | 'stacked' };
+
+const DEFAULT_AGGREGATE_MODE: EvalStatAggregate = 'avg';
 
 const Card = styled.section<{ stacked: boolean; single: boolean }>`
   ${stack({ gap: 0 })}
@@ -236,9 +243,26 @@ const StatLabelText = styled.span`
   ${ellipsis};
 `;
 
-const StatAggregate = styled.span`
+const StatAggregateButton = styled.button`
   color: ${colors.textDim.var};
   flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+
+  &:hover {
+    color: ${colors.accentDim.var};
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${colors.accent.var};
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
 `;
 
 const StatValue = styled.div<{ accent: boolean }>`
@@ -246,7 +270,7 @@ const StatValue = styled.div<{ accent: boolean }>`
   font-size: 20px;
   font-weight: 500;
   color: ${colors.text.var};
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   line-height: 1.1;
 
   &.accent {
@@ -277,6 +301,9 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const [scoreHistoryCollapsed, setScoreHistoryCollapsed] = useState(
     readScoreHistoryCollapsed,
   );
+  const [aggregateModeSelection, setAggregateModeSelection] = useState<
+    { evalKey: string; value: EvalStatAggregate } | undefined
+  >(undefined);
 
   useEffect(() => {
     writeScoreHistoryCollapsed(scoreHistoryCollapsed);
@@ -358,6 +385,10 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   ]);
 
   const stats = evalSummary.stats ?? [];
+  const aggregateModeOverride =
+    aggregateModeSelection?.evalKey === evalSummary.key
+      ? aggregateModeSelection.value
+      : evalSummary.defaultStatAggregate;
   const statDisplays = stats
     .map((stat) => ({
       stat,
@@ -365,6 +396,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
         evalSummary,
         latestSummary,
         latestCases,
+        aggregateModeOverride,
       }),
     }))
     .filter(({ stat, display }) => shouldShowStatDisplay(stat, display))
@@ -429,6 +461,40 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
 
   function closeCasePicker() {
     setCasePickerOpen(false);
+  }
+
+  function getNextAggregateMode(
+    aggregateMode: EvalStatAggregate,
+  ): EvalStatAggregate {
+    const index = EVAL_STAT_AGGREGATE_MODES.indexOf(aggregateMode);
+    const nextIndex =
+      index === -1 || index === EVAL_STAT_AGGREGATE_MODES.length - 1
+        ? 0
+        : index + 1;
+    return EVAL_STAT_AGGREGATE_MODES[nextIndex] ?? DEFAULT_AGGREGATE_MODE;
+  }
+
+  function cycleAggregateMode(aggregateMode: EvalStatAggregate) {
+    setAggregateModeSelection({
+      evalKey: evalSummary.key,
+      value: getNextAggregateMode(aggregateMode),
+    });
+  }
+
+  function renderStatAggregateButton(stat: EvalStatDisplay) {
+    if (stat.aggregateLabel === undefined || stat.aggregateMode === undefined) {
+      return null;
+    }
+    const aggregateMode = stat.aggregateMode;
+    return (
+      <StatAggregateButton
+        type="button"
+        aria-label={`Show ${getNextAggregateMode(aggregateMode)} for all numeric stats`}
+        onClick={() => cycleAggregateMode(aggregateMode)}
+      >
+        {stat.aggregateLabel}
+      </StatAggregateButton>
+    );
   }
 
   function toggleCaseId(caseId: string) {
@@ -777,11 +843,11 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
                 <Stat key={`${stat.label}-${index}`}>
                   <StatLabel>
                     <StatLabelText>{stat.label}</StatLabelText>
-                    {stat.aggregateLabel === undefined ? null : (
-                      <StatAggregate>{stat.aggregateLabel}</StatAggregate>
-                    )}
+                    {renderStatAggregateButton(stat)}
                   </StatLabel>
-                  <StatValue accent={stat.accent}>{stat.value}</StatValue>
+                  <Tooltip content={stat.aggregateTooltip}>
+                    <StatValue accent={stat.accent}>{stat.value}</StatValue>
+                  </Tooltip>
                 </Stat>
               ))}
             </StatsGrid>

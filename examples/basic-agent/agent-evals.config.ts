@@ -9,6 +9,7 @@ export const config: AgentEvalsConfig = {
   trialSelection: 'lowestScore',
   concurrency: 2,
   staleAfterDays: 14,
+  defaultStatAggregate: 'avg',
   traceDisplay: {
     attributes: [
       {

@@ -419,7 +419,11 @@ cache operations (`hits/total`) from spans and `evalTracer.cache(...)` refs, not
 LLM provider prompt-cache read tokens such as `cachedInputTokens`. Usage stats
 and LLM usage charts are added by default unless removed with
 `removeDefaultConfig`. Column stats can override `format` and `numberFormat`,
-otherwise they inherit from the matching column. Number formats use
+otherwise they inherit from the matching column. Column stat aggregates support
+`avg`, `min`, `max`, `sum`, `best` (highest finite value), and `worst` (lowest
+finite value). Use `defaultStatAggregate` in `agent-evals.config.ts` to set the
+workspace-wide initial column-stat mode, or on an eval definition to override it
+for that eval. Number formats use
 `maxDecimalPlaces` to cap decimals and `minDecimalPlaces` to pad trailing
 zeroes. Without `maxDecimalPlaces`, the default cap is 3 decimal places. Stats
 and charts support `hideIfNoValue: true`. Charts support

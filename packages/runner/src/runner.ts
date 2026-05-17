@@ -416,6 +416,7 @@ export function createRunner({
               undefined,
             );
             let stats: EvalMeta['stats'];
+            let defaultStatAggregate: EvalMeta['defaultStatAggregate'];
             let charts: EvalMeta['charts'];
             let tags: string[] = [];
             let manualInputDescriptor: EvalMeta['manualInputDescriptor'];
@@ -436,6 +437,7 @@ export function createRunner({
                 evalDef,
                 globalColumns: config.columns,
                 globalStats: config.stats,
+                globalDefaultStatAggregate: config.defaultStatAggregate,
                 globalRemove: config.removeDefaultConfig,
               });
               columnDefs = buildDeclaredColumnDefs(
@@ -444,6 +446,7 @@ export function createRunner({
                 evalDef.manualScores,
               );
               stats = defaultConfig.stats;
+              defaultStatAggregate = defaultConfig.defaultStatAggregate;
               const validated = validateCharts({
                 charts: defaultConfig.charts,
                 columnDefs,
@@ -490,6 +493,7 @@ export function createRunner({
               caseCount: null,
               caseIds: undefined,
               stats,
+              defaultStatAggregate,
               charts,
               manualInputDescriptor,
               requiresManualInput,

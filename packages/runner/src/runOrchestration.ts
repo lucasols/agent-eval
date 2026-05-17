@@ -10,6 +10,7 @@ import type {
   CreateRunRequest,
   DiscoveryIssue,
   EvalChartsConfig,
+  EvalStatAggregate,
   EvalStatsConfig,
   EvalSummary,
   ManualInputDescriptor,
@@ -69,6 +70,7 @@ export type EvalMeta = {
   caseCount: number | null;
   caseIds?: string[];
   stats?: EvalStatsConfig;
+  defaultStatAggregate?: EvalStatAggregate;
   charts?: EvalChartsConfig;
   /**
    * Wire-format descriptor for the eval's manual-input modal. Present only
@@ -583,6 +585,7 @@ export async function executeRun({
                 evalDef,
                 globalColumns: config.columns,
                 globalStats: config.stats,
+                globalDefaultStatAggregate: config.defaultStatAggregate,
                 globalRemove: config.removeDefaultConfig,
               });
               const declaredColumnDefs = buildDeclaredColumnDefs(
@@ -600,6 +603,8 @@ export async function executeRun({
               }
               evalMeta.columnDefs = declaredColumnDefs;
               evalMeta.stats = defaultConfig.stats;
+              evalMeta.defaultStatAggregate =
+                defaultConfig.defaultStatAggregate;
               evalMeta.charts = validatedCharts.charts;
 
               const evalCaseRows: CaseRow[] = [];

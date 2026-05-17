@@ -494,6 +494,14 @@ type EvalDefinitionBase<
    */
   stats?: EvalStatsConfig;
   /**
+   * Initial aggregate mode used for this eval's column stats in the web UI.
+   *
+   * Overrides `AgentEvalsConfig.defaultStatAggregate`. Individual stat
+   * `aggregate` values still define their authored reducer and remain the
+   * fallback when neither default is configured.
+   */
+  defaultStatAggregate?: EvalStatAggregate;
+  /**
    * Optional history chart configuration for the EvalCard in the web UI.
    *
    * Opt-in: when omitted (or empty) the EvalCard renders no history chart at

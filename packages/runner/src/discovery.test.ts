@@ -318,6 +318,7 @@ defineEval({
       `export default {
   include: ['evals/**/*.eval.ts'],
   removeDefaultConfig: true,
+  defaultStatAggregate: 'max',
 };
 `,
     );
@@ -328,6 +329,7 @@ defineEval({
 defineEval({
   id: 'stats-eval',
   title: 'Stats Eval',
+  defaultStatAggregate: 'best',
   stats: [
     { kind: 'cases' },
     { kind: 'passRate', accent: true },
@@ -344,6 +346,12 @@ defineEval({
   scores: {
     accuracy: { compute: () => 1, label: 'Accuracy' },
   },
+  execute: () => {},
+});
+
+defineEval({
+  id: 'global-default-stats-eval',
+  stats: [{ kind: 'duration' }],
   execute: () => {},
 });
 `,
@@ -373,6 +381,10 @@ defineEval({
         },
         { kind: 'duration' },
       ]);
+      expect(runner.getEval('stats-eval')?.defaultStatAggregate).toBe('best');
+      expect(
+        runner.getEval('global-default-stats-eval')?.defaultStatAggregate,
+      ).toBe('max');
     } finally {
       process.chdir(previousCwd);
     }

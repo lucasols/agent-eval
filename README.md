@@ -205,24 +205,25 @@ build also bundles the web UI assets used by `agent-evals app`.
 
 `agent-evals.config.ts` at your project root defines how evals are discovered and executed.
 
-| Field                 | Type                            | Description                                                                             |
-| --------------------- | ------------------------------- | --------------------------------------------------------------------------------------- |
-| `include`             | `string[]`                      | Glob patterns for eval files (e.g. `['evals/**/*.eval.ts']`)                            |
-| `workspaceRoot`       | `string?`                       | Root directory; defaults to `process.cwd()`                                             |
-| `tags`                | `string[]?`                     | Workspace tags inherited by every eval unless removed per eval                          |
-| `defaultTrials`       | `number?`                       | Trials per case when not overridden (default: `1`)                                      |
-| `trialSelection`      | `'lowestScore' \| 'median'?`    | Winner selection strategy for persisted multi-trial case results                        |
-| `concurrency`         | `number?`                       | Max parallel case executions per run, including trials (default: `2`)                   |
-| `staleAfterDays`      | `number?`                       | Days before a mismatched-commit latest run is marked outdated (default: `14`)           |
-| `allowCliRunAll`      | `boolean?`                      | Allow unfiltered `agent-evals run` to run every eval (default: `false`)                 |
-| `traceDisplay`        | `TraceDisplayConfig?`           | Global trace attribute display config for the UI                                        |
-| `columns`             | `EvalColumns?`                  | Global column display overrides applied to every eval                                   |
-| `deriveFromTracing`   | `EvalDeriveConfig?`             | Global trace-derived outputs applied to every eval case                                 |
-| `stats`               | `EvalStatsConfig?`              | Global stats prepended to every eval card                                               |
-| `llmCalls`            | `LlmCallsConfig?`               | LLM calls tab config for the case-run drawer (kinds, attribute paths, pricing, metrics) |
-| `removeDefaultConfig` | `true \| DefaultConfigKey[]?`   | Remove built-in eval-level outputs, columns, stats, and charts                          |
-| `apiCalls`            | `ApiCallsConfig?`               | API calls tab config for the case-run drawer (kinds, attribute paths, custom metrics)   |
-| `runLogs`             | `{ captureConsole?: boolean }?` | Case log capture config; set `captureConsole: false` to stop persisting console calls   |
+| Field                  | Type                            | Description                                                                             |
+| ---------------------- | ------------------------------- | --------------------------------------------------------------------------------------- |
+| `include`              | `string[]`                      | Glob patterns for eval files (e.g. `['evals/**/*.eval.ts']`)                            |
+| `workspaceRoot`        | `string?`                       | Root directory; defaults to `process.cwd()`                                             |
+| `tags`                 | `string[]?`                     | Workspace tags inherited by every eval unless removed per eval                          |
+| `defaultTrials`        | `number?`                       | Trials per case when not overridden (default: `1`)                                      |
+| `trialSelection`       | `'lowestScore' \| 'median'?`    | Winner selection strategy for persisted multi-trial case results                        |
+| `concurrency`          | `number?`                       | Max parallel case executions per run, including trials (default: `2`)                   |
+| `staleAfterDays`       | `number?`                       | Days before a mismatched-commit latest run is marked outdated (default: `14`)           |
+| `allowCliRunAll`       | `boolean?`                      | Allow unfiltered `agent-evals run` to run every eval (default: `false`)                 |
+| `traceDisplay`         | `TraceDisplayConfig?`           | Global trace attribute display config for the UI                                        |
+| `columns`              | `EvalColumns?`                  | Global column display overrides applied to every eval                                   |
+| `deriveFromTracing`    | `EvalDeriveConfig?`             | Global trace-derived outputs applied to every eval case                                 |
+| `stats`                | `EvalStatsConfig?`              | Global stats prepended to every eval card                                               |
+| `defaultStatAggregate` | `EvalStatAggregate?`            | Initial aggregate mode for column stats on every eval card                              |
+| `llmCalls`             | `LlmCallsConfig?`               | LLM calls tab config for the case-run drawer (kinds, attribute paths, pricing, metrics) |
+| `removeDefaultConfig`  | `true \| DefaultConfigKey[]?`   | Remove built-in eval-level outputs, columns, stats, and charts                          |
+| `apiCalls`             | `ApiCallsConfig?`               | API calls tab config for the case-run drawer (kinds, attribute paths, custom metrics)   |
+| `runLogs`              | `{ captureConsole?: boolean }?` | Case log capture config; set `captureConsole: false` to stop persisting console calls   |
 
 Each run executes in a separate child process. Within that run, every case and
 trial gets its own module-isolation scope while still respecting `concurrency`,
@@ -283,6 +284,7 @@ export const config: AgentEvalsConfig = {
 | `scores`                |            | Record of scoring functions returning `0..1`                                    |
 | `columns`               |            | Custom columns shown in the results table                                       |
 | `stats`                 |            | Opt-in stats row on the eval page (see [Stats row](#stats-row))                 |
+| `defaultStatAggregate`  |            | Override the global initial aggregate mode for this eval's column stats         |
 | `charts`                |            | Opt-in history charts on the eval page (see [History charts](#history-charts))  |
 | `removeDefaultConfig`   |            | Remove built-in output, column, stat, and chart defaults for this eval          |
 
@@ -1072,9 +1074,11 @@ The eval page can show a stats row at the top of each eval card. Set `stats` to
 declare authored stats, including score and numeric output columns. Usage
 defaults are appended automatically unless removed with
 `removeDefaultConfig`. Global `stats` from `agent-evals.config.ts` render before
-eval-level stats:
+eval-level stats. Set `defaultStatAggregate` globally or on an eval to choose
+the initial aggregate mode for all column stats on that eval card:
 
 ```ts
+defaultStatAggregate: 'avg',
 stats: [
   { kind: 'cases' },
   { kind: 'passRate', accent: true },
@@ -1109,9 +1113,13 @@ Supported kinds:
   LLM provider prompt-cache read tokens such as `cachedInputTokens`.
 - `column` — aggregate a score or numeric output column across the latest
   run's cases. `key` matches a score key or output column key. `aggregate` is
-  `avg | min | max | sum | last`. `label`, `format`, and `numberFormat`
+  `avg | min | max | sum | best | worst`. `best` uses the highest finite value
+  and `worst` uses the lowest finite value. `label`, `format`, and `numberFormat`
   default to the matching column definition. Only finite numeric values
-  participate; if none exist the stat renders an em dash.
+  participate; if none exist the stat renders an em dash. In the UI, clicking a
+  column stat's aggregate label cycles all column stats on the card through the
+  supported aggregate modes, and hovering a column stat value shows the other
+  aggregate values.
 - `hideIfNoValue` — hide the stat instead of rendering an em dash when the
   current run has no value.
 

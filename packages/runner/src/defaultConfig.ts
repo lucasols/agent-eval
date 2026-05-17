@@ -9,6 +9,7 @@ import {
   extractLlmCalls,
   type DefaultConfigKey,
   type EvalChartsConfig,
+  type EvalStatAggregate,
   type EvalStatsConfig,
   type EvalTraceSpan,
   type ResolvedApiCallsConfig,
@@ -305,10 +306,12 @@ export function resolveEvalDefaultConfig<
   evalDef: EvalDefinition<TInput, TOutputs>;
   globalColumns: EvalColumns | undefined;
   globalStats: EvalStatsConfig | undefined;
+  globalDefaultStatAggregate: EvalStatAggregate | undefined;
   globalRemove: RemoveDefaultConfig;
 }): {
   columns: EvalColumns | undefined;
   stats: EvalStatsConfig | undefined;
+  defaultStatAggregate: EvalStatAggregate | undefined;
   charts: EvalChartsConfig | undefined;
 } {
   const evalRemove = params.evalDef.removeDefaultConfig;
@@ -325,6 +328,8 @@ export function resolveEvalDefaultConfig<
       globalRemove: params.globalRemove,
       evalRemove,
     }),
+    defaultStatAggregate:
+      params.evalDef.defaultStatAggregate ?? params.globalDefaultStatAggregate,
     charts: appendDefaultCharts({
       charts: params.evalDef.charts,
       globalRemove: params.globalRemove,
