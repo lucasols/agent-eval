@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createRequire } from 'node:module';
 import { registerHooks } from 'node:module';
-import { isAbsolute, relative } from 'node:path';
+import { dirname, isAbsolute, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const isolationParam = 'agent-evals-isolate';
@@ -31,6 +31,13 @@ const agentPackageUrlBySpecifier = new Map(
     }
   }),
 );
+const agentPackageDirectoryPaths = [
+  ...new Set(
+    [...agentPackageUrlBySpecifier.values()].map((packageUrl) =>
+      dirname(fileURLToPath(packageUrl)),
+    ),
+  ),
+];
 
 function isAgentEvalsPackageSpecifier(specifier: string): boolean {
   return (
@@ -63,6 +70,8 @@ function isIsolatableFilePath(
   filePath: string,
   workspaceRoot: string,
 ): boolean {
+  if (isAgentEvalsPackageFilePath(filePath)) return false;
+
   const relativePath = relative(workspaceRoot, filePath);
   if (
     relativePath === '' ||
@@ -74,6 +83,17 @@ function isIsolatableFilePath(
 
   const segments = relativePath.split(pathSegmentSeparatorPattern);
   return !segments.includes('.agent-evals');
+}
+
+function isAgentEvalsPackageFilePath(filePath: string): boolean {
+  return agentPackageDirectoryPaths.some((packageDirectoryPath) => {
+    const packageRelativePath = relative(packageDirectoryPath, filePath);
+    return (
+      packageRelativePath === '' ||
+      (!packageRelativePath.startsWith('..') &&
+        !isAbsolute(packageRelativePath))
+    );
+  });
 }
 
 function addIsolationParam(url: string, key: string): string {

@@ -84,6 +84,154 @@ const TimelinePane = styled.div`
   overflow: hidden;
 `;
 
+const TimelineToolbar = styled.div`
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: 24px 24px;
+  column-gap: 10px;
+  row-gap: 6px;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid ${colors.border.var};
+  background: ${colors.bgElevated.var};
+  flex-shrink: 0;
+`;
+
+const TimelineCount = styled.span`
+  ${monoFont};
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: ${colors.textDim.var};
+  white-space: nowrap;
+  grid-column: 1;
+  grid-row: 1;
+`;
+
+const FilterControls = styled.div`
+  ${inline({ justify: 'right', align: 'center' })}
+  min-width: 0;
+  grid-column: 2;
+  grid-row: 1;
+`;
+
+const FilterOptionsRow = styled.div<{ visible: boolean }>`
+  ${inline({ justify: 'right', align: 'center', gap: 8 })}
+  min-width: 0;
+  height: 24px;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  visibility: hidden;
+  pointer-events: none;
+
+  &.visible {
+    visibility: visible;
+    pointer-events: auto;
+  }
+`;
+
+const SegmentedControl = styled.div`
+  ${inline({ align: 'center' })}
+  border: 1px solid ${colors.border.var};
+  border-radius: 5px;
+  overflow: hidden;
+  background: ${colors.bg.var};
+  flex-shrink: 0;
+`;
+
+const SegmentButton = styled.button<{ active: boolean }>`
+  ${transition({ property: 'background, color' })}
+  height: 24px;
+  padding: 0 9px;
+  border: none;
+  border-right: 1px solid ${colors.border.var};
+  background: transparent;
+  color: ${colors.textDim.var};
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+
+  &:last-child {
+    border-right: none;
+  }
+
+  &:hover {
+    background: ${colors.surface.var};
+    color: ${colors.text.var};
+  }
+
+  &.active {
+    background: ${colors.surfaceActive.var};
+    color: ${colors.text.var};
+  }
+`;
+
+const KindFilterList = styled.div`
+  ${inline({ align: 'center', gap: 4 })}
+  justify-content: flex-end;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+`;
+
+const KindFilterOption = styled.label<{ selected: boolean }>`
+  ${inline({ align: 'center', gap: 5 })}
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-sm);
+  background: ${colors.bg.var};
+  color: ${colors.textMuted.var};
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+
+  &:hover {
+    border-color: ${colors.borderStrong.var};
+    color: ${colors.text.var};
+  }
+
+  &.selected {
+    border-color: ${colors.accent.alpha(0.45)};
+    background: ${colors.accent.alpha(0.1)};
+    color: ${colors.text.var};
+  }
+
+  & > input {
+    width: 12px;
+    height: 12px;
+    margin: 0;
+    accent-color: ${colors.accent.var};
+  }
+`;
+
+const VisibilityToggleLabel = styled.label`
+  ${inline({ align: 'center', gap: 6 })}
+  height: 24px;
+  padding: 0 8px;
+  color: ${colors.textMuted.var};
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+
+  &:hover {
+    color: ${colors.text.var};
+  }
+
+  & > input {
+    width: 13px;
+    height: 13px;
+    margin: 0;
+    accent-color: ${colors.accent.var};
+  }
+`;
+
 const DetailPane = styled.div`
   flex: 1 1 0;
   min-width: 300px;
@@ -290,7 +438,11 @@ const Rows = styled.div`
   padding: 4px 0;
 `;
 
-const Row = styled.div<{ active: boolean; timelineCollapsed: boolean }>`
+const Row = styled.div<{
+  active: boolean;
+  timelineCollapsed: boolean;
+  isFaded: boolean;
+}>`
   ${transition({ property: 'background, color' })}
   display: grid;
   grid-template-columns: minmax(200px, 40%) 1fr;
@@ -314,6 +466,14 @@ const Row = styled.div<{ active: boolean; timelineCollapsed: boolean }>`
     background: ${colors.surface.var};
     color: ${colors.text.var};
     border-left-color: ${colors.accent.var};
+  }
+
+  &.isFaded {
+    opacity: 0.34;
+  }
+
+  &.isFaded:hover {
+    opacity: 0.65;
   }
 `;
 
@@ -530,6 +690,9 @@ type TraceTreeProps = {
   traceDisplay: TraceDisplayConfig;
 };
 
+type SpanKindFilterMode = 'all' | 'only' | 'hide';
+type FilteredSpanVisibility = 'hidden' | 'faded';
+
 const TIMELINE_COLLAPSED_STORAGE_KEY = 'agent-evals.trace-timeline-collapsed';
 const TRACE_NESTING_MODE_STORAGE_KEY = 'agent-evals.trace-nesting-mode';
 const SPAN_SEARCH_PARAM_KEY = 'span';
@@ -545,6 +708,17 @@ function readTraceNestingMode(): TraceNestingMode {
   return value === 'parent' || value === 'timeline' ? value : 'timeline';
 }
 
+function spanMatchesKindFilter(
+  span: EvalTraceSpan,
+  filterMode: SpanKindFilterMode,
+  selectedKinds: Set<string>,
+): boolean {
+  if (filterMode === 'all') return true;
+  if (selectedKinds.size === 0) return true;
+  const selected = selectedKinds.has(span.kind);
+  return filterMode === 'only' ? selected : !selected;
+}
+
 export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
   const searchParams = useSearchParams();
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
@@ -553,6 +727,13 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
   );
   const [traceNestingMode, setTraceNestingMode] =
     useState<TraceNestingMode>(readTraceNestingMode);
+  const [spanKindFilterMode, setSpanKindFilterMode] =
+    useState<SpanKindFilterMode>('all');
+  const [filteredSpanVisibility, setFilteredSpanVisibility] =
+    useState<FilteredSpanVisibility>('hidden');
+  const [selectedSpanKinds, setSelectedSpanKinds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const detailRef = useRef<HTMLDivElement>(null);
@@ -587,12 +768,44 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
   }, []);
 
   const isNarrow = containerWidth > 0 && containerWidth < NARROW_BREAKPOINT;
+  const spanKindOptions = useMemo(
+    () => [...new Set(spans.map((span) => span.kind))].sort(),
+    [spans],
+  );
+  const filteredSpanIds = useMemo(
+    () =>
+      new Set(
+        spans
+          .filter((span) =>
+            spanMatchesKindFilter(span, spanKindFilterMode, selectedSpanKinds),
+          )
+          .map((span) => span.id),
+      ),
+    [selectedSpanKinds, spanKindFilterMode, spans],
+  );
+  const filteredSpans = useMemo(
+    () => spans.filter((span) => filteredSpanIds.has(span.id)),
+    [filteredSpanIds, spans],
+  );
+  const displayedSpans =
+    filteredSpanVisibility === 'faded' ? spans : filteredSpans;
+  const displayMetricsSpans =
+    filteredSpanVisibility === 'faded' ? spans : filteredSpans;
 
-  const metrics = useMemo(() => computeTraceMetrics(spans), [spans]);
+  const metrics = useMemo(
+    () => computeTraceMetrics(displayMetricsSpans),
+    [displayMetricsSpans],
+  );
+
+  const filteredLabel =
+    spanKindFilterMode === 'all' || selectedSpanKinds.size === 0
+      ? 'All spans'
+      : `${String(filteredSpans.length)} of ${String(spans.length)} spans`;
+  const showFilterOptions = spanKindFilterMode !== 'all';
 
   const childrenByParent = useMemo(
-    () => buildTraceChildrenByParent(spans, traceNestingMode),
-    [spans, traceNestingMode],
+    () => buildTraceChildrenByParent(displayedSpans, traceNestingMode),
+    [displayedSpans, traceNestingMode],
   );
 
   const visibleRows = useMemo(
@@ -601,7 +814,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
   );
 
   const selectedSpan = selectedSpanId
-    ? (spans.find((s) => s.id === selectedSpanId) ?? null)
+    ? (displayedSpans.find((s) => s.id === selectedSpanId) ?? null)
     : null;
 
   useEffect(() => {
@@ -649,11 +862,85 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
     updateSelectedSpanId(selectedSpanId === id ? null : id);
   }
 
+  function toggleSelectedSpanKind(kind: string) {
+    setSelectedSpanKinds((prev) => {
+      const next = new Set(prev);
+      if (next.has(kind)) next.delete(kind);
+      else next.add(kind);
+      return next;
+    });
+  }
+
   const tickLabels = buildRulerTicks(metrics.totalMs);
 
   return (
     <Root ref={rootRef}>
       <TimelinePane>
+        <TimelineToolbar>
+          <TimelineCount>{filteredLabel}</TimelineCount>
+          <FilterControls>
+            <SegmentedControl>
+              <SegmentButton
+                type="button"
+                active={spanKindFilterMode === 'all'}
+                onClick={() => setSpanKindFilterMode('all')}
+                aria-pressed={spanKindFilterMode === 'all'}
+              >
+                All
+              </SegmentButton>
+              <SegmentButton
+                type="button"
+                active={spanKindFilterMode === 'only'}
+                onClick={() => setSpanKindFilterMode('only')}
+                aria-pressed={spanKindFilterMode === 'only'}
+              >
+                Only
+              </SegmentButton>
+              <SegmentButton
+                type="button"
+                active={spanKindFilterMode === 'hide'}
+                onClick={() => setSpanKindFilterMode('hide')}
+                aria-pressed={spanKindFilterMode === 'hide'}
+              >
+                Hide
+              </SegmentButton>
+            </SegmentedControl>
+          </FilterControls>
+          <FilterOptionsRow
+            visible={showFilterOptions}
+            aria-hidden={!showFilterOptions}
+          >
+            <VisibilityToggleLabel>
+              <input
+                type="checkbox"
+                checked={filteredSpanVisibility === 'faded'}
+                tabIndex={showFilterOptions ? undefined : -1}
+                onChange={(event) => {
+                  setFilteredSpanVisibility(
+                    event.currentTarget.checked ? 'faded' : 'hidden',
+                  );
+                }}
+              />
+              Fade filtered
+            </VisibilityToggleLabel>
+            <KindFilterList>
+              {spanKindOptions.map((kind) => (
+                <KindFilterOption
+                  key={kind}
+                  selected={selectedSpanKinds.has(kind)}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedSpanKinds.has(kind)}
+                    tabIndex={showFilterOptions ? undefined : -1}
+                    onChange={() => toggleSelectedSpanKind(kind)}
+                  />
+                  {kind}
+                </KindFilterOption>
+              ))}
+            </KindFilterList>
+          </FilterOptionsRow>
+        </TimelineToolbar>
         <TimelineScroll>
           <TimelineInner timelineCollapsed={timelineCollapsed}>
             <RulerRow timelineCollapsed={timelineCollapsed}>
@@ -724,7 +1011,11 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
             </RulerRow>
             <Rows>
               {visibleRows.length === 0 ? (
-                <Empty>No spans recorded for this case.</Empty>
+                <Empty>
+                  {spans.length === 0
+                    ? 'No spans recorded for this case.'
+                    : 'No spans match this filter.'}
+                </Empty>
               ) : null}
               {visibleRows.map(({ span, depth, hasChildren }) => {
                 const bar = computeSpanBar(span, metrics);
@@ -770,6 +1061,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
                     data-span-row="true"
                     active={selectedSpanId === span.id}
                     timelineCollapsed={timelineCollapsed}
+                    isFaded={!filteredSpanIds.has(span.id)}
                     onClick={() => handleSelect(span.id)}
                   >
                     <LabelCell style={{ paddingLeft: depth * 14 + 8 }}>

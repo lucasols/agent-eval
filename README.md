@@ -611,7 +611,9 @@ collapsing everything into the built-in `agent`, `llm`, `tool`, `retrieval`,
 The Trace tab can switch between the recorded parent hierarchy and timeline
 nesting. Timeline nesting is UI-only: it visually nests spans by start/end
 containment for flat exported traces without changing saved trace JSON or the
-parent ids available to `deriveFromTracing`.
+parent ids available to `deriveFromTracing`. It can also filter spans by one or
+more `kind` values, either showing only selected kinds or hiding selected kinds,
+with filtered spans either removed from the timeline or faded for context.
 
 For observability systems that already emit span lifecycle events, use the
 external span API. This lets an adapter translate start/update/end events into

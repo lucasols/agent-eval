@@ -179,10 +179,15 @@ export function buildTraceChildrenByParent(
 ): Map<string | null, EvalTraceSpan[]> {
   const parentIds =
     nestingMode === 'timeline' ? getTimelineParentIds(spans) : undefined;
+  const spanIds = new Set(spans.map((span) => span.id));
   const map = new Map<string | null, EvalTraceSpan[]>();
 
   for (const span of spans) {
-    const parentId = parentIds?.get(span.id) ?? span.parentId;
+    const candidateParentId = parentIds?.get(span.id) ?? span.parentId;
+    const parentId =
+      candidateParentId === null || spanIds.has(candidateParentId)
+        ? candidateParentId
+        : null;
     const list = map.get(parentId);
     if (list) list.push(span);
     else map.set(parentId, [span]);
