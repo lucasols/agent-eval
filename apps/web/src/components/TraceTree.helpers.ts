@@ -8,6 +8,17 @@ import {
 type VisibleRow = { span: EvalTraceSpan; depth: number; hasChildren: boolean };
 
 export type TraceNestingMode = 'parent' | 'timeline';
+export const LABEL_COLUMN_MIN_WIDTH = 220;
+export const TIMELINE_COLUMN_MIN_WIDTH = 420;
+export const TIMELINE_INNER_RIGHT_PADDING = 14;
+const LABEL_CELL_BASE_PADDING = 18;
+const LABEL_DEPTH_INDENT = 14;
+const LABEL_ITEM_GAP = 7;
+const LABEL_TOGGLE_WIDTH = 14;
+const LABEL_STATUS_ICON_WIDTH = 12;
+const BADGE_HORIZONTAL_PADDING = 12;
+const KIND_BADGE_CHAR_WIDTH = 6.4;
+const SPAN_NAME_PREVIEW_WIDTH = 80;
 
 type TraceMetrics = {
   startMs: number;
@@ -22,6 +33,40 @@ export type SpanBar = {
   durationMs: number;
   isRunning: boolean;
 };
+
+function estimateTextWidth(value: string, charWidth: number): number {
+  return Array.from(value).length * charWidth;
+}
+
+export function estimateTraceLabelWidth({
+  depth,
+  span,
+}: {
+  depth: number;
+  span: EvalTraceSpan;
+}): number {
+  const hasStatusIcon =
+    span.status === 'error' ||
+    span.warning !== undefined ||
+    (span.warnings?.length ?? 0) > 0 ||
+    getSpanOutputDiagnosticMatch(span) !== undefined;
+
+  let width =
+    depth * LABEL_DEPTH_INDENT +
+    LABEL_CELL_BASE_PADDING +
+    LABEL_TOGGLE_WIDTH +
+    LABEL_ITEM_GAP +
+    BADGE_HORIZONTAL_PADDING +
+    estimateTextWidth(span.kind, KIND_BADGE_CHAR_WIDTH);
+
+  if (hasStatusIcon) {
+    width += LABEL_STATUS_ICON_WIDTH + LABEL_ITEM_GAP;
+  }
+
+  width += LABEL_ITEM_GAP + SPAN_NAME_PREVIEW_WIDTH;
+
+  return Math.max(LABEL_COLUMN_MIN_WIDTH, Math.ceil(width));
+}
 
 export function computeTraceMetrics(spans: EvalTraceSpan[]): TraceMetrics {
   const nowMs = Date.now();

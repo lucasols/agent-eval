@@ -818,21 +818,23 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
             <TitleBlock>
               <TitleRow>
                 <Title large={isSingle}>{getEvalTitle(evalSummary)}</Title>
-                <StatusWrap title={statusTooltip ?? undefined}>
-                  <StatusBadge
-                    status={displayStatus}
-                    detail={
-                      displayStatus === 'running'
-                        ? (runningElapsedLabel ?? undefined)
-                        : undefined
-                    }
-                  />
-                </StatusWrap>
+                <Tooltip content={statusTooltip ?? undefined}>
+                  <StatusWrap>
+                    <StatusBadge
+                      status={displayStatus}
+                      detail={
+                        displayStatus === 'running'
+                          ? (runningElapsedLabel ?? undefined)
+                          : undefined
+                      }
+                    />
+                  </StatusWrap>
+                </Tooltip>
               </TitleRow>
               {isSingle ? null : (
-                <FilePath title={evalSummary.filePath}>
-                  {evalSummary.filePath}
-                </FilePath>
+                <Tooltip content={evalSummary.filePath}>
+                  <FilePath>{evalSummary.filePath}</FilePath>
+                </Tooltip>
               )}
               <TagChips tags={evalSummary.tags ?? []} />
             </TitleBlock>

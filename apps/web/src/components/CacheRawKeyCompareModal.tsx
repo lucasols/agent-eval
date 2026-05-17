@@ -15,6 +15,7 @@ import { styled } from 'vindur';
 import { Button } from '#src/components/Button';
 import { LoadingLine } from '#src/components/LoadingState';
 import { Modal } from '#src/components/Modal';
+import { Tooltip } from '#src/components/Tooltip';
 import { cacheEntryStore } from '#src/stores/cacheStore';
 import { runHistoryStore } from '#src/stores/historyStore';
 import { caseDetailStore } from '#src/stores/runStore';
@@ -444,9 +445,9 @@ export function CacheRawKeyCompareModal({
       <SelectorGrid>
         <Field>
           <FieldLabel>Current run</FieldLabel>
-          <ReadonlyValue title={currentRunLabel}>
-            {currentRunLabel}
-          </ReadonlyValue>
+          <Tooltip content={currentRunLabel}>
+            <ReadonlyValue>{currentRunLabel}</ReadonlyValue>
+          </Tooltip>
         </Field>
         <Field>
           <FieldLabel>Comparison run</FieldLabel>

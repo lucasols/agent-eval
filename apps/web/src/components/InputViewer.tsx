@@ -1,6 +1,7 @@
 import { Download } from 'lucide-react';
 import { styled } from 'vindur';
 import { JsonViewer } from '#src/components/JsonViewer';
+import { Tooltip } from '#src/components/Tooltip';
 import { useImageLightbox } from '#src/components/useImageLightbox';
 import { colors } from '#src/style/colors';
 import { inline, kicker, stack, transition } from '#src/style/helpers';
@@ -124,7 +125,9 @@ function FilePreview({ entry }: { entry: FileEntry }) {
       <FileHeader>
         <FileMeta>
           <FieldKey>{key}</FieldKey>
-          <FileName title={file.name}>{file.name || 'Pasted file'}</FileName>
+          <Tooltip content={file.name}>
+            <FileName>{file.name || 'Pasted file'}</FileName>
+          </Tooltip>
           <FileSub>
             {file.mimeType || 'application/octet-stream'} ·{' '}
             {formatFileSize(file.sizeBytes)}

@@ -203,6 +203,18 @@ const Overlay = styled.div`
 
 Don't use conditional style functions inside styled components — Vindur doesn't support them. Use style flags instead. Don't use `colorAlpha` with static colors — use `color.name.alpha(n)`.
 
+## Tooltips
+
+For hover/focus tooltips, use the `Tooltip` component from `#src/components/Tooltip` instead of the native `title="..."` attribute.
+
+```tsx
+import { Tooltip } from '#src/components/Tooltip';
+
+<Tooltip content="Explanation">
+  <button>Action</button>
+</Tooltip>;
+```
+
 ## React patterns
 
 `useEffect` is a last resort. Only use it for syncing with an external system because the component was displayed. Event-driven logic goes in event handlers.

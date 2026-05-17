@@ -363,8 +363,11 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
 - `llmCalls` (in `agent-evals.config.ts`) configures how LLM-call spans are
   summarized for review. Defaults to `kind: 'llm'` spans with `model`,
   `usage.*`, `latencyMs`, `input`, `output`, etc. read from conventional
-  attribute paths. `latencyMs` is time to first token; duration, total tokens,
-  output tokens/sec, and USD costs are derived. Override `kinds` to broaden the filter,
+  attribute paths. The default `steps` path reads an array from
+  `span.attributes.steps`; if it is missing, direct child `model_step` spans are
+  shown as that call's steps. `latencyMs` is time to first token; duration,
+  total tokens, output tokens/sec, and USD costs are derived. Override `kinds`
+  to broaden the filter,
   override `attributes.<field>` for non-default primitive span shapes, configure
   model-keyed `pricing` to derive USD costs from token counts, with nested
   `providers` entries for provider-specific rates, add `costCurrencies` to show

@@ -715,3 +715,57 @@ test('extractLlmCalls reads steps as an array of step details', () => {
 
   expect(calls[0]).toMatchObject({ stepCount: 2, stepDetails: stepArray });
 });
+
+test('extractLlmCalls falls back to child model step spans', () => {
+  const stepSpans: EvalTraceSpan[] = [
+    {
+      id: 'step-1',
+      parentId: 'span-1',
+      caseId: 'case-1',
+      kind: 'model_step',
+      name: 'step: 0',
+      startedAt: '2026-04-21T12:00:00.010Z',
+      endedAt: '2026-04-21T12:00:00.050Z',
+      status: 'ok',
+      attributes: {
+        output: { text: 'Plan', toolCalls: [{ id: '1', name: 'lookup' }] },
+      },
+    },
+    {
+      id: 'step-2',
+      parentId: 'span-1',
+      caseId: 'case-1',
+      kind: 'model_step',
+      name: 'step: 1',
+      startedAt: '2026-04-21T12:00:00.060Z',
+      endedAt: '2026-04-21T12:00:00.120Z',
+      status: 'ok',
+      attributes: { output: { text: 'Execute', toolCalls: [] } },
+    },
+  ];
+
+  const calls = extractLlmCalls(
+    [
+      llmSpan({
+        attributes: {
+          model: 'gpt-4o',
+          usage: { inputTokens: 10, outputTokens: 5 },
+        },
+      }),
+      ...stepSpans,
+      {
+        id: 'nested-step',
+        parentId: 'step-1',
+        caseId: 'case-1',
+        kind: 'model_step',
+        name: 'nested step',
+        startedAt: '2026-04-21T12:00:00.020Z',
+        endedAt: '2026-04-21T12:00:00.030Z',
+        status: 'ok',
+      },
+    ],
+    DEFAULT_LLM_CALLS_CONFIG,
+  );
+
+  expect(calls[0]).toMatchObject({ stepCount: 2, stepDetails: stepSpans });
+});

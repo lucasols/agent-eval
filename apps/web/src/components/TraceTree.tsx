@@ -18,12 +18,16 @@ import {
   buildRulerTicks,
   computeSpanBar,
   computeTraceMetrics,
+  estimateTraceLabelWidth,
   flattenVisibleRows,
   formatSpanDiagnosticTooltip,
   formatSpanOutputDiagnosticTooltip,
   formatSpanDuration,
   getSpanOutputDiagnosticMatch,
+  LABEL_COLUMN_MIN_WIDTH,
   type SpanBar,
+  TIMELINE_COLUMN_MIN_WIDTH,
+  TIMELINE_INNER_RIGHT_PADDING,
   type TraceNestingMode,
 } from '#src/components/TraceTree.helpers';
 import { TraceCacheBadge } from '#src/components/TraceTreeCacheBadge';
@@ -306,7 +310,7 @@ const TimelineInner = styled.div<{ timelineCollapsed: boolean }>`
   display: flex;
   flex-direction: column;
   min-width: 560px;
-  padding-right: 14px;
+  padding-right: ${TIMELINE_INNER_RIGHT_PADDING}px;
 
   &.timelineCollapsed {
     min-width: 0;
@@ -477,6 +481,7 @@ const Row = styled.div<{
 const LabelCell = styled.div`
   ${inline({ gap: 7, align: 'center' })}
   min-width: 0;
+  overflow: hidden;
   padding-right: 10px;
 `;
 
@@ -608,6 +613,10 @@ const KindBadge = styled.span`
   text-transform: uppercase;
   color: var(--trace-kind-badge-text, ${colors.textMuted.var});
   background: var(--trace-kind-badge-bg, ${colors.surface.var});
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   flex-shrink: 0;
 `;
 
@@ -654,6 +663,10 @@ const TreeAttributeLabel = styled.span`
   ${monoFont};
   font-size: 9.5px;
   letter-spacing: 0.04em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   flex-shrink: 0;
   color: ${colors.textDim.var};
 `;
@@ -809,6 +822,24 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
     () => flattenVisibleRows(childrenByParent, collapsed),
     [childrenByParent, collapsed],
   );
+  const labelColumnWidth = useMemo(() => {
+    let maxWidth = LABEL_COLUMN_MIN_WIDTH;
+    for (const row of visibleRows) {
+      maxWidth = Math.max(
+        maxWidth,
+        estimateTraceLabelWidth({ depth: row.depth, span: row.span }),
+      );
+    }
+    return maxWidth;
+  }, [visibleRows]);
+  const timelineGridTemplateColumns = timelineCollapsed
+    ? '1fr'
+    : `${String(labelColumnWidth)}px minmax(${String(
+        TIMELINE_COLUMN_MIN_WIDTH,
+      )}px, 1fr)`;
+  const timelineInnerMinWidth = timelineCollapsed
+    ? labelColumnWidth
+    : labelColumnWidth + TIMELINE_COLUMN_MIN_WIDTH;
 
   const selectedSpan = selectedSpanId
     ? (displayedSpans.find((s) => s.id === selectedSpanId) ?? null)
@@ -936,47 +967,58 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
           ) : null}
         </TimelineToolbar>
         <TimelineScroll>
-          <TimelineInner timelineCollapsed={timelineCollapsed}>
-            <RulerRow timelineCollapsed={timelineCollapsed}>
+          <TimelineInner
+            timelineCollapsed={timelineCollapsed}
+            style={{ minWidth: timelineInnerMinWidth }}
+          >
+            <RulerRow
+              timelineCollapsed={timelineCollapsed}
+              style={{ gridTemplateColumns: timelineGridTemplateColumns }}
+            >
               <RulerLabelInline>
                 <RulerLabelText>Span</RulerLabelText>
                 <RulerControls>
                   <NestingModeControl>
-                    <NestingModeButton
-                      type="button"
-                      active={traceNestingMode === 'parent'}
-                      onClick={() => setTraceNestingMode('parent')}
-                      aria-label="Use recorded parent hierarchy"
-                      title="Recorded parent hierarchy"
-                    >
-                      <GitFork />
-                    </NestingModeButton>
-                    <NestingModeButton
-                      type="button"
-                      active={traceNestingMode === 'timeline'}
-                      onClick={() => setTraceNestingMode('timeline')}
-                      aria-label="Use timeline nesting"
-                      title="Timeline nesting"
-                    >
-                      <Clock3 />
-                    </NestingModeButton>
+                    <Tooltip content="Recorded parent hierarchy">
+                      <NestingModeButton
+                        type="button"
+                        active={traceNestingMode === 'parent'}
+                        onClick={() => setTraceNestingMode('parent')}
+                        aria-label="Use recorded parent hierarchy"
+                      >
+                        <GitFork />
+                      </NestingModeButton>
+                    </Tooltip>
+                    <Tooltip content="Timeline nesting">
+                      <NestingModeButton
+                        type="button"
+                        active={traceNestingMode === 'timeline'}
+                        onClick={() => setTraceNestingMode('timeline')}
+                        aria-label="Use timeline nesting"
+                      >
+                        <Clock3 />
+                      </NestingModeButton>
+                    </Tooltip>
                   </NestingModeControl>
-                  <TimelineToggle
-                    type="button"
-                    onClick={() => setTimelineCollapsed((v) => !v)}
-                    aria-label={
-                      timelineCollapsed ? 'Show timeline' : 'Hide timeline'
-                    }
-                    title={
+                  <Tooltip
+                    content={
                       timelineCollapsed ? 'Show timeline' : 'Hide timeline'
                     }
                   >
-                    {timelineCollapsed ? (
-                      <PanelRightOpen />
-                    ) : (
-                      <PanelRightClose />
-                    )}
-                  </TimelineToggle>
+                    <TimelineToggle
+                      type="button"
+                      onClick={() => setTimelineCollapsed((v) => !v)}
+                      aria-label={
+                        timelineCollapsed ? 'Show timeline' : 'Hide timeline'
+                      }
+                    >
+                      {timelineCollapsed ? (
+                        <PanelRightOpen />
+                      ) : (
+                        <PanelRightClose />
+                      )}
+                    </TimelineToggle>
+                  </Tooltip>
                 </RulerControls>
               </RulerLabelInline>
               {!timelineCollapsed ? (
@@ -1056,6 +1098,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
                     active={selectedSpanId === span.id}
                     timelineCollapsed={timelineCollapsed}
                     isFaded={!filteredSpanIds.has(span.id)}
+                    style={{ gridTemplateColumns: timelineGridTemplateColumns }}
                     onClick={() => handleSelect(span.id)}
                   >
                     <LabelCell style={{ paddingLeft: depth * 14 + 8 }}>
@@ -1089,16 +1132,23 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
                           </SpanStatusIcon>
                         </Tooltip>
                       ) : null}
-                      <SpanName
-                        isError={hasError}
-                        isWarning={hasWarning}
+                      <Tooltip
+                        content={span.name}
+                        placement="top"
                       >
-                        {span.name}
-                      </SpanName>
+                        <SpanName
+                          isError={hasError}
+                          isWarning={hasWarning}
+                        >
+                          {span.name}
+                        </SpanName>
+                      </Tooltip>
                       {checkpointPreview !== null ? (
-                        <CheckpointPreview title={checkpointPreview}>
-                          {checkpointPreview}
-                        </CheckpointPreview>
+                        <Tooltip content={checkpointPreview}>
+                          <CheckpointPreview>
+                            {checkpointPreview}
+                          </CheckpointPreview>
+                        </Tooltip>
                       ) : null}
                       <TraceCacheBadge span={span} />
                       {treeAttributeItems.map((item) => (

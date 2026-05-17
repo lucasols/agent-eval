@@ -4,6 +4,7 @@ import { styled } from 'vindur';
 import { Button } from '#src/components/Button';
 import { Modal } from '#src/components/Modal';
 import { formatEvalTagLabel } from '#src/components/TagChips';
+import { Tooltip } from '#src/components/Tooltip';
 import { colors } from '#src/style/colors';
 import { ellipsis, inline, monoFont, stack } from '#src/style/helpers';
 
@@ -277,16 +278,18 @@ export function CasePickerModal({
                   onChange={() => onToggleCaseId(caseOption.id)}
                 />
                 <CaseMain>
-                  <CaseId title={caseOption.id}>{caseOption.id}</CaseId>
+                  <Tooltip content={caseOption.id}>
+                    <CaseId>{caseOption.id}</CaseId>
+                  </Tooltip>
                   {caseOption.tags.length > 0 ? (
                     <TagList>
                       {caseOption.tags.map((tag) => (
-                        <TagChip
+                        <Tooltip
                           key={tag}
-                          title={tag}
+                          content={tag}
                         >
-                          {formatEvalTagLabel(tag)}
-                        </TagChip>
+                          <TagChip>{formatEvalTagLabel(tag)}</TagChip>
+                        </Tooltip>
                       ))}
                     </TagList>
                   ) : null}

@@ -16,6 +16,7 @@ import { MenuButton } from '#src/components/MenuButton';
 import { ResizeHandle } from '#src/components/ResizeHandle';
 import type { SplitButtonMenuEntry } from '#src/components/SplitButton';
 import { StatusBadge } from '#src/components/StatusBadge';
+import { Tooltip } from '#src/components/Tooltip';
 import { useResizableWidth } from '#src/hooks/useResizableWidth';
 import { useWindowWidth } from '#src/hooks/useWindowWidth';
 import { evalSummariesStore } from '#src/stores/evalsStore';
@@ -770,14 +771,17 @@ export function RunDrawer() {
             <MetaValue>{manifest.id}</MetaValue>
             <MetaKey>Run folder</MetaKey>
             <CopyableMetaValue>
-              <MetaPath title={runFolderPath}>{runFolderDisplayPath}</MetaPath>
-              <IconButton
-                onClick={() => void handleCopyRunFolderPath()}
-                aria-label="Copy run folder path"
-                title="Copy run folder path"
-              >
-                <Copy />
-              </IconButton>
+              <Tooltip content={runFolderPath}>
+                <MetaPath>{runFolderDisplayPath}</MetaPath>
+              </Tooltip>
+              <Tooltip content="Copy run folder path">
+                <IconButton
+                  onClick={() => void handleCopyRunFolderPath()}
+                  aria-label="Copy run folder path"
+                >
+                  <Copy />
+                </IconButton>
+              </Tooltip>
             </CopyableMetaValue>
             {scopedRunCases.label !== null ? (
               <>

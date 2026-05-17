@@ -1,5 +1,6 @@
 import { convertToSentenceCase } from '@ls-stack/utils/stringUtils';
 import { styled } from 'vindur';
+import { Tooltip } from '#src/components/Tooltip';
 import { colors } from '#src/style/colors';
 import { inline } from '#src/style/helpers';
 
@@ -31,12 +32,12 @@ export function TagChips({ tags }: TagChipsProps) {
   return (
     <TagList>
       {tags.map((tag) => (
-        <TagChip
+        <Tooltip
           key={tag}
-          title={tag}
+          content={tag}
         >
-          {formatEvalTagLabel(tag)}
-        </TagChip>
+          <TagChip>{formatEvalTagLabel(tag)}</TagChip>
+        </Tooltip>
       ))}
     </TagList>
   );

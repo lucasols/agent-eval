@@ -16,6 +16,10 @@ const CacheBadge = styled.span<{
   font-weight: 500;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   flex-shrink: 0;
   background: ${colors.borderStrong.var};
   color: ${colors.textMuted.var};

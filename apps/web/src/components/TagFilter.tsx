@@ -17,6 +17,7 @@ import { Check, Filter, Search, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { styled } from 'vindur';
 import { formatEvalTagLabel } from '#src/components/TagChips';
+import { Tooltip } from '#src/components/Tooltip';
 import { colors } from '#src/style/colors';
 import { inline, stack, transition } from '#src/style/helpers';
 
@@ -394,16 +395,19 @@ export function TagFilter({
         ) : null}
       </Trigger>
       {activeSelectedTags.map((tag) => (
-        <ActiveChip
+        <Tooltip
           key={tag}
-          type="button"
-          title={`Remove tag filter: ${tag}`}
-          aria-label={`Remove tag filter ${tag}`}
-          onClick={() => onToggleTag(tag)}
+          content={`Remove tag filter: ${tag}`}
         >
-          <ActiveChipLabel>{formatEvalTagLabel(tag)}</ActiveChipLabel>
-          <X aria-hidden="true" />
-        </ActiveChip>
+          <ActiveChip
+            type="button"
+            aria-label={`Remove tag filter ${tag}`}
+            onClick={() => onToggleTag(tag)}
+          >
+            <ActiveChipLabel>{formatEvalTagLabel(tag)}</ActiveChipLabel>
+            <X aria-hidden="true" />
+          </ActiveChip>
+        </Tooltip>
       ))}
       {selectedCount > 1 ? (
         <ClearAllButton
@@ -460,9 +464,11 @@ export function TagFilter({
                             <TagCheckbox selected={isSelected}>
                               <Check aria-hidden="true" />
                             </TagCheckbox>
-                            <TagRowLabel title={tag}>
-                              {formatEvalTagLabel(tag)}
-                            </TagRowLabel>
+                            <Tooltip content={tag}>
+                              <TagRowLabel>
+                                {formatEvalTagLabel(tag)}
+                              </TagRowLabel>
+                            </Tooltip>
                           </TagRowMain>
                           <TagRowCount>{count}</TagRowCount>
                         </TagRow>

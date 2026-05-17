@@ -434,13 +434,14 @@ function FolderRow({
         depth2={depth === 2}
         depth3={depth >= 3}
       >
-        <ChevronButton
-          onClick={handleChevronClick}
-          title={isOpen ? 'Collapse folder' : 'Expand folder'}
-          open={isOpen}
-        >
-          <ChevronRight />
-        </ChevronButton>
+        <Tooltip content={isOpen ? 'Collapse folder' : 'Expand folder'}>
+          <ChevronButton
+            onClick={handleChevronClick}
+            open={isOpen}
+          >
+            <ChevronRight />
+          </ChevronButton>
+        </Tooltip>
         <GroupLabel>
           <GroupLabelPrefix>/</GroupLabelPrefix>
           {folder.name}
@@ -509,13 +510,14 @@ function FileRow({
         depth2={depth === 2}
         depth3={depth >= 3}
       >
-        <ChevronButton
-          onClick={handleChevronClick}
-          title={isOpen ? 'Collapse file' : 'Expand file'}
-          open={isOpen}
-        >
-          <ChevronRight />
-        </ChevronButton>
+        <Tooltip content={isOpen ? 'Collapse file' : 'Expand file'}>
+          <ChevronButton
+            onClick={handleChevronClick}
+            open={isOpen}
+          >
+            <ChevronRight />
+          </ChevronButton>
+        </Tooltip>
         <GroupLabel>{file.name}</GroupLabel>
         <Tooltip content={statusTooltip}>
           <StatusDotWrap>
@@ -568,27 +570,28 @@ function LeafRow({
     ev.stale || ev.outdated ? getFreshnessTooltip(ev) : undefined;
 
   return (
-    <RowBase
-      type="button"
-      onClick={() => selectEval(ev.key)}
-      title={rowTooltip ?? undefined}
-      active={isActive}
-      depth0={depth === 0}
-      depth1={depth === 1}
-      depth2={depth === 2}
-      depth3={depth >= 3}
-    >
-      <StatusDot status={displayStatus} />
-      <LeafLabel>
-        {showFilenamePrefix ? (
-          <>
-            <LeafFileName>{leaf.fileName}</LeafFileName>
-            <LeafSeparator>/</LeafSeparator>
-          </>
-        ) : null}
-        {title}
-      </LeafLabel>
-    </RowBase>
+    <Tooltip content={rowTooltip ?? undefined}>
+      <RowBase
+        type="button"
+        onClick={() => selectEval(ev.key)}
+        active={isActive}
+        depth0={depth === 0}
+        depth1={depth === 1}
+        depth2={depth === 2}
+        depth3={depth >= 3}
+      >
+        <StatusDot status={displayStatus} />
+        <LeafLabel>
+          {showFilenamePrefix ? (
+            <>
+              <LeafFileName>{leaf.fileName}</LeafFileName>
+              <LeafSeparator>/</LeafSeparator>
+            </>
+          ) : null}
+          {title}
+        </LeafLabel>
+      </RowBase>
+    </Tooltip>
   );
 }
 

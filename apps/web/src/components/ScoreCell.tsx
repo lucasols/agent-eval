@@ -259,14 +259,16 @@ function StarDisplay({
   const max = getMaxStars(maxStars);
   const stars = valueToStars(value, max);
   return (
-    <StarsWrap title={`${String(stars ?? 0)}/${String(max)}`}>
-      {Array.from({ length: max }, (_, index) => (
-        <Star
-          key={index}
-          className={stars !== null && index < stars ? 'filled' : undefined}
-        />
-      ))}
-    </StarsWrap>
+    <Tooltip content={`${String(stars ?? 0)}/${String(max)}`}>
+      <StarsWrap>
+        {Array.from({ length: max }, (_, index) => (
+          <Star
+            key={index}
+            className={stars !== null && index < stars ? 'filled' : undefined}
+          />
+        ))}
+      </StarsWrap>
+    </Tooltip>
   );
 }
 

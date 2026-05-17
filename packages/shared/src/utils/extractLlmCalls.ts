@@ -435,12 +435,33 @@ function computeTokensPerSecond({
 function readSteps(
   attributes: unknown,
   path: string,
+  childModelSteps: EvalTraceSpan[],
 ): { stepCount: number | null; stepDetails: unknown[] | null } {
   const raw = getNestedAttribute(attributes, path);
   if (Array.isArray(raw)) {
     return { stepCount: raw.length, stepDetails: raw };
   }
+  if (childModelSteps.length > 0) {
+    return { stepCount: childModelSteps.length, stepDetails: childModelSteps };
+  }
   return { stepCount: null, stepDetails: null };
+}
+
+function buildModelStepsByParent(
+  spans: EvalTraceSpan[],
+): Map<string, EvalTraceSpan[]> {
+  const stepsByParent = new Map<string, EvalTraceSpan[]>();
+  for (const span of spans) {
+    if (span.kind !== 'model_step' || span.parentId === null) continue;
+
+    const current = stepsByParent.get(span.parentId);
+    if (current === undefined) {
+      stepsByParent.set(span.parentId, [span]);
+      continue;
+    }
+    current.push(span);
+  }
+  return stepsByParent;
 }
 
 function collectWarnings(span: EvalTraceSpan): EvalTraceSpanWarning[] {
@@ -476,6 +497,9 @@ function pickError(span: EvalTraceSpan): EvalTraceSpanError | null {
  * charged twice. Cache read/write costs still contribute to the total USD cost
  * at their configured rates. The `steps` attribute path may resolve to an array
  * of per-step detail objects, with `stepCount` derived from the array length.
+ * When a matching LLM span does not expose that array, direct child spans with
+ * `kind: 'model_step'` are used as the step details instead. This preserves
+ * Mastra/OpenTelemetry traces where model steps are emitted as child spans.
  * `durationMs` and `tokensPerSecond` are `null` while the span is still
  * running. User-defined `metrics` whose path resolves to
  * `undefined` are dropped, but `null`, `0`, and `false` are preserved as
@@ -487,6 +511,7 @@ export function extractLlmCalls(
   config: ResolvedLlmCallsConfig,
 ): LlmCallEntry[] {
   const kindSet = new Set(config.kinds);
+  const modelStepsByParent = buildModelStepsByParent(spans);
   const result: LlmCallEntry[] = [];
 
   for (const span of spans) {
@@ -598,7 +623,11 @@ export function extractLlmCalls(
       cachedInputCostUsd,
       cacheCreationInputCostUsd,
       reasoningCostUsd,
-      ...readSteps(attrs, config.attributes.steps),
+      ...readSteps(
+        attrs,
+        config.attributes.steps,
+        modelStepsByParent.get(span.id) ?? [],
+      ),
       finishReason: readString(attrs, config.attributes.finishReason),
       durationMs,
       input: getNestedAttribute(attrs, config.attributes.input),

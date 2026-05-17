@@ -35,6 +35,16 @@ export async function runVoiceReturnFollowUpWorkflow(
         async () => {
           await waitForWorkflowDelay('transcribeVoiceNote');
 
+          await evalTracer.span({ kind: 'model_step', name: 'step: 0' }, () => {
+            evalSpan.setAttributes({
+              input: { voiceNote: input.voiceNote },
+              output: {
+                text: 'Customer requested a return and follow-up instructions.',
+                toolCalls: [],
+              },
+            });
+          });
+
           evalSpan.setAttributes({
             input: { voiceNote: input.voiceNote },
             model: 'whisper-1',

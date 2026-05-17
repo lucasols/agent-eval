@@ -3,6 +3,7 @@ import { styled } from 'vindur';
 import { Button } from '#src/components/Button';
 import { Modal } from '#src/components/Modal';
 import { formatEvalTagLabel } from '#src/components/TagChips';
+import { Tooltip } from '#src/components/Tooltip';
 import { colors } from '#src/style/colors';
 import { inline, stack } from '#src/style/helpers';
 
@@ -212,7 +213,9 @@ export function TagPickerModal({
                   checked={selectedTags.includes(tag)}
                   onChange={() => onToggleTag(tag)}
                 />
-                <TagName title={tag}>{formatEvalTagLabel(tag)}</TagName>
+                <Tooltip content={tag}>
+                  <TagName>{formatEvalTagLabel(tag)}</TagName>
+                </Tooltip>
               </TagRow>
             ))}
           </TagList>

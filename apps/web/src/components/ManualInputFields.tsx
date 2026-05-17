@@ -1,6 +1,7 @@
 import type { ManualInputFieldDescriptor } from '@agent-evals/shared';
 import { useId, useRef, useState, type DragEvent } from 'react';
 import { css, styled } from 'vindur';
+import { Tooltip } from '#src/components/Tooltip';
 import { useImageLightbox } from '#src/components/useImageLightbox';
 import { colors } from '#src/style/colors';
 import { centerContent, stack, inline, transition } from '#src/style/helpers';
@@ -333,9 +334,11 @@ function FileFieldInput({
       <FilePreview>
         <FilePreviewHeader>
           <FilePreviewMeta>
-            <FilePreviewName title={fileValue.name}>
-              {fileValue.name || 'Pasted file'}
-            </FilePreviewName>
+            <Tooltip content={fileValue.name}>
+              <FilePreviewName>
+                {fileValue.name || 'Pasted file'}
+              </FilePreviewName>
+            </Tooltip>
             <FilePreviewSub>
               {fileValue.mimeType || 'application/octet-stream'} ·{' '}
               {formatFileSize(fileValue.sizeBytes)}
