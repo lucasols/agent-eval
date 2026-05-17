@@ -14,6 +14,20 @@ type CacheKeySection = {
   examples: Array<{ id: string; expectedAction: string; keywords: string[] }>;
 };
 
+type CacheProbeResult = {
+  response: string;
+  reviewPacket: {
+    accountId: string;
+    scenario: string;
+    sections: CacheKeySection[];
+    routingNotes: Array<{
+      sectionId: string;
+      recommendedAction: string;
+      rationale: string;
+    }>;
+  };
+};
+
 function buildLargeStableSections(): CacheKeySection[] {
   return Array.from({ length: 48 }, (_section, sectionIndex) => {
     const sectionNumber = sectionIndex + 1;
@@ -100,12 +114,27 @@ defineEval<LargeCacheKeyInput, LargeCacheKeyOutputs>({
         namespace: 'playground.large-cache-key-diff-demo',
         key: largeCacheKey,
       },
-      () => {
-        return `Prepared large cache-key comparison payload for ${input.accountId}.`;
+      (): CacheProbeResult => {
+        return {
+          response: `Prepared large cache-key comparison payload for ${input.accountId}.`,
+          reviewPacket: {
+            accountId: input.accountId,
+            scenario: input.scenario,
+            sections: largeCacheKey.retrievalSnapshot.sections,
+            routingNotes: largeCacheKey.retrievalSnapshot.sections.map(
+              (section) => ({
+                sectionId: section.sectionId,
+                recommendedAction: section.examples[0]?.expectedAction ?? '',
+                rationale:
+                  'Retain the full policy context so reviewers can compare a small key change against the cached payload.',
+              }),
+            ),
+          },
+        };
       },
     );
 
-    setEvalOutput('response', response);
+    setEvalOutput('response', response.response);
     setEvalOutput(
       'keySectionCount',
       largeCacheKey.retrievalSnapshot.sections.length,

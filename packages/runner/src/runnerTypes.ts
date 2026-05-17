@@ -1,6 +1,7 @@
 import type {
   CacheEntryWithDebugKey,
   CacheListItem,
+  CacheRepairSummary,
   CaseDetail,
   CaseRow,
   ConfigReloadState,
@@ -94,6 +95,8 @@ export type EvalRunner = {
    * supplied.
    */
   clearCache(filter?: CacheClearFilter): Promise<void>;
+  /** Remove cache/debug/blob files that are not referenced by cache indexes. */
+  repairCache(): Promise<CacheRepairSummary>;
   /**
    * Recompute persisted case and run statuses for terminal runs touching one
    * eval. Accepts the exact eval key.

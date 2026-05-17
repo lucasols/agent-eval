@@ -87,7 +87,7 @@ function parseArgs(argv: string[]): CliArgs {
   let cursor = 1;
   if (args.command === 'cache') {
     const sub = normalizedArgv[cursor];
-    if (sub === 'list' || sub === 'clear') {
+    if (sub === 'list' || sub === 'clear' || sub === 'repair') {
       args.subcommand = sub;
       args.helpTopic = `cache ${sub}`;
       cursor++;
@@ -617,13 +617,8 @@ async function commandCache(args: CliArgs): Promise<void> {
     for (const entry of entries) {
       console.info(`  ${entry.namespace}`);
       console.info(`    key: ${entry.key}`);
-      const operationLabel =
-        entry.operationType === 'span'
-          ? `${entry.operationName} (span ${entry.spanKind ?? 'unknown'})`
-          : `${entry.operationName} (value)`;
-      console.info(`    operation: ${operationLabel}`);
       console.info(`    stored: ${entry.storedAt}`);
-      console.info(`    size: ${String(entry.sizeBytes)} bytes`);
+      console.info(`    last accessed: ${entry.lastAccessedAt}`);
       console.info('');
     }
     return;
@@ -665,6 +660,21 @@ async function commandCache(args: CliArgs): Promise<void> {
       'Refusing to clear cache without --eval <id> or --all. Use one of these flags to confirm.',
     );
     process.exit(1);
+  }
+
+  if (args.subcommand === 'repair') {
+    const summary = await runner.repairCache();
+    if (args.json) {
+      console.info(JSON.stringify(summary, null, 2));
+      return;
+    }
+    console.info('Cache repair complete.');
+    console.info(`Removed cache files: ${String(summary.removedCacheFiles)}`);
+    console.info(`Removed debug files: ${String(summary.removedDebugFiles)}`);
+    console.info(`Removed blob files: ${String(summary.removedBlobFiles)}`);
+    console.info(`Removed index rows: ${String(summary.removedIndexRows)}`);
+    console.info(`Rewritten indexes: ${String(summary.rewrittenIndexes)}`);
+    return;
   }
 
   printHelp(args.helpTopic);

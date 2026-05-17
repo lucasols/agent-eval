@@ -946,6 +946,12 @@ export type AgentEvalsConfig = {
      * `maxEntriesPerNamespace` for matching namespaces.
      */
     maxEntriesByNamespace?: Record<string, number>;
+    /**
+     * Milliseconds the runner waits after becoming idle before pruning indexed
+     * cache entries. Defaults to `5000`; non-positive or non-finite values use
+     * the default.
+     */
+    pruneIdleDelayMs?: number;
     /** Legacy alias for `maxEntriesPerNamespace`, retained so older config files keep working. */
     maxEntriesPerEval?: number;
   };
@@ -982,6 +988,13 @@ export const agentEvalsConfigSchema = z.object({
         z.number().optional(),
       ),
       maxEntriesByNamespace: z.record(z.string(), z.number()).optional(),
+      pruneIdleDelayMs: z.preprocess(
+        (value) =>
+          typeof value === 'number' && Number.isFinite(value)
+            ? value
+            : undefined,
+        z.number().optional(),
+      ),
       maxEntriesPerEval: z.preprocess(
         (value) =>
           typeof value === 'number' && Number.isFinite(value)

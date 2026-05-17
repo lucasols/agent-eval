@@ -180,6 +180,7 @@ export type {
   CacheListItem,
   CacheMode,
   CacheOperationType,
+  CacheRepairSummary,
   CacheRecording,
   CacheRecordingOp,
   CacheStatus,

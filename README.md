@@ -1283,9 +1283,10 @@ CLI:
 - `--no-cache` — shortcut for `--cache bypass`.
 - `--refresh-cache` — shortcut for `--cache refresh`.
 - `--clear-cache` — wipe cache entries before the run starts.
-- `pnpm eval cache list` — dump persisted entries (add `--json` for JSON).
+- `pnpm eval cache list` — dump persisted namespace/key entries (add `--json` for JSON).
 - `pnpm eval cache clear --eval <id>` — drop entries for matching authored eval ids.
 - `pnpm eval cache clear --all` — drop every entry.
+- `pnpm eval cache repair` — remove unindexed/orphaned cache, debug, and blob files.
 
 UI: every `EvalCard` has a split button next to **Run** with a chevron menu
 containing the cache run modes and, for single evals, a case picker. The single
@@ -1332,8 +1333,13 @@ Server API (`/api/cache`):
   in cache-key hashing.
 - Entries live as one Brotli-compressed JSON file per key at
   `<workspaceRoot>/.agent-evals/cache/<sanitizedNamespace>/<keyHash>.json.br`.
+- Cache retention metadata lives in small namespace index sidecars next to entries at
+  `<workspaceRoot>/.agent-evals/cache/<sanitizedNamespace>/.index-<namespaceHash>.json`;
+  cache listing and retention use these indexes without opening cached payloads.
+  Index rows intentionally stay minimal: stored time, last access time, and
+  external JSON blob refs.
 - Nested cached JSON values at or above roughly 10K JSON characters are stored as content-addressed
-  Brotli blobs under `<workspaceRoot>/.agent-evals/cache-blobs/` and referenced
+  Brotli blobs under `<workspaceRoot>/.agent-evals/cache/cache-blobs/` and referenced
   from cache entries by sha256. Identical large payloads share the same blob.
 - Authored raw cache keys are stored for debugging in
   `<workspaceRoot>/.agent-evals/cache-debug/<sanitizedNamespace>/<keyHash>.json`.
@@ -1342,9 +1348,13 @@ Server API (`/api/cache`):
   other sensitive data, is not needed for cache reuse, and should be gitignored.
   Normal cache files remain hash-only.
 - Each namespace keeps at most `cache.maxEntriesPerNamespace ?? 100` entries,
-  pruning the oldest entries in that namespace on write so committed caches do
-  not grow forever. Use `cache.maxEntriesByNamespace` for exact namespace
-  overrides.
+  pruning the least recently accessed indexed entries after a run finishes and
+  the runner stays idle for `cache.pruneIdleDelayMs ?? 5000` milliseconds. Cache
+  hits update `lastAccessedAt` in the namespace index. Use
+  `cache.maxEntriesByNamespace` for exact namespace overrides.
+- Unindexed legacy cache files are ignored by normal lookup, listing, and
+  retention. Run `pnpm eval cache repair` when you want to remove unindexed
+  cache files, stale index rows, debug sidecars, and unreferenced blob files.
 - Cache keys should be deterministic primitives, arrays, and plain objects.
   `Buffer`, `ArrayBuffer`, and typed-array values are serialized by a sha256 of
   their bytes. Native `Blob`/`File` keys use stable metadata by default
@@ -1388,6 +1398,7 @@ export const config: AgentEvalsConfig = {
   cache: {
     maxEntriesPerNamespace: 50,
     maxEntriesByNamespace: { 'receipt-audit.receipt-audit-context': 200 },
+    pruneIdleDelayMs: 5_000,
   },
 };
 ```
@@ -1496,9 +1507,10 @@ Commands:
   list                       List discovered evals
   run                        Run targeted evals
   show-runs [id|latest]      Show saved run artifact file paths
-  cache list                 List cached operation entries
+  cache list                 List cached namespace/key entries
   cache clear --eval <id>    Clear cache entries for one eval
   cache clear --all          Clear every cached entry
+  cache repair               Remove unindexed/orphaned cache files
 
 Flags:
   --file <path|glob[,..]>    Narrow evals by workspace-relative file path/glob
@@ -1508,7 +1520,7 @@ Flags:
   --trials <n>               Override trials per case
   --inspect[=host:port]      Run with the Node.js inspector enabled
   --inspect-brk[=host:port]  Enable inspector and pause before startup
-  --json                     Emit run summary, run file index, or cache listing as JSON
+  --json                     Emit run summary, run file index, cache listing, or repair summary as JSON
   --port <n>                 Server port (app, default: 4100)
   --cache <use|bypass|refresh>  Cache mode for this run (default: use)
   --no-cache                 Shortcut for --cache bypass

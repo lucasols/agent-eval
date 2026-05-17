@@ -246,16 +246,8 @@ test('caches values without creating a cache span and replays SDK effects', asyn
     const firstCacheList = await runner.listCache();
     expect(firstCacheList).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          operationType: 'value',
-          operationName: 'root-value',
-          namespace: 'value-cache-eval.root-value',
-        }),
-        expect.objectContaining({
-          operationType: 'value',
-          operationName: 'value-plan',
-          namespace: 'value-cache-eval.value-plan',
-        }),
+        expect.objectContaining({ namespace: 'value-cache-eval.root-value' }),
+        expect.objectContaining({ namespace: 'value-cache-eval.value-plan' }),
       ]),
     );
 

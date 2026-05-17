@@ -8,9 +8,13 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { brotliDecompressSync } from 'node:zlib';
-import { serializeCacheRecording } from '@agent-evals/sdk';
+import { dirname, join, resolve } from 'node:path';
+import { brotliCompressSync, brotliDecompressSync } from 'node:zlib';
+import {
+  getRealDateNowMs,
+  runWithEvalClock,
+  serializeCacheRecording,
+} from '@agent-evals/sdk';
 import {
   cacheDebugKeyEntrySchema,
   cacheEntrySchema,
@@ -18,11 +22,26 @@ import {
   type CacheEntry,
 } from '@agent-evals/shared';
 import { afterEach, describe, expect, test } from 'vitest';
+import { z } from 'zod/v4';
 import { createBufferedCacheStore, createFsCacheStore } from './cacheStore.ts';
 
 const workspaces: string[] = [];
 const externalJsonBlobPathRegex = /^sha256\/[a-f0-9]{2}\/[a-f0-9]+\.json\.br$/;
 const defaultNamespace = 'debug-eval.expensive-op';
+const cacheIndexSchema = z.object({
+  version: z.literal(1),
+  namespace: z.string(),
+  entries: z.record(
+    z.string(),
+    z
+      .object({
+        storedAt: z.string(),
+        lastAccessedAt: z.string(),
+        blobRefs: z.array(z.string()),
+      })
+      .strict(),
+  ),
+});
 
 afterEach(async () => {
   await Promise.all(
@@ -99,6 +118,26 @@ async function readCacheKeys(
     .sort();
 }
 
+async function readCacheIndex(
+  workspacePath: string,
+  namespace = defaultNamespace,
+): Promise<z.infer<typeof cacheIndexSchema>> {
+  const dir = resolve(
+    workspacePath,
+    '.agent-evals/cache',
+    sanitizeSegment(namespace),
+  );
+  const files = (await readdir(dir)).filter(
+    (file) => file.startsWith('.index-') && file.endsWith('.json'),
+  );
+  expect(files).toHaveLength(1);
+  const file = files[0];
+  if (file === undefined) throw new Error('Expected one cache index file');
+  return cacheIndexSchema.parse(
+    JSON.parse(await readFile(resolve(dir, file), 'utf8')),
+  );
+}
+
 async function readDebugKeys(
   workspacePath: string,
   namespace = defaultNamespace,
@@ -161,6 +200,17 @@ function getStringProperty(value: unknown, key: string): string {
     throw new Error(`Expected ${key} to be a string`);
   }
   return property;
+}
+
+async function readExternalJsonBlob(
+  store: ReturnType<typeof createFsCacheStore>,
+  path: string,
+): Promise<unknown> {
+  return JSON.parse(
+    brotliDecompressSync(
+      await readFile(resolve(store.blobDir(), path)),
+    ).toString('utf8'),
+  );
 }
 
 function getRecordProperty(value: unknown, key: string): unknown {
@@ -230,6 +280,110 @@ describe('filesystem cache store raw-key debug storage', () => {
     });
   });
 
+  test('writes minimal namespace index rows', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
+
+    await store.write(
+      cacheEntry({ key: 'hashed-key', storedAt: '2026-04-29T00:00:00.000Z' }),
+    );
+
+    await expect(readCacheIndex(workspacePath)).resolves.toEqual({
+      version: 1,
+      namespace: defaultNamespace,
+      entries: {
+        'hashed-key': {
+          storedAt: '2026-04-29T00:00:00.000Z',
+          lastAccessedAt: '2026-04-29T00:00:00.000Z',
+          blobRefs: [],
+        },
+      },
+    });
+  });
+
+  test('lists entries from the index without reading cache payload files', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
+    await store.write(
+      cacheEntry({ key: 'hashed-key', storedAt: '2026-04-29T00:00:00.000Z' }),
+    );
+    await writeFile(
+      cacheEntryPath(workspacePath, defaultNamespace, 'hashed-key'),
+      'not brotli json',
+    );
+
+    await expect(store.list()).resolves.toMatchObject([
+      {
+        key: 'hashed-key',
+        namespace: defaultNamespace,
+        storedAt: '2026-04-29T00:00:00.000Z',
+        lastAccessedAt: '2026-04-29T00:00:00.000Z',
+      },
+    ]);
+    await expect(
+      store.lookup(defaultNamespace, 'hashed-key'),
+    ).resolves.toBeNull();
+  });
+
+  test('prunes by last access time instead of stored time', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({
+      maxEntriesPerNamespace: 2,
+      workspaceRoot: workspacePath,
+    });
+
+    await store.write(
+      cacheEntry({ key: 'first', storedAt: '2026-04-29T00:00:00.000Z' }),
+    );
+    await store.write(
+      cacheEntry({ key: 'second', storedAt: '2026-04-29T00:00:01.000Z' }),
+    );
+    await expect(
+      store.lookup(defaultNamespace, 'first'),
+    ).resolves.toMatchObject({ key: 'first' });
+    await store.write(
+      cacheEntry({ key: 'third', storedAt: '2026-04-29T00:00:02.000Z' }),
+    );
+    await store.pruneRetention();
+
+    expect(await readCacheKeys(workspacePath)).toEqual(['first', 'third']);
+    await expect(store.list()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: 'first' }),
+        expect.objectContaining({ key: 'third' }),
+      ]),
+    );
+  });
+
+  test('cache hits update last access time from the real host clock', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
+
+    await store.write(
+      cacheEntry({ key: 'hashed-key', storedAt: '2026-04-29T00:00:00.000Z' }),
+    );
+
+    const beforeLookup = new Date(getRealDateNowMs()).toISOString();
+    await runWithEvalClock(
+      '2020-01-01T00:00:00.000Z',
+      async () => {
+        await expect(
+          store.lookup(defaultNamespace, 'hashed-key'),
+        ).resolves.toMatchObject({ key: 'hashed-key' });
+      },
+      { freezeTime: true },
+    );
+    const afterLookup = new Date(getRealDateNowMs()).toISOString();
+
+    const items = await store.list();
+    expect(items).toHaveLength(1);
+    const item = items[0];
+    if (item === undefined) throw new Error('Expected one cache list item');
+    expect(item.lastAccessedAt).not.toBe('2020-01-01T00:00:00.000Z');
+    expect(item.lastAccessedAt >= beforeLookup).toBe(true);
+    expect(item.lastAccessedAt <= afterLookup).toBe(true);
+  });
+
   test('writes raw-key debug files with two-space indentation', async () => {
     const workspacePath = await createWorkspace();
     const store = createFsCacheStore({ workspaceRoot: workspacePath });
@@ -248,6 +402,15 @@ describe('filesystem cache store raw-key debug storage', () => {
     expect(rawDebugFile).toContain('\n  "key": "hashed-key",');
     expect(rawDebugFile).toContain('\n  "rawKey": {');
     expect(rawDebugFile).toContain('\n  "entry": {');
+  });
+
+  test('stores external JSON blobs under the cache directory by default', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
+
+    expect(store.blobDir()).toBe(
+      resolve(workspacePath, '.agent-evals/cache/cache-blobs'),
+    );
   });
 
   test('stores large nested JSON values as hashed Brotli blobs', async () => {
@@ -356,6 +519,129 @@ describe('filesystem cache store raw-key debug storage', () => {
     expect(getStringProperty(firstRef, 'path')).toBe(
       getStringProperty(secondRef, 'path'),
     );
+  });
+
+  test('does not prune external blobs while buffered writes are pending', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
+    const buffered = createBufferedCacheStore(store);
+    const rows = Array.from({ length: 160 }, (_, index) => ({
+      index,
+      message: 'repeatable nested tree payload',
+      status: index % 2 === 0 ? 'pass' : 'fail',
+    }));
+    const pendingEntry = cacheEntry({ key: 'pending-key' });
+    pendingEntry.recording = await serializeCacheRecording(
+      { returnValue: { payload: { rows } }, finalAttributes: {}, ops: [] },
+      { externalJsonStore: buffered.externalJsonStore },
+    );
+
+    await buffered.write(pendingEntry);
+
+    const pendingBlobRef = getNestedExternalJsonRef(
+      pendingEntry.recording.returnValue,
+    );
+    const pendingBlobPath = getStringProperty(pendingBlobRef, 'path');
+    await store.write(cacheEntry({ key: 'committed-key' }));
+
+    expect(existsSync(resolve(store.blobDir(), pendingBlobPath))).toBe(true);
+
+    await buffered.commit();
+
+    await expect(
+      store.lookup(defaultNamespace, 'pending-key'),
+    ).resolves.toMatchObject({
+      recording: { returnValue: { payload: { rows } } },
+    });
+  });
+
+  test('reads external blobs from the legacy default blob directory', async () => {
+    const workspacePath = await createWorkspace();
+    const legacyStore = createFsCacheStore({
+      workspaceRoot: workspacePath,
+      blobDir: '.agent-evals/cache-blobs',
+    });
+    const defaultStore = createFsCacheStore({ workspaceRoot: workspacePath });
+    const rows = Array.from({ length: 160 }, (_, index) => ({
+      index,
+      message: 'repeatable nested tree payload',
+      status: index % 2 === 0 ? 'pass' : 'fail',
+    }));
+    const entry = cacheEntry({ key: 'legacy-key' });
+    entry.recording = await serializeCacheRecording(
+      { returnValue: { payload: { rows } }, finalAttributes: {}, ops: [] },
+      { externalJsonStore: legacyStore.externalJsonStore },
+    );
+
+    await legacyStore.write(entry);
+
+    await expect(
+      defaultStore.lookup(defaultNamespace, 'legacy-key'),
+    ).resolves.toMatchObject({
+      recording: { returnValue: { payload: { rows } } },
+    });
+  });
+
+  test('prunes unreferenced external blobs when explicitly requested', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
+    const buffered = createBufferedCacheStore(store);
+    const rows = Array.from({ length: 160 }, (_, index) => ({
+      index,
+      message: 'repeatable nested tree payload',
+      status: index % 2 === 0 ? 'pass' : 'fail',
+    }));
+    const pendingEntry = cacheEntry({ key: 'losing-key' });
+    pendingEntry.recording = await serializeCacheRecording(
+      { returnValue: { payload: { rows } }, finalAttributes: {}, ops: [] },
+      { externalJsonStore: buffered.externalJsonStore },
+    );
+
+    await buffered.write(pendingEntry);
+
+    const pendingBlobRef = getNestedExternalJsonRef(
+      pendingEntry.recording.returnValue,
+    );
+    const pendingBlobPath = getStringProperty(pendingBlobRef, 'path');
+
+    await store.pruneExternalJsonBlobs();
+
+    expect(existsSync(resolve(store.blobDir(), pendingBlobPath))).toBe(false);
+  });
+
+  test('keeps external blobs referenced from other external blobs', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
+    const child = 'nested payload '.repeat(2_000);
+    const payload: Record<string, string> = Object.fromEntries(
+      Array.from({ length: 1_200 }, (_, index) => [
+        `field${String(index)}`,
+        `label ${String(index)}`,
+      ]),
+    );
+    payload.child = child;
+    const entry = cacheEntry({ key: 'nested-blob-key' });
+    entry.recording = await serializeCacheRecording(
+      { returnValue: { payload }, finalAttributes: {}, ops: [] },
+      { externalJsonStore: store.externalJsonStore },
+    );
+    const payloadRef = getRecordProperty(
+      entry.recording.returnValue,
+      'payload',
+    );
+    const payloadBlobPath = getStringProperty(payloadRef, 'path');
+    const payloadBlob = await readExternalJsonBlob(store, payloadBlobPath);
+    const childRef = getRecordProperty(payloadBlob, 'child');
+    const childBlobPath = getStringProperty(childRef, 'path');
+
+    await store.write(entry);
+    await store.pruneExternalJsonBlobs();
+
+    expect(existsSync(resolve(store.blobDir(), payloadBlobPath))).toBe(true);
+    expect(existsSync(resolve(store.blobDir(), childBlobPath))).toBe(true);
+    await expect(
+      store.lookup(defaultNamespace, 'nested-blob-key'),
+    ).resolves.toMatchObject({ recording: { returnValue: { payload } } });
   });
 
   test('lookup succeeds when raw-key debug data is unavailable', async () => {
@@ -485,6 +771,93 @@ describe('filesystem cache store raw-key debug storage', () => {
       store.lookup(defaultNamespace, 'hashed-key'),
     ).resolves.toBeNull();
     await expect(store.list()).resolves.toEqual([]);
+  });
+
+  test('ignores unindexed single-entry cache files until manual repair removes them', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({
+      maxEntriesPerNamespace: 1,
+      workspaceRoot: workspacePath,
+    });
+    await mkdir(
+      resolve(
+        workspacePath,
+        '.agent-evals/cache',
+        sanitizeSegment(defaultNamespace),
+      ),
+      { recursive: true },
+    );
+    await writeFile(
+      cacheEntryPath(workspacePath, defaultNamespace, 'legacy-key'),
+      brotliCompressSync(
+        Buffer.from(JSON.stringify(cacheEntry({ key: 'legacy-key' })), 'utf8'),
+      ),
+    );
+
+    await expect(
+      store.lookup(defaultNamespace, 'legacy-key'),
+    ).resolves.toBeNull();
+    await expect(store.list()).resolves.toEqual([]);
+
+    await store.write(cacheEntry({ key: 'indexed-key' }));
+
+    expect(await readCacheKeys(workspacePath)).toEqual([
+      'indexed-key',
+      'legacy-key',
+    ]);
+
+    const repairSummary = await store.repair();
+
+    expect(repairSummary.removedCacheFiles).toBe(1);
+    expect(await readCacheKeys(workspacePath)).toEqual(['indexed-key']);
+  });
+
+  test('manual repair removes stale index rows and unindexed cache artifacts', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
+    await store.write(cacheEntry({ key: 'indexed-key' }));
+    await store.write(cacheEntry({ key: 'stale-key' }), {
+      rawKey: { prompt: 'stale' },
+      operationType: 'span',
+      operationName: 'expensive-op',
+    });
+    await rm(cacheEntryPath(workspacePath, defaultNamespace, 'stale-key'), {
+      force: true,
+    });
+
+    await writeFile(
+      cacheEntryPath(workspacePath, defaultNamespace, 'legacy-key'),
+      brotliCompressSync(
+        Buffer.from(JSON.stringify(cacheEntry({ key: 'legacy-key' })), 'utf8'),
+      ),
+    );
+    await mkdir(
+      dirname(debugEntryPath(workspacePath, defaultNamespace, 'legacy-key')),
+      { recursive: true },
+    );
+    await writeFile(
+      debugEntryPath(workspacePath, defaultNamespace, 'legacy-key'),
+      '{}',
+    );
+    const orphanBlob = await store.externalJsonStore.write(
+      JSON.stringify({ orphan: true }),
+    );
+
+    const repairSummary = await store.repair();
+
+    expect(repairSummary).toEqual({
+      removedCacheFiles: 1,
+      removedDebugFiles: 2,
+      removedBlobFiles: 1,
+      removedIndexRows: 1,
+      rewrittenIndexes: 1,
+    });
+    expect(await readCacheKeys(workspacePath)).toEqual(['indexed-key']);
+    expect(await readDebugKeys(workspacePath)).toEqual([]);
+    expect(existsSync(resolve(store.blobDir(), orphanBlob.path))).toBe(false);
+    await expect(store.list()).resolves.toEqual([
+      expect.objectContaining({ key: 'indexed-key' }),
+    ]);
   });
 
   test('sanitized namespace collisions do not leak lookup or clear behavior', async () => {

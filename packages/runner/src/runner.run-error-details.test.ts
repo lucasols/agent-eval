@@ -138,6 +138,7 @@ test('persists child stderr when the run child exits before sending a terminal e
         emittedEvents.push(event);
       },
       emitDiscoveryEvent() {},
+      onRunTerminal() {},
     },
   });
 

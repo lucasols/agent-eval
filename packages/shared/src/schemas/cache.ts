@@ -66,19 +66,26 @@ export const traceCacheRefSchema = z.object({
 /** Reference to a value-cache lookup performed via `evalTracer.cache(...)`. */
 export type TraceCacheRef = z.infer<typeof traceCacheRefSchema>;
 
-/** Summary of a single persisted cache entry, used by list/delete endpoints. */
+/** Minimal index-backed summary of a persisted cache entry. */
 export const cacheListItemSchema = z.object({
   key: z.string(),
   namespace: z.string(),
-  operationType: cacheOperationTypeSchema,
-  operationName: z.string(),
-  spanName: z.string().optional(),
-  spanKind: traceSpanKindSchema.optional(),
   storedAt: z.string(),
-  sizeBytes: z.number(),
+  lastAccessedAt: z.string(),
 });
-/** Summary row for a single cache entry. */
+/** Minimal summary row for a single cache entry. */
 export type CacheListItem = z.infer<typeof cacheListItemSchema>;
+
+/** Summary of cleanup performed by manual cache repair. */
+export const cacheRepairSummarySchema = z.object({
+  removedCacheFiles: z.number(),
+  removedDebugFiles: z.number(),
+  removedBlobFiles: z.number(),
+  removedIndexRows: z.number(),
+  rewrittenIndexes: z.number(),
+});
+/** Stable JSON summary returned by manual cache repair. */
+export type CacheRepairSummary = z.infer<typeof cacheRepairSummarySchema>;
 
 /** Serialized nested span captured while recording a cached operation. */
 export type SerializedCacheSpan = {

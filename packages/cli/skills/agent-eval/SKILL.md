@@ -513,12 +513,21 @@ Mental model:
   `serializeFileBytes: true` to a cached span or `evalTracer.cache(...)` call
   when byte-level cache invalidation is required.
 - Cache entries are stored as one Brotli-compressed JSON file per key under
-  `.agent-evals/cache/<sanitizedNamespace>/<keyHash>.json.br`; each namespace
-  is capped at 100 entries by default. Configure
+  `.agent-evals/cache/<sanitizedNamespace>/<keyHash>.json.br`, with a small
+  namespace index sidecar at
+  `.agent-evals/cache/<sanitizedNamespace>/.index-<namespaceHash>.json`.
+  Listing and retention use the index without opening cached payloads. Index
+  rows intentionally stay minimal: stored time, last access time, and external
+  JSON blob refs. Each namespace is capped at 100 entries by default. The runner
+  prunes least recently accessed indexed entries after a run finishes and the
+  runner stays idle for `cache.pruneIdleDelayMs ?? 5000` milliseconds. Configure
   `cache.maxEntriesPerNamespace` for the default cap and
   `cache.maxEntriesByNamespace` for exact namespace-specific caps.
+- Unindexed legacy cache files are ignored by normal lookup/listing. Use
+  `agent-evals cache repair` to remove unindexed cache files, stale index rows,
+  debug sidecars, and unreferenced blob files.
 - Nested cached JSON values at or above roughly 10K JSON characters are stored
-  as content-addressed Brotli blobs under `.agent-evals/cache-blobs/` and
+  as content-addressed Brotli blobs under `.agent-evals/cache/cache-blobs/` and
   referenced from cache JSON by sha256. Identical large payloads share the same
   blob.
 - Authored raw cache keys are stored for debugging under
@@ -536,11 +545,13 @@ Mental model:
 
 ## Artifacts
 
-Run output lives under `.agent-evals/runs/<run-id>/`. Cache metadata lives under
-`.agent-evals/cache/<sanitizedNamespace>/<keyHash>.json.br`. Do not rely on a
-specific cache filename when authoring evals; configure cache namespaces
-manually in eval code, then use `agent-evals cache list` to inspect the
-persisted namespace/key entries. Files in a run directory include run metadata,
+Run output lives under `.agent-evals/runs/<run-id>/`. Cache payloads live under
+`.agent-evals/cache/<sanitizedNamespace>/<keyHash>.json.br` with namespace
+index sidecars next to them. Do not rely on a specific cache filename when
+authoring evals; configure cache namespaces manually in eval code, then use
+`agent-evals cache list` to inspect persisted namespace/key entries or
+`agent-evals cache repair` to clean orphaned cache artifacts. Files in a run
+directory include run metadata,
 a run summary, per-case results, and per-case trace JSON. Inspect run files when
 debugging persisted output, costs, columns, traces, or failures; inspect cache
 entries when debugging replayed span/value-cache results.

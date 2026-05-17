@@ -7,7 +7,8 @@ export type HelpTopic =
   | 'show-runs'
   | 'cache'
   | 'cache list'
-  | 'cache clear';
+  | 'cache clear'
+  | 'cache repair';
 
 /** Render the help block for a given CLI topic to stdout via `console.info`. */
 export function printHelp(topic: HelpTopic = 'global'): void {
@@ -90,19 +91,25 @@ Flags:
     return;
   }
 
-  if (topic === 'cache' || topic === 'cache list' || topic === 'cache clear') {
+  if (
+    topic === 'cache' ||
+    topic === 'cache list' ||
+    topic === 'cache clear' ||
+    topic === 'cache repair'
+  ) {
     console.info(`
-agent-evals cache - Manage cached operation entries
+agent-evals cache - Manage cached namespace/key entries
 
 Usage:
   agent-evals cache list [flags]
   agent-evals cache clear --eval <id>
   agent-evals cache clear --all
+  agent-evals cache repair [flags]
 
 Flags:
   --eval <id>                Clear entries for specific eval(s) (comma-separated)
   --all                      Confirm clearing every cached entry
-  --json                     Output cache listing as JSON
+  --json                     Output cache listing or repair summary as JSON
   --no-env                   Disable automatic .env loading
   --help, -h                 Show this help
   `);
@@ -117,9 +124,10 @@ Commands:
   list                       List discovered evals
   run                        Run evals
   show-runs [id|latest]      Show saved run artifact file paths
-  cache list                 List cached operation entries
+  cache list                 List cached namespace/key entries
   cache clear --eval <id>    Clear cache entries for one eval
   cache clear --all          Clear every cached entry
+  cache repair               Remove unindexed/orphaned cache files
   help                       Show this help
 
 Options:

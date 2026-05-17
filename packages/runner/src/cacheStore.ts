@@ -12,6 +12,7 @@ import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { brotliCompressSync, brotliDecompressSync } from 'node:zlib';
 import {
   deserializeCacheRecording,
+  getRealDateNowMs,
   materializeExternalJsonValues,
 } from '@agent-evals/sdk';
 import type {
@@ -27,6 +28,7 @@ import {
   type CacheEntry,
   type CacheEntryWithDebugKey,
   type CacheListItem,
+  type CacheRepairSummary,
 } from '@agent-evals/shared';
 import { resultify } from 't-result';
 
@@ -35,8 +37,10 @@ const cacheSerializationMarker = '__aecs';
 const supportedCacheSerializationPrefix = 'v1:';
 const externalJsonCacheSerializationMarker = 'v1:ExternalJson';
 const externalJsonBlobExtension = '.json.br';
+const externalJsonBlobDirName = 'cache-blobs';
 const cacheEntryExtension = '.json.br';
 const debugEntryExtension = '.json';
+const cacheIndexFilePrefix = '.index-';
 
 /** Filter accepted by `FsCacheStore.clear` to narrow the set of entries removed. */
 export type CacheClearFilter = { namespace?: string; key?: string };
@@ -60,8 +64,24 @@ export type FsCacheStore = CacheAdapter & {
   debugDir(): string;
   /** Resolve the on-disk directory used for external JSON cache blobs. */
   blobDir(): string;
+  pruneExternalJsonBlobs(): Promise<void>;
+  /** Apply configured entry retention to indexed namespaces. */
+  pruneRetention(): Promise<void>;
+  /** Remove files and index rows that are no longer part of the indexed cache. */
+  repair(): Promise<CacheRepairSummary>;
 };
 
+type CacheIndexEntry = {
+  storedAt: string;
+  lastAccessedAt: string;
+  blobRefs: string[];
+};
+
+type CacheIndexFile = {
+  version: 1;
+  namespace: string;
+  entries: Record<string, CacheIndexEntry>;
+};
 export type BufferedCacheStore = CacheAdapter & {
   /** Persist buffered writes into the backing store. */
   commit(): Promise<void>;
@@ -108,11 +128,23 @@ export function createFsCacheStore(options: {
     options.workspaceRoot,
     options.debugDir ?? '.agent-evals/cache-debug',
   );
-  const blobDir = resolve(
+  const blobDir =
+    options.blobDir === undefined
+      ? join(cacheDir, externalJsonBlobDirName)
+      : resolve(options.workspaceRoot, options.blobDir);
+  const legacyBlobDir = resolve(
     options.workspaceRoot,
-    options.blobDir ?? '.agent-evals/cache-blobs',
+    '.agent-evals/cache-blobs',
   );
-  const externalJsonStore = createExternalJsonBlobStore(blobDir);
+  const fallbackBlobDirs =
+    options.blobDir === undefined && legacyBlobDir !== blobDir
+      ? [legacyBlobDir]
+      : [];
+  const blobDirs = [blobDir, ...fallbackBlobDirs];
+  const externalJsonStore = createExternalJsonBlobStore({
+    fallbackDirs: fallbackBlobDirs,
+    primaryDir: blobDir,
+  });
   const defaultMaxEntries = normalizeMaxEntries(options.maxEntriesPerNamespace);
 
   return {
@@ -131,17 +163,28 @@ export function createFsCacheStore(options: {
     },
 
     async lookup(namespace, keyHash) {
-      const entry = await readCacheEntry(cacheDir, namespace, keyHash);
-      return entry === null
-        ? null
-        : await materializeExternalJsonCacheEntryOrNull(
-            entry,
-            externalJsonStore,
-          );
+      const entry = await readIndexedCacheEntry({
+        cacheDir,
+        key: keyHash,
+        namespace,
+      });
+      if (entry === null) return null;
+      const materialized = await materializeExternalJsonCacheEntryOrNull(
+        entry,
+        externalJsonStore,
+      );
+      if (materialized !== null) {
+        await updateCacheIndexLastAccessedAt(cacheDir, namespace, keyHash);
+      }
+      return materialized;
     },
 
     async lookupWithDebug(namespace, keyHash) {
-      const rawEntry = await readCacheEntry(cacheDir, namespace, keyHash);
+      const rawEntry = await readIndexedCacheEntry({
+        cacheDir,
+        key: keyHash,
+        namespace,
+      });
       if (rawEntry === null) return null;
       const entry = await materializeExternalJsonCacheEntryOrNull(
         rawEntry,
@@ -159,15 +202,21 @@ export function createFsCacheStore(options: {
     },
 
     async write(entry, debugKey) {
-      const maxEntries = maxEntriesForNamespace(
-        entry.namespace,
-        defaultMaxEntries,
-        options.maxEntriesByNamespace,
-      );
-
       await withCacheFileLock(
         namespaceLockPath(cacheDir, entry.namespace),
-        () => writeCompressedCacheEntry(cacheDir, entry),
+        async () => {
+          await writeCompressedCacheEntry(cacheDir, entry);
+          if (!usesSupportedCacheSerialization(entry.recording)) {
+            return;
+          }
+          const index = await readNamespaceIndex(cacheDir, entry.namespace);
+          index.entries[entry.key] = {
+            storedAt: entry.storedAt,
+            lastAccessedAt: entry.storedAt,
+            blobRefs: await collectExternalJsonBlobRefs(entry, blobDirs),
+          };
+          await writeNamespaceIndex(cacheDir, index);
+        },
       );
 
       if (debugKey !== undefined) {
@@ -183,47 +232,16 @@ export function createFsCacheStore(options: {
           );
         }
       }
-
-      await pruneEntriesForNamespace({
-        cacheDir,
-        debugDir,
-        namespace: entry.namespace,
-        maxEntries,
-        protectedKey: entry.key,
-      });
-      await pruneExternalJsonBlobs(cacheDir, blobDir);
     },
-
     async list() {
-      const files = await listCacheEntryFiles(cacheDir);
       const items: CacheListItem[] = [];
-
-      for (const filePath of files) {
-        const fileEntry = await readCacheEntryFilePath(filePath);
-        if (
-          fileEntry === null ||
-          !entryMatchesPath(filePath, fileEntry.entry)
-        ) {
-          continue;
+      for (const index of await listCacheIndexes(cacheDir)) {
+        for (const [key, entry] of Object.entries(index.entries)) {
+          items.push(toCacheListItem(index.namespace, key, entry));
         }
-
-        const entry = fileEntry.entry;
-        const operationType = entry.operationType ?? 'span';
-        const operationName =
-          entry.operationName ?? entry.spanName ?? entry.namespace;
-        items.push({
-          key: entry.key,
-          namespace: entry.namespace,
-          operationType,
-          operationName,
-          spanName: entry.spanName,
-          spanKind: entry.spanKind,
-          storedAt: entry.storedAt,
-          sizeBytes: fileEntry.sizeBytes,
-        });
       }
 
-      items.sort((a, b) => (a.storedAt < b.storedAt ? 1 : -1));
+      items.sort((a, b) => (a.lastAccessedAt < b.lastAccessedAt ? 1 : -1));
       return items;
     },
 
@@ -234,20 +252,56 @@ export function createFsCacheStore(options: {
       ) {
         await rm(cacheDir, { recursive: true, force: true });
         await rm(debugDir, { recursive: true, force: true });
-        await rm(blobDir, { recursive: true, force: true });
+        await Promise.all(
+          blobDirs.map((dir) => rm(dir, { recursive: true, force: true })),
+        );
         return;
       }
 
       if (filter.namespace !== undefined) {
         await clearCacheEntries(cacheDir, filter);
         await clearDebugEntries(debugDir, filter);
-        await pruneExternalJsonBlobs(cacheDir, blobDir);
+        await pruneUnreferencedExternalJsonBlobs(cacheDir, blobDirs);
         return;
       }
 
       await clearCacheEntries(cacheDir, filter);
       await clearDebugEntries(debugDir, filter);
-      await pruneExternalJsonBlobs(cacheDir, blobDir);
+      await pruneUnreferencedExternalJsonBlobs(cacheDir, blobDirs);
+    },
+
+    async pruneExternalJsonBlobs() {
+      await pruneUnreferencedExternalJsonBlobs(cacheDir, blobDirs);
+    },
+
+    async pruneRetention() {
+      for (const index_ of await listCacheIndexes(cacheDir)) {
+        const namespace = index_.namespace;
+        const maxEntries = maxEntriesForNamespace(
+          namespace,
+          defaultMaxEntries,
+          options.maxEntriesByNamespace,
+        );
+        const keptKeys = await withCacheFileLock(
+          namespaceLockPath(cacheDir, namespace),
+          async () => {
+            const index = await readNamespaceIndex(cacheDir, namespace);
+            return pruneCacheEntriesForNamespace({
+              cacheDir,
+              index,
+              maxEntries,
+            });
+          },
+        );
+        await withCacheFileLock(namespaceLockPath(debugDir, namespace), () =>
+          pruneDebugEntriesForNamespace(debugDir, namespace, keptKeys),
+        );
+      }
+      await pruneUnreferencedExternalJsonBlobs(cacheDir, blobDirs);
+    },
+
+    async repair() {
+      return repairIndexedCache({ blobDirs, cacheDir, debugDir });
     },
   };
 }
@@ -394,22 +448,56 @@ function entryPath(params: {
   return filePath;
 }
 
-async function readCacheEntry(
+function cacheIndexPath(cacheDir: string, namespace: string): string {
+  return join(
+    namespaceDirPath(cacheDir, namespace),
+    `${cacheIndexFilePrefix}${hashNamespace(namespace)}${debugEntryExtension}`,
+  );
+}
+
+async function readIndexedCacheEntry(params: {
+  cacheDir: string;
+  namespace: string;
+  key: string;
+}): Promise<CacheEntry | null> {
+  return withCacheFileLock(
+    namespaceLockPath(params.cacheDir, params.namespace),
+    async () => {
+      const index = await readNamespaceIndex(params.cacheDir, params.namespace);
+      const indexEntry = index.entries[params.key];
+      if (indexEntry === undefined) return null;
+
+      const fileEntry = await readCacheEntryFilePath(
+        cacheEntryPath(params.cacheDir, params.namespace, params.key),
+        { namespace: params.namespace, key: params.key },
+      );
+      if (fileEntry === null) return null;
+      return fileEntry.entry;
+    },
+  );
+}
+
+async function updateCacheIndexLastAccessedAt(
   cacheDir: string,
   namespace: string,
   key: string,
-): Promise<CacheEntry | null> {
-  const fileEntry = await readCacheEntryFilePath(
-    cacheEntryPath(cacheDir, namespace, key),
-    { namespace, key },
-  );
-  return fileEntry?.entry ?? null;
+): Promise<void> {
+  await withCacheFileLock(namespaceLockPath(cacheDir, namespace), async () => {
+    const index = await readNamespaceIndex(cacheDir, namespace);
+    const entry = index.entries[key];
+    if (entry === undefined) return;
+    index.entries[key] = {
+      ...entry,
+      lastAccessedAt: new Date(getRealDateNowMs()).toISOString(),
+    };
+    await writeNamespaceIndex(cacheDir, index);
+  });
 }
 
 async function readCacheEntryFilePath(
   filePath: string,
   expected?: { namespace: string; key: string },
-): Promise<{ entry: CacheEntry; sizeBytes: number } | null> {
+): Promise<{ entry: CacheEntry } | null> {
   if (!existsSync(filePath)) return null;
   const compressedResult = await resultify(() => readFile(filePath));
   if (compressedResult.error) return null;
@@ -429,7 +517,7 @@ async function readCacheEntryFilePath(
   ) {
     return null;
   }
-  return { entry, sizeBytes: compressedResult.value.byteLength };
+  return { entry };
 }
 
 async function writeCompressedCacheEntry(
@@ -523,25 +611,167 @@ async function writeAtomicFile(
   await rename(tmpPath, filePath);
 }
 
+const emptyCacheIndex = (namespace: string): CacheIndexFile => ({
+  version: 1,
+  namespace,
+  entries: {},
+});
+
+async function readNamespaceIndex(
+  cacheDir: string,
+  namespace: string,
+): Promise<CacheIndexFile> {
+  const indexPath = cacheIndexPath(cacheDir, namespace);
+  if (!existsSync(indexPath)) return emptyCacheIndex(namespace);
+  const rawResult = await resultify(() => readFile(indexPath, 'utf8'));
+  if (rawResult.error) return emptyCacheIndex(namespace);
+  const parsed = parseCacheIndexFile(safeJsonParse(rawResult.value), namespace);
+  return parsed ?? emptyCacheIndex(namespace);
+}
+
+async function writeNamespaceIndex(
+  cacheDir: string,
+  index: CacheIndexFile,
+): Promise<void> {
+  const entries = Object.entries(index.entries);
+  if (entries.length === 0) {
+    await rm(cacheIndexPath(cacheDir, index.namespace), { force: true });
+    await removeDirIfEmpty(namespaceDirPath(cacheDir, index.namespace));
+    return;
+  }
+  const sortedEntries = entries.toSorted(([a], [b]) => (a < b ? -1 : 1));
+  const normalizedEntries = Object.fromEntries(
+    sortedEntries.map(([key, entry]) => [key, entry]),
+  );
+  await writeAtomicFile(
+    cacheIndexPath(cacheDir, index.namespace),
+    JSON.stringify({ ...index, entries: normalizedEntries }, null, 2),
+  );
+}
+
+async function listCacheIndexes(cacheDir: string): Promise<CacheIndexFile[]> {
+  if (!existsSync(cacheDir)) return [];
+  const entriesResult = await resultify(() =>
+    readdir(cacheDir, { withFileTypes: true }),
+  );
+  if (entriesResult.error) return [];
+  const records: CacheIndexFile[] = [];
+  for (const entry of entriesResult.value) {
+    if (!entry.isDirectory()) continue;
+    const namespaceDir = join(cacheDir, entry.name);
+    for (const indexFilePath of await listCacheIndexFiles(namespaceDir)) {
+      const rawResult = await resultify(() => readFile(indexFilePath, 'utf8'));
+      if (rawResult.error) continue;
+      const parsed = parseCacheIndexFile(safeJsonParse(rawResult.value));
+      if (parsed === null) continue;
+      records.push(parsed);
+    }
+  }
+  return records;
+}
+
+function hashNamespace(namespace: string): string {
+  return createHash('sha256').update(namespace).digest('hex');
+}
+
+function parseCacheIndexFile(
+  value: unknown,
+  expectedNamespace?: string,
+): CacheIndexFile | null {
+  if (!isRecordLike(value)) return null;
+  if (value.version !== 1 || typeof value.namespace !== 'string') return null;
+  if (
+    expectedNamespace !== undefined &&
+    value.namespace !== expectedNamespace
+  ) {
+    return null;
+  }
+  if (!isRecordLike(value.entries)) return null;
+  const entries: Record<string, CacheIndexEntry> = {};
+  for (const [key, entryValue] of Object.entries(value.entries)) {
+    const entry = parseCacheIndexEntry(entryValue);
+    if (entry === null) return null;
+    entries[key] = entry;
+  }
+  return { version: 1, namespace: value.namespace, entries };
+}
+
+function parseCacheIndexEntry(value: unknown): CacheIndexEntry | null {
+  if (!isRecordLike(value)) return null;
+  if (
+    typeof value.storedAt !== 'string' ||
+    typeof value.lastAccessedAt !== 'string'
+  ) {
+    return null;
+  }
+  if (!Array.isArray(value.blobRefs)) return null;
+  const blobRefs: string[] = [];
+  for (const blobRef of value.blobRefs) {
+    if (typeof blobRef !== 'string') return null;
+    blobRefs.push(blobRef);
+  }
+  return {
+    storedAt: value.storedAt,
+    lastAccessedAt: value.lastAccessedAt,
+    blobRefs,
+  };
+}
+
+function toCacheListItem(
+  namespace: string,
+  key: string,
+  entry: CacheIndexEntry,
+): CacheListItem {
+  return {
+    key,
+    namespace,
+    storedAt: entry.storedAt,
+    lastAccessedAt: entry.lastAccessedAt,
+  };
+}
+
+function keyFromEntryFilePath(
+  filePath: string,
+  extension: string,
+): string | null {
+  const name = basename(filePath);
+  if (!name.endsWith(extension)) return null;
+  return name.slice(0, -extension.length);
+}
+
+function debugNamespaceFromPath(debugDir: string, filePath: string): string {
+  return basename(dirname(resolve(debugDir, relative(debugDir, filePath))));
+}
+
 async function clearCacheEntries(
   cacheDir: string,
   filter: CacheClearFilter,
 ): Promise<void> {
-  const files =
+  const indexes =
     filter.namespace === undefined
-      ? await listCacheEntryFiles(cacheDir)
-      : await listCacheEntryFiles(namespaceDirPath(cacheDir, filter.namespace));
-  for (const filePath of files) {
-    const fileEntry = await readCacheEntryFilePath(filePath);
-    if (fileEntry === null) continue;
-    const entry = fileEntry.entry;
-    if (!entryMatchesFilter(entry, filter)) continue;
-    await withCacheFileLock(namespaceLockPath(cacheDir, entry.namespace), () =>
-      rm(filePath, { force: true }),
+      ? await listCacheIndexes(cacheDir)
+      : [await readNamespaceIndex(cacheDir, filter.namespace)];
+
+  for (const record of indexes) {
+    const namespace = record.namespace;
+    await withCacheFileLock(
+      namespaceLockPath(cacheDir, namespace),
+      async () => {
+        const index = await readNamespaceIndex(cacheDir, namespace);
+        const matchingKeys = Object.keys(index.entries).filter((key) => {
+          const entry = index.entries[key];
+          return (
+            entry !== undefined &&
+            entryMatchesFilter({ namespace, key }, filter)
+          );
+        });
+        for (const key of matchingKeys) {
+          await rm(cacheEntryPath(cacheDir, namespace, key), { force: true });
+          delete index.entries[key];
+        }
+        await writeNamespaceIndex(cacheDir, index);
+      },
     );
-  }
-  if (filter.namespace !== undefined) {
-    await removeDirIfEmpty(namespaceDirPath(cacheDir, filter.namespace));
   }
 }
 
@@ -549,14 +779,20 @@ async function clearDebugEntries(
   debugDir: string,
   filter: CacheClearFilter,
 ): Promise<void> {
-  const files =
+  const files = await listDebugEntryFiles(
     filter.namespace === undefined
-      ? await listDebugEntryFiles(debugDir)
-      : await listDebugEntryFiles(namespaceDirPath(debugDir, filter.namespace));
+      ? debugDir
+      : namespaceDirPath(debugDir, filter.namespace),
+  );
   for (const filePath of files) {
-    const entry = await readDebugEntryFilePath(filePath);
-    if (entry === null || !entryMatchesFilter(entry, filter)) continue;
-    await withCacheFileLock(namespaceLockPath(debugDir, entry.namespace), () =>
+    const namespace =
+      filter.namespace === undefined
+        ? debugNamespaceFromPath(debugDir, filePath)
+        : filter.namespace;
+    const key = keyFromEntryFilePath(filePath, debugEntryExtension);
+    if (key === null) continue;
+    if (!entryMatchesFilter({ namespace, key }, filter)) continue;
+    await withCacheFileLock(namespaceLockPath(debugDir, namespace), () =>
       rm(filePath, { force: true }),
     );
   }
@@ -575,56 +811,30 @@ function entryMatchesFilter(
   return filter.key === undefined || entry.key === filter.key;
 }
 
-async function pruneEntriesForNamespace(params: {
+async function pruneCacheEntriesForNamespace(params: {
   cacheDir: string;
-  debugDir: string;
-  namespace: string;
+  index: CacheIndexFile;
   maxEntries: number;
-  protectedKey: string;
-}): Promise<void> {
-  const { cacheDir, debugDir, namespace, maxEntries, protectedKey } = params;
-  await withCacheFileLock(namespaceLockPath(cacheDir, namespace), async () => {
-    const keptKeys = await pruneCacheEntriesForNamespace(
-      cacheDir,
-      namespace,
-      maxEntries,
-      protectedKey,
-    );
-    await withCacheFileLock(namespaceLockPath(debugDir, namespace), () =>
-      pruneDebugEntriesForNamespace(debugDir, namespace, keptKeys),
-    );
-  });
-}
-
-async function pruneCacheEntriesForNamespace(
-  cacheDir: string,
-  namespace: string,
-  maxEntries: number,
-  protectedKey: string,
-): Promise<Set<string>> {
-  const entries = await listCacheEntriesForNamespace(cacheDir, namespace);
-  const sorted = entries.toSorted((a, b) =>
-    a.entry.storedAt < b.entry.storedAt ? 1 : -1,
+}): Promise<Set<string>> {
+  const { cacheDir, index, maxEntries } = params;
+  const entries = Object.entries(index.entries);
+  const sorted = entries.toSorted(([, a], [, b]) =>
+    a.lastAccessedAt < b.lastAccessedAt ? 1 : -1,
   );
   const keptKeys = new Set<string>();
-  const protectedEntry = entries.find(
-    (item) => item.entry.key === protectedKey,
-  );
-  if (protectedEntry !== undefined) {
-    keptKeys.add(protectedEntry.entry.key);
-  }
 
-  for (const item of sorted) {
+  for (const [key] of sorted) {
     if (keptKeys.size >= maxEntries) break;
-    keptKeys.add(item.entry.key);
+    keptKeys.add(key);
   }
 
-  for (const item of entries) {
-    if (!keptKeys.has(item.entry.key)) {
-      await rm(item.filePath, { force: true });
+  for (const [key] of entries) {
+    if (!keptKeys.has(key)) {
+      await rm(cacheEntryPath(cacheDir, index.namespace, key), { force: true });
+      delete index.entries[key];
     }
   }
-  await removeDirIfEmpty(namespaceDirPath(cacheDir, namespace));
+  await writeNamespaceIndex(cacheDir, index);
   return keptKeys;
 }
 
@@ -637,44 +847,103 @@ async function pruneDebugEntriesForNamespace(
     namespaceDirPath(debugDir, namespace),
   );
   for (const filePath of files) {
-    const entry = await readDebugEntryFilePath(filePath);
-    if (
-      entry !== null &&
-      entry.namespace === namespace &&
-      !keptKeys.has(entry.key)
-    ) {
+    const key = keyFromEntryFilePath(filePath, debugEntryExtension);
+    if (key !== null && !keptKeys.has(key)) {
       await rm(filePath, { force: true });
     }
   }
   await removeDirIfEmpty(namespaceDirPath(debugDir, namespace));
 }
 
-async function listCacheEntriesForNamespace(
-  cacheDir: string,
-  namespace: string,
-): Promise<Array<{ filePath: string; entry: CacheEntry }>> {
-  const files = await listCacheEntryFiles(
-    namespaceDirPath(cacheDir, namespace),
-  );
-  const entries: Array<{ filePath: string; entry: CacheEntry }> = [];
-  for (const filePath of files) {
-    const fileEntry = await readCacheEntryFilePath(filePath);
-    if (
-      fileEntry !== null &&
-      fileEntry.entry.namespace === namespace &&
-      entryMatchesPath(filePath, fileEntry.entry)
-    ) {
-      entries.push({ filePath, entry: fileEntry.entry });
+async function repairIndexedCache(params: {
+  cacheDir: string;
+  debugDir: string;
+  blobDirs: readonly string[];
+}): Promise<CacheRepairSummary> {
+  const summary: CacheRepairSummary = {
+    removedCacheFiles: 0,
+    removedDebugFiles: 0,
+    removedBlobFiles: 0,
+    removedIndexRows: 0,
+    rewrittenIndexes: 0,
+  };
+
+  for (const index_ of await listCacheIndexes(params.cacheDir)) {
+    const result = await withCacheFileLock(
+      namespaceLockPath(params.cacheDir, index_.namespace),
+      async () => {
+        const index = await readNamespaceIndex(
+          params.cacheDir,
+          index_.namespace,
+        );
+        let removedRows = 0;
+        for (const key of Object.keys(index.entries)) {
+          if (
+            !existsSync(cacheEntryPath(params.cacheDir, index.namespace, key))
+          ) {
+            delete index.entries[key];
+            removedRows++;
+          }
+        }
+        if (removedRows === 0) {
+          return { removedRows, rewritten: false };
+        }
+        await writeNamespaceIndex(params.cacheDir, index);
+        return { removedRows, rewritten: true };
+      },
+    );
+    summary.removedIndexRows += result.removedRows;
+    if (result.rewritten) summary.rewrittenIndexes++;
+  }
+
+  const indexes = await listCacheIndexes(params.cacheDir);
+  const indexedCacheFiles = new Set<string>();
+  const indexedDebugFiles = new Set<string>();
+  const indexedBlobRefs = new Set<string>();
+  for (const index_ of indexes) {
+    for (const [key, entry] of Object.entries(index_.entries)) {
+      indexedCacheFiles.add(
+        cacheEntryPath(params.cacheDir, index_.namespace, key),
+      );
+      indexedDebugFiles.add(
+        debugEntryPath(params.debugDir, index_.namespace, key),
+      );
+      for (const blobRef of entry.blobRefs) {
+        indexedBlobRefs.add(blobRef);
+      }
     }
   }
-  return entries;
-}
 
-function entryMatchesPath(filePath: string, entry: CacheEntry): boolean {
-  return (
-    basename(filePath) === `${entry.key}${cacheEntryExtension}` &&
-    basename(dirname(filePath)) === sanitizeSegment(entry.namespace)
-  );
+  for (const filePath of await listCacheEntryFiles(
+    params.cacheDir,
+    'allNamespaces',
+  )) {
+    if (!indexedCacheFiles.has(filePath)) {
+      await rm(filePath, { force: true });
+      summary.removedCacheFiles++;
+      await removeDirIfEmpty(dirname(filePath));
+    }
+  }
+
+  for (const filePath of await listDebugEntryFiles(params.debugDir)) {
+    if (!indexedDebugFiles.has(filePath)) {
+      await rm(filePath, { force: true });
+      summary.removedDebugFiles++;
+      await removeDirIfEmpty(dirname(filePath));
+    }
+  }
+
+  for (const blobDir of params.blobDirs) {
+    if (!existsSync(blobDir)) continue;
+    for (const blobRef of await listExternalJsonBlobPaths(blobDir)) {
+      if (!indexedBlobRefs.has(blobRef)) {
+        await rm(resolveStorePath(blobDir, blobRef), { force: true });
+        summary.removedBlobFiles++;
+      }
+    }
+  }
+
+  return summary;
 }
 
 function usesSupportedCacheSerialization(value: unknown): boolean {
@@ -694,16 +963,17 @@ function usesSupportedCacheSerialization(value: unknown): boolean {
   return Object.values(value).every(usesSupportedCacheSerialization);
 }
 
-function createExternalJsonBlobStore(
-  blobDir: string,
-): CacheSerializationExternalJsonStore {
+function createExternalJsonBlobStore(params: {
+  primaryDir: string;
+  fallbackDirs: readonly string[];
+}): CacheSerializationExternalJsonStore {
   return {
     async write(rawJson) {
       const rawBytes = Buffer.from(rawJson, 'utf8');
       const hash = hashExternalJson(rawBytes);
       const path = externalJsonBlobPath(hash);
       const compressed = brotliCompressSync(rawBytes);
-      const filePath = resolveStorePath(blobDir, path);
+      const filePath = resolveStorePath(params.primaryDir, path);
 
       if (!existsSync(filePath)) {
         await writeAtomicFile(filePath, compressed);
@@ -718,18 +988,26 @@ function createExternalJsonBlobStore(
     },
 
     async read(ref) {
-      const compressed = await readFile(resolveStorePath(blobDir, ref.path));
-      const rawBytes = brotliDecompressSync(compressed);
-      const rawJson = rawBytes.toString('utf8');
-      if (
-        rawBytes.byteLength !== ref.length ||
-        hashExternalJson(rawBytes) !== ref.hash
-      ) {
-        throw new Error(
-          `External cache blob failed integrity check: ${ref.hash}`,
+      for (const dir of [params.primaryDir, ...params.fallbackDirs]) {
+        const compressedResult = await resultify(() =>
+          readFile(resolveStorePath(dir, ref.path)),
         );
+        if (compressedResult.error) continue;
+        const rawBytesResult = resultify(() =>
+          brotliDecompressSync(compressedResult.value),
+        );
+        if (rawBytesResult.error) continue;
+        const rawBytes = rawBytesResult.value;
+        if (
+          rawBytes.byteLength === ref.length &&
+          hashExternalJson(rawBytes) === ref.hash
+        ) {
+          return rawBytes.toString('utf8');
+        }
       }
-      return rawJson;
+      throw new Error(
+        `External cache blob failed integrity check: ${ref.hash}`,
+      );
     },
   };
 }
@@ -778,15 +1056,17 @@ async function materializeExternalJsonCacheEntryOrNull(
   return result.error ? null : result.value;
 }
 
-async function pruneExternalJsonBlobs(
+async function pruneUnreferencedExternalJsonBlobs(
   cacheDir: string,
-  blobDir: string,
+  blobDirs: readonly string[],
 ): Promise<void> {
-  if (!existsSync(blobDir)) return;
   const referenced = await collectReferencedExternalJsonBlobPaths(cacheDir);
-  for (const path of await listExternalJsonBlobPaths(blobDir)) {
-    if (!referenced.has(path)) {
-      await rm(resolveStorePath(blobDir, path), { force: true });
+  for (const blobDir of blobDirs) {
+    if (!existsSync(blobDir)) continue;
+    for (const path of await listExternalJsonBlobPaths(blobDir)) {
+      if (!referenced.has(path)) {
+        await rm(resolveStorePath(blobDir, path), { force: true });
+      }
     }
   }
 }
@@ -795,22 +1075,46 @@ async function collectReferencedExternalJsonBlobPaths(
   cacheDir: string,
 ): Promise<Set<string>> {
   const paths = new Set<string>();
-  for (const filePath of await listCacheEntryFiles(cacheDir)) {
-    const fileEntry = await readCacheEntryFilePath(filePath);
-    if (fileEntry === null || !entryMatchesPath(filePath, fileEntry.entry)) {
-      continue;
+  for (const index_ of await listCacheIndexes(cacheDir)) {
+    for (const entry of Object.values(index_.entries)) {
+      for (const blobRef of entry.blobRefs) {
+        paths.add(blobRef);
+      }
     }
-    collectExternalJsonBlobPaths(fileEntry.entry, paths);
   }
   return paths;
+}
+
+async function collectExternalJsonBlobRefs(
+  value: unknown,
+  blobDirs: readonly string[],
+): Promise<string[]> {
+  const paths = new Set<string>();
+  const pendingBlobPaths: string[] = [];
+  collectExternalJsonBlobPaths(value, paths, pendingBlobPaths);
+
+  while (pendingBlobPaths.length > 0) {
+    const blobPath = pendingBlobPaths.pop();
+    if (blobPath === undefined) continue;
+    const rawJson = await readExternalJsonBlobByPath(blobDirs, blobPath);
+    if (rawJson === null) continue;
+    const json = safeJsonParse(rawJson);
+    if (json === null) continue;
+    collectExternalJsonBlobPaths(json, paths, pendingBlobPaths);
+  }
+
+  return [...paths].sort();
 }
 
 function collectExternalJsonBlobPaths(
   value: unknown,
   paths: Set<string>,
+  pendingBlobPaths: string[],
 ): void {
   if (Array.isArray(value)) {
-    for (const item of value) collectExternalJsonBlobPaths(item, paths);
+    for (const item of value) {
+      collectExternalJsonBlobPaths(item, paths, pendingBlobPaths);
+    }
     return;
   }
   if (!isRecordLike(value)) return;
@@ -818,11 +1122,31 @@ function collectExternalJsonBlobPaths(
     value[cacheSerializationMarker] === externalJsonCacheSerializationMarker &&
     typeof value.path === 'string'
   ) {
-    paths.add(value.path);
+    if (!paths.has(value.path)) {
+      paths.add(value.path);
+      pendingBlobPaths.push(value.path);
+    }
   }
   for (const entryValue of Object.values(value)) {
-    collectExternalJsonBlobPaths(entryValue, paths);
+    collectExternalJsonBlobPaths(entryValue, paths, pendingBlobPaths);
   }
+}
+
+async function readExternalJsonBlobByPath(
+  blobDirs: readonly string[],
+  path: string,
+): Promise<string | null> {
+  for (const blobDir of blobDirs) {
+    const compressedResult = await resultify(() =>
+      readFile(resolveStorePath(blobDir, path)),
+    );
+    if (compressedResult.error) continue;
+    const rawResult = resultify(() =>
+      brotliDecompressSync(compressedResult.value).toString('utf8'),
+    );
+    if (!rawResult.error) return rawResult.value;
+  }
+  return null;
 }
 
 async function listExternalJsonBlobPaths(blobDir: string): Promise<string[]> {
@@ -852,12 +1176,65 @@ async function collectExternalJsonBlobFilePaths(
   }
 }
 
-async function listCacheEntryFiles(rootDir: string): Promise<string[]> {
-  return listFilesWithExtension(rootDir, cacheEntryExtension);
+async function listCacheEntryFiles(
+  rootDir: string,
+  scope: 'allNamespaces' | 'namespace',
+): Promise<string[]> {
+  if (scope === 'namespace') {
+    return listDirectFilesWithExtension(rootDir, cacheEntryExtension);
+  }
+
+  if (!existsSync(rootDir)) return [];
+  const entriesResult = await resultify(() =>
+    readdir(rootDir, { withFileTypes: true }),
+  );
+  if (entriesResult.error) return [];
+
+  const files: string[] = [];
+  for (const entry of entriesResult.value) {
+    if (!entry.isDirectory()) continue;
+    files.push(
+      ...(await listDirectFilesWithExtension(
+        join(rootDir, entry.name),
+        cacheEntryExtension,
+      )),
+    );
+  }
+  return files;
 }
 
 async function listDebugEntryFiles(rootDir: string): Promise<string[]> {
   return listFilesWithExtension(rootDir, debugEntryExtension);
+}
+
+async function listCacheIndexFiles(rootDir: string): Promise<string[]> {
+  if (!existsSync(rootDir)) return [];
+  const entriesResult = await resultify(() =>
+    readdir(rootDir, { withFileTypes: true }),
+  );
+  if (entriesResult.error) return [];
+  return entriesResult.value
+    .filter(
+      (entry) =>
+        entry.isFile() &&
+        entry.name.startsWith(cacheIndexFilePrefix) &&
+        entry.name.endsWith(debugEntryExtension),
+    )
+    .map((entry) => join(rootDir, entry.name));
+}
+
+async function listDirectFilesWithExtension(
+  rootDir: string,
+  extension: string,
+): Promise<string[]> {
+  if (!existsSync(rootDir)) return [];
+  const entriesResult = await resultify(() =>
+    readdir(rootDir, { withFileTypes: true }),
+  );
+  if (entriesResult.error) return [];
+  return entriesResult.value
+    .filter((entry) => entry.isFile() && entry.name.endsWith(extension))
+    .map((entry) => join(rootDir, entry.name));
 }
 
 async function listFilesWithExtension(
@@ -889,16 +1266,17 @@ async function removeDirIfEmpty(dirPath: string): Promise<void> {
   await rm(dirPath, { recursive: true, force: true });
 }
 
-async function withCacheFileLock(
+async function withCacheFileLock<T>(
   filePath: string,
-  fn: () => Promise<void>,
-): Promise<void> {
+  fn: () => Promise<T>,
+): Promise<T> {
   const lockPath = `${filePath}.lock`;
   await mkdir(dirname(lockPath), { recursive: true });
   await acquireLock(lockPath);
   const result = await resultify(fn);
   await rm(lockPath, { recursive: true, force: true });
   if (result.error) throw result.error;
+  return result.value;
 }
 
 async function acquireLock(lockPath: string): Promise<void> {

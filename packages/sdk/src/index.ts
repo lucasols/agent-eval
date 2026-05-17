@@ -30,6 +30,7 @@ export {
   getEvalClockStateTimeMs,
   runInExistingEvalScope,
   runInEvalScope,
+  getRealDateNowMs,
   getCurrentScope,
   isInEvalScope,
   matchesEvalTags,

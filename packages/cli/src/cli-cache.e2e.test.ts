@@ -1,11 +1,19 @@
 import { existsSync } from 'node:fs';
-import { readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import { brotliDecompressSync } from 'node:zlib';
 import {
   cacheDebugKeyEntrySchema,
   cacheEntrySchema,
   cacheListItemSchema,
+  cacheRepairSummarySchema,
   type CacheDebugKeyEntry,
   type CacheEntry,
   type EvalTraceSpan,
@@ -21,6 +29,10 @@ import {
 const cacheListSchema = z.array(cacheListItemSchema);
 const refundWorkflowPlanCacheFileRegex =
   /^refund-workflow\.plan-refund\/[a-f0-9]+\.json\.br$/;
+const largeCacheKeyDiffCacheFileRegex =
+  /^playground\.large-cache-key-diff-demo\/[a-f0-9]+\.json\.br$/;
+const externalCacheBlobFileRegex =
+  /^cache-blobs\/sha256\/[a-f0-9]{2}\/[a-f0-9]+\.json\.br$/;
 
 function requireDefined<T>(value: T | undefined, label: string): T {
   if (value === undefined) {
@@ -501,10 +513,11 @@ describe('CLI operation caching', () => {
       expect(listed).toHaveLength(1);
       const first = requireDefined(listed[0], 'first listed entry');
       expect(first.namespace).toBe('refund-workflow.plan-refund');
-      expect(first.operationType).toBe('span');
-      expect(first.operationName).toBe('plan-refund');
-      expect(first.spanName).toBe('plan-refund');
-      expect(first.spanKind).toBe('llm');
+      expect(first.lastAccessedAt).toBe(first.storedAt);
+
+      const listText = await runExampleCli(workspacePath, ['cache', 'list']);
+      expect(listText.exitCode).toBe(0);
+      expect(listText.stdout).toContain('last accessed:');
 
       const clearResult = await runExampleCli(workspacePath, [
         'cache',
@@ -537,7 +550,7 @@ describe('CLI operation caching', () => {
     });
   });
 
-  test('cache list shows spanless value cache entries', async () => {
+  test('cache list shows indexed value cache entries', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const primed = await runExampleCli(workspacePath, [
         'run',
@@ -593,25 +606,107 @@ describe('CLI operation caching', () => {
         expect.arrayContaining([
           expect.objectContaining({
             namespace: 'receipt-audit.receipt-audit-context',
-            operationType: 'value',
-            operationName: 'receipt-audit-context',
           }),
         ]),
       );
-      const first = requireDefined(
+      expect(
         listed.find(
           (entry) => entry.namespace === 'receipt-audit.receipt-audit-context',
         ),
-        'receipt-audit-context value entry',
-      );
-      expect(first.spanName).toBeUndefined();
-      expect(first.spanKind).toBeUndefined();
+      ).toBeDefined();
 
       const listText = await runExampleCli(workspacePath, ['cache', 'list']);
       expect(listText.exitCode).toBe(0);
-      expect(listText.stdout).toContain(
-        'operation: receipt-audit-context (value)',
+      expect(listText.stdout).toContain('receipt-audit.receipt-audit-context');
+    });
+  });
+
+  test('cache repair reports and removes unindexed cache artifacts', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const primed = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'refund-workflow',
+        '--case',
+        'simple-text',
+      ]);
+      expect(primed.exitCode).toBe(0);
+
+      const namespaceDir = resolve(
+        workspacePath,
+        '.agent-evals/cache/refund-workflow.plan-refund',
       );
+      await writeFile(resolve(namespaceDir, 'legacy.json.br'), 'legacy');
+      const debugDir = resolve(
+        workspacePath,
+        '.agent-evals/cache-debug/refund-workflow.plan-refund',
+      );
+      await mkdir(debugDir, { recursive: true });
+      await writeFile(resolve(debugDir, 'legacy.json'), '{}');
+      const blobDir = resolve(
+        workspacePath,
+        '.agent-evals/cache/cache-blobs/sha256/aa',
+      );
+      await mkdir(blobDir, { recursive: true });
+      await writeFile(resolve(blobDir, 'aa-orphan.json.br'), 'orphan');
+
+      const repairText = await runExampleCli(workspacePath, [
+        'cache',
+        'repair',
+      ]);
+      expect(repairText.exitCode).toBe(0);
+      expect(repairText.stdout).toContain('Cache repair complete.');
+      expect(repairText.stdout).toContain('Removed cache files: 1');
+      expect(repairText.stdout).toContain('Removed debug files: 1');
+      expect(repairText.stdout).toContain('Removed blob files: 1');
+
+      const repairJson = await runExampleCli(workspacePath, [
+        'cache',
+        'repair',
+        '--json',
+      ]);
+      expect(repairJson.exitCode).toBe(0);
+      const summaryRaw: unknown = JSON.parse(repairJson.stdout);
+      expect(cacheRepairSummarySchema.parse(summaryRaw)).toEqual({
+        removedCacheFiles: 0,
+        removedDebugFiles: 0,
+        removedBlobFiles: 0,
+        removedIndexRows: 0,
+        rewrittenIndexes: 0,
+      });
+    });
+  });
+
+  test('large cached return payloads store blobs inside the cache directory', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const run = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'large-cache-key-diff-demo',
+      ]);
+      expect(run.exitCode).toBe(0);
+
+      const cacheFiles = await readCacheDir(workspacePath);
+      expect(cacheFiles).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(largeCacheKeyDiffCacheFileRegex),
+          expect.stringMatching(externalCacheBlobFileRegex),
+        ]),
+      );
+
+      const listJson = await runExampleCli(workspacePath, [
+        'cache',
+        'list',
+        '--json',
+      ]);
+      expect(listJson.exitCode).toBe(0);
+      const listedRaw: unknown = JSON.parse(listJson.stdout);
+      const listed = cacheListSchema.parse(listedRaw);
+      expect(listed).toEqual([
+        expect.objectContaining({
+          namespace: 'playground.large-cache-key-diff-demo',
+        }),
+      ]);
     });
   });
 
@@ -682,7 +777,7 @@ describe('CLI operation caching', () => {
     });
   });
 
-  test('prunes each namespace to the configured default max entries', async () => {
+  test('one-off CLI runs leave retention pruning to a persistent idle runner', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const configPath = resolve(workspacePath, 'agent-evals.config.ts');
       const configSource = await readFile(configPath, 'utf8');
@@ -703,7 +798,7 @@ describe('CLI operation caching', () => {
       expect(run.stderr).toBe('');
 
       const cacheFiles = await readCacheDir(workspacePath);
-      expect(cacheFiles).toHaveLength(2);
+      expect(cacheFiles).toHaveLength(3);
       expect(cacheFiles).toEqual(
         expect.arrayContaining([
           expect.stringMatching(refundWorkflowPlanCacheFileRegex),
@@ -714,7 +809,7 @@ describe('CLI operation caching', () => {
           readSingleCacheEntry(cachePath(workspacePath, file)),
         ),
       );
-      expect(entries).toHaveLength(2);
+      expect(entries).toHaveLength(3);
       expect(
         entries.every(
           (entry) => entry.namespace === 'refund-workflow.plan-refund',
@@ -723,7 +818,7 @@ describe('CLI operation caching', () => {
     });
   });
 
-  test('uses namespace-specific max entry overrides', async () => {
+  test('one-off CLI runs also defer namespace-specific retention', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const configPath = resolve(workspacePath, 'agent-evals.config.ts');
       const configSource = await readFile(configPath, 'utf8');
@@ -752,7 +847,7 @@ describe('CLI operation caching', () => {
       const contextEntries = entries.filter(
         (entry) => entry.namespace === 'receipt-audit.receipt-audit-context',
       );
-      expect(contextEntries).toHaveLength(1);
+      expect(contextEntries.length).toBeGreaterThan(1);
     });
   });
 });

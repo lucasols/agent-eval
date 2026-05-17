@@ -72,6 +72,8 @@ import { resolveEvalTags, validateTagsFilters } from './tags.ts';
 import { getTargetEvalKeys } from './targeting.ts';
 import { getWatchRootsForIncludePatterns } from './watchRoots.ts';
 
+const defaultCachePruneIdleDelayMs = 5_000;
+
 export type {
   ManualInputValidationFailure,
   ManualInputValidationResult,
@@ -100,6 +102,7 @@ export function createRunner({
   let runHistoryWatcher: FSWatcher | undefined;
   let discoveryRefreshTimer: ReturnType<typeof setTimeout> | undefined;
   let runHistoryRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+  let cachePruneIdleTimer: ReturnType<typeof setTimeout> | undefined;
   let registryLoadCounter = 0;
   const configReload = createConfigReloadController({
     getActiveRunCount,
@@ -151,6 +154,9 @@ export function createRunner({
     },
     async clearCache(filter) {
       await cacheStore.clear(filter);
+    },
+    async repairCache() {
+      return cacheStore.repair();
     },
     async recomputeStatusesForEval(evalKey) {
       const evalMeta = resolveEvalMeta(evalKey);
@@ -507,6 +513,7 @@ export function createRunner({
       emitDiscoveryEvent();
     },
     async startRun(request) {
+      cancelCacheRetentionPrune();
       const tagsFilterError = validateTagsFilters(request.target.tagsFilter);
       if (tagsFilterError !== null) throw new Error(tagsFilterError);
 
@@ -619,7 +626,13 @@ export function createRunner({
       startRunChild({
         runState,
         contextPath: join(runDir, 'run-child-context.json'),
-        managerContext: { workspaceRoot, evals, emitEvent, emitDiscoveryEvent },
+        managerContext: {
+          workspaceRoot,
+          evals,
+          emitEvent,
+          emitDiscoveryEvent,
+          onRunTerminal: scheduleCacheRetentionPrune,
+        },
       });
 
       if (deletedTemporaryRuns > 0) emitDiscoveryEvent();
@@ -662,6 +675,7 @@ export function createRunner({
         payload: run.summary,
       });
       emitDiscoveryEvent();
+      scheduleCacheRetentionPrune();
     },
     getCaseDetail(runId, caseId) {
       const run = runs.get(runId);
@@ -685,6 +699,7 @@ export function createRunner({
     },
 
     async close() {
+      cancelCacheRetentionPrune();
       await Promise.all([closeWatchers(), configReload.close()]);
     },
 
@@ -820,6 +835,38 @@ export function createRunner({
   function getActiveRunCount(): number {
     return [...runs.values()].filter((run) => run.manifest.status === 'running')
       .length;
+  }
+
+  function getCachePruneIdleDelayMs(): number {
+    const configured = config.cache?.pruneIdleDelayMs;
+    if (
+      configured === undefined ||
+      !Number.isFinite(configured) ||
+      configured <= 0
+    ) {
+      return defaultCachePruneIdleDelayMs;
+    }
+    return Math.floor(configured);
+  }
+
+  function cancelCacheRetentionPrune(): void {
+    if (cachePruneIdleTimer === undefined) return;
+    clearTimeout(cachePruneIdleTimer);
+    cachePruneIdleTimer = undefined;
+  }
+
+  function scheduleCacheRetentionPrune(): void {
+    cancelCacheRetentionPrune();
+    cachePruneIdleTimer = setTimeout(() => {
+      cachePruneIdleTimer = undefined;
+      void pruneCacheRetentionIfIdle();
+    }, getCachePruneIdleDelayMs());
+    cachePruneIdleTimer.unref();
+  }
+
+  async function pruneCacheRetentionIfIdle(): Promise<void> {
+    if (getActiveRunCount() > 0) return;
+    await cacheStore.pruneRetention();
   }
 
   function emitDiscoveryEvent() {

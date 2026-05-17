@@ -39,6 +39,7 @@ type RunChildManagerContext = {
   evals: Map<string, EvalMeta>;
   emitEvent: (runState: RunState, event: SseEnvelope) => void;
   emitDiscoveryEvent: () => void;
+  onRunTerminal: () => void;
 };
 
 export function startRunChild(params: {
@@ -386,6 +387,7 @@ async function markRunErrored(
     payload: { message },
   });
   managerContext.emitDiscoveryEvent();
+  managerContext.onRunTerminal();
 }
 
 async function markRunTerminalFromChild(
@@ -412,4 +414,5 @@ async function markRunTerminalFromChild(
   }
   managerContext.emitEvent(runState, event);
   managerContext.emitDiscoveryEvent();
+  managerContext.onRunTerminal();
 }

@@ -238,6 +238,7 @@ export {
 export {
   cacheModeSchema,
   cacheListItemSchema,
+  cacheRepairSummarySchema,
   cacheDebugKeyEntrySchema,
   cacheDebugKeyFileSchema,
   cacheEntrySchema,
@@ -253,6 +254,7 @@ export {
   type CacheMode,
   type CacheOperationType,
   type CacheListItem,
+  type CacheRepairSummary,
   type CacheDebugKeyEntry,
   type CacheDebugKeyFile,
   type CacheEntry,
