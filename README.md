@@ -1414,6 +1414,11 @@ Store output values with the `setOutput(...)` helper passed to `execute` as
 plain data: strings, numbers, booleans, `null`, objects/arrays, explicit file
 refs, or native `Blob`/`File` values. Stored output values are not coerced by
 column formats; `columns.format` only controls visualization in the CLI/UI.
+For one-off output display, pass a format string or column override directly as
+the third argument: `setOutput('response', markdown, 'markdown')` or
+`setOutput('receipt', file, { label: 'Receipt', format: 'image' })`. Authored
+global/eval `columns` for the same key take precedence over the runtime
+`setOutput` display hint.
 Values that are not plain JSON, such as `Date`, `Map`, `Set`, `BigInt`, typed
 arrays, or class instances, are persisted through the tagged value serializer
 instead of a string fallback. Native `Blob`/`File` values are copied to run
@@ -1485,7 +1490,7 @@ defineEval({
     toolResult: { label: 'Tool Result', format: 'json' },
   },
   execute: ({ setOutput }) => {
-    setOutput('response', 'Refund prepared for **order #123**.');
+    setOutput('response', 'Refund prepared for **order #123**.', 'markdown');
     setOutput(
       'receipt',
       new File([imageBytes], 'receipt-1.png', { type: 'image/png' }),

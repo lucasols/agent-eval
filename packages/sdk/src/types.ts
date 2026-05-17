@@ -16,6 +16,7 @@ import type {
   EvalDeriveFn,
   EvalDeriveMap,
   EvalDeriveValueFn,
+  ColumnFormat,
   EvalStatAggregate,
   EvalStatItem,
   EvalStatsConfig,
@@ -42,6 +43,7 @@ export type {
   EvalDeriveFn,
   EvalDeriveMap,
   EvalDeriveValueFn,
+  ColumnFormat,
   EvalStatAggregate,
   EvalStatItem,
   EvalStatsConfig,
@@ -97,6 +99,15 @@ export type EvalCase<TInput = unknown> = Omit<
 export type EvalOutputs = Record<string, unknown>;
 
 /**
+ * Display options that can be attached directly to one `setOutput(...)` write.
+ *
+ * Pass a format string such as `'markdown'` for the common case, or an
+ * `EvalColumnOverride` when the output also needs a label, numeric formatting,
+ * table visibility, alignment, or star count.
+ */
+export type EvalOutputOptions = ColumnFormat | EvalColumnOverride;
+
+/**
  * Initial wall-clock time used by an eval's shifted Date clock.
  *
  * Pass `'now'` to opt one eval back into the real current clock.
@@ -144,6 +155,12 @@ export type EvalSetOutput<TOutputs extends EvalOutputs = EvalOutputs> = <
    * field's declared output type.
    */
   value: TOutputs[TKey],
+  /**
+   * Optional display format or column override for this output. Runtime
+   * options are persisted with the case result and are useful when a one-off
+   * output should render as Markdown, JSON, media, a number, duration, etc.
+   */
+  options?: EvalOutputOptions,
 ) => void;
 
 /** Context passed to an eval's `execute` function for a single case run. */

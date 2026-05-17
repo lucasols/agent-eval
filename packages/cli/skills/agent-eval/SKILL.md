@@ -318,6 +318,11 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
 - `setEvalOutput(key, value)` writes reviewable data for the case. Values are
   stored as received: primitives, objects/arrays, explicit file refs, and
   native `Blob`/`File` values. `columns.format` only controls visualization.
+  Inside `execute`, `setOutput(key, value, formatOrOverride)` can attach a
+  display hint directly to a runtime output, e.g. `'markdown'` or
+  `{ label: 'Receipt', format: 'image', hideInTable: true }`. Authored
+  global/eval `columns` for the same key take precedence over that runtime
+  hint.
   Non-JSON runtime values such as `Date`, `Map`, `Set`, `BigInt`, typed arrays,
   and class instances use the tagged value serializer instead of a string
   fallback. Native `Blob`/`File` values are copied to run artifacts because

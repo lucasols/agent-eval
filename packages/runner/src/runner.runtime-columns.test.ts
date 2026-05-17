@@ -90,4 +90,78 @@ defineEval({
       process.chdir(previousCwd);
     }
   }, 10_000);
+
+  test('persists column formats written directly with setOutput', async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), 'agent-evals-runner-output-format-'),
+    );
+    createdWorkspaces.push(workspacePath);
+
+    await mkdir(join(workspacePath, 'evals'), { recursive: true });
+    await writeFile(
+      join(workspacePath, 'agent-evals.config.ts'),
+      `export default {
+  include: ['evals/**/*.eval.ts'],
+};
+`,
+    );
+    await writeFile(
+      join(workspacePath, 'evals', 'set-output-format.eval.ts'),
+      `import { defineEval } from '@agent-evals/sdk';
+
+defineEval({
+  id: 'set-output-format',
+  columns: {
+    response: { label: 'Configured Response', format: 'json' },
+  },
+  cases: [{ id: 'case-1', input: {} }],
+  execute: ({ setOutput }) => {
+    setOutput('response', '**approved**', {
+      label: 'Response',
+      format: 'markdown',
+    });
+    setOutput('confidence', 0.93, 'percent');
+  },
+});
+`,
+    );
+
+    const previousCwd = process.cwd();
+    process.chdir(workspacePath);
+
+    try {
+      const runner = createRunner({ watchForChanges: false });
+      await runner.init();
+      const startedRun = await runner.startRun({
+        target: { mode: 'evalIds', evalIds: ['set-output-format'] },
+        trials: 1,
+      });
+
+      await expect
+        .poll(() => runner.getRun(startedRun.manifest.id)?.manifest.status, {
+          timeout: 10_000,
+        })
+        .toBe('completed');
+
+      const caseDetail = runner.getCaseDetail(startedRun.manifest.id, 'case-1');
+      expect(caseDetail?.outputColumnDefs).toEqual([
+        {
+          key: 'confidence',
+          label: 'confidence',
+          kind: 'number',
+          format: 'percent',
+        },
+      ]);
+      expect(
+        runner.getRun(startedRun.manifest.id)?.cases[0]?.outputColumnDefs,
+      ).toEqual(caseDetail?.outputColumnDefs);
+      expect(
+        runner
+          .getEval('set-output-format')
+          ?.columnDefs.find((def) => def.key === 'response'),
+      ).toMatchObject({ label: 'Configured Response', format: 'json' });
+    } finally {
+      process.chdir(previousCwd);
+    }
+  }, 10_000);
 });

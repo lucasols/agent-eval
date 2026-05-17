@@ -1,4 +1,5 @@
 import { z } from 'zod/v4';
+import { columnFormatSchema, numberDisplayOptionsSchema } from './display.ts';
 import {
   traceSpanErrorSchema,
   traceSpanKindSchema,
@@ -6,6 +7,16 @@ import {
   type EvalTraceSpanError,
   type EvalTraceSpanWarning,
 } from './trace.ts';
+
+const outputColumnOverrideSchema = z.object({
+  label: z.string().optional(),
+  format: columnFormatSchema.optional(),
+  numberFormat: numberDisplayOptionsSchema.optional(),
+  hideInTable: z.boolean().optional(),
+  hideIfNoValue: z.boolean().optional(),
+  align: z.enum(['left', 'center', 'right']).optional(),
+  maxStars: z.number().int().min(2).optional(),
+});
 
 /**
  * Mode that controls how the cache is consulted for a given run.
@@ -128,6 +139,7 @@ export const cacheRecordingOpSchema = z.discriminatedUnion('kind', [
     kind: z.literal('setOutput'),
     key: z.string(),
     value: z.unknown(),
+    column: outputColumnOverrideSchema.optional(),
   }),
   z.object({
     kind: z.literal('appendOutput'),

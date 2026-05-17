@@ -186,7 +186,7 @@ defineEval({
       maxStars: 5,
     },
   },
-  execute: ({ input }) => {
+  execute: ({ input, setOutput }) => {
     evalLog('info', 'Preparing format gallery package for %s', input.orderId);
     console.info('Loaded refund package assets', {
       previewBytes: previewCardSvg.byteLength,
@@ -210,14 +210,18 @@ defineEval({
       nextStep: 'send-refund-confirmation',
       reviewer: { name: 'Avery', queue: 'refund-ops' },
     });
-    setEvalOutput('rawToolEvents', [
-      {
-        name: 'receipt-match',
-        status: 'passed',
-        textWithLineBreaks: 'Matched receipt\nAmount: $15.99',
-      },
-      { name: 'queue-routing', status: 'ready' },
-    ]);
+    setOutput(
+      'rawToolEvents',
+      [
+        {
+          name: 'receipt-match',
+          status: 'passed',
+          textWithLineBreaks: 'Matched receipt\nAmount: $15.99',
+        },
+        { name: 'queue-routing', status: 'ready' },
+      ],
+      { label: 'Raw Tool Events', format: 'json', hideInTable: true },
+    );
     setEvalOutput('requiresManualReview', false);
     setEvalOutput(
       'previewCard',

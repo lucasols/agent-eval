@@ -6,6 +6,7 @@ import type {
   CacheOperationType,
   CacheMode,
   CacheRecordingOp,
+  EvalColumnOverride,
   EvalTraceSpan,
   RunLogEntry,
   RunLogLevel,
@@ -17,7 +18,11 @@ import { matchesEvalTagInput } from '@agent-evals/shared';
 import dayjs from 'dayjs';
 import type { CacheSerializationExternalJsonStore } from './cacheSerialization.ts';
 import { stripTerminalControlCodes } from './stackFormatting.ts';
-import type { EvalStartTime, EvalTagMatchInput } from './types.ts';
+import type {
+  EvalOutputOptions,
+  EvalStartTime,
+  EvalTagMatchInput,
+} from './types.ts';
 
 declare global {
   var __agentEvalsRealDate: DateConstructor | undefined;
@@ -118,6 +123,8 @@ export type EvalCaseScope = {
   /** Effective tags for the current case. */
   tags: string[];
   outputs: Record<string, unknown>;
+  /** Runtime display overrides recorded by output helpers for this case. */
+  outputColumnOverrides: Record<string, EvalColumnOverride>;
   /** Structured assertion failures recorded for the current case. */
   assertionFailures: AssertionFailure[];
   /** Logs captured from manual `evalLog(...)` calls and enabled console calls. */
@@ -842,6 +849,7 @@ export async function runInEvalScope<T>(
     input: options.input,
     tags: options.tags ?? [],
     outputs: {},
+    outputColumnOverrides: {},
     assertionFailures: [],
     logs: [],
     spans: [],
@@ -899,6 +907,14 @@ function recordOpIfActive(scope: EvalCaseScope, op: CacheRecordingOp): void {
   if (top) top.ops.push(op);
 }
 
+function normalizeEvalOutputOptions(
+  options: EvalOutputOptions | undefined,
+): EvalColumnOverride | undefined {
+  if (options === undefined) return undefined;
+  if (typeof options === 'string') return { format: options };
+  return options;
+}
+
 function toAssertionFailure(
   message: string,
   error: Error | undefined = undefined,
@@ -919,12 +935,24 @@ function toAssertionFailure(
  *
  * Supported values include scalars, JSON-safe objects/arrays, explicit file
  * refs, and native `Blob`/`File` instances for media or file columns.
+ *
+ * Pass the optional third argument to persist a display format or full column
+ * override with this runtime output, for example `'markdown'` or
+ * `{ label: 'Receipt', format: 'image', hideInTable: true }`.
  */
-export function setEvalOutput(key: string, value: unknown): void {
+export function setEvalOutput(
+  key: string,
+  value: unknown,
+  options: EvalOutputOptions | undefined = undefined,
+): void {
   const scope = getCurrentScope();
   if (!scope) return;
   scope.outputs[key] = value;
-  recordOpIfActive(scope, { kind: 'setOutput', key, value });
+  const column = normalizeEvalOutputOptions(options);
+  if (column !== undefined) {
+    scope.outputColumnOverrides[key] = column;
+  }
+  recordOpIfActive(scope, { kind: 'setOutput', key, value, column });
 }
 
 /**

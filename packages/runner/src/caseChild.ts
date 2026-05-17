@@ -154,6 +154,9 @@ async function executeCaseChild(
       cacheHits: caseRowUpdate.cacheHits ?? 0,
       cacheOperations: caseRowUpdate.cacheOperations ?? 0,
       columns: caseRowUpdate.columns ?? {},
+      ...(caseRowUpdate.outputColumnDefs !== undefined
+        ? { outputColumnDefs: caseRowUpdate.outputColumnDefs }
+        : {}),
       trial: context.trial,
     },
     pendingCacheWrites: bufferedCacheStore?.getPendingWrites() ?? [],

@@ -185,6 +185,11 @@ export const caseRowSchema = z.object({
   cacheOperations: z.number().optional(),
   costUsd: z.number().nullable().optional(),
   columns: z.record(z.string(), cellValueSchema),
+  /**
+   * Runtime column definitions authored by output helpers for this case.
+   * These complement eval-level `columns` without changing discovery metadata.
+   */
+  outputColumnDefs: z.array(columnDefSchema).optional(),
   /** Winning trial index for the persisted case result. */
   trial: z.number(),
 });
@@ -303,6 +308,11 @@ export const caseDetailSchema = z.object({
    */
   scoringTraces: z.record(z.string(), scoreTraceSchema).optional(),
   columns: z.record(z.string(), cellValueSchema),
+  /**
+   * Runtime column definitions authored by output helpers for this case.
+   * These complement eval-level `columns` without changing discovery metadata.
+   */
+  outputColumnDefs: z.array(columnDefSchema).optional(),
   assertionFailures: z.array(
     z.union([assertionFailureSchema, legacyAssertionFailureSchema]),
   ),

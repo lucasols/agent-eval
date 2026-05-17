@@ -186,6 +186,36 @@ export function buildDeclaredColumnDefs<
   return [...declaredDefs.values()];
 }
 
+/**
+ * Build runtime column definitions from output-level display overrides.
+ *
+ * These definitions are persisted on case rows/details so `setOutput(...)`
+ * can format one-off outputs without adding them to eval discovery metadata.
+ */
+export function buildRuntimeOutputColumnDefs(
+  columns: Record<string, CellValue>,
+  overrides: Record<string, EvalColumnOverride>,
+  configuredColumnKeys: ReadonlySet<string> = new Set(),
+): ColumnDef[] {
+  return Object.entries(overrides)
+    .filter(
+      ([key]) => columns[key] !== undefined && !configuredColumnKeys.has(key),
+    )
+    .map(([key, override]) =>
+      createColumnDef({
+        key,
+        override,
+        inferredKind:
+          inferKindFromFormat(override.format) ??
+          (override.numberFormat === undefined
+            ? inferKind(columns[key])
+            : 'number'),
+        isScore: false,
+        isManualScore: false,
+      }),
+    );
+}
+
 /** Infer a `ColumnKind` from a runtime value when no override is set. */
 export function inferKind(value: unknown): ColumnKind {
   if (typeof value === 'number') return 'number';

@@ -657,7 +657,7 @@ test('cached spans replay outputs but do not replay logs', async () => {
         },
         () => {
           evalLog('info', 'inside cached operation');
-          setEvalOutput('value', 'from cached operation');
+          setEvalOutput('value', 'from cached operation', 'markdown');
           return 'done';
         },
       );
@@ -697,10 +697,16 @@ test('cached spans replay outputs but do not replay logs', async () => {
   });
 
   expect(first.caseDetail.columns.value).toBe('from cached operation');
+  expect(first.caseDetail.outputColumnDefs).toEqual([
+    { key: 'value', label: 'value', kind: 'string', format: 'markdown' },
+  ]);
   expect(first.caseDetail.logs.map((entry) => entry.message)).toEqual([
     'inside cached operation',
   ]);
   expect(second.caseDetail.columns.value).toBe('from cached operation');
+  expect(second.caseDetail.outputColumnDefs).toEqual(
+    first.caseDetail.outputColumnDefs,
+  );
   expect(second.caseDetail.logs).toEqual([]);
 });
 

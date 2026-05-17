@@ -194,6 +194,9 @@ function applyRecordingOp(
 ): void {
   if (op.kind === 'setOutput') {
     scope.outputs[op.key] = op.value;
+    if (op.column !== undefined) {
+      scope.outputColumnOverrides[op.key] = op.column;
+    }
     return;
   }
   if (op.kind === 'appendOutput') {

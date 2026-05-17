@@ -36,8 +36,12 @@ import {
   resolveLlmCallsConfig,
 } from '@agent-evals/shared';
 import { z } from 'zod/v4';
-import { normalizeScoreDef, toCellValue } from './columnBuilder.ts';
-import { addDefaultOutputs } from './defaultConfig.ts';
+import {
+  buildRuntimeOutputColumnDefs,
+  normalizeScoreDef,
+  toCellValue,
+} from './columnBuilder.ts';
+import { addDefaultOutputs, mergeDefaultColumns } from './defaultConfig.ts';
 import { runWithModuleIsolation } from './moduleIsolation.ts';
 import { persistInlineArtifact } from './outputArtifacts.ts';
 import { stripTerminalControlCodes } from './stackFormatting.ts';
@@ -208,6 +212,7 @@ export async function runCase<
     evalKey = evalId,
     evalCase,
     globalTraceDisplay,
+    globalColumns,
     globalDeriveFromTracing,
     llmCallsConfig = resolveLlmCallsConfig(undefined),
     apiCallsConfig = resolveApiCallsConfig(undefined),
@@ -481,6 +486,20 @@ export async function runCase<
   for (const key of Object.keys(evalDef.manualScores ?? {})) {
     columns[key] = null;
   }
+  const outputColumnDefs = buildRuntimeOutputColumnDefs(
+    columns,
+    scope.outputColumnOverrides,
+    new Set(
+      Object.keys(
+        mergeDefaultColumns({
+          globalColumns,
+          columns: evalDef.columns,
+          globalRemove: globalRemoveDefaultConfig,
+          evalRemove: evalDef.removeDefaultConfig,
+        }) ?? {},
+      ),
+    ),
+  );
 
   const errorInfo = nonAssertError
     ? {
@@ -501,6 +520,7 @@ export async function runCase<
     trace: displayTrace,
     traceDisplay,
     columns,
+    ...(outputColumnDefs.length > 0 ? { outputColumnDefs } : {}),
     assertionFailures: scope.assertionFailures,
     logs: scope.logs,
     error: errorInfo,
@@ -522,6 +542,7 @@ export async function runCase<
     cacheHits: cacheHits.length,
     cacheOperations: cacheEntries.length,
     columns,
+    ...(outputColumnDefs.length > 0 ? { outputColumnDefs } : {}),
   };
 
   return { caseDetail, caseRowUpdate };

@@ -472,6 +472,7 @@ export function CaseDrawer() {
   const columnDefs = mergeRuntimeColumnDefs(
     evalSummary?.columnDefs ?? [],
     d.columns,
+    d.outputColumnDefs,
   );
   const outputColumnDefs = orderOutputColumnDefs(columnDefs, d.columns);
   const hasOutputValue = outputColumnDefs.some((columnDef) =>

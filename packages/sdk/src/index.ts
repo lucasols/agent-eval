@@ -92,6 +92,7 @@ export type {
   EvalTraceTree,
   EvalExecuteContext,
   EvalSetOutput,
+  EvalOutputOptions,
   EvalOutputs,
   EvalOutputsSchema,
   EvalDeriveConfig,

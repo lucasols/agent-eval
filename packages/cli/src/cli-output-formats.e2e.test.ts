@@ -37,6 +37,7 @@ describe('CLI output formats', () => {
           caseRows: artifacts.cases.map((caseRow) => ({
             caseId: caseRow.caseId,
             columns: caseRow.columns,
+            outputColumnDefs: caseRow.outputColumnDefs,
             status: caseRow.status,
           })),
           logs: artifacts.caseDetails['all-column-formats.json']?.logs.map(
@@ -133,6 +134,15 @@ describe('CLI output formats', () => {
                   },
                 },
               },
+              "outputColumnDefs": [
+                {
+                  "format": "json",
+                  "hideInTable": true,
+                  "key": "rawToolEvents",
+                  "kind": "string",
+                  "label": "Raw Tool Events",
+                },
+              ],
               "status": "pass",
             },
           ],
