@@ -634,6 +634,8 @@ export function CaseDrawer() {
           llmCallEntries.length > 0 ? (
             <>
               <LlmCostScenarioToolbar
+                entries={llmCallEntries}
+                pricing={llmCallsConfig.pricing}
                 scenario={costScenario}
                 onChange={setCostScenario}
               />
