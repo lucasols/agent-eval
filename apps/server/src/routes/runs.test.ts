@@ -1,6 +1,7 @@
 import { readFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { SseEnvelope } from '@agent-evals/shared';
 import { Hono } from 'hono';
 import { beforeEach, describe, expect, onTestFinished, test, vi } from 'vitest';
 import { manualInputFilesRoutes } from './manualInputFiles.ts';
@@ -201,7 +202,13 @@ describe('runs route config reload guard', () => {
 
   test('logs a short run result summary when an app run finishes', async () => {
     const unsubscribe = vi.fn();
-    mockRunner.subscribe.mockReturnValue(unsubscribe);
+    let listener: ((event: SseEnvelope) => void) | undefined;
+    mockRunner.subscribe.mockImplementation(
+      (_runId: string, nextListener: (event: SseEnvelope) => void) => {
+        listener = nextListener;
+        return unsubscribe;
+      },
+    );
     mockRunner.getRun.mockReturnValue({
       manifest: {
         id: 'run-1',
@@ -242,8 +249,7 @@ describe('runs route config reload guard', () => {
     });
 
     expect(response.status).toBe(201);
-    const listener = mockRunner.subscribe.mock.calls[0]?.[1];
-    if (typeof listener !== 'function') {
+    if (listener === undefined) {
       throw new Error('Expected route to subscribe to run events');
     }
     listener({
