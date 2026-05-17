@@ -75,6 +75,7 @@ import {
 import { copyTextToClipboard } from '#src/utils/clipboard';
 import { buildEvalScopedRunRows } from '#src/utils/evalRuns';
 import {
+  CACHE_HIT_AGGREGATE_MODES,
   computeStatDisplay,
   EVAL_STAT_AGGREGATE_MODES,
   type EvalStatDisplay,
@@ -304,6 +305,10 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const [aggregateModeSelection, setAggregateModeSelection] = useState<
     { evalKey: string; value: EvalStatAggregate } | undefined
   >(undefined);
+  const [cacheAggregateModeSelection, setCacheAggregateModeSelection] =
+    useState<{ evalKey: string; value: EvalStatAggregate } | undefined>(
+      undefined,
+    );
 
   useEffect(() => {
     writeScoreHistoryCollapsed(scoreHistoryCollapsed);
@@ -389,6 +394,10 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     aggregateModeSelection?.evalKey === evalSummary.key
       ? aggregateModeSelection.value
       : evalSummary.defaultStatAggregate;
+  const cacheAggregateModeOverride =
+    cacheAggregateModeSelection?.evalKey === evalSummary.key
+      ? cacheAggregateModeSelection.value
+      : undefined;
   const statDisplays = stats
     .map((stat) => ({
       stat,
@@ -397,6 +406,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
         latestSummary,
         latestCases,
         aggregateModeOverride,
+        cacheAggregateModeOverride,
       }),
     }))
     .filter(({ stat, display }) => shouldShowStatDisplay(stat, display))
@@ -481,16 +491,46 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     });
   }
 
+  function cycleCacheAggregateMode(aggregateMode: EvalStatAggregate) {
+    setCacheAggregateModeSelection({
+      evalKey: evalSummary.key,
+      value: getNextCacheAggregateMode(aggregateMode),
+    });
+  }
+
+  function getNextCacheAggregateMode(
+    aggregateMode: EvalStatAggregate,
+  ): EvalStatAggregate {
+    const index = CACHE_HIT_AGGREGATE_MODES.indexOf(aggregateMode);
+    const nextIndex =
+      index === -1 || index === CACHE_HIT_AGGREGATE_MODES.length - 1
+        ? 0
+        : index + 1;
+    return CACHE_HIT_AGGREGATE_MODES[nextIndex] ?? 'sum';
+  }
+
   function renderStatAggregateButton(stat: EvalStatDisplay) {
     if (stat.aggregateLabel === undefined || stat.aggregateMode === undefined) {
       return null;
     }
     const aggregateMode = stat.aggregateMode;
+    const isCacheControl = stat.aggregateControl === 'cache';
+    const nextMode = isCacheControl
+      ? getNextCacheAggregateMode(aggregateMode)
+      : getNextAggregateMode(aggregateMode);
     return (
       <StatAggregateButton
         type="button"
-        aria-label={`Show ${getNextAggregateMode(aggregateMode)} for all numeric stats`}
-        onClick={() => cycleAggregateMode(aggregateMode)}
+        aria-label={
+          isCacheControl
+            ? `Show ${nextMode} for cache hit stat`
+            : `Show ${nextMode} for all numeric stats`
+        }
+        onClick={() =>
+          isCacheControl
+            ? cycleCacheAggregateMode(aggregateMode)
+            : cycleAggregateMode(aggregateMode)
+        }
       >
         {stat.aggregateLabel}
       </StatAggregateButton>

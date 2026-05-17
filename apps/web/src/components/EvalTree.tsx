@@ -142,7 +142,7 @@ const RowBase = styled.button<{
   }
 `;
 
-const ChevronButton = styled.button<{ open: boolean }>`
+const ChevronButton = styled.span<{ open: boolean }>`
   ${transition({ property: 'transform, background, color' })}
   display: inline-flex;
   width: 18px;
@@ -157,6 +157,7 @@ const ChevronButton = styled.button<{ open: boolean }>`
   opacity: 0.8;
   flex-shrink: 0;
   cursor: pointer;
+  user-select: none;
 
   &:hover {
     background: ${colors.surface.var};
@@ -434,9 +435,8 @@ function FolderRow({
         depth3={depth >= 3}
       >
         <ChevronButton
-          type="button"
           onClick={handleChevronClick}
-          aria-label={isOpen ? 'Collapse folder' : 'Expand folder'}
+          title={isOpen ? 'Collapse folder' : 'Expand folder'}
           open={isOpen}
         >
           <ChevronRight />
@@ -510,9 +510,8 @@ function FileRow({
         depth3={depth >= 3}
       >
         <ChevronButton
-          type="button"
           onClick={handleChevronClick}
-          aria-label={isOpen ? 'Collapse file' : 'Expand file'}
+          title={isOpen ? 'Collapse file' : 'Expand file'}
           open={isOpen}
         >
           <ChevronRight />

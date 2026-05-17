@@ -9,6 +9,7 @@ const defaultContext = {
   latestSummary: summary({}),
   latestCases,
   aggregateModeOverride: undefined,
+  cacheAggregateModeOverride: undefined,
 };
 
 function summary(overrides: Partial<ScopedCaseSummary>): ScopedCaseSummary {
@@ -32,12 +33,15 @@ function caseRow(
   caseId: string,
   columns: CaseRow['columns'],
   durationMs = 1,
+  cache: { hits: number; operations: number } | undefined = undefined,
 ): CaseRow {
   return {
     caseId,
     evalId: 'eval',
     status: 'pass',
     durationMs,
+    cacheHits: cache?.hits,
+    cacheOperations: cache?.operations,
     columns,
     trial: 0,
   };
@@ -54,8 +58,9 @@ test('computeStatDisplay renders cache hits over total cache operations', () => 
     ),
   ).toEqual({
     label: 'Cache hits',
-    aggregateLabel: undefined,
-    aggregateMode: undefined,
+    aggregateLabel: 'sum',
+    aggregateMode: 'sum',
+    aggregateControl: 'cache',
     aggregateTooltip: undefined,
     value: '4/5',
     hasValue: true,
@@ -87,6 +92,34 @@ test('computeStatDisplay has no cache-hit value when there are no cache operatio
   ).toMatchObject({ value: '\u2014', hasValue: false });
 });
 
+test('computeStatDisplay gives cache hits an independent sum-first aggregate', () => {
+  expect(
+    computeStatDisplay(
+      { kind: 'cacheHits' },
+      {
+        evalSummary,
+        latestSummary: summary({ cacheHits: 3, cacheOperations: 6 }),
+        latestCases: [
+          caseRow('a', {}, 1, { hits: 2, operations: 3 }),
+          caseRow('b', {}, 1, { hits: 0, operations: 1 }),
+          caseRow('c', {}, 1, { hits: 1, operations: 2 }),
+        ],
+        aggregateModeOverride: 'max',
+        cacheAggregateModeOverride: undefined,
+      },
+    ),
+  ).toMatchObject({
+    label: 'Cache hits',
+    aggregateLabel: 'sum',
+    aggregateMode: 'sum',
+    aggregateControl: 'cache',
+    aggregateTooltip:
+      'SUM: 3/6\nAVG: 50%\nMAX: 2/3\nMIN: 0/1\nBEST: 2/3\nWORST: 0/1',
+    value: '3/6',
+    hasValue: true,
+  });
+});
+
 test('computeStatDisplay applies a shared aggregate override to column stats', () => {
   expect(
     computeStatDisplay(
@@ -105,6 +138,7 @@ test('computeStatDisplay applies a shared aggregate override to column stats', (
           caseRow('b', { tokens: 250 }),
         ],
         aggregateModeOverride: 'max',
+        cacheAggregateModeOverride: undefined,
       },
     ),
   ).toMatchObject({
@@ -131,6 +165,7 @@ test('computeStatDisplay aggregates duration like a numeric stat', () => {
           caseRow('c', {}, 550),
         ],
         aggregateModeOverride: 'avg',
+        cacheAggregateModeOverride: undefined,
       },
     ),
   ).toMatchObject({

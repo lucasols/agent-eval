@@ -1111,7 +1111,9 @@ Supported kinds:
 - `cacheHits` — latest run's Agent Eval operation-level cache hits over total
   cache operations, shown as `hits/total` using the same span and
   `evalTracer.cache(...)` refs that feed the Cache tab. This is separate from
-  LLM provider prompt-cache read tokens such as `cachedInputTokens`.
+  LLM provider prompt-cache read tokens such as `cachedInputTokens`. It has its
+  own aggregate control and defaults to `sum`; `avg` shows average per-case hit
+  rate, while `min`/`max`/`best`/`worst` select cases by hit rate.
 - `column` — aggregate a score or numeric output column across the latest
   run's cases. `key` matches a score key or output column key. `aggregate` is
   `avg | min | max | sum | best | worst`. `best` uses the highest finite value

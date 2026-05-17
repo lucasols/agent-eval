@@ -486,12 +486,14 @@ type EvalDefinitionBase<
    * the latest run. `duration` aggregates finite per-case durations using the
    * same modes as column stats. `cacheHits` counts Agent Eval operation-level
    * cache hits over total cache operations, not LLM provider prompt-cache read
-   * tokens. `kind: 'column'` aggregates a score or numeric output column across
-   * the latest run's cases — `key` must match one of the eval's score or column
-   * keys, and only finite numeric values participate in the reduction. When no
-   * case has a numeric value for the key the stat renders an em dash, or hides
-   * when `hideIfNoValue` is true. `label`, `format`, and `numberFormat` default
-   * to the matching `ColumnDef`.
+   * tokens. Cache-hit stats have their own aggregate mode and default to `sum`;
+   * `avg` is average per-case hit rate, and min/max/best/worst select cases by
+   * hit rate. `kind: 'column'` aggregates a score or numeric output column
+   * across the latest run's cases — `key` must match one of the eval's score or
+   * column keys, and only finite numeric values participate in the reduction.
+   * When no case has a numeric value for the key the stat renders an em dash, or
+   * hides when `hideIfNoValue` is true. `label`, `format`, and `numberFormat`
+   * default to the matching `ColumnDef`.
    */
   stats?: EvalStatsConfig;
   /**

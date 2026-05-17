@@ -6,7 +6,11 @@ import type {
   EvalSummary,
   ScopedCaseSummary,
 } from '@agent-evals/shared';
-import { formatDuration, formatNumericCellValue } from '#src/utils/formatters';
+import {
+  formatDuration,
+  formatNumericCellValue,
+  formatPercent,
+} from '#src/utils/formatters';
 
 const EM_DASH = '\u2014';
 
@@ -15,12 +19,14 @@ export type EvalStatContext = {
   latestSummary: ScopedCaseSummary | null;
   latestCases: CaseRow[];
   aggregateModeOverride: EvalStatAggregate | undefined;
+  cacheAggregateModeOverride: EvalStatAggregate | undefined;
 };
 
 export type EvalStatDisplay = {
   label: string;
   aggregateLabel: string | undefined;
   aggregateMode: EvalStatAggregate | undefined;
+  aggregateControl: 'numeric' | 'cache' | undefined;
   aggregateTooltip: string | undefined;
   value: string;
   hasValue: boolean;
@@ -36,6 +42,15 @@ export const EVAL_STAT_AGGREGATE_MODES = [
   'worst',
 ] as const satisfies readonly EvalStatAggregate[];
 
+export const CACHE_HIT_AGGREGATE_MODES = [
+  'sum',
+  'avg',
+  'max',
+  'min',
+  'best',
+  'worst',
+] as const satisfies readonly EvalStatAggregate[];
+
 export function computeStatDisplay(
   stat: EvalStatItem,
   ctx: EvalStatContext,
@@ -45,6 +60,7 @@ export function computeStatDisplay(
       label: 'Cases',
       aggregateLabel: undefined,
       aggregateMode: undefined,
+      aggregateControl: undefined,
       aggregateTooltip: undefined,
       value:
         ctx.evalSummary.caseCount !== null
@@ -60,6 +76,7 @@ export function computeStatDisplay(
       label: 'Pass rate',
       aggregateLabel: undefined,
       aggregateMode: undefined,
+      aggregateControl: undefined,
       aggregateTooltip: undefined,
       value:
         s && s.totalCases > 0
@@ -73,19 +90,7 @@ export function computeStatDisplay(
     return computeDurationStat(stat, ctx);
   }
   if (stat.kind === 'cacheHits') {
-    const s = ctx.latestSummary;
-    return {
-      label: 'Cache hits',
-      aggregateLabel: undefined,
-      aggregateMode: undefined,
-      aggregateTooltip: undefined,
-      value:
-        s !== null && s.cacheOperations > 0
-          ? `${String(s.cacheHits)}/${String(s.cacheOperations)}`
-          : EM_DASH,
-      hasValue: s !== null && s.cacheOperations > 0,
-      accent: false,
-    };
+    return computeCacheHitsStat(stat, ctx);
   }
   return computeColumnStat(stat, ctx);
 }
@@ -103,6 +108,7 @@ function computeDurationStat(
       label: 'Duration',
       aggregateLabel,
       aggregateMode,
+      aggregateControl: 'numeric',
       aggregateTooltip: undefined,
       value: EM_DASH,
       hasValue: false,
@@ -113,6 +119,7 @@ function computeDurationStat(
     label: 'Duration',
     aggregateLabel,
     aggregateMode,
+    aggregateControl: 'numeric',
     aggregateTooltip: formatAggregateTooltip(values, {
       key: 'durationMs',
       label: 'Duration',
@@ -120,6 +127,50 @@ function computeDurationStat(
       format: 'duration',
     }),
     value: formatDuration(aggregated),
+    hasValue: true,
+    accent: false,
+  };
+}
+
+function computeCacheHitsStat(
+  stat: Extract<EvalStatItem, { kind: 'cacheHits' }>,
+  ctx: EvalStatContext,
+): EvalStatDisplay {
+  const entries = collectCacheHitEntries(ctx.latestCases);
+  const aggregateMode =
+    ctx.cacheAggregateModeOverride ?? stat.aggregate ?? 'sum';
+  const aggregated =
+    entries.length > 0 ? aggregateCacheHits(entries, aggregateMode) : null;
+  const summaryFallback =
+    ctx.latestSummary !== null && ctx.latestSummary.cacheOperations > 0
+      ? {
+          hits: ctx.latestSummary.cacheHits,
+          operations: ctx.latestSummary.cacheOperations,
+        }
+      : null;
+  const value =
+    aggregated ?? (aggregateMode === 'sum' ? summaryFallback : null);
+  const aggregateLabel = formatAggregateLabel(aggregateMode);
+  if (value === null) {
+    return {
+      label: 'Cache hits',
+      aggregateLabel,
+      aggregateMode,
+      aggregateControl: 'cache',
+      aggregateTooltip: undefined,
+      value: EM_DASH,
+      hasValue: false,
+      accent: false,
+    };
+  }
+  return {
+    label: 'Cache hits',
+    aggregateLabel,
+    aggregateMode,
+    aggregateControl: 'cache',
+    aggregateTooltip:
+      entries.length > 0 ? formatCacheAggregateTooltip(entries) : undefined,
+    value: formatCacheAggregateValue(value),
     hasValue: true,
     accent: false,
   };
@@ -140,6 +191,7 @@ function computeColumnStat(
       label,
       aggregateLabel,
       aggregateMode,
+      aggregateControl: 'numeric',
       aggregateTooltip: undefined,
       value: EM_DASH,
       hasValue: false,
@@ -151,11 +203,34 @@ function computeColumnStat(
     label,
     aggregateLabel,
     aggregateMode,
+    aggregateControl: 'numeric',
     aggregateTooltip: formatAggregateTooltip(values, effectiveDef),
     value: formatNumericCellValue(effectiveDef, aggregated),
     hasValue: true,
     accent: stat.accent ?? false,
   };
+}
+
+type CacheHitEntry = { hits: number; operations: number };
+
+function formatCacheAggregateValue(entry: CacheHitEntry): string {
+  return `${formatCacheCount(entry.hits)}/${formatCacheCount(entry.operations)}`;
+}
+
+function formatCacheCount(value: number): string {
+  if (Number.isInteger(value)) return String(value);
+  return value.toFixed(1);
+}
+
+function formatCacheAggregateTooltip(entries: CacheHitEntry[]): string {
+  return CACHE_HIT_AGGREGATE_MODES.map((mode) => {
+    const value = aggregateCacheHits(entries, mode);
+    const rendered =
+      mode === 'avg'
+        ? formatPercent(readCacheHitRate(value))
+        : formatCacheAggregateValue(value);
+    return `${formatAggregateLabel(mode).toUpperCase()}: ${rendered}`;
+  }).join('\n');
 }
 
 function formatAggregateLabel(aggregate: EvalStatAggregate): string {
@@ -198,6 +273,52 @@ function collectDurationValues(cases: CaseRow[]): number[] {
     }
   }
   return values;
+}
+
+function collectCacheHitEntries(cases: CaseRow[]): CacheHitEntry[] {
+  const entries: CacheHitEntry[] = [];
+  for (const row of cases) {
+    const operations = row.cacheOperations ?? 0;
+    if (!Number.isFinite(operations) || operations <= 0) continue;
+    const hits = row.cacheHits ?? 0;
+    entries.push({ hits: Number.isFinite(hits) ? hits : 0, operations });
+  }
+  return entries;
+}
+
+function readCacheHitRate(entry: CacheHitEntry): number {
+  if (entry.operations <= 0) return 0;
+  return entry.hits / entry.operations;
+}
+
+function aggregateCacheHits(
+  entries: CacheHitEntry[],
+  mode: EvalStatAggregate,
+): CacheHitEntry {
+  if (mode === 'sum') {
+    const total = { hits: 0, operations: 0 };
+    for (const entry of entries) {
+      total.hits += entry.hits;
+      total.operations += entry.operations;
+    }
+    return total;
+  }
+  if (mode === 'avg') {
+    const summed = aggregateCacheHits(entries, 'sum');
+    return {
+      hits: summed.hits / entries.length,
+      operations: summed.operations / entries.length,
+    };
+  }
+  const sorted = entries.toSorted((left, right) => {
+    const rateDiff = readCacheHitRate(left) - readCacheHitRate(right);
+    if (rateDiff !== 0) return rateDiff;
+    return left.operations - right.operations;
+  });
+  const fallback = entries[0];
+  if (fallback === undefined) return { hits: 0, operations: 0 };
+  if (mode === 'min' || mode === 'worst') return sorted[0] ?? fallback;
+  return sorted[sorted.length - 1] ?? fallback;
 }
 
 function aggregateColumn(

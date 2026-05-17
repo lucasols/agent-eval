@@ -416,7 +416,9 @@ definition. Global `stats` in `agent-evals.config.ts` combine with eval-level
 stats. Native stat kinds include `cases`, `passRate`, `duration`, and
 `cacheHits`; `cacheHits` shows Agent Eval operation-level cache hits over total
 cache operations (`hits/total`) from spans and `evalTracer.cache(...)` refs, not
-LLM provider prompt-cache read tokens such as `cachedInputTokens`. `duration`
+LLM provider prompt-cache read tokens such as `cachedInputTokens`. Cache-hit
+stats use a separate aggregate control and default to `sum`; `avg` is average
+per-case hit rate, and min/max/best/worst select cases by hit rate. `duration`
 aggregates per-case durations using the same modes as column stats. Usage stats
 and LLM usage charts are added by default unless removed with
 `removeDefaultConfig`. Column stats can override `format` and `numberFormat`,

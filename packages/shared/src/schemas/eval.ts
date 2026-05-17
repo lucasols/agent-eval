@@ -48,7 +48,8 @@ const hideIfNoValueShape = {
  * One entry in the EvalCard stats row. Built-in kinds read from the latest run;
  * `duration` aggregates per-case durations, `cacheHits` counts Agent Eval
  * operation-level cache hits from spans and `evalTracer.cache(...)` refs, not
- * LLM provider prompt-cache read tokens. `column` aggregates a score or numeric
+ * LLM provider prompt-cache read tokens. Cache hits use an independent
+ * aggregate mode and default to `sum`. `column` aggregates a score or numeric
  * output column across the latest run.
  */
 export const evalStatItemSchema = z.discriminatedUnion('kind', [
@@ -63,7 +64,11 @@ export const evalStatItemSchema = z.discriminatedUnion('kind', [
     aggregate: evalStatAggregateSchema.optional(),
     ...hideIfNoValueShape,
   }),
-  z.object({ kind: z.literal('cacheHits'), ...hideIfNoValueShape }),
+  z.object({
+    kind: z.literal('cacheHits'),
+    aggregate: evalStatAggregateSchema.optional(),
+    ...hideIfNoValueShape,
+  }),
   z.object({
     kind: z.literal('column'),
     key: z.string(),

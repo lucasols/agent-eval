@@ -87,6 +87,17 @@ const RunFilterSelect = styled.select`
   }
 `;
 
+const ShowMoreRow = styled.div`
+  ${inline({ justify: 'center', gap: 10 })};
+  margin-top: 12px;
+`;
+
+const ShowMoreMeta = styled.span`
+  ${monoFont};
+  font-size: 10.5px;
+  color: ${colors.textMuted.var};
+`;
+
 export function runMatchesFilter(
   run: ScopedRunRow,
   filter: RunFilter,
@@ -298,14 +309,3 @@ export function EvalRunsSection({
     </>
   );
 }
-
-const ShowMoreRow = styled.div`
-  ${inline({ justify: 'center', gap: 10 })};
-  margin-top: 12px;
-`;
-
-const ShowMoreMeta = styled.span`
-  ${monoFont};
-  font-size: 10.5px;
-  color: ${colors.textMuted.var};
-`;
