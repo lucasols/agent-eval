@@ -393,7 +393,9 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   tokens, and output tokens separately and use `dedupeConsecutiveValues: true`
   to skip repeated adjacent chart values. `totalTokens` is input + output only;
   cache read/write tokens stay separate and affect `costUsd` at their own
-  rates.
+  rates. `llmTurns` is the maximum per-call turn count in the case run, using
+  configured steps when available and otherwise one turn per matched LLM call
+  span.
   Derived base input cost uses `inputTokens - cachedInputTokens -
 cacheCreationInputTokens` so cache details are not double-counted.
   `cacheCreationInputTokens` is the total cache-write count; optional

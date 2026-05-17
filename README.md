@@ -686,7 +686,7 @@ Use `key` when you want to display the same source attribute more than once, suc
 
 ### LLM calls tab
 
-The case-run drawer surfaces a dedicated **LLM calls** tab that derives a focused list from the trace whenever a case run produced at least one matching span. By default, every span with `kind: 'llm'` is treated as an LLM call and the tab reads `model`, `latencyMs`, `usage.inputTokens`, `usage.outputTokens`, `usage.cachedInputTokens`, `usage.cacheCreationInputTokens`, `usage.cacheCreationInput1hTokens`, `usage.reasoningTokens`, `steps`, `finishReason`, `provider`, `input`, `output`, `reasoning`, and `toolCalls` from the span's attributes. When an LLM span does not have an attribute-backed `steps` array, direct child spans with `kind: 'model_step'` are shown as that call's steps. `latencyMs` is time to first token; the full elapsed span time is shown separately as duration. Total tokens, output tokens/sec, and USD costs are derived rather than read from span attributes. Each row is collapsed by default; clicking expands it to show a per-token-type tokens + cost breakdown table, latency, duration, output tokens/sec, finish reason, simplified chat messages from `input.messages` when present, input/output JSON, reasoning text, steps, tool calls, and any custom metrics.
+The case-run drawer surfaces a dedicated **LLM calls** tab that derives a focused list from the trace whenever a case run produced at least one matching span. By default, every span with `kind: 'llm'` is treated as an LLM call and the tab reads `model`, `latencyMs`, `usage.inputTokens`, `usage.outputTokens`, `usage.cachedInputTokens`, `usage.cacheCreationInputTokens`, `usage.cacheCreationInput1hTokens`, `usage.reasoningTokens`, `steps`, `finishReason`, `provider`, `input`, `output`, `reasoning`, and `toolCalls` from the span's attributes. When an LLM span does not have an attribute-backed `steps` array, direct child spans with `kind: 'model_step'` are shown as that call's steps. `latencyMs` is time to first token; the full elapsed span time is shown separately as duration. Total tokens, output tokens/sec, and USD costs are derived rather than read from span attributes. Each collapsed row highlights the step count when known; clicking expands it to show a per-token-type tokens + cost breakdown table, latency, duration, output tokens/sec, finish reason, simplified chat messages from `input.messages` when present, input/output JSON, reasoning text, steps, tool calls, and any custom metrics.
 
 The expanded breakdown table includes separate **Cache write** and **Cache read** rows so providers like Anthropic — which charge a premium for cache creation (1.25× / 2× the base input rate) and a deep discount on cache reads (0.1×) — show up correctly. The breakdown also includes a `Total input` subtotal that sums the input-side rows (input + cache write + cache read), so the cost split between input and output is easy to read at a glance. Token counts are rendered with locale-aware thousand separators. Configure `llmCalls.pricing` once in `agent-evals.config.ts` as an object keyed by exact model names and the UI derives USD costs from token counts, with nested `providers` entries taking precedence for matching `provider` attributes. Cache read/write tokens are reported separately and contribute to USD cost; when deriving the base input cost, the runner subtracts cache read/write tokens from `inputTokens` so those tokens are not billed twice. `cacheCreationInputTokens` is treated as the total cache-write count; optional `cacheCreationInput1hTokens` only splits that total so extended-cache writes can use `cacheCreationInput1hUsdPerMillion` while the remaining write tokens use `cacheCreationInputUsdPerMillion`. `totalTokens` is always input + output tokens because cache read/write counts are subsets of those categories. Built-in LLM costs only come from `llmCalls.pricing`; span cost attributes such as `costUsd` are ignored by the LLM calls tab and default usage outputs. Add `llmCalls.costCurrencies` when you want the expanded breakdown table to show converted cost columns next to USD; these conversions only affect that table and do not change persisted `costUsd` outputs, stats, or charts.
 
@@ -815,8 +815,10 @@ separately and use `dedupeConsecutiveValues: true` to skip repeated adjacent
 points such as cached reruns with unchanged chart values.
 `apiCalls` is counted from spans matched by `apiCalls.kinds`. Cost defaults use
 `llmCalls.pricing`, exactly like the LLM calls tab. `totalTokens` is always
-input + output tokens, and `llmDurationMs` sums the elapsed durations of matched
-LLM call spans; it is not time-to-first-token latency.
+input + output tokens. `llmTurns` is the maximum per-call turn count in the case
+run, using configured steps when available and otherwise one turn per matched
+LLM call span. `llmDurationMs` sums the elapsed durations of matched LLM call
+spans; it is not time-to-first-token latency.
 
 Remove all defaults globally:
 
@@ -1058,7 +1060,6 @@ The recommended keyed form is concise and works both globally in
 ```ts
 deriveFromTracing: {
   toolCalls: ({ trace }) => trace.findSpansByKind('tool').length,
-  llmTurns: ({ trace }) => trace.findSpansByKind('llm').length,
 }
 ```
 

@@ -349,6 +349,13 @@ function sumNullable(values: readonly (number | null)[]): number | undefined {
   return hasValue ? total : undefined;
 }
 
+function getMaxLlmTurns(
+  calls: ReturnType<typeof extractLlmCalls>,
+): number | undefined {
+  if (calls.length === 0) return undefined;
+  return Math.max(...calls.map((call) => Math.max(call.stepCount ?? 1, 1)));
+}
+
 function assignIfMissing(params: {
   outputs: Record<string, unknown>;
   key: DefaultConfigKey;
@@ -387,7 +394,7 @@ export function addDefaultOutputs(params: {
   assignIfMissing({
     outputs: params.outputs,
     key: 'llmTurns',
-    value: calls.length,
+    value: getMaxLlmTurns(calls),
     activeKeys,
   });
   assignIfMissing({

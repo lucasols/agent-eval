@@ -117,6 +117,49 @@ test('runCase derives default usage outputs from trace spans', async () => {
   expect(typeof result.caseDetail.columns.llmDurationMs).toBe('number');
 });
 
+test('runCase counts default LLM turns as the maximum call step count', async () => {
+  const result = await runDefaultUsageCase({
+    evalDef: {
+      id: 'default-usage-eval',
+      execute: async () => {
+        await evalTracer.span(
+          { kind: 'llm', name: 'tool-using-answer' },
+          async () => {
+            evalSpan.setAttributes({
+              model: 'gpt-4o-mini',
+              usage: { inputTokens: 100, outputTokens: 40 },
+            });
+
+            await evalTracer.span(
+              { kind: 'model_step', name: 'step: 0' },
+              () => {
+                evalSpan.setAttribute('output', {
+                  toolCalls: [{ name: 'lookup' }],
+                });
+              },
+            );
+            await evalTracer.span(
+              { kind: 'model_step', name: 'step: 1' },
+              () => {
+                evalSpan.setAttribute('output', { text: 'done' });
+              },
+            );
+          },
+        );
+
+        await evalTracer.span({ kind: 'llm', name: 'single-answer' }, () => {
+          evalSpan.setAttributes({
+            model: 'gpt-4o-mini',
+            usage: { inputTokens: 10, outputTokens: 5 },
+          });
+        });
+      },
+    },
+  });
+
+  expect(result.caseDetail.columns.llmTurns).toBe(2);
+});
+
 test('runCase exposes derived call attributes to trace consumers', async () => {
   const result = await runDefaultUsageCase({
     llmCallsConfig: resolveLlmCallsConfig({

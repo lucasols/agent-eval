@@ -645,7 +645,7 @@ defineEval({
               "caseId": "pt-br-defect",
               "detectedLocale": "pt-BR",
               "followUpChannel": "sms",
-              "llmTurns": 2,
+              "llmTurns": 3,
               "response": "Prepared a sms follow-up with return steps for order #RET-44.",
             },
           ],
