@@ -84,17 +84,21 @@ const TimelinePane = styled.div`
   overflow: hidden;
 `;
 
-const TimelineToolbar = styled.div`
+const TimelineToolbar = styled.div<{ hasFilterOptions: boolean }>`
   display: grid;
   grid-template-columns: auto 1fr;
-  grid-template-rows: 24px 24px;
+  grid-template-rows: 24px;
   column-gap: 10px;
-  row-gap: 6px;
   align-items: center;
   padding: 8px 10px;
   border-bottom: 1px solid ${colors.border.var};
   background: ${colors.bgElevated.var};
   flex-shrink: 0;
+
+  &.hasFilterOptions {
+    grid-template-rows: 24px 24px;
+    row-gap: 6px;
+  }
 `;
 
 const TimelineCount = styled.span`
@@ -115,19 +119,12 @@ const FilterControls = styled.div`
   grid-row: 1;
 `;
 
-const FilterOptionsRow = styled.div<{ visible: boolean }>`
+const FilterOptionsRow = styled.div`
   ${inline({ justify: 'right', align: 'center', gap: 8 })}
   min-width: 0;
   height: 24px;
   grid-column: 1 / -1;
   grid-row: 2;
-  visibility: hidden;
-  pointer-events: none;
-
-  &.visible {
-    visibility: visible;
-    pointer-events: auto;
-  }
 `;
 
 const SegmentedControl = styled.div`
@@ -876,7 +873,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
   return (
     <Root ref={rootRef}>
       <TimelinePane>
-        <TimelineToolbar>
+        <TimelineToolbar hasFilterOptions={showFilterOptions}>
           <TimelineCount>{filteredLabel}</TimelineCount>
           <FilterControls>
             <SegmentedControl>
@@ -906,40 +903,37 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
               </SegmentButton>
             </SegmentedControl>
           </FilterControls>
-          <FilterOptionsRow
-            visible={showFilterOptions}
-            aria-hidden={!showFilterOptions}
-          >
-            <VisibilityToggleLabel>
-              <input
-                type="checkbox"
-                checked={filteredSpanVisibility === 'faded'}
-                tabIndex={showFilterOptions ? undefined : -1}
-                onChange={(event) => {
-                  setFilteredSpanVisibility(
-                    event.currentTarget.checked ? 'faded' : 'hidden',
-                  );
-                }}
-              />
-              Fade filtered
-            </VisibilityToggleLabel>
-            <KindFilterList>
-              {spanKindOptions.map((kind) => (
-                <KindFilterOption
-                  key={kind}
-                  selected={selectedSpanKinds.has(kind)}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedSpanKinds.has(kind)}
-                    tabIndex={showFilterOptions ? undefined : -1}
-                    onChange={() => toggleSelectedSpanKind(kind)}
-                  />
-                  {kind}
-                </KindFilterOption>
-              ))}
-            </KindFilterList>
-          </FilterOptionsRow>
+          {showFilterOptions ? (
+            <FilterOptionsRow>
+              <VisibilityToggleLabel>
+                <input
+                  type="checkbox"
+                  checked={filteredSpanVisibility === 'faded'}
+                  onChange={(event) => {
+                    setFilteredSpanVisibility(
+                      event.currentTarget.checked ? 'faded' : 'hidden',
+                    );
+                  }}
+                />
+                Fade filtered
+              </VisibilityToggleLabel>
+              <KindFilterList>
+                {spanKindOptions.map((kind) => (
+                  <KindFilterOption
+                    key={kind}
+                    selected={selectedSpanKinds.has(kind)}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedSpanKinds.has(kind)}
+                      onChange={() => toggleSelectedSpanKind(kind)}
+                    />
+                    {kind}
+                  </KindFilterOption>
+                ))}
+              </KindFilterList>
+            </FilterOptionsRow>
+          ) : null}
         </TimelineToolbar>
         <TimelineScroll>
           <TimelineInner timelineCollapsed={timelineCollapsed}>
