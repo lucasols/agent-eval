@@ -27,7 +27,6 @@ import {
   LABEL_COLUMN_MIN_WIDTH,
   type SpanBar,
   TIMELINE_COLUMN_MIN_WIDTH,
-  TIMELINE_INNER_RIGHT_PADDING,
   type TraceNestingMode,
 } from '#src/components/TraceTree.helpers';
 import { TraceCacheBadge } from '#src/components/TraceTreeCacheBadge';
@@ -49,6 +48,7 @@ import {
 } from '#src/utils/traceKindColors';
 
 const NARROW_BREAKPOINT = 720;
+const TIMELINE_INNER_RIGHT_PADDING = 40;
 
 type TraceKindBarStyle = TraceKindStyle & { left: string; width: string };
 
@@ -559,19 +559,6 @@ const BarDurationLabel = styled.span`
   color: ${colors.textMuted.var};
   white-space: nowrap;
   pointer-events: none;
-
-  &.inside {
-    color: ${colors.white.var};
-    font-weight: 500;
-    letter-spacing: 0.02em;
-    background: ${colors.black.alpha(0.2)};
-    padding: 0 5px;
-    line-height: 12px;
-    top: 7px;
-    height: 12px;
-    margin-right: -4px;
-    border-radius: 3px;
-  }
 `;
 
 const ToggleButton = styled.button<{ open: boolean }>`
@@ -839,7 +826,9 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
       )}px, 1fr)`;
   const timelineInnerMinWidth = timelineCollapsed
     ? labelColumnWidth
-    : labelColumnWidth + TIMELINE_COLUMN_MIN_WIDTH;
+    : labelColumnWidth +
+      TIMELINE_COLUMN_MIN_WIDTH +
+      TIMELINE_INNER_RIGHT_PADDING;
 
   const selectedSpan = selectedSpanId
     ? (displayedSpans.find((s) => s.id === selectedSpanId) ?? null)
@@ -1067,8 +1056,6 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
                   'tree',
                 );
                 const durationLeft = bar.leftPct + bar.widthPct;
-                const labelInside = durationLeft > 88;
-                const labelRightPct = Math.max(0, 100 - durationLeft);
                 const checkpointPreview = isCheckpoint
                   ? formatCheckpointPreview(span.attributes?.value)
                   : null;
@@ -1171,12 +1158,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
                               style={getTraceKindBarStyle(kindStyle, bar)}
                             />
                             <BarDurationLabel
-                              className={labelInside ? 'inside' : undefined}
-                              style={
-                                labelInside
-                                  ? { right: `calc(${labelRightPct}% + 4px)` }
-                                  : { left: `calc(${durationLeft}% + 6px)` }
-                              }
+                              style={{ left: `calc(${durationLeft}% + 6px)` }}
                             >
                               {formatSpanDuration(bar.durationMs)}
                               {bar.isRunning ? '…' : ''}

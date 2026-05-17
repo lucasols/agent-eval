@@ -10,7 +10,6 @@ type VisibleRow = { span: EvalTraceSpan; depth: number; hasChildren: boolean };
 export type TraceNestingMode = 'parent' | 'timeline';
 export const LABEL_COLUMN_MIN_WIDTH = 220;
 export const TIMELINE_COLUMN_MIN_WIDTH = 420;
-export const TIMELINE_INNER_RIGHT_PADDING = 14;
 const LABEL_CELL_BASE_PADDING = 18;
 const LABEL_DEPTH_INDENT = 14;
 const LABEL_ITEM_GAP = 7;
