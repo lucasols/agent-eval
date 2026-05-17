@@ -15,7 +15,8 @@
       ]
     },
     "dts": {
-      "eager": true
+      "eager": true,
+      "tsconfig": "tsconfig.build.json"
     },
     "entry": [
       "src/index.ts",
@@ -33,7 +34,9 @@
   "dependencies": {
     "@agent-evals/shared": "workspace:*",
     "@agent-evals/sdk": "workspace:*",
+    "@ls-stack/utils": "^3.77.0",
     "chokidar": "^4.0.3",
+    "dayjs": "^1.11.20",
     "glob": "^11.0.2",
     "t-result": "^0.6.1",
     "vitest": "^3.2.4",
