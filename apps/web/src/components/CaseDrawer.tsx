@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   Maximize2,
   Minimize2,
+  Trash2,
   TriangleAlert,
   X,
   XCircle,
@@ -20,6 +21,7 @@ import {
 import { useRef, useState } from 'react';
 import { styled } from 'vindur';
 import { ApiCallsTab } from '#src/components/ApiCallsTab';
+import { Button } from '#src/components/Button';
 import { CacheHitRow } from '#src/components/CacheHitRow';
 import { CaseRunLogs, getLogPhases } from '#src/components/CaseRunLogs';
 import { CaseScores } from '#src/components/CaseScores';
@@ -48,6 +50,7 @@ import {
   useSearchParams,
 } from '#src/hooks/useSearchParams';
 import { useWindowWidth } from '#src/hooks/useWindowWidth';
+import { deleteAllCacheEntries } from '#src/stores/cacheStore';
 import { evalSummariesStore } from '#src/stores/evalsStore';
 import { layoutStore } from '#src/stores/layoutStore';
 import {
@@ -322,9 +325,26 @@ const CacheToolbar = styled.div`
   margin-bottom: 12px;
 `;
 
+const CacheToolbarLeft = styled.div`
+  ${stack({ gap: 4 })}
+  min-width: 0;
+`;
+
+const CacheToolbarActions = styled.div`
+  ${inline({ align: 'center', gap: 8 })}
+  flex-wrap: wrap;
+  justify-content: flex-end;
+`;
+
 const CacheCount = styled.span`
   ${kicker};
   color: ${colors.textMuted.var};
+`;
+
+const CacheClearError = styled.span`
+  ${monoFont};
+  color: ${colors.error.var};
+  font-size: 11px;
 `;
 
 const CacheFilterSelect = styled.select`
@@ -484,6 +504,8 @@ export function CaseDrawer() {
     'all',
   );
   const [cacheFilter, setCacheFilter] = useState<CacheFilter>('execute');
+  const [cacheClearError, setCacheClearError] = useState<string | null>(null);
+  const [allCachesDeleted, setAllCachesDeleted] = useState(false);
   const [costScenario, setCostScenario] = useState<LlmCostScenario>('actual');
   const { selectedCaseRunId, selectedCaseId } = runStore.useSelectorRC((s) => ({
     selectedCaseRunId: s.selectedCaseRunId,
@@ -546,6 +568,14 @@ export function CaseDrawer() {
       runId: selectedCaseRunId,
       caseId: selectedCaseId,
     });
+  });
+
+  const deleteAllCacheEntriesAction = useActionFn(async () => {
+    if (!window.confirm('Delete all persisted cache entries?')) return;
+    setCacheClearError(null);
+    const errorMessage = await deleteAllCacheEntries();
+    setCacheClearError(errorMessage);
+    if (errorMessage === null) setAllCachesDeleted(true);
   });
 
   if (selectedCaseResult.error !== null && selectedCaseDetail === null) {
@@ -815,23 +845,42 @@ export function CaseDrawer() {
         {activeTab === 'cache' ? (
           <>
             <CacheToolbar>
-              <CacheCount>
-                {String(filteredCacheEntries.length)} entries
-              </CacheCount>
-              <CacheFilterSelect
-                value={cacheFilter}
-                onChange={(event) => {
-                  setCacheFilter(parseCacheFilter(event.currentTarget.value));
-                }}
-                aria-label="Filter cache entries"
-              >
-                <option value="execute">All execute cache</option>
-                <option value="all">All cache</option>
-                <option value="hits">Hits</option>
-                <option value="added">New entries</option>
-                <option value="scoringHits">Scoring hits</option>
-                <option value="scoringAdded">Scoring new entries</option>
-              </CacheFilterSelect>
+              <CacheToolbarLeft>
+                <CacheCount>
+                  {String(filteredCacheEntries.length)} entries
+                </CacheCount>
+                {cacheClearError !== null ? (
+                  <CacheClearError>{cacheClearError}</CacheClearError>
+                ) : null}
+              </CacheToolbarLeft>
+              <CacheToolbarActions>
+                <Button
+                  variant="danger"
+                  leftIcon={<Trash2 />}
+                  disabled={deleteAllCacheEntriesAction.isInProgress}
+                  onClick={() => {
+                    void deleteAllCacheEntriesAction.call();
+                  }}
+                >
+                  {deleteAllCacheEntriesAction.isInProgress
+                    ? 'Deleting caches'
+                    : 'Delete all caches'}
+                </Button>
+                <CacheFilterSelect
+                  value={cacheFilter}
+                  onChange={(event) => {
+                    setCacheFilter(parseCacheFilter(event.currentTarget.value));
+                  }}
+                  aria-label="Filter cache entries"
+                >
+                  <option value="execute">All execute cache</option>
+                  <option value="all">All cache</option>
+                  <option value="hits">Hits</option>
+                  <option value="added">New entries</option>
+                  <option value="scoringHits">Scoring hits</option>
+                  <option value="scoringAdded">Scoring new entries</option>
+                </CacheFilterSelect>
+              </CacheToolbarActions>
             </CacheToolbar>
             {filteredCacheEntries.length > 0 ? (
               <CacheEntriesList>
@@ -848,6 +897,7 @@ export function CaseDrawer() {
                       currentCaseKey={d.caseKey ?? d.caseId}
                       currentEvalKey={d.evalKey ?? d.evalId}
                       currentCacheIndex={cacheIndex < 0 ? 0 : cacheIndex}
+                      forceDeleted={allCachesDeleted}
                     />
                   );
                 })}

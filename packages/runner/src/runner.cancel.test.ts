@@ -112,6 +112,16 @@ defineEval({
       await expect
         .poll(() => readStartedCases(startedLogPath), { timeout: 10_000 })
         .toEqual(['case-a']);
+      await expect
+        .poll(
+          () =>
+            runner
+              .getRun(startedRun.manifest.id)
+              ?.cases.map((caseRow) => `${caseRow.caseId}:${caseRow.status}`)
+              .toSorted(),
+          { timeout: 10_000 },
+        )
+        .toEqual(['case-a:running', 'case-b:pending', 'case-c:pending']);
 
       await runner.cancelRun(startedRun.manifest.id);
 
@@ -195,10 +205,11 @@ defineEval({
           () =>
             runner
               .getRun(startedRun.manifest.id)
-              ?.cases.map((caseRow) => caseRow.caseId),
+              ?.cases.map((caseRow) => `${caseRow.caseId}:${caseRow.status}`)
+              .toSorted(),
           { timeout: 10_000 },
         )
-        .toEqual(['case-a']);
+        .toEqual(['case-a:pass', 'case-b:running', 'case-c:pending']);
       await expect
         .poll(() => readStartedCases(startedLogPath), { timeout: 10_000 })
         .toEqual(['case-a', 'case-b']);

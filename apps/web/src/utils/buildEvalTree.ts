@@ -241,25 +241,27 @@ export type CombinedStatus = EvalDisplayStatus;
 
 export function getEvalSummaryDisplayStatus(
   ev: EvalSummary,
-  isEvalRunning: (evalId: string) => boolean,
+  getEvalActiveStatus: (evalId: string) => 'running' | 'enqueued' | null,
 ): EvalDisplayStatus {
+  const activeStatus = getEvalActiveStatus(ev.key);
   return getEvalDisplayStatus({
     freshnessStatus: ev.freshnessStatus,
     stale: ev.stale,
     outdated: ev.outdated,
     lastRunStatus: ev.lastRunStatus,
-    isRunning: isEvalRunning(ev.key),
+    isRunning: activeStatus === 'running',
+    isEnqueued: activeStatus === 'enqueued',
   });
 }
 
 export function filterEvalsByStatuses(
   evals: EvalSummary[],
   statuses: Set<EvalDisplayStatus>,
-  isEvalRunning: (evalId: string) => boolean,
+  getEvalActiveStatus: (evalId: string) => 'running' | 'enqueued' | null,
 ): EvalSummary[] {
   if (statuses.size === 0) return evals;
   return evals.filter((ev) =>
-    statuses.has(getEvalSummaryDisplayStatus(ev, isEvalRunning)),
+    statuses.has(getEvalSummaryDisplayStatus(ev, getEvalActiveStatus)),
   );
 }
 
@@ -324,6 +326,7 @@ export function filterEvalsBySearchQuery(
 
 export type StatusBreakdown = {
   running: number;
+  enqueued: number;
   stale: number;
   outdated: number;
   pass: number;
@@ -337,10 +340,11 @@ export type StatusBreakdown = {
 
 export function getStatusBreakdown(
   evals: EvalSummary[],
-  isEvalRunning: (evalId: string) => boolean,
+  getEvalActiveStatus: (evalId: string) => 'running' | 'enqueued' | null,
 ): StatusBreakdown {
   const counts: StatusBreakdown = {
     running: 0,
+    enqueued: 0,
     stale: 0,
     outdated: 0,
     pass: 0,
@@ -352,9 +356,11 @@ export function getStatusBreakdown(
     total: evals.length,
   };
   for (const ev of evals) {
-    const status = getEvalSummaryDisplayStatus(ev, isEvalRunning);
+    const status = getEvalSummaryDisplayStatus(ev, getEvalActiveStatus);
     if (status === 'running') {
       counts.running += 1;
+    } else if (status === 'enqueued') {
+      counts.enqueued += 1;
     } else if (status === 'stale') {
       counts.stale += 1;
     } else if (status === 'outdated') {
@@ -379,6 +385,7 @@ export function getStatusBreakdown(
 export function formatStatusBreakdown(breakdown: StatusBreakdown): string {
   const parts: string[] = [];
   if (breakdown.running > 0) parts.push(`${breakdown.running} running`);
+  if (breakdown.enqueued > 0) parts.push(`${breakdown.enqueued} enqueued`);
   if (breakdown.stale > 0) parts.push(`${breakdown.stale} stale`);
   if (breakdown.outdated > 0) parts.push(`${breakdown.outdated} outdated`);
   if (breakdown.pass > 0) parts.push(`${breakdown.pass} pass`);
@@ -393,12 +400,13 @@ export function formatStatusBreakdown(breakdown: StatusBreakdown): string {
 
 export function deriveCombinedStatus(
   evals: EvalSummary[],
-  isEvalRunning: (evalId: string) => boolean,
+  getEvalActiveStatus: (evalId: string) => 'running' | 'enqueued' | null,
 ): CombinedStatus {
   if (evals.length === 0) return 'pending';
   let hasPass = false;
   let hasPending = false;
   let hasRunning = false;
+  let hasEnqueued = false;
   let hasCancelled = false;
   let hasError = false;
   let hasFail = false;
@@ -407,8 +415,9 @@ export function deriveCombinedStatus(
   let hasUnscored = false;
 
   for (const ev of evals) {
-    const status = getEvalSummaryDisplayStatus(ev, isEvalRunning);
+    const status = getEvalSummaryDisplayStatus(ev, getEvalActiveStatus);
     if (status === 'running') hasRunning = true;
+    else if (status === 'enqueued') hasEnqueued = true;
     else if (status === 'error') hasError = true;
     else if (status === 'fail') hasFail = true;
     else if (status === 'stale') hasStale = true;
@@ -420,6 +429,7 @@ export function deriveCombinedStatus(
   }
 
   if (hasRunning) return 'running';
+  if (hasEnqueued) return 'enqueued';
   if (hasError) return 'error';
   if (hasFail) return 'fail';
   if (hasStale) return 'stale';

@@ -53,6 +53,24 @@ import {
   formatRunFolderPath,
 } from '#src/utils/runPaths';
 
+function getActiveScopedRunStatus(caseRows: CaseRow[]): 'running' | 'enqueued' {
+  if (caseRows.some((caseRow) => caseRow.status === 'running')) {
+    return 'running';
+  }
+  if (
+    caseRows.length === 0 ||
+    caseRows.some((caseRow) => caseRow.status === 'pending')
+  ) {
+    return 'enqueued';
+  }
+  return 'running';
+}
+
+function getCaseDisplayStatus(status: CaseRow['status']): string {
+  if (status === 'pending') return 'enqueued';
+  return status;
+}
+
 const DrawerLoading = styled.div`
   border-left: 1px solid ${colors.border.var};
   background: ${colors.bgElevated.var};
@@ -553,10 +571,13 @@ export function RunDrawer() {
           caseRows: scopedRunCases.cases,
           lifecycleStatus: manifest.status,
         });
-  const displayStatus = deriveStatusFromCaseRows({
-    caseRows: scopedRunCases.cases,
-    lifecycleStatus: manifest.status,
-  });
+  const displayStatus =
+    manifest.status === 'running'
+      ? getActiveScopedRunStatus(scopedRunCases.cases)
+      : deriveStatusFromCaseRows({
+          caseRows: scopedRunCases.cases,
+          lifecycleStatus: manifest.status,
+        });
   const failed = scopedSummary.failedCases + scopedSummary.errorCases;
   const scopedErrorMessage =
     summary.status === 'error'
@@ -730,7 +751,7 @@ export function RunDrawer() {
                     )
                   }
                 >
-                  <StatusBadge status={caseRow.status} />
+                  <StatusBadge status={getCaseDisplayStatus(caseRow.status)} />
                   <CaseMain>
                     <CaseId>{caseRow.caseId}</CaseId>
                     {showEvalIdInCase ? (

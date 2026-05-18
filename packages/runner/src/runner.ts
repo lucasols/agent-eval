@@ -134,6 +134,17 @@ export function createRunner({
     return createHash('sha256').update(source).digest('hex');
   }
 
+  function getConfiguredConcurrency(): number {
+    if (
+      typeof config.concurrency !== 'number' ||
+      !Number.isFinite(config.concurrency)
+    ) {
+      return 1;
+    }
+
+    return Math.max(1, Math.floor(config.concurrency));
+  }
+
   function nextRegistryLoadIsolationKey(
     prefix: string,
     filePath: string,
@@ -369,6 +380,7 @@ export function createRunner({
     getConfigReloadState() {
       return configReload.currentState();
     },
+    getConfiguredConcurrency,
     async refreshDiscovery() {
       const patterns = config.include;
       const discovered: string[] = [];
@@ -652,6 +664,10 @@ export function createRunner({
       if (run.manifest.status !== 'running') return;
 
       const endedAt = new Date();
+      run.cases = run.cases.filter(
+        (caseRow) =>
+          caseRow.status !== 'pending' && caseRow.status !== 'running',
+      );
       run.manifest.status = 'cancelled';
       run.manifest.endedAt = endedAt.toISOString();
       run.summary.status = 'cancelled';

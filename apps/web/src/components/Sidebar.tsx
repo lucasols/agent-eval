@@ -30,6 +30,7 @@ import {
 } from '#src/stores/selectionStore';
 import { colors } from '#src/style/colors';
 import { inline, kicker, stack, transition } from '#src/style/helpers';
+import { getActiveEvalStatus } from '#src/utils/activeEvalStatus';
 import {
   buildEvalTree,
   collectCollapsiblePaths,
@@ -357,18 +358,17 @@ export function Sidebar() {
     setSidebarWidth(width);
   }, [width]);
 
-  const isEvalRunning = (evalKey: string): boolean =>
-    currentRun?.manifest.status === 'running' &&
-    targetIncludesEval(currentRun.manifest.target, evalKey);
+  const getEvalActiveStatusForKey = (evalKey: string) =>
+    getActiveEvalStatus(currentRun, evalKey);
   const statusFilteredEvals = filterEvalsByStatuses(
     evals,
     statusFilters,
-    isEvalRunning,
+    getEvalActiveStatusForKey,
   );
   const tagFilteredEvals = filterEvalsByTags(statusFilteredEvals, tagFilters);
   const filteredEvals = filterEvalsBySearchQuery(tagFilteredEvals, searchQuery);
   const hasActiveSearch = searchQuery.trim().length > 0;
-  const statusBreakdown = getStatusBreakdown(evals, isEvalRunning);
+  const statusBreakdown = getStatusBreakdown(evals, getEvalActiveStatusForKey);
   const statusFilterItems = EVAL_STATUS_FILTER_OPTIONS.map((status) => ({
     status,
     count: statusBreakdown[status],
@@ -524,15 +524,4 @@ function getStatusTone(status: EvalDisplayStatus): StatusTone {
   if (status === 'unscored') return 'unscored';
   if (status === 'cancelled') return 'cancelled';
   return 'pending';
-}
-
-function targetIncludesEval(
-  target: { mode: string; evalIds?: string[]; evalKeys?: string[] },
-  evalKey: string,
-): boolean {
-  if (target.mode === 'all') return true;
-  if (target.mode === 'evalIds') {
-    return target.evalKeys?.includes(evalKey) ?? false;
-  }
-  return false;
 }

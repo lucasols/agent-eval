@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "namespace": "receipt-audit.audit-policy-snapshot",
+  "entries": {
+    "28d1d29c2faafdf21e61b3cd026b84cae468b2e52c0421c02cbaec37e5f8091e": {
+      "storedAt": "2026-05-18T02:47:43.800Z",
+      "lastAccessedAt": null,
+      "blobRefs": []
+    },
+    "cb7a5fa12baececc7ec07301110c78a510bb7d28cc2a4320b86b997c798e246c": {
+      "storedAt": "2026-05-18T02:47:43.020Z",
+      "lastAccessedAt": null,
+      "blobRefs": []
+    }
+  }
+}

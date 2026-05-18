@@ -32,6 +32,10 @@ import {
 import { colors } from '#src/style/colors';
 import { inline, kicker, stack, transition } from '#src/style/helpers';
 import {
+  getActiveEvalStatus,
+  targetIncludesEval,
+} from '#src/utils/activeEvalStatus';
+import {
   filterEvalsByStatuses,
   filterEvalsByTags,
   getStatusBreakdown,
@@ -185,6 +189,7 @@ const BREAKDOWN_STATUS_ORDER: Array<{
   tone: BreakdownTone;
 }> = [
   { key: 'running', label: 'running', tone: 'running' },
+  { key: 'enqueued', label: 'enqueued', tone: 'pending' },
   { key: 'pass', label: 'pass', tone: 'pass' },
   { key: 'fail', label: 'fail', tone: 'fail' },
   { key: 'error', label: 'error', tone: 'fail' },
@@ -226,13 +231,12 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
       label,
       path: displaySegments.slice(0, index + 1).join('/'),
     }));
-  const isEvalRunning = (evalKey: string): boolean =>
-    currentRun?.manifest.status === 'running' &&
-    targetIncludesEval(currentRun.manifest.target, evalKey);
+  const getEvalActiveStatusForKey = (evalKey: string) =>
+    getActiveEvalStatus(currentRun, evalKey);
   const statusFilteredEvals = filterEvalsByStatuses(
     evals,
     statusFilters,
-    isEvalRunning,
+    getEvalActiveStatusForKey,
   );
   const filteredEvals = filterEvalsByTags(statusFilteredEvals, tagFilters);
   const evalKeys = filteredEvals.map((ev) => ev.key);
@@ -241,7 +245,7 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
     evalKeys.some((evalKey) =>
       targetIncludesEval(currentRun.manifest.target, evalKey),
     );
-  const breakdown = getStatusBreakdown(evals, isEvalRunning);
+  const breakdown = getStatusBreakdown(evals, getEvalActiveStatusForKey);
   const breakdownItems = BREAKDOWN_STATUS_ORDER.filter(
     ({ key }) => breakdown[key] > 0 || statusFilters.has(key),
   );
@@ -527,15 +531,4 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
       />
     </Root>
   );
-}
-
-function targetIncludesEval(
-  target: { mode: string; evalIds?: string[]; evalKeys?: string[] },
-  evalKey: string,
-): boolean {
-  if (target.mode === 'all') return true;
-  if (target.mode === 'evalIds') {
-    return target.evalKeys?.includes(evalKey) ?? false;
-  }
-  return false;
 }

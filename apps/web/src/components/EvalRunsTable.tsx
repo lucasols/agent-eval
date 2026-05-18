@@ -39,6 +39,7 @@ export type RunRow = {
 };
 
 type RunScope = { kind: 'eval'; id: string } | { kind: 'folder'; path: string };
+type ActiveRunDisplayStatus = 'running' | 'enqueued';
 
 type EvalRunsTableProps = {
   runs: RunRow[];
@@ -58,6 +59,24 @@ const Empty = styled.div`
   color: ${colors.textMuted.var};
   font-size: 12.5px;
 `;
+
+function getActiveRunDisplayStatus(run: RunRow): ActiveRunDisplayStatus {
+  if (run.cases.some((caseRow) => caseRow.status === 'running')) {
+    return 'running';
+  }
+  if (
+    run.cases.length === 0 ||
+    run.cases.some((caseRow) => caseRow.status === 'pending')
+  ) {
+    return 'enqueued';
+  }
+  return 'running';
+}
+
+function getCaseDisplayStatus(status: CaseRow['status']): string {
+  if (status === 'pending') return 'enqueued';
+  return status;
+}
 
 const TableWrap = styled.div`
   border: 1px solid ${colors.border.var};
@@ -500,8 +519,12 @@ function RunGroup({
   const { manifest, summary, cases } = run;
   const displayShortId = manifest.shortId.replace(RUN_SHORT_ID_PREFIX, '');
   const durationValue = summary.totalDurationMs;
+  const displayStatus =
+    summary.status === 'running'
+      ? getActiveRunDisplayStatus(run)
+      : summary.status;
   const runningElapsedLabel = useElapsedRunTime(
-    summary.status === 'running' ? manifest.startedAt : null,
+    displayStatus === 'running' ? manifest.startedAt : null,
   );
   const runHasOpenDrawer =
     selectedRunId === manifest.id || selectedCaseRunId === manifest.id;
@@ -554,9 +577,9 @@ function RunGroup({
           mono={false}
         >
           <StatusBadge
-            status={summary.status}
+            status={displayStatus}
             detail={
-              summary.status === 'running'
+              displayStatus === 'running'
                 ? (runningElapsedLabel ?? undefined)
                 : undefined
             }
@@ -683,7 +706,7 @@ function RunGroup({
                 mono={false}
                 indent={false}
               >
-                <StatusBadge status={row.status} />
+                <StatusBadge status={getCaseDisplayStatus(row.status)} />
               </CaseTd>
               {scoreColumns.map((c) => {
                 const v = row.columns[c.key];

@@ -4,6 +4,7 @@ import type { DerivedStatus } from './status.ts';
 /** Display status used for eval, file, and folder UI surfaces. */
 export type EvalDisplayStatus =
   | DerivedStatus
+  | 'enqueued'
   | 'stale'
   | 'outdated'
   | 'unscored';
@@ -25,9 +26,17 @@ export function getEvalDisplayStatus(params: {
     | 'unscored'
     | null;
   isRunning?: boolean;
+  isEnqueued?: boolean;
 }): EvalDisplayStatus {
-  const { stale, outdated, lastRunStatus, isRunning = false } = params;
+  const {
+    stale,
+    outdated,
+    lastRunStatus,
+    isRunning = false,
+    isEnqueued = false,
+  } = params;
   if (isRunning || lastRunStatus === 'running') return 'running';
+  if (isEnqueued) return 'enqueued';
   if (lastRunStatus === 'pass') {
     if (stale) return 'stale';
     if (outdated) return 'outdated';

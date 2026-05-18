@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  caseRowSchema,
   getCaseRowCaseKey,
   runSummarySchema,
   type CaseDetail,
@@ -291,6 +292,12 @@ function upsertFinishedCase(
   caseDetail: CaseDetail,
   caseRow: CaseRow,
 ): void {
+  removeLiveCaseRows(runState.cases, caseRow);
+  upsertCaseRow(runState, caseRow);
+  runState.caseDetails.set(caseDetail.caseKey ?? caseDetail.caseId, caseDetail);
+}
+
+function upsertCaseRow(runState: RunnerRunState, caseRow: CaseRow): void {
   const existingIndex = runState.cases.findIndex(
     (row) =>
       getCaseRowCaseKey(row) === getCaseRowCaseKey(caseRow) &&
@@ -301,7 +308,17 @@ function upsertFinishedCase(
   } else {
     runState.cases[existingIndex] = caseRow;
   }
-  runState.caseDetails.set(caseDetail.caseKey ?? caseDetail.caseId, caseDetail);
+}
+
+function removeLiveCaseRows(caseRows: CaseRow[], nextCaseRow: CaseRow): void {
+  const caseKey = getCaseRowCaseKey(nextCaseRow);
+  for (let i = caseRows.length - 1; i >= 0; i--) {
+    const caseRow = caseRows[i];
+    if (caseRow === undefined) continue;
+    if (getCaseRowCaseKey(caseRow) !== caseKey) continue;
+    if (caseRow.status !== 'pending' && caseRow.status !== 'running') continue;
+    caseRows.splice(i, 1);
+  }
 }
 
 function applyChildEvalMetas(
@@ -336,6 +353,15 @@ function handleRunChildEvent(
     const parsed = runSummarySchema.safeParse(event.payload);
     if (parsed.success) {
       runState.summary = parsed.data;
+    }
+    managerContext.emitEvent(runState, event);
+    return;
+  }
+
+  if (event.type === 'case.started' || event.type === 'case.updated') {
+    const parsed = caseRowSchema.safeParse(event.payload);
+    if (parsed.success) {
+      upsertCaseRow(runState, parsed.data);
     }
     managerContext.emitEvent(runState, event);
     return;

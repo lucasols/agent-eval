@@ -534,6 +534,7 @@ function subscribeToRunEvents(runId: string): void {
   }
 
   es.addEventListener('case.updated', (e) => applyCaseUpdate(e.data));
+  es.addEventListener('case.started', (e) => applyCaseUpdate(e.data));
   es.addEventListener('case.finished', (e) => applyCaseUpdate(e.data));
 
   es.addEventListener('run.finished', (e) => {

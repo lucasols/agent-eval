@@ -24,6 +24,7 @@ import {
   stack,
   transition,
 } from '#src/style/helpers';
+import { getActiveEvalStatus } from '#src/utils/activeEvalStatus';
 import {
   buildEvalTree,
   collectNodeEvals,
@@ -241,9 +242,8 @@ export function EvalTree() {
     currentRun: s.currentRun,
   }));
 
-  const isEvalRunning = (evalKey: string): boolean =>
-    currentRun?.manifest.status === 'running' &&
-    targetIncludesEval(currentRun.manifest.target, evalKey);
+  const getEvalActiveStatusForKey = (evalKey: string) =>
+    getActiveEvalStatus(currentRun, evalKey);
 
   useEffect(() => {
     if (selection.kind !== 'eval') return;
@@ -301,7 +301,7 @@ export function EvalTree() {
   const statusFilteredEvals = filterEvalsByStatuses(
     evals,
     statusFilters,
-    isEvalRunning,
+    getEvalActiveStatusForKey,
   );
   const tagFilteredEvals = filterEvalsByTags(statusFilteredEvals, tagFilters);
   const visibleEvals = filterEvalsBySearchQuery(tagFilteredEvals, searchQuery);
@@ -335,7 +335,7 @@ export function EvalTree() {
           selection={selection}
           collapsedFolders={effectiveCollapsedFolders}
           showFilenamePrefix
-          isEvalRunning={isEvalRunning}
+          getEvalActiveStatus={getEvalActiveStatusForKey}
         />
       ))}
     </Root>
@@ -348,7 +348,7 @@ type NodeViewProps = {
   selection: Selection;
   collapsedFolders: Set<string>;
   showFilenamePrefix: boolean;
-  isEvalRunning: (evalId: string) => boolean;
+  getEvalActiveStatus: (evalId: string) => 'running' | 'enqueued' | null;
 };
 
 function NodeView({
@@ -357,7 +357,7 @@ function NodeView({
   selection,
   collapsedFolders,
   showFilenamePrefix,
-  isEvalRunning,
+  getEvalActiveStatus,
 }: NodeViewProps) {
   if (node.kind === 'folder') {
     return (
@@ -366,7 +366,7 @@ function NodeView({
         depth={depth}
         selection={selection}
         collapsedFolders={collapsedFolders}
-        isEvalRunning={isEvalRunning}
+        getEvalActiveStatus={getEvalActiveStatus}
       />
     );
   }
@@ -377,7 +377,7 @@ function NodeView({
         depth={depth}
         selection={selection}
         collapsedFolders={collapsedFolders}
-        isEvalRunning={isEvalRunning}
+        getEvalActiveStatus={getEvalActiveStatus}
       />
     );
   }
@@ -387,7 +387,7 @@ function NodeView({
       depth={depth}
       selection={selection}
       showFilenamePrefix={showFilenamePrefix}
-      isEvalRunning={isEvalRunning}
+      getEvalActiveStatus={getEvalActiveStatus}
     />
   );
 }
@@ -397,21 +397,21 @@ function FolderRow({
   depth,
   selection,
   collapsedFolders,
-  isEvalRunning,
+  getEvalActiveStatus,
 }: {
   folder: TreeFolder;
   depth: number;
   selection: Selection;
   collapsedFolders: Set<string>;
-  isEvalRunning: (evalId: string) => boolean;
+  getEvalActiveStatus: (evalId: string) => 'running' | 'enqueued' | null;
 }) {
   const isOpen = isFolderExpanded(collapsedFolders, folder.path);
   const isActive =
     selection.kind === 'folder' && selection.path === folder.path;
   const folderEvals = collectNodeEvals(folder);
-  const combinedStatus = deriveCombinedStatus(folderEvals, isEvalRunning);
+  const combinedStatus = deriveCombinedStatus(folderEvals, getEvalActiveStatus);
   const statusTooltip = formatStatusBreakdown(
-    getStatusBreakdown(folderEvals, isEvalRunning),
+    getStatusBreakdown(folderEvals, getEvalActiveStatus),
   );
 
   function handleRowClick() {
@@ -462,7 +462,7 @@ function FolderRow({
               selection={selection}
               collapsedFolders={collapsedFolders}
               showFilenamePrefix
-              isEvalRunning={isEvalRunning}
+              getEvalActiveStatus={getEvalActiveStatus}
             />
           ))
         : null}
@@ -475,19 +475,19 @@ function FileRow({
   depth,
   selection,
   collapsedFolders,
-  isEvalRunning,
+  getEvalActiveStatus,
 }: {
   file: TreeFile;
   depth: number;
   selection: Selection;
   collapsedFolders: Set<string>;
-  isEvalRunning: (evalId: string) => boolean;
+  getEvalActiveStatus: (evalId: string) => 'running' | 'enqueued' | null;
 }) {
   const isOpen = isFolderExpanded(collapsedFolders, file.path);
   const isActive = selection.kind === 'folder' && selection.path === file.path;
-  const combinedStatus = deriveCombinedStatus(file.evals, isEvalRunning);
+  const combinedStatus = deriveCombinedStatus(file.evals, getEvalActiveStatus);
   const statusTooltip = formatStatusBreakdown(
-    getStatusBreakdown(file.evals, isEvalRunning),
+    getStatusBreakdown(file.evals, getEvalActiveStatus),
   );
 
   function handleRowClick() {
@@ -540,7 +540,7 @@ function FileRow({
               depth={depth + 1}
               selection={selection}
               showFilenamePrefix={false}
-              isEvalRunning={isEvalRunning}
+              getEvalActiveStatus={getEvalActiveStatus}
             />
           ))
         : null}
@@ -553,18 +553,18 @@ function LeafRow({
   depth,
   selection,
   showFilenamePrefix,
-  isEvalRunning,
+  getEvalActiveStatus,
 }: {
   leaf: TreeLeaf;
   depth: number;
   selection: Selection;
   showFilenamePrefix: boolean;
-  isEvalRunning: (evalId: string) => boolean;
+  getEvalActiveStatus: (evalId: string) => 'running' | 'enqueued' | null;
 }) {
   const ev = leaf.evalSummary;
   const isActive = selection.kind === 'eval' && selection.id === ev.key;
 
-  const displayStatus = getEvalSummaryDisplayStatus(ev, isEvalRunning);
+  const displayStatus = getEvalSummaryDisplayStatus(ev, getEvalActiveStatus);
   const title = getEvalTitle(ev);
   const rowTooltip =
     ev.stale || ev.outdated ? getFreshnessTooltip(ev) : undefined;
@@ -593,15 +593,4 @@ function LeafRow({
       </RowBase>
     </Tooltip>
   );
-}
-
-function targetIncludesEval(
-  target: { mode: string; evalIds?: string[]; evalKeys?: string[] },
-  evalKey: string,
-): boolean {
-  if (target.mode === 'all') return true;
-  if (target.mode === 'evalIds') {
-    return target.evalKeys?.includes(evalKey) ?? false;
-  }
-  return false;
 }

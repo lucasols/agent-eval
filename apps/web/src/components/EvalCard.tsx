@@ -65,6 +65,7 @@ import {
   tabularNums,
   transition,
 } from '#src/style/helpers';
+import { getActiveEvalStatus } from '#src/utils/activeEvalStatus';
 import { getDisplayFolderSegments } from '#src/utils/buildEvalTree';
 import { buildChartPoints } from '#src/utils/chartData';
 import { chartHasNumericValue } from '#src/utils/chartVisibility';
@@ -438,11 +439,11 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     }));
   }, [evalSummary.tags, knownCaseIds, latestCases]);
 
-  const isRunning =
-    currentRun?.manifest.status === 'running' &&
-    runTargetsEvalLocal(currentRun.manifest.target, evalSummary.key);
+  const activeStatus = getActiveEvalStatus(currentRun, evalSummary.key);
+  const isRunning = activeStatus === 'running';
+  const isRunActive = activeStatus !== null;
   const runningElapsedLabel = useElapsedRunTime(
-    isRunning ? currentRun.manifest.startedAt : null,
+    isRunning && currentRun !== null ? currentRun.manifest.startedAt : null,
   );
   const primaryRunIsTemporary = visibleRunRows[0]?.manifest.temporary === true;
   const hasScoreHistory =
@@ -453,6 +454,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     outdated: evalSummary.outdated,
     lastRunStatus: evalSummary.lastRunStatus,
     isRunning,
+    isEnqueued: activeStatus === 'enqueued',
   });
   const statusTooltip =
     evalSummary.stale || evalSummary.outdated
@@ -850,7 +852,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
                 </IconButton>
               </Tooltip>
             ) : null}
-            {isRunning ? (
+            {isRunActive ? (
               <Button
                 variant="danger"
                 leftIcon={<SquareStop />}

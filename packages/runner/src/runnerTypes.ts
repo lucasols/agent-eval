@@ -30,6 +30,8 @@ export type EvalRunner = {
   getDiscoveryIssues(): DiscoveryIssue[];
   /** Return current config-reload state for the long-running app server. */
   getConfigReloadState(): ConfigReloadState;
+  /** Return the effective per-run case concurrency after applying defaults. */
+  getConfiguredConcurrency(): number;
   /** Re-scan configured eval files and emit a discovery update to listeners. */
   refreshDiscovery(): Promise<void>;
   startRun(

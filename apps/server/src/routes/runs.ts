@@ -1,8 +1,10 @@
 import { existsSync } from 'node:fs';
 import { isAbsolute, resolve as resolvePath, sep } from 'node:path';
 import {
+  caseRowSchema,
   createRunRequestSchema,
   getEvalTitle,
+  getCaseRowCaseKey,
   type CreateRunRequest,
   type EvalSummary,
   type RunSummary,
@@ -90,17 +92,50 @@ function logStartedAppRunEvals(params: {
   shortId: string;
   evals: EvalSummary[];
   target: CreateRunRequest['target'];
+  concurrency: number;
 }): void {
   const targetEvals = getRunTargetEvalSummaries(params.evals, params.target);
   if (targetEvals.length === 0) return;
 
   const label = targetEvals.length === 1 ? 'eval' : 'evals';
   console.info(
-    `[agent-evals] Starting app run ${params.shortId} (${params.runId}) with ${String(targetEvals.length)} ${label}:`,
+    `[agent-evals] Queued app run ${params.shortId} (${params.runId}) with ${String(targetEvals.length)} ${label}; concurrency ${String(params.concurrency)}:`,
   );
   for (const ev of targetEvals) {
     console.info(`  - ${getEvalTitle(ev)} (${ev.filePath}#${ev.id})`);
   }
+}
+
+function getEvalSummaryLabel(
+  evalsByKey: ReadonlyMap<string, EvalSummary>,
+  evalsById: ReadonlyMap<string, EvalSummary>,
+  evalKey: string | undefined,
+  evalId: string,
+): string {
+  const ev = evalKey === undefined ? undefined : evalsByKey.get(evalKey);
+  const summary = ev ?? evalsById.get(evalId);
+  if (summary === undefined) return evalId;
+  return `${getEvalTitle(summary)} (${summary.filePath}#${summary.id})`;
+}
+
+function getRunCaseLabel(caseId: string, caseKey: string | undefined): string {
+  return caseKey === undefined || caseKey === caseId
+    ? caseId
+    : `${caseId} [${caseKey}]`;
+}
+
+function formatCaseStartedLog(params: {
+  shortId: string;
+  activeCount: number;
+  concurrency: number;
+  evalLabel: string;
+  caseLabel: string;
+}): string {
+  return [
+    `[agent-evals] Run ${params.shortId} started `,
+    `${String(params.activeCount)}/${String(params.concurrency)}: `,
+    `${params.evalLabel} / ${params.caseLabel}`,
+  ].join('');
 }
 
 function formatDurationMs(durationMs: number | null): string {
@@ -129,9 +164,52 @@ function subscribeToAppRunResultLog(params: {
   runner: Pick<EvalRunner, 'getRun' | 'subscribe'>;
   runId: string;
   shortId: string;
+  evals: EvalSummary[];
+  concurrency: number;
 }): void {
+  const evalsByKey = new Map(params.evals.map((ev) => [ev.key, ev]));
+  const evalsById = new Map(params.evals.map((ev) => [ev.id, ev]));
+  const activeCases = new Set<string>();
+  const loggedStarts = new Set<string>();
   let unsubscribe: (() => void) | undefined;
   unsubscribe = params.runner.subscribe(params.runId, (event) => {
+    if (event.type === 'case.started') {
+      const parsed = caseRowSchema.safeParse(event.payload);
+      if (!parsed.success) return;
+
+      const caseRow = parsed.data;
+      const caseKey = `${getCaseRowCaseKey(caseRow)}:${String(caseRow.trial)}`;
+      activeCases.add(caseKey);
+      if (loggedStarts.has(caseKey)) return;
+      loggedStarts.add(caseKey);
+
+      console.info(
+        formatCaseStartedLog({
+          shortId: params.shortId,
+          activeCount: activeCases.size,
+          concurrency: params.concurrency,
+          evalLabel: getEvalSummaryLabel(
+            evalsByKey,
+            evalsById,
+            caseRow.evalKey,
+            caseRow.evalId,
+          ),
+          caseLabel: getRunCaseLabel(caseRow.caseId, caseRow.caseKey),
+        }),
+      );
+      return;
+    }
+
+    if (event.type === 'case.finished') {
+      const parsed = caseRowSchema.safeParse(event.payload);
+      if (parsed.success) {
+        activeCases.delete(
+          `${getCaseRowCaseKey(parsed.data)}:${String(parsed.data.trial)}`,
+        );
+      }
+      return;
+    }
+
     if (!isTerminalRunEvent(event.type)) return;
     unsubscribe?.();
     unsubscribe = undefined;
@@ -216,6 +294,7 @@ export const runsRoutes = new Hono()
       );
     }
     const evalsForTerminalLog = runner.getEvals();
+    const concurrency = runner.getConfiguredConcurrency();
     const runResult = await resultify(() => runner.startRun(body));
     if (runResult.error) {
       return c.json(
@@ -231,11 +310,14 @@ export const runsRoutes = new Hono()
       shortId: runResult.value.manifest.shortId,
       evals: evalsForTerminalLog,
       target: body.target,
+      concurrency,
     });
     subscribeToAppRunResultLog({
       runner,
       runId: runResult.value.manifest.id,
       shortId: runResult.value.manifest.shortId,
+      evals: evalsForTerminalLog,
+      concurrency,
     });
     return c.json(runResult.value, 201);
   })

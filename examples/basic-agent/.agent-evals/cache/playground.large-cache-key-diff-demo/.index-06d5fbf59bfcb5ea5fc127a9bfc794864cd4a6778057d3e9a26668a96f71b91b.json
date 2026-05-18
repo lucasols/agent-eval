@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "namespace": "playground.large-cache-key-diff-demo",
+  "entries": {
+    "13f3333b7bd455f2da2ba6aa7120a8f9964139842347d66c2c2adb2384f5c6af": {
+      "storedAt": "2026-05-18T02:47:38.664Z",
+      "lastAccessedAt": null,
+      "blobRefs": [
+        "sha256/30/30d3a7b173d7dc9f252f671e1ec4d68fa7b9edbd566f6b1e8578d4635e19ec72.json.br"
+      ]
+    }
+  }
+}

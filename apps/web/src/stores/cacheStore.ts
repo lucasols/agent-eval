@@ -51,3 +51,11 @@ export async function deleteCacheEntry(
   cacheEntryStore.deleteItemState(payload);
   return null;
 }
+
+export async function deleteAllCacheEntries(): Promise<string | null> {
+  const result = await getRpcResult(apiClient.api.cache.$delete());
+
+  if (result.error) return result.error.message;
+  cacheEntryStore.deleteItemState(() => true);
+  return null;
+}

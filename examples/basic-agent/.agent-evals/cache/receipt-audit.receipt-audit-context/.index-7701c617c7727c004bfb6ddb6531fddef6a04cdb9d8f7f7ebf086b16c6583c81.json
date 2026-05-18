@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "namespace": "receipt-audit.receipt-audit-context",
+  "entries": {
+    "49b177b08af22849db644650f31757eea8cf09241dd1614c632ae8514fc1e0f0": {
+      "storedAt": "2026-05-18T02:47:43.952Z",
+      "lastAccessedAt": null,
+      "blobRefs": []
+    },
+    "c7b95fb8b66076bc6cd43bc554ed888af43d7fa64860ea8796a5075fd6cbd3be": {
+      "storedAt": "2026-05-18T02:47:43.176Z",
+      "lastAccessedAt": null,
+      "blobRefs": []
+    }
+  }
+}

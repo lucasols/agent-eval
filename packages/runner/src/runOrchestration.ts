@@ -20,6 +20,7 @@ import type {
   TrialSelectionMode,
 } from '@agent-evals/shared';
 import {
+  buildCaseKey,
   deriveStatusFromCaseRows,
   getCaseRowCaseKey,
 } from '@agent-evals/shared';
@@ -95,6 +96,7 @@ type TrialExecutionResult = {
 
 type PreparedEvalCase = {
   caseId: string;
+  liveCaseRow: CaseRow;
   trialResults: TrialExecutionResult[];
   finalized: boolean;
 };
@@ -262,6 +264,44 @@ function buildRunErrorMessage(errors: EvalRunError[]): string {
     .join('\n');
 }
 
+function upsertCaseRow(caseRows: CaseRow[], nextCaseRow: CaseRow): void {
+  const existingIndex = caseRows.findIndex(
+    (caseRow) =>
+      getCaseRowCaseKey(caseRow) === getCaseRowCaseKey(nextCaseRow) &&
+      caseRow.trial === nextCaseRow.trial,
+  );
+  if (existingIndex === -1) {
+    caseRows.push(nextCaseRow);
+    return;
+  }
+  caseRows[existingIndex] = nextCaseRow;
+}
+
+function removeLiveCaseRows(caseRows: CaseRow[], nextCaseRow: CaseRow): void {
+  const caseKey = getCaseRowCaseKey(nextCaseRow);
+  for (let i = caseRows.length - 1; i >= 0; i--) {
+    const caseRow = caseRows[i];
+    if (caseRow === undefined) continue;
+    if (getCaseRowCaseKey(caseRow) !== caseKey) continue;
+    if (caseRow.status !== 'pending' && caseRow.status !== 'running') continue;
+    caseRows.splice(i, 1);
+  }
+}
+
+function emitCaseRowEvent(params: {
+  runState: RunState;
+  emitEvent: ExecuteRunParams['emitEvent'];
+  type: 'case.started' | 'case.updated' | 'case.finished';
+  caseRow: CaseRow;
+}): void {
+  params.emitEvent(params.runState, {
+    type: params.type,
+    runId: params.runState.manifest.id,
+    timestamp: new Date().toISOString(),
+    payload: params.caseRow,
+  });
+}
+
 async function finalizePreparedCase(params: {
   runState: RunState;
   runDir: string;
@@ -296,7 +336,8 @@ async function finalizePreparedCase(params: {
   }
 
   const artifactFileId = getCaseArtifactFileId(runState, winningTrial.caseRow);
-  runState.cases.push(winningTrial.caseRow);
+  removeLiveCaseRows(runState.cases, winningTrial.caseRow);
+  upsertCaseRow(runState.cases, winningTrial.caseRow);
   runState.caseDetails.set(
     getCaseRowCaseKey(winningTrial.caseRow),
     winningTrial.caseDetail,
@@ -317,11 +358,11 @@ async function finalizePreparedCase(params: {
   await persistCaseDetail(runDir, winningTrial.caseDetail, artifactFileId);
   onCaseFinished?.(winningTrial.caseDetail, winningTrial.caseRow);
 
-  emitEvent(runState, {
+  emitCaseRowEvent({
+    runState,
+    emitEvent,
     type: 'case.finished',
-    runId: runState.manifest.id,
-    timestamp: new Date().toISOString(),
-    payload: winningTrial.caseRow,
+    caseRow: winningTrial.caseRow,
   });
 
   preparedEval.evalCaseRows.push(winningTrial.caseRow);
@@ -600,15 +641,54 @@ export async function executeRun({
 
               for (const evalCase of cases) {
                 const trialResults: TrialExecutionResult[] = [];
+                const liveCaseRow: CaseRow = {
+                  caseId: evalCase.id,
+                  evalId: evalMeta.id,
+                  evalKey: evalMeta.key,
+                  caseKey: buildCaseKey({
+                    filePath: evalMeta.filePath,
+                    evalId: evalMeta.id,
+                    caseId: evalCase.id,
+                  }),
+                  tags: evalCase.tags,
+                  status: 'pending',
+                  durationMs: null,
+                  cacheHits: 0,
+                  cacheOperations: 0,
+                  columns: {},
+                  trial: 0,
+                };
                 const preparedCase: PreparedEvalCase = {
                   caseId: evalCase.id,
+                  liveCaseRow,
                   trialResults,
                   finalized: false,
                 };
                 preparedCases.push(preparedCase);
+                upsertCaseRow(runState.cases, liveCaseRow);
+                emitCaseRowEvent({
+                  runState,
+                  emitEvent,
+                  type: 'case.updated',
+                  caseRow: liveCaseRow,
+                });
 
                 for (let trial = 0; trial < request.trials; trial++) {
                   queuedCases.push({
+                    onStart: () => {
+                      if (preparedCase.finalized) return;
+                      preparedCase.liveCaseRow = {
+                        ...preparedCase.liveCaseRow,
+                        status: 'running',
+                      };
+                      upsertCaseRow(runState.cases, preparedCase.liveCaseRow);
+                      emitCaseRowEvent({
+                        runState,
+                        emitEvent,
+                        type: 'case.started',
+                        caseRow: preparedCase.liveCaseRow,
+                      });
+                    },
                     execute: async ({ startTime, globalTraceDisplay }) =>
                       await executeCaseChild({
                         evalId: evalMeta.id,

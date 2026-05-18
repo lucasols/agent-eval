@@ -12,6 +12,7 @@ export type QueuedCaseExecution = {
 };
 
 export type QueuedCaseRun = {
+  onStart?: () => Promise<void> | void;
   execute: (params: {
     startTime: number;
     globalTraceDisplay: TraceDisplayInputConfig | undefined;
@@ -75,6 +76,7 @@ async function executeQueuedCase(params: {
   const { queuedCase, globalTraceDisplay } = params;
 
   const startTime = Date.now();
+  await queuedCase.onStart?.();
   const result = await queuedCase.execute({ globalTraceDisplay, startTime });
   await queuedCase.onComplete(result);
 }

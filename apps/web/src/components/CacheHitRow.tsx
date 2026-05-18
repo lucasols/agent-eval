@@ -215,6 +215,7 @@ type CacheHitRowProps = {
   currentCaseKey: string;
   currentEvalKey: string;
   currentCacheIndex: number;
+  forceDeleted?: boolean;
 };
 
 export function CacheHitRow({
@@ -224,11 +225,12 @@ export function CacheHitRow({
   currentCaseKey,
   currentEvalKey,
   currentCacheIndex,
+  forceDeleted = false,
 }: CacheHitRowProps) {
   const [expanded, setExpanded] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [compareOpen, setCompareOpen] = useState(false);
-  const canLoadEntry = entry.stored;
+  const canLoadEntry = entry.stored && !forceDeleted;
   const cacheEntryPayload = useMemo(
     () =>
       canLoadEntry && expanded
@@ -238,7 +240,8 @@ export function CacheHitRow({
   );
   const cacheEntryResult = cacheEntryStore.useItem(cacheEntryPayload);
   const cacheEntry = cacheEntryResult.data;
-  const cacheEntryDeleted = cacheEntryResult.status === 'deleted';
+  const cacheEntryDeleted =
+    forceDeleted || cacheEntryResult.status === 'deleted';
 
   const deleteAction = useActionFn(async () => {
     if (!canLoadEntry) return;

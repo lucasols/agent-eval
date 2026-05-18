@@ -124,6 +124,11 @@ function getTone(status: string): Tone {
   return 'pending';
 }
 
+function getStatusLabel(status: string): string {
+  if (status === 'enqueued') return 'enqueued';
+  return status;
+}
+
 export function StatusBadge({ status, detail }: StatusBadgeProps) {
   const tone = getTone(status);
   return (
@@ -145,7 +150,7 @@ export function StatusBadge({ status, detail }: StatusBadgeProps) {
         outdated={tone === 'outdated'}
         unscored={tone === 'unscored'}
       />
-      {status}
+      {getStatusLabel(status)}
       {detail ? <> · {detail}</> : null}
     </Badge>
   );

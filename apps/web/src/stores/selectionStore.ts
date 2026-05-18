@@ -13,6 +13,7 @@ export type Selection =
 
 export const EVAL_STATUS_FILTER_OPTIONS = [
   'running',
+  'enqueued',
   'pass',
   'fail',
   'error',
@@ -33,6 +34,7 @@ type SelectionState = {
 
 function parseEvalDisplayStatus(value: string): EvalDisplayStatus | undefined {
   if (value === 'running') return 'running';
+  if (value === 'enqueued') return 'enqueued';
   if (value === 'pass') return 'pass';
   if (value === 'fail') return 'fail';
   if (value === 'error') return 'error';
