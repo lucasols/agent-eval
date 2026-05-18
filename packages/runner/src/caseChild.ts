@@ -103,6 +103,8 @@ async function executeCaseChild(
     maxEntriesPerNamespace:
       config.cache?.maxEntriesPerNamespace ?? config.cache?.maxEntriesPerEval,
     maxEntriesByNamespace: config.cache?.maxEntriesByNamespace,
+    lastAccessedAtUpdateIntervalMs:
+      config.cache?.lastAccessedAtUpdateIntervalMs,
   });
   const bufferedCacheStore =
     context.cacheEnabled && context.cacheMode !== 'bypass'

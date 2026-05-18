@@ -1,6 +1,7 @@
 import type { EvalTraceSpan } from '@agent-evals/shared';
 import { describe, expect, test } from 'vitest';
 import {
+  buildSpanNameWildcardRegex,
   buildTraceChildrenByParent,
   flattenVisibleRows,
 } from '#src/components/TraceTree.helpers';
@@ -24,6 +25,34 @@ function span(overrides: Partial<EvalTraceSpan>): EvalTraceSpan {
 }
 
 describe('TraceTree helpers', () => {
+  test('matches span names with wildcard patterns', () => {
+    const regex = buildSpanNameWildcardRegex('POST v3/tabs/*/ok');
+
+    expect(regex?.test('POST v3/tabs/abc-123/ok')).toBe(true);
+    expect(regex?.test('POST v3/tabs/abc-123/error')).toBe(false);
+  });
+
+  test('matches span names against OR wildcard patterns', () => {
+    const regex = buildSpanNameWildcardRegex(
+      'POST v3/tabs/*/ok OR GET v3/tabs/*',
+    );
+
+    expect(regex?.test('POST v3/tabs/abc-123/ok')).toBe(true);
+    expect(regex?.test('GET v3/tabs/abc-123')).toBe(true);
+    expect(regex?.test('DELETE v3/tabs/abc-123')).toBe(false);
+  });
+
+  test('escapes regex syntax in span name wildcard patterns', () => {
+    const regex = buildSpanNameWildcardRegex('tool.call(input)*');
+
+    expect(regex?.test('tool.call(input)')).toBe(true);
+    expect(regex?.test('toolXcall[input]')).toBe(false);
+  });
+
+  test('treats blank span name wildcard patterns as inactive', () => {
+    expect(buildSpanNameWildcardRegex('   ')).toBeNull();
+  });
+
   test('keeps filtered children visible when their parent is hidden', () => {
     const toolSpan = span({
       id: 'tool-span',

@@ -618,7 +618,7 @@ async function commandCache(args: CliArgs): Promise<void> {
       console.info(`  ${entry.namespace}`);
       console.info(`    key: ${entry.key}`);
       console.info(`    stored: ${entry.storedAt}`);
-      console.info(`    last accessed: ${entry.lastAccessedAt}`);
+      console.info(`    last accessed: ${entry.lastAccessedAt ?? 'never'}`);
       console.info('');
     }
     return;

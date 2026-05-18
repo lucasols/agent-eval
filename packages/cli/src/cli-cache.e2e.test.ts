@@ -513,11 +513,11 @@ describe('CLI operation caching', () => {
       expect(listed).toHaveLength(1);
       const first = requireDefined(listed[0], 'first listed entry');
       expect(first.namespace).toBe('refund-workflow.plan-refund');
-      expect(first.lastAccessedAt).toBe(first.storedAt);
+      expect(first.lastAccessedAt).toBeNull();
 
       const listText = await runExampleCli(workspacePath, ['cache', 'list']);
       expect(listText.exitCode).toBe(0);
-      expect(listText.stdout).toContain('last accessed:');
+      expect(listText.stdout).toContain('last accessed: never');
 
       const clearResult = await runExampleCli(workspacePath, [
         'cache',

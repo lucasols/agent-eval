@@ -741,6 +741,8 @@ export function createRunner({
       maxEntriesPerNamespace:
         config.cache?.maxEntriesPerNamespace ?? config.cache?.maxEntriesPerEval,
       maxEntriesByNamespace: config.cache?.maxEntriesByNamespace,
+      lastAccessedAtUpdateIntervalMs:
+        config.cache?.lastAccessedAtUpdateIntervalMs,
     });
 
     await loadPersistedRuns();

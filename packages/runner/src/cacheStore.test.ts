@@ -36,7 +36,7 @@ const cacheIndexSchema = z.object({
     z
       .object({
         storedAt: z.string(),
-        lastAccessedAt: z.string(),
+        lastAccessedAt: z.string().nullable(),
         blobRefs: z.array(z.string()),
       })
       .strict(),
@@ -122,6 +122,20 @@ async function readCacheIndex(
   workspacePath: string,
   namespace = defaultNamespace,
 ): Promise<z.infer<typeof cacheIndexSchema>> {
+  return cacheIndexSchema.parse(
+    JSON.parse(
+      await readFile(
+        await cacheIndexFilePath(workspacePath, namespace),
+        'utf8',
+      ),
+    ),
+  );
+}
+
+async function cacheIndexFilePath(
+  workspacePath: string,
+  namespace = defaultNamespace,
+): Promise<string> {
   const dir = resolve(
     workspacePath,
     '.agent-evals/cache',
@@ -133,9 +147,7 @@ async function readCacheIndex(
   expect(files).toHaveLength(1);
   const file = files[0];
   if (file === undefined) throw new Error('Expected one cache index file');
-  return cacheIndexSchema.parse(
-    JSON.parse(await readFile(resolve(dir, file), 'utf8')),
-  );
+  return resolve(dir, file);
 }
 
 async function readDebugKeys(
@@ -294,7 +306,7 @@ describe('filesystem cache store raw-key debug storage', () => {
       entries: {
         'hashed-key': {
           storedAt: '2026-04-29T00:00:00.000Z',
-          lastAccessedAt: '2026-04-29T00:00:00.000Z',
+          lastAccessedAt: null,
           blobRefs: [],
         },
       },
@@ -317,7 +329,7 @@ describe('filesystem cache store raw-key debug storage', () => {
         key: 'hashed-key',
         namespace: defaultNamespace,
         storedAt: '2026-04-29T00:00:00.000Z',
-        lastAccessedAt: '2026-04-29T00:00:00.000Z',
+        lastAccessedAt: null,
       },
     ]);
     await expect(
@@ -379,9 +391,58 @@ describe('filesystem cache store raw-key debug storage', () => {
     expect(items).toHaveLength(1);
     const item = items[0];
     if (item === undefined) throw new Error('Expected one cache list item');
+    if (item.lastAccessedAt === null) {
+      throw new Error('Expected cache hit to record lastAccessedAt');
+    }
     expect(item.lastAccessedAt).not.toBe('2020-01-01T00:00:00.000Z');
     expect(item.lastAccessedAt >= beforeLookup).toBe(true);
     expect(item.lastAccessedAt <= afterLookup).toBe(true);
+  });
+
+  test('cache hits only refresh last access time after the update interval', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
+
+    await store.write(
+      cacheEntry({ key: 'hashed-key', storedAt: '2026-04-29T00:00:00.000Z' }),
+    );
+
+    const recentLastAccessedAt = new Date(
+      getRealDateNowMs() - 1000,
+    ).toISOString();
+    const index = await readCacheIndex(workspacePath);
+    index.entries['hashed-key'] = {
+      storedAt: '2026-04-29T00:00:00.000Z',
+      lastAccessedAt: recentLastAccessedAt,
+      blobRefs: [],
+    };
+    await writeFile(
+      await cacheIndexFilePath(workspacePath),
+      JSON.stringify(index, null, 2),
+    );
+
+    await expect(
+      store.lookup(defaultNamespace, 'hashed-key'),
+    ).resolves.toMatchObject({ key: 'hashed-key' });
+
+    const afterDefaultIntervalLookup = await readCacheIndex(workspacePath);
+    expect(
+      afterDefaultIntervalLookup.entries['hashed-key']?.lastAccessedAt,
+    ).toBe(recentLastAccessedAt);
+
+    const shortIntervalStore = createFsCacheStore({
+      workspaceRoot: workspacePath,
+      lastAccessedAtUpdateIntervalMs: 500,
+    });
+    await expect(
+      shortIntervalStore.lookup(defaultNamespace, 'hashed-key'),
+    ).resolves.toMatchObject({ key: 'hashed-key' });
+
+    const afterShortIntervalLookup = await readCacheIndex(workspacePath);
+    const refreshedLastAccessedAt =
+      afterShortIntervalLookup.entries['hashed-key']?.lastAccessedAt;
+    expect(refreshedLastAccessedAt).not.toBeNull();
+    expect(refreshedLastAccessedAt).not.toBe(recentLastAccessedAt);
   });
 
   test('writes raw-key debug files with two-space indentation', async () => {

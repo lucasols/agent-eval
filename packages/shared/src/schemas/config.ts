@@ -952,6 +952,11 @@ export type AgentEvalsConfig = {
      * the default.
      */
     pruneIdleDelayMs?: number;
+    /**
+     * Minimum milliseconds between `lastAccessedAt` index rewrites for repeated
+     * cache hits. Defaults to four hours. Set to `0` to record every hit.
+     */
+    lastAccessedAtUpdateIntervalMs?: number;
     /** Legacy alias for `maxEntriesPerNamespace`, retained so older config files keep working. */
     maxEntriesPerEval?: number;
   };
@@ -989,6 +994,13 @@ export const agentEvalsConfigSchema = z.object({
       ),
       maxEntriesByNamespace: z.record(z.string(), z.number()).optional(),
       pruneIdleDelayMs: z.preprocess(
+        (value) =>
+          typeof value === 'number' && Number.isFinite(value)
+            ? value
+            : undefined,
+        z.number().optional(),
+      ),
+      lastAccessedAtUpdateIntervalMs: z.preprocess(
         (value) =>
           typeof value === 'number' && Number.isFinite(value)
             ? value

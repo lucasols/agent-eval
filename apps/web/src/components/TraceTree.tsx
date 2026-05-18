@@ -16,6 +16,7 @@ import { Tooltip } from '#src/components/Tooltip';
 import {
   buildTraceChildrenByParent,
   buildRulerTicks,
+  buildSpanNameWildcardRegex,
   computeSpanBar,
   computeTraceMetrics,
   estimateTraceLabelWidth,
@@ -30,6 +31,11 @@ import {
   type TraceNestingMode,
 } from '#src/components/TraceTree.helpers';
 import { TraceCacheBadge } from '#src/components/TraceTreeCacheBadge';
+import {
+  type FilteredSpanVisibility,
+  type SpanKindFilterMode,
+  TraceFilterToolbar,
+} from '#src/components/TraceTreeFilters';
 import {
   updateSearchParams,
   useSearchParams,
@@ -99,151 +105,6 @@ const TimelinePane = styled.div`
   border-radius: var(--radius-md);
   background: ${colors.bg.var};
   overflow: hidden;
-`;
-
-const TimelineToolbar = styled.div<{ hasFilterOptions: boolean }>`
-  display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-rows: 24px;
-  column-gap: 10px;
-  align-items: center;
-  padding: 8px 10px;
-  border-bottom: 1px solid ${colors.border.var};
-  background: ${colors.bgElevated.var};
-  flex-shrink: 0;
-
-  &.hasFilterOptions {
-    grid-template-rows: 24px 24px;
-    row-gap: 6px;
-  }
-`;
-
-const TimelineCount = styled.span`
-  ${monoFont};
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: ${colors.textDim.var};
-  white-space: nowrap;
-  grid-column: 1;
-  grid-row: 1;
-`;
-
-const FilterControls = styled.div`
-  ${inline({ justify: 'right', align: 'center' })}
-  min-width: 0;
-  grid-column: 2;
-  grid-row: 1;
-`;
-
-const FilterOptionsRow = styled.div`
-  ${inline({ justify: 'right', align: 'center', gap: 8 })}
-  min-width: 0;
-  height: 24px;
-  grid-column: 1 / -1;
-  grid-row: 2;
-`;
-
-const SegmentedControl = styled.div`
-  ${inline({ align: 'center' })}
-  border: 1px solid ${colors.border.var};
-  border-radius: 5px;
-  overflow: hidden;
-  background: ${colors.bg.var};
-  flex-shrink: 0;
-`;
-
-const SegmentButton = styled.button<{ active: boolean }>`
-  ${transition({ property: 'background, color' })}
-  height: 24px;
-  padding: 0 9px;
-  border: none;
-  border-right: 1px solid ${colors.border.var};
-  background: transparent;
-  color: ${colors.textDim.var};
-  font-size: 11.5px;
-  font-weight: 500;
-  cursor: pointer;
-
-  &:last-child {
-    border-right: none;
-  }
-
-  &:hover {
-    background: ${colors.surface.var};
-    color: ${colors.text.var};
-  }
-
-  &.active {
-    background: ${colors.surfaceActive.var};
-    color: ${colors.text.var};
-  }
-`;
-
-const KindFilterList = styled.div`
-  ${inline({ align: 'center', gap: 4 })}
-  justify-content: flex-end;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
-`;
-
-const KindFilterOption = styled.label<{ selected: boolean }>`
-  ${inline({ align: 'center', gap: 5 })}
-  height: 24px;
-  padding: 0 8px;
-  border: 1px solid ${colors.border.var};
-  border-radius: var(--radius-sm);
-  background: ${colors.bg.var};
-  color: ${colors.textMuted.var};
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: 500;
-  white-space: nowrap;
-
-  &:hover {
-    border-color: ${colors.borderStrong.var};
-    color: ${colors.text.var};
-  }
-
-  &.selected {
-    border-color: ${colors.accent.alpha(0.45)};
-    background: ${colors.accent.alpha(0.1)};
-    color: ${colors.text.var};
-  }
-
-  & > input {
-    width: 12px;
-    height: 12px;
-    margin: 0;
-    accent-color: ${colors.accent.var};
-  }
-`;
-
-const VisibilityToggleLabel = styled.label`
-  ${inline({ align: 'center', gap: 6 })}
-  height: 24px;
-  padding: 0 8px;
-  color: ${colors.textMuted.var};
-  cursor: pointer;
-  font-size: 11.5px;
-  font-weight: 500;
-  white-space: nowrap;
-
-  &:hover {
-    color: ${colors.text.var};
-  }
-
-  & > input {
-    width: 13px;
-    height: 13px;
-    margin: 0;
-    accent-color: ${colors.accent.var};
-  }
 `;
 
 const DetailPane = styled.div`
@@ -700,9 +561,6 @@ type TraceTreeProps = {
   traceDisplay: TraceDisplayConfig;
 };
 
-type SpanKindFilterMode = 'all' | 'only' | 'hide';
-type FilteredSpanVisibility = 'hidden' | 'faded';
-
 const TIMELINE_COLLAPSED_STORAGE_KEY = 'agent-evals.trace-timeline-collapsed';
 const TRACE_NESTING_MODE_STORAGE_KEY = 'agent-evals.trace-nesting-mode';
 const SPAN_SEARCH_PARAM_KEY = 'span';
@@ -744,6 +602,8 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
   const [selectedSpanKinds, setSelectedSpanKinds] = useState<Set<string>>(
     () => new Set(),
   );
+  const [spanNameFilterVisible, setSpanNameFilterVisible] = useState(false);
+  const [spanNameFilterPattern, setSpanNameFilterPattern] = useState('');
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const detailRef = useRef<HTMLDivElement>(null);
@@ -782,16 +642,30 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
     () => [...new Set(spans.map((span) => span.kind))].sort(),
     [spans],
   );
+  const spanNameFilterRegex = useMemo(
+    () => buildSpanNameWildcardRegex(spanNameFilterPattern),
+    [spanNameFilterPattern],
+  );
+  const hasKindFilter =
+    spanKindFilterMode !== 'all' && selectedSpanKinds.size > 0;
+  const hasSpanNameFilter = spanNameFilterRegex !== null;
   const filteredSpanIds = useMemo(
     () =>
       new Set(
         spans
-          .filter((span) =>
-            spanMatchesKindFilter(span, spanKindFilterMode, selectedSpanKinds),
-          )
+          .filter((span) => {
+            return (
+              spanMatchesKindFilter(
+                span,
+                spanKindFilterMode,
+                selectedSpanKinds,
+              ) &&
+              (spanNameFilterRegex?.test(span.name) ?? true)
+            );
+          })
           .map((span) => span.id),
       ),
-    [selectedSpanKinds, spanKindFilterMode, spans],
+    [selectedSpanKinds, spanKindFilterMode, spanNameFilterRegex, spans],
   );
   const filteredSpans = useMemo(
     () => spans.filter((span) => filteredSpanIds.has(span.id)),
@@ -808,10 +682,11 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
   );
 
   const filteredLabel =
-    spanKindFilterMode === 'all' || selectedSpanKinds.size === 0
-      ? 'All spans'
-      : `${String(filteredSpans.length)} of ${String(spans.length)} spans`;
-  const showFilterOptions = spanKindFilterMode !== 'all';
+    hasKindFilter || hasSpanNameFilter
+      ? `${String(filteredSpans.length)} of ${String(spans.length)} spans`
+      : 'All spans';
+  const showSpanNameFilter = spanNameFilterVisible || hasSpanNameFilter;
+  const showFilterOptions = spanKindFilterMode !== 'all' || showSpanNameFilter;
 
   const childrenByParent = useMemo(
     () => buildTraceChildrenByParent(displayedSpans, traceNestingMode),
@@ -856,9 +731,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
       )}px, 1fr)`;
   const timelineInnerMinWidth = timelineCollapsed
     ? labelColumnWidth
-    : labelColumnWidth +
-      TIMELINE_COLUMN_MIN_WIDTH +
-      timelineInnerRightPadding;
+    : labelColumnWidth + TIMELINE_COLUMN_MIN_WIDTH + timelineInnerRightPadding;
 
   const selectedSpan = selectedSpanId
     ? (displayedSpans.find((s) => s.id === selectedSpanId) ?? null)
@@ -923,68 +796,21 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
   return (
     <Root ref={rootRef}>
       <TimelinePane>
-        <TimelineToolbar hasFilterOptions={showFilterOptions}>
-          <TimelineCount>{filteredLabel}</TimelineCount>
-          <FilterControls>
-            <SegmentedControl>
-              <SegmentButton
-                type="button"
-                active={spanKindFilterMode === 'all'}
-                onClick={() => setSpanKindFilterMode('all')}
-                aria-pressed={spanKindFilterMode === 'all'}
-              >
-                All
-              </SegmentButton>
-              <SegmentButton
-                type="button"
-                active={spanKindFilterMode === 'only'}
-                onClick={() => setSpanKindFilterMode('only')}
-                aria-pressed={spanKindFilterMode === 'only'}
-              >
-                Only
-              </SegmentButton>
-              <SegmentButton
-                type="button"
-                active={spanKindFilterMode === 'hide'}
-                onClick={() => setSpanKindFilterMode('hide')}
-                aria-pressed={spanKindFilterMode === 'hide'}
-              >
-                Hide
-              </SegmentButton>
-            </SegmentedControl>
-          </FilterControls>
-          {showFilterOptions ? (
-            <FilterOptionsRow>
-              <VisibilityToggleLabel>
-                <input
-                  type="checkbox"
-                  checked={filteredSpanVisibility === 'faded'}
-                  onChange={(event) => {
-                    setFilteredSpanVisibility(
-                      event.currentTarget.checked ? 'faded' : 'hidden',
-                    );
-                  }}
-                />
-                Fade filtered
-              </VisibilityToggleLabel>
-              <KindFilterList>
-                {spanKindOptions.map((kind) => (
-                  <KindFilterOption
-                    key={kind}
-                    selected={selectedSpanKinds.has(kind)}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedSpanKinds.has(kind)}
-                      onChange={() => toggleSelectedSpanKind(kind)}
-                    />
-                    {kind}
-                  </KindFilterOption>
-                ))}
-              </KindFilterList>
-            </FilterOptionsRow>
-          ) : null}
-        </TimelineToolbar>
+        <TraceFilterToolbar
+          filteredLabel={filteredLabel}
+          filteredSpanVisibility={filteredSpanVisibility}
+          onFilteredSpanVisibilityChange={setFilteredSpanVisibility}
+          onSpanKindFilterModeChange={setSpanKindFilterMode}
+          onSpanKindToggle={toggleSelectedSpanKind}
+          onSpanNameFilterPatternChange={setSpanNameFilterPattern}
+          onSpanNameFilterVisibleChange={setSpanNameFilterVisible}
+          selectedSpanKinds={selectedSpanKinds}
+          showFilterOptions={showFilterOptions}
+          showSpanNameFilter={showSpanNameFilter}
+          spanKindFilterMode={spanKindFilterMode}
+          spanKindOptions={spanKindOptions}
+          spanNameFilterPattern={spanNameFilterPattern}
+        />
         <TimelineScroll>
           <TimelineInner
             timelineCollapsed={timelineCollapsed}

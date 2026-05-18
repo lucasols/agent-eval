@@ -208,6 +208,8 @@ async function main(): Promise<void> {
     maxEntriesPerNamespace:
       config.cache?.maxEntriesPerNamespace ?? config.cache?.maxEntriesPerEval,
     maxEntriesByNamespace: config.cache?.maxEntriesByNamespace,
+    lastAccessedAtUpdateIntervalMs:
+      config.cache?.lastAccessedAtUpdateIntervalMs,
   });
   const evalMetas = await discoverRunEvals({
     config,

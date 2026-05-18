@@ -31,6 +31,12 @@ import {
   type CacheRepairSummary,
 } from '@agent-evals/shared';
 import { resultify } from 't-result';
+import {
+  cacheAccessSortTime,
+  normalizeLastAccessedAtUpdateIntervalMs,
+  shouldRefreshLastAccessedAt,
+} from './cacheAccessTime.ts';
+import { toPendingKey } from './cacheKeys.ts';
 
 const defaultMaxEntriesPerNamespace = 100;
 const cacheSerializationMarker = '__aecs';
@@ -73,7 +79,7 @@ export type FsCacheStore = CacheAdapter & {
 
 type CacheIndexEntry = {
   storedAt: string;
-  lastAccessedAt: string;
+  lastAccessedAt: string | null;
   blobRefs: string[];
 };
 
@@ -119,6 +125,7 @@ export function createFsCacheStore(options: {
   blobDir?: string;
   maxEntriesPerNamespace?: number;
   maxEntriesByNamespace?: Record<string, number>;
+  lastAccessedAtUpdateIntervalMs?: number;
 }): FsCacheStore {
   const cacheDir = resolve(
     options.workspaceRoot,
@@ -146,6 +153,10 @@ export function createFsCacheStore(options: {
     primaryDir: blobDir,
   });
   const defaultMaxEntries = normalizeMaxEntries(options.maxEntriesPerNamespace);
+  const lastAccessedAtUpdateIntervalMs =
+    normalizeLastAccessedAtUpdateIntervalMs(
+      options.lastAccessedAtUpdateIntervalMs,
+    );
 
   return {
     externalJsonStore,
@@ -174,7 +185,12 @@ export function createFsCacheStore(options: {
         externalJsonStore,
       );
       if (materialized !== null) {
-        await updateCacheIndexLastAccessedAt(cacheDir, namespace, keyHash);
+        await updateCacheIndexLastAccessedAt({
+          cacheDir,
+          key: keyHash,
+          namespace,
+          updateIntervalMs: lastAccessedAtUpdateIntervalMs,
+        });
       }
       return materialized;
     },
@@ -212,7 +228,7 @@ export function createFsCacheStore(options: {
           const index = await readNamespaceIndex(cacheDir, entry.namespace);
           index.entries[entry.key] = {
             storedAt: entry.storedAt,
-            lastAccessedAt: entry.storedAt,
+            lastAccessedAt: null,
             blobRefs: await collectExternalJsonBlobRefs(entry, blobDirs),
           };
           await writeNamespaceIndex(cacheDir, index);
@@ -241,7 +257,9 @@ export function createFsCacheStore(options: {
         }
       }
 
-      items.sort((a, b) => (a.lastAccessedAt < b.lastAccessedAt ? 1 : -1));
+      items.sort((a, b) =>
+        cacheAccessSortTime(a) < cacheAccessSortTime(b) ? 1 : -1,
+      );
       return items;
     },
 
@@ -385,10 +403,6 @@ function maxEntriesForNamespace(
     : normalizeMaxEntries(namespaceMaxEntries, defaultMaxEntries);
 }
 
-function toPendingKey(namespace: string, keyHash: string): string {
-  return `${namespace}::${keyHash}`;
-}
-
 function sanitizeSegment(segment: string): string {
   return segment.replace(/[^a-zA-Z0-9_.-]/g, '_');
 }
@@ -477,21 +491,35 @@ async function readIndexedCacheEntry(params: {
   );
 }
 
-async function updateCacheIndexLastAccessedAt(
-  cacheDir: string,
-  namespace: string,
-  key: string,
-): Promise<void> {
-  await withCacheFileLock(namespaceLockPath(cacheDir, namespace), async () => {
-    const index = await readNamespaceIndex(cacheDir, namespace);
-    const entry = index.entries[key];
-    if (entry === undefined) return;
-    index.entries[key] = {
-      ...entry,
-      lastAccessedAt: new Date(getRealDateNowMs()).toISOString(),
-    };
-    await writeNamespaceIndex(cacheDir, index);
-  });
+async function updateCacheIndexLastAccessedAt(params: {
+  cacheDir: string;
+  namespace: string;
+  key: string;
+  updateIntervalMs: number;
+}): Promise<void> {
+  await withCacheFileLock(
+    namespaceLockPath(params.cacheDir, params.namespace),
+    async () => {
+      const index = await readNamespaceIndex(params.cacheDir, params.namespace);
+      const entry = index.entries[params.key];
+      if (entry === undefined) return;
+      const nowMs = getRealDateNowMs();
+      if (
+        !shouldRefreshLastAccessedAt({
+          lastAccessedAt: entry.lastAccessedAt,
+          nowMs,
+          updateIntervalMs: params.updateIntervalMs,
+        })
+      ) {
+        return;
+      }
+      index.entries[params.key] = {
+        ...entry,
+        lastAccessedAt: new Date(nowMs).toISOString(),
+      };
+      await writeNamespaceIndex(params.cacheDir, index);
+    },
+  );
 }
 
 async function readCacheEntryFilePath(
@@ -700,7 +728,7 @@ function parseCacheIndexEntry(value: unknown): CacheIndexEntry | null {
   if (!isRecordLike(value)) return null;
   if (
     typeof value.storedAt !== 'string' ||
-    typeof value.lastAccessedAt !== 'string'
+    (value.lastAccessedAt !== null && typeof value.lastAccessedAt !== 'string')
   ) {
     return null;
   }
@@ -819,7 +847,7 @@ async function pruneCacheEntriesForNamespace(params: {
   const { cacheDir, index, maxEntries } = params;
   const entries = Object.entries(index.entries);
   const sorted = entries.toSorted(([, a], [, b]) =>
-    a.lastAccessedAt < b.lastAccessedAt ? 1 : -1,
+    cacheAccessSortTime(a) < cacheAccessSortTime(b) ? 1 : -1,
   );
   const keptKeys = new Set<string>();
 

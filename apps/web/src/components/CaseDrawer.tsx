@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { styled } from 'vindur';
-import { ApiCallRow } from '#src/components/ApiCallRow';
+import { ApiCallsTab } from '#src/components/ApiCallsTab';
 import { CacheHitRow } from '#src/components/CacheHitRow';
 import { CaseRunLogs, getLogPhases } from '#src/components/CaseRunLogs';
 import { CaseScores } from '#src/components/CaseScores';
@@ -74,14 +74,14 @@ import {
   formatDiagnosticOutputTooltip,
 } from '#src/utils/outputDiagnostics';
 import {
-  getDisplayColumnLabel,
-  mergeRuntimeColumnDefs,
-} from '#src/utils/runtimeColumnDefs';
-import {
   formatCaseDetailPath,
   formatRunFolderPath,
   getCaseArtifactFileId,
 } from '#src/utils/runPaths';
+import {
+  getDisplayColumnLabel,
+  mergeRuntimeColumnDefs,
+} from '#src/utils/runtimeColumnDefs';
 
 type Tab =
   | 'input'
@@ -314,10 +314,6 @@ const ScoringTraceFrame = styled.div`
 `;
 
 const LlmCallsList = styled.div`
-  ${stack({ gap: 8 })}
-`;
-
-const ApiCallsList = styled.div`
   ${stack({ gap: 8 })}
 `;
 
@@ -807,14 +803,7 @@ export function CaseDrawer() {
 
         {activeTab === 'apiCalls' ? (
           apiCallEntries.length > 0 ? (
-            <ApiCallsList>
-              {apiCallEntries.map((entry) => (
-                <ApiCallRow
-                  key={entry.id}
-                  entry={entry}
-                />
-              ))}
-            </ApiCallsList>
+            <ApiCallsTab entries={apiCallEntries} />
           ) : (
             <EmptyState
               title="No API calls"
@@ -964,11 +953,7 @@ export function CaseDrawer() {
 const hasRenderableOutputValue = (value: CellValue | undefined): boolean =>
   value !== undefined && value !== null;
 
-function AssertionResultCard({
-  assertion,
-}: {
-  assertion: AssertionResult;
-}) {
+function AssertionResultCard({ assertion }: { assertion: AssertionResult }) {
   const isFailure = assertion.status === 'fail';
   return (
     <AssertionCard isFailure={isFailure}>

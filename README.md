@@ -618,7 +618,8 @@ nesting. Timeline nesting is UI-only: it visually nests spans by start/end
 containment for flat exported traces without changing saved trace JSON or the
 parent ids available to `deriveFromTracing`. It can also filter spans by one or
 more `kind` values, either showing only selected kinds or hiding selected kinds,
-with filtered spans either removed from the timeline or faded for context.
+and compose that with span-name wildcards such as `POST* OR GET*`. Filtered
+spans can be removed from the timeline or faded for context.
 
 For observability systems that already emit span lifecycle events, use the
 external span API. This lets an adapter translate start/update/end events into
@@ -854,7 +855,10 @@ contains matching API/HTTP spans. By default, spans with `kind: 'api'`,
 `method`, `url`, `statusCode`, `request`, `response`, `requestBody`,
 `responseBody`, `headers`, `durationMs`, and `error` from span attributes. Each
 row is collapsed by default; clicking expands it to show captured request and
-response payloads, headers, error payloads, warnings, and custom metrics.
+response payloads, headers, error payloads, warnings, and custom metrics. The
+tab can be searched with wildcard patterns against call names, endpoints, and
+URLs, and the end of the tab includes a compact chart of the most frequently
+called endpoints for the selected case run.
 
 Emit API calls as normal trace spans:
 
@@ -1356,7 +1360,9 @@ Server API (`/api/cache`):
 - Each namespace keeps at most `cache.maxEntriesPerNamespace ?? 100` entries,
   pruning the least recently accessed indexed entries after a run finishes and
   the runner stays idle for `cache.pruneIdleDelayMs ?? 5000` milliseconds. Cache
-  hits update `lastAccessedAt` in the namespace index. Use
+  hits update `lastAccessedAt` in the namespace index at most once every
+  `cache.lastAccessedAtUpdateIntervalMs ?? 14_400_000` milliseconds (four
+  hours); never-hit entries keep `lastAccessedAt: null`. Use
   `cache.maxEntriesByNamespace` for exact namespace overrides.
 - Unindexed legacy cache files are ignored by normal lookup, listing, and
   retention. Run `pnpm eval cache repair` when you want to remove unindexed
@@ -1405,6 +1411,7 @@ export const config: AgentEvalsConfig = {
     maxEntriesPerNamespace: 50,
     maxEntriesByNamespace: { 'receipt-audit.receipt-audit-context': 200 },
     pruneIdleDelayMs: 5_000,
+    lastAccessedAtUpdateIntervalMs: 4 * 60 * 60 * 1000,
   },
 };
 ```

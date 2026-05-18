@@ -18,6 +18,22 @@ const LABEL_STATUS_ICON_WIDTH = 12;
 const BADGE_HORIZONTAL_PADDING = 12;
 const KIND_BADGE_CHAR_WIDTH = 6.4;
 const SPAN_NAME_PREVIEW_WIDTH = 80;
+const SPAN_NAME_OR_SEPARATOR_REGEX = /\s+(?:OR|\|\|)\s+/i;
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[\\^$+?.()|[\]{}]/g, '\\$&');
+}
+
+export function buildSpanNameWildcardRegex(pattern: string): RegExp | null {
+  const sources = pattern
+    .split(SPAN_NAME_OR_SEPARATOR_REGEX)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+    .map((part) => part.split('*').map(escapeRegExp).join('.*'));
+
+  if (sources.length === 0) return null;
+  return new RegExp(`^(?:${sources.join('|')})$`);
+}
 
 type TraceMetrics = {
   startMs: number;

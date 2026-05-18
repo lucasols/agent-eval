@@ -82,7 +82,8 @@ export const cacheListItemSchema = z.object({
   key: z.string(),
   namespace: z.string(),
   storedAt: z.string(),
-  lastAccessedAt: z.string(),
+  /** Last successful cache hit time. `null` means the entry has not been hit yet. */
+  lastAccessedAt: z.string().nullable(),
 });
 /** Minimal summary row for a single cache entry. */
 export type CacheListItem = z.infer<typeof cacheListItemSchema>;
