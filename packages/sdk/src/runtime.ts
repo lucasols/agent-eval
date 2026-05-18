@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { formatWithOptions } from 'node:util';
 import type {
   AssertionFailure,
+  AssertionResult,
   CacheEntry,
   CacheOperationType,
   CacheMode,
@@ -125,6 +126,8 @@ export type EvalCaseScope = {
   outputs: Record<string, unknown>;
   /** Runtime display overrides recorded by output helpers for this case. */
   outputColumnOverrides: Record<string, EvalColumnOverride>;
+  /** Structured assertion results recorded for the current case. */
+  assertions: AssertionResult[];
   /** Structured assertion failures recorded for the current case. */
   assertionFailures: AssertionFailure[];
   /** Logs captured from manual `evalLog(...)` calls and enabled console calls. */
@@ -850,6 +853,7 @@ export async function runInEvalScope<T>(
     tags: options.tags ?? [],
     outputs: {},
     outputColumnOverrides: {},
+    assertions: [],
     assertionFailures: [],
     logs: [],
     spans: [],
@@ -994,7 +998,8 @@ export function mergeEvalOutput(
     return;
   }
   if (!isObjectRecord(existing)) {
-    scope.assertionFailures.push(
+    recordAssertionFailure(
+      scope,
       toAssertionFailure(
         `mergeEvalOutput("${key}"): existing value is ${Array.isArray(existing) ? 'array' : typeof existing}, expected object`,
       ),
@@ -1021,7 +1026,8 @@ export function incrementEvalOutput(key: string, delta: number): void {
     return;
   }
   if (typeof existing !== 'number') {
-    scope.assertionFailures.push(
+    recordAssertionFailure(
+      scope,
       toAssertionFailure(
         `incrementEvalOutput("${key}"): existing value is ${typeof existing}, expected number`,
       ),
@@ -1044,10 +1050,21 @@ export function evalAssert(
   condition: unknown,
   message: string,
 ): asserts condition {
-  if (condition) return;
   const scope = getCurrentScope();
+  if (condition) {
+    if (scope) scope.assertions.push({ message, status: 'pass' });
+    return;
+  }
   if (!scope) return;
   const error = new EvalAssertionError(message);
-  scope.assertionFailures.push(toAssertionFailure(message, error));
+  recordAssertionFailure(scope, toAssertionFailure(message, error));
   throw error;
+}
+
+function recordAssertionFailure(
+  scope: EvalCaseScope,
+  failure: AssertionFailure,
+): void {
+  scope.assertionFailures.push(failure);
+  scope.assertions.push({ ...failure, status: 'fail' });
 }

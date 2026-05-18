@@ -194,6 +194,7 @@ function recordSpanAttributeAssertion(message: string): void {
   const scope = getCurrentScope();
   if (!scope) return;
   scope.assertionFailures.push({ message });
+  scope.assertions.push({ message, status: 'fail' });
 }
 
 function incrementSpanAttribute(

@@ -626,9 +626,11 @@ When adding or changing evals:
 1. Put the tracing + ambient SDK calls in the product code that runs in both
    production and evals. Keep eval files thin.
 2. Use realistic cases drawn from real product flows; avoid placeholder inputs.
-3. `evalAssert` for hard invariants and truthy type narrowing, `evalExpect`
-   for non-trivial comparisons, `scores` for graded signals, `passThreshold`
-   only on scores that should gate pass/fail.
+3. `evalAssert` for hard invariants and truthy type narrowing. It records
+   pass/fail entries in case-detail `assertions`; failed entries are also kept
+   in `assertionFailures` and fail the case. Use `evalExpect` for non-trivial
+   comparisons, `scores` for graded signals, and `passThreshold` only on
+   scores that should gate pass/fail.
 4. Surface reviewable values through execute-context `setOutput` or ambient
    `setEvalOutput` in shared workflow code, and shape them with `columns`
    formats from the `ColumnFormat` type.

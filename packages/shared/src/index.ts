@@ -44,6 +44,8 @@ export {
 } from './schemas/trace.ts';
 export {
   assertionFailureSchema,
+  assertionResultSchema,
+  assertionStatusSchema,
   evalFreshnessStatusSchema,
   evalStatAggregateSchema,
   evalStatItemSchema,
@@ -58,6 +60,8 @@ export {
   scoreTraceSchema,
   discoveryIssueSchema,
   type AssertionFailure,
+  type AssertionResult,
+  type AssertionStatus,
   type EvalFreshnessStatus,
   type EvalStatAggregate,
   type EvalStatItem,

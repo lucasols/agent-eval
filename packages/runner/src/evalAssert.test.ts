@@ -51,6 +51,20 @@ test('evalAssert still records and throws inside an active eval scope', async ()
   expect(scope.assertionFailures[0]?.stack).toContain(
     'EvalAssertionError: expected failure',
   );
+  expect(scope.assertions[0]?.status).toBe('fail');
+  expect(scope.assertions[0]?.message).toBe('expected failure');
+});
+
+test('evalAssert records successful assertions inside an active eval scope', async () => {
+  const { error, scope } = await runInEvalScope('assert-pass-case', () => {
+    evalAssert('approved', 'workflow should approve');
+  });
+
+  expect(error).toBeUndefined();
+  expect(scope.assertionFailures).toEqual([]);
+  expect(scope.assertions).toEqual([
+    { message: 'workflow should approve', status: 'pass' },
+  ]);
 });
 
 test('evalAssert accepts any condition value and narrows truthy values', () => {

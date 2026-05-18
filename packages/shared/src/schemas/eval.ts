@@ -196,8 +196,7 @@ export const caseRowSchema = z.object({
 /** Flattened per-case row rendered in run tables and streamed updates. */
 export type CaseRow = z.infer<typeof caseRowSchema>;
 
-/** Structured assertion failure metadata captured for one case run. */
-export const assertionFailureSchema = z.object({
+const assertionBaseSchema = z.object({
   /**
    * Error class or category label rendered alongside the message (e.g.
    * `EvalAssertionError`, `OutputsSchemaError`). Optional for legacy entries
@@ -209,12 +208,31 @@ export const assertionFailureSchema = z.object({
   /** Stack trace captured from the originating error when available. */
   stack: z.string().optional(),
 });
+
+/** Structured assertion failure metadata captured for one case run. */
+export const assertionFailureSchema = assertionBaseSchema;
 /** Assertion failure metadata captured for one case run. */
 export type AssertionFailure = z.infer<typeof assertionFailureSchema>;
+
+/** Pass/fail outcome for one recorded eval assertion. */
+export const assertionStatusSchema = z.enum(['pass', 'fail']);
+/** Pass/fail outcome for one recorded eval assertion. */
+export type AssertionStatus = z.infer<typeof assertionStatusSchema>;
+
+/** Structured assertion result metadata captured for one case run. */
+export const assertionResultSchema = assertionBaseSchema.extend({
+  /** Whether the recorded assertion passed or failed. */
+  status: assertionStatusSchema,
+});
+/** Assertion result metadata captured for one case run. */
+export type AssertionResult = z.infer<typeof assertionResultSchema>;
 
 const legacyAssertionFailureSchema = z
   .string()
   .transform((message): AssertionFailure => ({ message }));
+const legacyAssertionResultSchema = z
+  .string()
+  .transform((message): AssertionResult => ({ message, status: 'fail' }));
 
 /** Severity level for one log captured during a case run. */
 export const runLogLevelSchema = z.enum(['log', 'info', 'warn', 'error']);
@@ -313,6 +331,14 @@ export const caseDetailSchema = z.object({
    * These complement eval-level `columns` without changing discovery metadata.
    */
   outputColumnDefs: z.array(columnDefSchema).optional(),
+  /**
+   * Pass/fail assertion records captured from eval assertion helpers. New run
+   * artifacts include this alongside `assertionFailures`; older artifacts may
+   * omit it and should fall back to `assertionFailures` for failed outcomes.
+   */
+  assertions: z
+    .array(z.union([assertionResultSchema, legacyAssertionResultSchema]))
+    .optional(),
   assertionFailures: z.array(
     z.union([assertionFailureSchema, legacyAssertionFailureSchema]),
   ),

@@ -174,7 +174,8 @@ async function runDeriveFromTracingConfig<TInput>(params: {
     assignDerivedOutputs({ outputs: params.scope.outputs, derived });
   } catch (e) {
     const message = `deriveFromTracing threw: ${e instanceof Error ? e.message : String(e)}`;
-    params.scope.assertionFailures.push(
+    recordAssertionFailure(
+      params.scope,
       toAssertionFailure(message, e instanceof Error ? e : undefined),
     );
   }
@@ -293,7 +294,8 @@ export async function runCase<
     executeError instanceof EvalAssertionError &&
     scope.assertionFailures.length === 0
   ) {
-    scope.assertionFailures.push(
+    recordAssertionFailure(
+      scope,
       toAssertionFailure(executeError.message, executeError),
     );
   }
@@ -337,7 +339,8 @@ export async function runCase<
     if (parsedOutputs.success) {
       scope.outputs = { ...scope.outputs, ...parsedOutputs.data };
     } else {
-      scope.assertionFailures.push(
+      recordAssertionFailure(
+        scope,
         toAssertionFailure(
           formatOutputsSchemaError(parsedOutputs.error),
           undefined,
@@ -420,7 +423,8 @@ export async function runCase<
       const rawValue = scoreRun.result;
       if (scoreRun.error) {
         const message = `score "${key}" threw: ${scoreRun.error.message}`;
-        scope.assertionFailures.push(
+        recordAssertionFailure(
+          scope,
           toAssertionFailure(message, scoreRun.error),
         );
         scope.outputs[key] = 0;
@@ -428,7 +432,8 @@ export async function runCase<
         continue;
       }
       if (typeof rawValue !== 'number') {
-        scope.assertionFailures.push(
+        recordAssertionFailure(
+          scope,
           toAssertionFailure(`score "${key}" must return a number`),
         );
         scope.outputs[key] = 0;
@@ -521,6 +526,7 @@ export async function runCase<
     traceDisplay,
     columns,
     ...(outputColumnDefs.length > 0 ? { outputColumnDefs } : {}),
+    assertions: scope.assertions,
     assertionFailures: scope.assertionFailures,
     logs: scope.logs,
     error: errorInfo,
@@ -596,4 +602,12 @@ function toAssertionFailure(
     message,
     ...(stack !== undefined ? { stack } : {}),
   };
+}
+
+function recordAssertionFailure(
+  scope: EvalCaseScope,
+  failure: AssertionFailure,
+): void {
+  scope.assertionFailures.push(failure);
+  scope.assertions.push({ ...failure, status: 'fail' });
 }

@@ -1,13 +1,22 @@
 import {
   extractApiCalls,
   extractLlmCalls,
+  type AssertionFailure,
+  type AssertionResult,
   type CellValue,
   type ColumnDef,
   type LlmCostScenario,
   type RunLogPhase,
 } from '@agent-evals/shared';
 import { useActionFn } from '@ls-stack/react-utils/useActionFn';
-import { Maximize2, Minimize2, TriangleAlert, X } from 'lucide-react';
+import {
+  CheckCircle2,
+  Maximize2,
+  Minimize2,
+  TriangleAlert,
+  X,
+  XCircle,
+} from 'lucide-react';
 import { useRef, useState } from 'react';
 import { styled } from 'vindur';
 import { ApiCallRow } from '#src/components/ApiCallRow';
@@ -15,10 +24,7 @@ import { CacheHitRow } from '#src/components/CacheHitRow';
 import { CaseRunLogs, getLogPhases } from '#src/components/CaseRunLogs';
 import { CaseScores } from '#src/components/CaseScores';
 import { EmptyState } from '#src/components/EmptyState';
-import {
-  ErrorDetails,
-  type ErrorDetailItem,
-} from '#src/components/ErrorDetails';
+import { ErrorDetails } from '#src/components/ErrorDetails';
 import {
   FormattedCellValue,
   hasRichColumnFormat,
@@ -88,7 +94,7 @@ type Tab =
   | 'cache'
   | 'scoring'
   | 'raw'
-  | 'failures'
+  | 'assertions'
   | 'error';
 
 const TAB_LABELS: Record<Tab, string> = {
@@ -102,7 +108,7 @@ const TAB_LABELS: Record<Tab, string> = {
   cache: 'Cache',
   scoring: 'Scoring',
   raw: 'Raw',
-  failures: 'Failures',
+  assertions: 'Assertions',
   error: 'Error',
 };
 
@@ -352,6 +358,88 @@ const CacheEntriesList = styled.div`
   ${stack({ gap: 8 })}
 `;
 
+const AssertionSummary = styled.div`
+  ${inline({ align: 'center', gap: 8 })}
+  margin-bottom: 12px;
+  color: ${colors.textMuted.var};
+  font-size: 12px;
+`;
+
+const AssertionList = styled.div`
+  ${stack({ gap: 8 })}
+`;
+
+const AssertionCard = styled.div<{ isFailure: boolean }>`
+  ${stack({ gap: 8 })}
+  border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-sm);
+  background: ${colors.bg.var};
+  padding: 12px;
+
+  &.isFailure {
+    border-color: ${colors.error.alpha(0.24)};
+  }
+`;
+
+const AssertionHeader = styled.div`
+  ${inline({ justify: 'space-between', align: 'center', gap: 10 })}
+`;
+
+const AssertionTitle = styled.div`
+  ${inline({ align: 'center', gap: 7 })}
+  min-width: 0;
+`;
+
+const AssertionIcon = styled.span<{ isFailure: boolean }>`
+  display: inline-flex;
+  color: ${colors.success.var};
+  flex-shrink: 0;
+
+  &.isFailure {
+    color: ${colors.error.var};
+  }
+
+  & > svg {
+    width: 15px;
+    height: 15px;
+    stroke-width: 2.4;
+  }
+`;
+
+const AssertionMessage = styled.div`
+  font-size: 13px;
+  color: ${colors.text.var};
+  word-break: break-word;
+`;
+
+const AssertionBadge = styled.span<{ isFailure: boolean }>`
+  ${kicker};
+  color: ${colors.success.var};
+
+  &.isFailure {
+    color: ${colors.error.var};
+  }
+`;
+
+const AssertionName = styled.div`
+  ${monoFont};
+  font-size: 11.5px;
+  color: ${colors.textMuted.var};
+`;
+
+const AssertionStack = styled.pre`
+  ${monoFont};
+  margin: 0;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: ${colors.surface.var};
+  color: ${colors.textMuted.var};
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+`;
+
 function resolveActiveTab(
   requestedTab: string | null,
   availableTabs: Tab[],
@@ -374,9 +462,11 @@ function parseTab(value: string): Tab | null {
     case 'cache':
     case 'scoring':
     case 'raw':
-    case 'failures':
+    case 'assertions':
     case 'error':
       return value;
+    case 'failures':
+      return 'assertions';
     case 'cacheHits':
       return 'cache';
     default:
@@ -532,6 +622,14 @@ export function CaseDrawer() {
     selectedLogPhase === 'all'
       ? d.logs
       : d.logs.filter((entry) => entry.phase === selectedLogPhase);
+  const assertionResults = getAssertionResults(
+    d.assertions ?? [],
+    d.assertionFailures,
+  );
+  const assertionPassCount = assertionResults.filter(
+    (assertion) => assertion.status === 'pass',
+  ).length;
+  const assertionFailureCount = assertionResults.length - assertionPassCount;
   const tabs: Tab[] = ['input', 'output'];
   if (scoreColumns.length > 0) tabs.push('scores');
   tabs.push('trace');
@@ -541,7 +639,7 @@ export function CaseDrawer() {
   if (cacheEntries.length > 0) tabs.push('cache');
   if (scoringTraceEntries.length > 0) tabs.push('scoring');
   tabs.push('raw');
-  if (d.assertionFailures.length > 0) tabs.push('failures');
+  if (assertionResults.length > 0) tabs.push('assertions');
   if (d.error) tabs.push('error');
   const activeTab = resolveActiveTab(searchParams.get('caseTab'), tabs);
   const menuEntries: SplitButtonMenuEntry[] = [
@@ -816,23 +914,31 @@ export function CaseDrawer() {
               data={d.logs}
             />
             <RawSection
+              label="Assertions"
+              data={assertionResults}
+            />
+            <RawSection
               label="Scoring Traces"
               data={scoringTraces}
             />
           </RawSections>
         ) : null}
 
-        {activeTab === 'failures' ? (
-          <ErrorDetails
-            label={
-              d.assertionFailures.length === 1
-                ? 'Assertion failure'
-                : 'Assertion failures'
-            }
-            errors={d.assertionFailures.map((failure, index) =>
-              toFailureDetailItem(failure, index),
-            )}
-          />
+        {activeTab === 'assertions' ? (
+          <>
+            <AssertionSummary>
+              <span>{String(assertionPassCount)} passed</span>
+              <span>{String(assertionFailureCount)} failed</span>
+            </AssertionSummary>
+            <AssertionList>
+              {assertionResults.map((assertion, index) => (
+                <AssertionResultCard
+                  key={`${assertion.status}-${index}`}
+                  assertion={assertion}
+                />
+              ))}
+            </AssertionList>
+          </>
         ) : null}
 
         {activeTab === 'error' && d.error ? (
@@ -858,18 +964,54 @@ export function CaseDrawer() {
 const hasRenderableOutputValue = (value: CellValue | undefined): boolean =>
   value !== undefined && value !== null;
 
-function toFailureDetailItem(
-  failure: { name?: string | undefined; message: string; stack?: string },
-  index: number,
-): ErrorDetailItem {
-  return {
-    id: `failure-${String(index)}-${failure.message}`,
-    name: failure.name,
-    message: failure.message,
-    meta: undefined,
-    stack: failure.stack,
-    attributes: undefined,
-  };
+function AssertionResultCard({
+  assertion,
+}: {
+  assertion: AssertionResult;
+}) {
+  const isFailure = assertion.status === 'fail';
+  return (
+    <AssertionCard isFailure={isFailure}>
+      <AssertionHeader>
+        <AssertionTitle>
+          <AssertionIcon isFailure={isFailure}>
+            {isFailure ? <XCircle /> : <CheckCircle2 />}
+          </AssertionIcon>
+          <AssertionMessage>{assertion.message}</AssertionMessage>
+        </AssertionTitle>
+        <AssertionBadge isFailure={isFailure}>
+          {isFailure ? 'Failed' : 'Passed'}
+        </AssertionBadge>
+      </AssertionHeader>
+      {assertion.name ? <AssertionName>{assertion.name}</AssertionName> : null}
+      {assertion.stack ? (
+        <AssertionStack>{assertion.stack}</AssertionStack>
+      ) : null}
+    </AssertionCard>
+  );
+}
+
+function getAssertionResults(
+  assertions: AssertionResult[],
+  assertionFailures: AssertionFailure[],
+): AssertionResult[] {
+  const missingFailures = assertionFailures
+    .filter(
+      (failure) =>
+        !assertions.some(
+          (assertion) =>
+            assertion.status === 'fail' &&
+            assertion.message === failure.message &&
+            assertion.name === failure.name &&
+            assertion.stack === failure.stack,
+        ),
+    )
+    .map(toFailedAssertionResult);
+  return [...assertions, ...missingFailures];
+}
+
+function toFailedAssertionResult(failure: AssertionFailure): AssertionResult {
+  return { ...failure, status: 'fail' };
 }
 
 function orderOutputColumnDefs(

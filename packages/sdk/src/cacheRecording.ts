@@ -217,9 +217,9 @@ function applyRecordingOp(
     } else if (isRecordLike(existing)) {
       scope.outputs[op.key] = { ...existing, ...op.patch };
     } else {
-      scope.assertionFailures.push({
-        message: `replay mergeEvalOutput("${op.key}"): existing value is ${valueKind(existing)}, expected object`,
-      });
+      const message = `replay mergeEvalOutput("${op.key}"): existing value is ${valueKind(existing)}, expected object`;
+      scope.assertionFailures.push({ message });
+      scope.assertions.push({ message, status: 'fail' });
     }
     return;
   }
@@ -230,9 +230,9 @@ function applyRecordingOp(
     } else if (typeof existing === 'number') {
       scope.outputs[op.key] = existing + op.delta;
     } else {
-      scope.assertionFailures.push({
-        message: `replay incrementEvalOutput("${op.key}"): existing value is ${valueKind(existing)}, expected number`,
-      });
+      const message = `replay incrementEvalOutput("${op.key}"): existing value is ${valueKind(existing)}, expected number`;
+      scope.assertionFailures.push({ message });
+      scope.assertions.push({ message, status: 'fail' });
     }
     return;
   }

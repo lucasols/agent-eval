@@ -1,5 +1,6 @@
 import {
   configureEvalRunLogs,
+  evalAssert,
   evalSpan,
   evalLog,
   evalTracer,
@@ -96,6 +97,43 @@ test('buildScopedEvalIdPrefix includes the workspace-relative eval file path', (
       workspaceRoot: '/repo',
     }),
   ).toBe('duplicate-id-evals-returns-refund-eval-ts-case-a');
+});
+
+test('runCase includes pass and fail assertion records in case details', async () => {
+  const passResult = await runDefaultUsageCase({
+    evalDef: {
+      id: 'assertion-results-eval',
+      execute: () => {
+        evalAssert(true, 'case should satisfy invariant');
+      },
+    },
+    evalId: 'assertion-results-eval',
+  });
+  const failResult = await runDefaultUsageCase({
+    evalDef: {
+      id: 'assertion-results-eval',
+      execute: () => {
+        evalAssert(false, 'case should fail invariant');
+      },
+    },
+    evalId: 'assertion-results-eval',
+  });
+
+  expect(passResult.caseDetail.status).toBe('pass');
+  expect(passResult.caseDetail.assertions).toEqual([
+    { message: 'case should satisfy invariant', status: 'pass' },
+  ]);
+  expect(passResult.caseDetail.assertionFailures).toEqual([]);
+
+  expect(failResult.caseDetail.status).toBe('fail');
+  expect(failResult.caseDetail.assertions).toHaveLength(1);
+  expect(failResult.caseDetail.assertions?.[0]?.status).toBe('fail');
+  expect(failResult.caseDetail.assertions?.[0]?.message).toBe(
+    'case should fail invariant',
+  );
+  expect(failResult.caseDetail.assertionFailures[0]?.message).toBe(
+    'case should fail invariant',
+  );
 });
 
 test('runCase derives default usage outputs from trace spans', async () => {
