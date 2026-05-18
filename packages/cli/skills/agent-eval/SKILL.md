@@ -366,10 +366,11 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   form, return `undefined` to omit one output for that case. Do not call
   `evalAssert(...)` or `evalExpect(...)` from `deriveFromTracing`; use
   `tracingAssertions` for trace-derived pass/fail checks.
-- `tracingAssertions` can be authored globally or locally on one eval when a
-  finished-trace invariant should pass or fail the case without creating a fake
-  score column. It receives the same `{ trace, input, case }` context as
-  `deriveFromTracing`; call `evalAssert(...)` or `evalExpect(...)` inside it.
+- `tracingAssertions` is a single function that can be authored globally or
+  locally on one eval when a finished-trace invariant should pass or fail the
+  case without creating a fake score column. It receives the same
+  `{ trace, input, case }` context as `deriveFromTracing`; call
+  `evalAssert(...)` or `evalExpect(...)` inside it.
   Useful trace helpers include `trace.findSpan(name)`, `trace.findSpans(name)`,
   `trace.hasSpan(name)`, `trace.findSpansByKind(kind)`,
   `trace.findToolCallSpans()`, `trace.listToolCallSpanNames()`,

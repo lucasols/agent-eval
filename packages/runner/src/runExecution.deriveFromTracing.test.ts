@@ -154,25 +154,23 @@ test('runCase supports trace-derived assertions and trace tree helpers', async (
           },
         );
       },
-      tracingAssertions: {
-        requiredTools: ({ trace }) => {
-          evalExpect(isInEvalScope()).toBe('tracingAssertions');
-          evalExpect(trace.findSpans('lookup-customer')).toHaveLength(1);
-          evalExpect(trace.findToolCallSpans()).toHaveLength(2);
-          evalExpect(trace.listToolCallSpanNames()).toEqual([
-            'lookup-customer',
-            'submit-refund',
-          ]);
-          evalAssert(
-            trace.hasToolCallSpan('submit-refund'),
-            'refund submission tool should be called',
-          );
-          evalExpect(trace.listSpanNamesDfs()).toEqual([
-            'refund-agent',
-            'lookup-customer',
-            'submit-refund',
-          ]);
-        },
+      tracingAssertions: ({ trace }) => {
+        evalExpect(isInEvalScope()).toBe('tracingAssertions');
+        evalExpect(trace.findSpans('lookup-customer')).toHaveLength(1);
+        evalExpect(trace.findToolCallSpans()).toHaveLength(2);
+        evalExpect(trace.listToolCallSpanNames()).toEqual([
+          'lookup-customer',
+          'submit-refund',
+        ]);
+        evalAssert(
+          trace.hasToolCallSpan('submit-refund'),
+          'refund submission tool should be called',
+        );
+        evalExpect(trace.listSpanNamesDfs()).toEqual([
+          'refund-agent',
+          'lookup-customer',
+          'submit-refund',
+        ]);
       },
     },
   });
@@ -219,14 +217,12 @@ test('runCase records tracingAssertions failures and skips scores', async () => 
 test('runCase runs global tracingAssertions before eval-level tracingAssertions', async () => {
   const seen: string[] = [];
   const result = await runDeriveCase({
-    globalTracingAssertions: {
-      globalTool: ({ trace }) => {
-        seen.push('global');
-        evalAssert(
-          trace.hasSpan('lookup-customer'),
-          'global tracing assertion should see spans',
-        );
-      },
+    globalTracingAssertions: ({ trace }) => {
+      seen.push('global');
+      evalAssert(
+        trace.hasSpan('lookup-customer'),
+        'global tracing assertion should see spans',
+      );
     },
     evalDef: {
       id: 'global-tracing-assertions-eval',
@@ -236,14 +232,12 @@ test('runCase runs global tracingAssertions before eval-level tracingAssertions'
           () => {},
         );
       },
-      tracingAssertions: {
-        evalTool: ({ trace }) => {
-          seen.push('eval');
-          evalAssert(
-            trace.hasToolCallSpan('lookup-customer'),
-            'eval tracing assertion should see tool spans',
-          );
-        },
+      tracingAssertions: ({ trace }) => {
+        seen.push('eval');
+        evalAssert(
+          trace.hasToolCallSpan('lookup-customer'),
+          'eval tracing assertion should see tool spans',
+        );
       },
     },
   });

@@ -1086,8 +1086,8 @@ trace-derived pass/fail checks.
 
 ### Trace-derived assertions
 
-Use `tracingAssertions` when a trace invariant should pass or fail the case
-without creating a fake numeric score column. It runs after
+Use `tracingAssertions` as a single callback when a trace invariant should pass
+or fail the case without creating a fake numeric score column. It runs after
 `deriveFromTracing` with the same `{ trace, input, case }` context:
 
 ```ts

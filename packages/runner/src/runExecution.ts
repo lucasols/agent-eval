@@ -226,28 +226,13 @@ async function runTracingAssertionsConfig<TInput>(params: {
 }): Promise<void> {
   if (params.tracingAssertions === undefined) return;
 
-  if (typeof params.tracingAssertions === 'function') {
-    await runOneTracingAssertion({
-      label: 'tracingAssertions',
-      tracingAssertion: params.tracingAssertions,
-      scope: params.scope,
-      traceTree: params.traceTree,
-      evalCase: params.evalCase,
-    });
-    return;
-  }
-
-  for (const [key, tracingAssertion] of Object.entries(
-    params.tracingAssertions,
-  )) {
-    await runOneTracingAssertion({
-      label: `tracingAssertions "${key}"`,
-      tracingAssertion,
-      scope: params.scope,
-      traceTree: params.traceTree,
-      evalCase: params.evalCase,
-    });
-  }
+  await runOneTracingAssertion({
+    label: 'tracingAssertions',
+    tracingAssertion: params.tracingAssertions,
+    scope: params.scope,
+    traceTree: params.traceTree,
+    evalCase: params.evalCase,
+  });
 }
 
 export async function runCase<

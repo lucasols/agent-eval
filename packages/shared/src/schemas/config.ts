@@ -130,30 +130,15 @@ export type EvalTracingAssertionsFn<TInput = unknown> = (
   ctx: EvalDeriveContext<TInput>,
 ) => MaybePromise<void>;
 
-/** Keyed trace-derived assertion config for grouping related checks. */
-export type EvalTracingAssertionsMap<TInput = unknown> = Record<
-  string,
-  EvalTracingAssertionsFn<TInput>
->;
-
 /** Trace-derived assertion config accepted globally and on eval definitions. */
 export type EvalTracingAssertionsConfig<TInput = unknown> =
-  | EvalTracingAssertionsMap<TInput>
-  | EvalTracingAssertionsFn<TInput>;
+  EvalTracingAssertionsFn<TInput>;
 
-const evalTracingAssertionsFnSchema = z.custom<EvalTracingAssertionsFn>(
-  (value) => typeof value === 'function',
-  { message: 'Expected a tracing assertions function' },
-);
-
-/** Schema for function or keyed trace-derived assertion config. */
+/** Schema for trace-derived assertion config. */
 export const evalTracingAssertionsConfigSchema: z.ZodType<EvalTracingAssertionsConfig> =
-  z.union([
-    z.custom<EvalTracingAssertionsFn>((value) => typeof value === 'function', {
-      message: 'Expected a tracingAssertions function',
-    }),
-    z.record(z.string().min(1), evalTracingAssertionsFnSchema),
-  ]);
+  z.custom<EvalTracingAssertionsFn>((value) => typeof value === 'function', {
+    message: 'Expected a tracingAssertions function',
+  });
 
 /** UI overrides for a derived or scored column emitted by an eval. */
 export type EvalColumnOverride = {

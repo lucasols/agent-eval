@@ -103,7 +103,6 @@ export type {
   EvalDeriveValueFn,
   EvalTracingAssertionsConfig,
   EvalTracingAssertionsFn,
-  EvalTracingAssertionsMap,
   EvalScoreContext,
   EvalScoreFn,
   EvalScoreDef,
