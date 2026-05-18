@@ -375,11 +375,19 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   `trace.hasSpan(name)`, `trace.findSpansByKind(kind)`,
   `trace.findToolCallSpans()`, `trace.listToolCallSpanNames()`,
   `trace.hasToolCallSpan(name)`,
-  `trace.hasNToolCallSpans(toolName, expectedCalls)`,
+  `trace.getToolCallSpans(name)`,
+  `trace.getToolCallSpanCount(toolName)`,
+  `trace.hasToolCallSpanCount(toolName, expectedCalls)`,
   `trace.listSpanNames(kind?)`, `trace.listSpanNamesDfs(kind?)`, and
   `trace.flattenDfs()`.
   The tool-call helpers include both `kind: 'tool'` spans and imported
-  execution spans recorded as `kind: 'tool_call'`.
+  execution spans recorded as `kind: 'tool_call'`. Tool-name checks and counts
+  match the span `name` as well as GenAI/Mastra identity attributes such as
+  `genAI["gen_ai.tool.name"]` and `mastra.entityName`; list helpers prefer
+  those tool identity attributes when present. `getToolCallSpans(name)`
+  returns one normalized object per matching call, including parsed
+  `arguments`, parsed `result`, `description`, `toolType`, `attributes`, and
+  the original `span`.
 - `traceDisplay` promotes selected span attributes into the trace tree and
   detail pane; it supports aggregation across subtrees (`scope`, `mode`) and
   user-defined `transform(...)` for derived views (e.g. currency conversion).

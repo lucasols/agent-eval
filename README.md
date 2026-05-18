@@ -1110,10 +1110,16 @@ defineEval({
 The trace tree includes helpers for common span checks: `findSpan(name)`,
 `findSpans(name)`, `hasSpan(name)`, `findSpansByKind(kind)`,
 `findToolCallSpans()`, `listToolCallSpanNames()`, `hasToolCallSpan(name)`,
-`hasNToolCallSpans(toolName, expectedCalls)`, `listSpanNames(kind?)`,
+`getToolCallSpans(name)`, `getToolCallSpanCount(toolName)`,
+`hasToolCallSpanCount(toolName, expectedCalls)`, `listSpanNames(kind?)`,
 `listSpanNamesDfs(kind?)`, and `flattenDfs()`.
 The tool-call helpers match both authored `kind: 'tool'` spans and imported
-execution spans recorded as `kind: 'tool_call'`.
+execution spans recorded as `kind: 'tool_call'`. Tool-name checks and counts
+match the span `name` as well as GenAI/Mastra identity attributes such as
+`genAI["gen_ai.tool.name"]` and `mastra.entityName`; list helpers prefer those
+tool identity attributes when present. `getToolCallSpans(name)` returns one
+normalized object per matching call, including parsed `arguments`, parsed
+`result`, `description`, `toolType`, `attributes`, and the original `span`.
 
 ### Stats row
 

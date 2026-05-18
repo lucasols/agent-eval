@@ -214,6 +214,7 @@ export {
   type EvalDeriveValueFn,
   type EvalTracingAssertionsConfig,
   type EvalTracingAssertionsFn,
+  type EvalToolCallSpan,
   type EvalTraceTree,
   type RemoveDefaultConfig,
   type AgentEvalsConfig,

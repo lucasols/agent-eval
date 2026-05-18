@@ -4,6 +4,7 @@ import type {
   EvalTraceSpan,
   SpanCacheOptions,
 } from '@agent-evals/shared';
+import { resultify } from 't-result';
 import { hashCacheKey } from './cacheKey.ts';
 import { appendSubSpanOps, replayRecording } from './cacheRecording.ts';
 import {
@@ -872,8 +873,107 @@ export function buildTraceTree(
     visit(null);
     return result;
   };
+  const isRecord = (value: unknown): value is Record<string, unknown> => {
+    return typeof value === 'object' && value !== null;
+  };
+  const readRecordValue = (
+    value: unknown,
+    key: string,
+  ): Record<string, unknown> | undefined => {
+    if (!isRecord(value)) return undefined;
+    const child = value[key];
+    return isRecord(child) ? child : undefined;
+  };
+  const readStringValue = (value: unknown, key: string): string | undefined => {
+    if (!isRecord(value)) return undefined;
+    const child = value[key];
+    return typeof child === 'string' && child.length > 0 ? child : undefined;
+  };
+  const readValue = (value: unknown, key: string) => {
+    if (!isRecord(value)) return undefined;
+    return value[key];
+  };
+  const parseMaybeJson = (value: unknown) => {
+    if (typeof value !== 'string') return value;
+    const parsed = resultify((): unknown => JSON.parse(value));
+    return parsed.error ? value : parsed.value;
+  };
+  const firstDefined = (values: unknown[]) => {
+    return values.find((value) => value !== undefined);
+  };
+  const getToolCallMetadata = (span: EvalTraceSpan) => {
+    const attributes = span.attributes;
+    const genAI = readRecordValue(attributes, 'genAI');
+    const mastra = readRecordValue(attributes, 'mastra');
+    const toolAttributes = readRecordValue(attributes, 'attributes');
+    return { attributes, genAI, mastra, toolAttributes };
+  };
   const isToolCallSpan = (span: EvalTraceSpan) => {
-    return span.kind === 'tool' || span.kind === 'tool_call';
+    const { attributes, genAI, mastra } = getToolCallMetadata(span);
+    return (
+      span.kind === 'tool' ||
+      span.kind === 'tool_call' ||
+      readStringValue(attributes, 'gen_ai.tool.type') === 'tool' ||
+      readStringValue(genAI, 'gen_ai.tool.type') === 'tool' ||
+      readStringValue(genAI, 'mastra.span.type') === 'tool_call' ||
+      readStringValue(mastra, 'type') === 'tool_call' ||
+      readStringValue(mastra, 'entityType') === 'tool'
+    );
+  };
+  const getToolCallIdentityNames = (span: EvalTraceSpan) => {
+    const { attributes, genAI, mastra } = getToolCallMetadata(span);
+    return [
+      readStringValue(attributes, 'gen_ai.tool.name'),
+      readStringValue(genAI, 'gen_ai.tool.name'),
+      readStringValue(mastra, 'entityName'),
+      readStringValue(mastra, 'entityId'),
+      span.name,
+    ].filter((name) => name !== undefined);
+  };
+  const getPreferredToolCallName = (span: EvalTraceSpan) => {
+    return getToolCallIdentityNames(span)[0] ?? span.name;
+  };
+  const toolCallSpanMatchesName = (span: EvalTraceSpan, toolName: string) => {
+    return getToolCallIdentityNames(span).includes(toolName);
+  };
+  const countToolCallSpans = (toolName: string) => {
+    return spans.filter((span) => {
+      return isToolCallSpan(span) && toolCallSpanMatchesName(span, toolName);
+    }).length;
+  };
+  const buildToolCallSpan = (span: EvalTraceSpan) => {
+    const { attributes, genAI, toolAttributes } = getToolCallMetadata(span);
+    return {
+      name: getPreferredToolCallName(span),
+      spanName: span.name,
+      kind: span.kind,
+      arguments: parseMaybeJson(
+        firstDefined([
+          readValue(attributes, 'gen_ai.tool.call.arguments'),
+          readValue(genAI, 'gen_ai.tool.call.arguments'),
+          readValue(attributes, 'arguments'),
+          readValue(attributes, 'input'),
+        ]),
+      ),
+      result: parseMaybeJson(
+        firstDefined([
+          readValue(attributes, 'gen_ai.tool.call.result'),
+          readValue(genAI, 'gen_ai.tool.call.result'),
+          readValue(attributes, 'result'),
+          readValue(attributes, 'output'),
+        ]),
+      ),
+      description:
+        readStringValue(attributes, 'gen_ai.tool.description') ??
+        readStringValue(genAI, 'gen_ai.tool.description') ??
+        readStringValue(toolAttributes, 'toolDescription'),
+      toolType:
+        readStringValue(attributes, 'gen_ai.tool.type') ??
+        readStringValue(genAI, 'gen_ai.tool.type') ??
+        readStringValue(toolAttributes, 'toolType'),
+      attributes,
+      span,
+    };
   };
   const filterSpanNames = (
     sourceSpans: EvalTraceSpan[],
@@ -903,16 +1003,25 @@ export function buildTraceTree(
       return spans.filter(isToolCallSpan);
     },
     listToolCallSpanNames() {
-      return spans.filter(isToolCallSpan).map((span) => span.name);
+      return spans.filter(isToolCallSpan).map(getPreferredToolCallName);
     },
     hasToolCallSpan(name) {
-      return spans.some((s) => isToolCallSpan(s) && s.name === name);
+      return spans.some((s) => {
+        return isToolCallSpan(s) && toolCallSpanMatchesName(s, name);
+      });
     },
-    hasNToolCallSpans(toolName, expectedCalls) {
-      const actualCalls = spans.filter((span) => {
-        return isToolCallSpan(span) && span.name === toolName;
-      }).length;
-      return actualCalls === expectedCalls;
+    getToolCallSpans(name) {
+      return spans
+        .filter((span) => {
+          return isToolCallSpan(span) && toolCallSpanMatchesName(span, name);
+        })
+        .map(buildToolCallSpan);
+    },
+    getToolCallSpanCount(toolName) {
+      return countToolCallSpans(toolName);
+    },
+    hasToolCallSpanCount(toolName, expectedCalls) {
+      return countToolCallSpans(toolName) === expectedCalls;
     },
     listSpanNames(kind) {
       return filterSpanNames(spans, kind);

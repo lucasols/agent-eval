@@ -35,12 +35,15 @@ defineEval<HighValueRefundInput>({
     await runHighValueRefundWorkflow(input);
   },
   tracingAssertions: ({ trace }) => {
+    const receiptInspectionCalls = trace.getToolCallSpans(
+      'inspect-premium-receipt',
+    );
     evalAssert(
-      trace.hasNToolCallSpans('inspect-premium-receipt', 1),
+      receiptInspectionCalls.length === 1,
       'high value refunds should inspect the receipt once',
     );
     evalAssert(
-      trace.hasNToolCallSpans('open-finance-escalation', 1),
+      trace.hasToolCallSpanCount('open-finance-escalation', 1),
       'high value refunds should open one finance escalation',
     );
   },

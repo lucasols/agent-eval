@@ -53,6 +53,28 @@ export type EvalCase<TInput = unknown> = {
   tags?: string[];
 };
 
+/** Normalized view of one tool-call span and its common tool metadata. */
+export type EvalToolCallSpan = {
+  /** Preferred tool name, using GenAI/Mastra identity metadata when present. */
+  name: string;
+  /** Original trace span display name. */
+  spanName: string;
+  /** Original trace span kind. */
+  kind: string;
+  /** Parsed tool-call arguments, or the raw value when parsing is not possible. */
+  arguments: unknown;
+  /** Parsed tool-call result, or the raw value when parsing is not possible. */
+  result: unknown;
+  /** Tool description from GenAI/Mastra metadata when present. */
+  description: string | undefined;
+  /** Tool type from GenAI/Mastra metadata when present. */
+  toolType: string | undefined;
+  /** Original span attributes. */
+  attributes: Record<string, unknown> | undefined;
+  /** Original trace span for fields not normalized above. */
+  span: EvalTraceSpan;
+};
+
 /** Query helpers built from the flattened trace recorded for one eval case. */
 export type EvalTraceTree = {
   /** Flat span list in creation order. */
@@ -69,12 +91,19 @@ export type EvalTraceTree = {
   findSpansByKind: (kind: string) => EvalTraceSpan[];
   /** Return every span with `kind: 'tool'` or `kind: 'tool_call'`. */
   findToolCallSpans: () => EvalTraceSpan[];
-  /** Return the names of every span with `kind: 'tool'` or `kind: 'tool_call'`. */
+  /**
+   * Return tool-call names, preferring GenAI/Mastra tool identity attributes
+   * when available.
+   */
   listToolCallSpanNames: () => string[];
-  /** Return whether a tool-call span has a name exactly matching `name`. */
+  /** Return whether a tool-call span name or tool identity matches `name`. */
   hasToolCallSpan: (name: string) => boolean;
-  /** Return whether a tool-call span name appears exactly `expectedCalls` times. */
-  hasNToolCallSpans: (toolName: string, expectedCalls: number) => boolean;
+  /** Return normalized tool-call spans whose name or tool identity matches `name`. */
+  getToolCallSpans: (name: string) => EvalToolCallSpan[];
+  /** Return how many tool-call spans have a name or tool identity matching `toolName`. */
+  getToolCallSpanCount: (toolName: string) => number;
+  /** Return whether a tool-call span name or tool identity appears exactly `expectedCalls` times. */
+  hasToolCallSpanCount: (toolName: string, expectedCalls: number) => boolean;
   /** Return span names in creation order, optionally filtered by kind. */
   listSpanNames: (kind?: string) => string[];
   /** Return span names in depth-first tree order, optionally filtered by kind. */

@@ -152,11 +152,49 @@ test('runCase supports trace-derived assertions and trace tree helpers', async (
               () => {},
             );
             await evalTracer.span(
-              { kind: 'tool_call', name: 'execute_tool notify-customer' },
+              {
+                kind: 'tool_call',
+                name: 'execute_tool notify-customer',
+                attributes: {
+                  genAI: {
+                    'gen_ai.tool.call.arguments': JSON.stringify({
+                      channel: 'email',
+                    }),
+                    'gen_ai.tool.call.result': JSON.stringify({
+                      delivered: true,
+                    }),
+                    'gen_ai.tool.description': 'Notify the customer',
+                    'gen_ai.tool.name': 'notify-customer',
+                    'gen_ai.tool.type': 'tool',
+                    'mastra.span.type': 'tool_call',
+                  },
+                  mastra: {
+                    entityId: 'notify-customer',
+                    entityName: 'notify-customer',
+                    entityType: 'tool',
+                    type: 'tool_call',
+                  },
+                },
+              },
               () => {},
             );
             await evalTracer.span(
-              { kind: 'tool_call', name: 'execute_tool notify-customer' },
+              {
+                kind: 'tool_call',
+                name: 'execute_tool notify-customer',
+                attributes: {
+                  genAI: {
+                    'gen_ai.tool.call.arguments': JSON.stringify({
+                      channel: 'sms',
+                    }),
+                    'gen_ai.tool.call.result': JSON.stringify({
+                      delivered: false,
+                    }),
+                    'gen_ai.tool.name': 'notify-customer',
+                    'gen_ai.tool.type': 'tool',
+                  },
+                },
+              },
               () => {},
             );
           },
@@ -169,20 +207,52 @@ test('runCase supports trace-derived assertions and trace tree helpers', async (
         evalExpect(trace.listToolCallSpanNames()).toEqual([
           'lookup-customer',
           'submit-refund',
-          'execute_tool notify-customer',
-          'execute_tool notify-customer',
+          'notify-customer',
+          'notify-customer',
         ]);
-        evalExpect(trace.hasNToolCallSpans('submit-refund', 1)).toBe(true);
-        evalExpect(trace.hasNToolCallSpans('submit-refund', 2)).toBe(false);
+        evalExpect(trace.getToolCallSpanCount('submit-refund')).toBe(1);
+        evalExpect(trace.getToolCallSpanCount('notify-customer')).toBe(2);
         evalExpect(
-          trace.hasNToolCallSpans('execute_tool notify-customer', 2),
-        ).toBe(true);
+          trace.getToolCallSpanCount('execute_tool notify-customer'),
+        ).toBe(2);
+        evalExpect(
+          trace
+            .getToolCallSpans('notify-customer')
+            .map((toolCall) => ({
+              arguments: toolCall.arguments,
+              description: toolCall.description,
+              name: toolCall.name,
+              result: toolCall.result,
+              spanName: toolCall.spanName,
+              toolType: toolCall.toolType,
+            })),
+        ).toEqual([
+          {
+            arguments: { channel: 'email' },
+            description: 'Notify the customer',
+            name: 'notify-customer',
+            result: { delivered: true },
+            spanName: 'execute_tool notify-customer',
+            toolType: 'tool',
+          },
+          {
+            arguments: { channel: 'sms' },
+            description: undefined,
+            name: 'notify-customer',
+            result: { delivered: false },
+            spanName: 'execute_tool notify-customer',
+            toolType: 'tool',
+          },
+        ]);
+        evalExpect(trace.hasToolCallSpanCount('submit-refund', 1)).toBe(true);
+        evalExpect(trace.hasToolCallSpanCount('submit-refund', 2)).toBe(false);
+        evalExpect(trace.hasToolCallSpanCount('notify-customer', 2)).toBe(true);
         evalAssert(
           trace.hasToolCallSpan('submit-refund'),
           'refund submission tool should be called',
         );
         evalAssert(
-          trace.hasToolCallSpan('execute_tool notify-customer'),
+          trace.hasToolCallSpan('notify-customer'),
           'customer notification tool should be called',
         );
         evalExpect(trace.listSpanNamesDfs()).toEqual([

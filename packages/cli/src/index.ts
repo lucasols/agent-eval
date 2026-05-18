@@ -135,6 +135,7 @@ export {
   type EvalDeriveValueFn,
   type EvalTracingAssertionsConfig,
   type EvalTracingAssertionsFn,
+  type EvalToolCallSpan,
   type EvalScoreContext,
   type EvalScoreFn,
   type EvalScoreDef,

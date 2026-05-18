@@ -90,6 +90,7 @@ export type {
   EvalCase,
   EvalColumnOverride,
   EvalColumns,
+  EvalToolCallSpan,
   EvalTraceTree,
   EvalExecuteContext,
   EvalSetOutput,
