@@ -48,6 +48,10 @@ import {
 import { copyTextToClipboard } from '#src/utils/clipboard';
 import { getEvalIdsForFolderPath, scopeRunCases } from '#src/utils/evalRuns';
 import { formatDuration, formatTimestamp } from '#src/utils/formatters';
+import {
+  formatRunFolderDisplayPath,
+  formatRunFolderPath,
+} from '#src/utils/runPaths';
 
 const DrawerLoading = styled.div`
   border-left: 1px solid ${colors.border.var};
@@ -287,22 +291,9 @@ const EmptyCases = styled.div`
   border-radius: var(--radius-md);
 `;
 
-const trailingPathSeparatorsRegex = /[\\/]+$/;
-
 function formatCaseDuration(caseRow: CaseRow): string {
   if (caseRow.durationMs === null || caseRow.durationMs <= 0) return '—';
   return formatDuration(caseRow.durationMs);
-}
-
-function formatRunFolderPath(workspaceRoot: string, runId: string): string {
-  if (workspaceRoot.length === 0) return `.agent-evals/runs/${runId}`;
-  const separator = workspaceRoot.includes('\\') ? '\\' : '/';
-  const root = workspaceRoot.replace(trailingPathSeparatorsRegex, '');
-  return `${root}${separator}.agent-evals${separator}runs${separator}${runId}`;
-}
-
-function formatRunFolderDisplayPath(runId: string): string {
-  return `<root>/.agent-evals/runs/${runId}`;
 }
 
 function formatTarget(target: {

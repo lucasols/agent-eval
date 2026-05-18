@@ -570,6 +570,8 @@ Targeted evals in `run.json` are recorded by exact `evalKeys`
 unambiguous in saved history.
 Temporary runs use the same directory layout, but are removed before the next
 run of any kind starts.
+When a saved case needs to be handed to another agent, the app can copy the
+saved case detail path or the saved run folder path directly.
 
 Use `agent-evals show-runs` when you need stable file
 paths before reading saved output:

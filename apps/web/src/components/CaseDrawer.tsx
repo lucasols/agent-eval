@@ -48,6 +48,7 @@ import {
   caseDetailStore,
   closeCase,
   recalculateDerivedAttributesForCase,
+  runDetailStore,
   runStore,
 } from '#src/stores/runStore';
 import {
@@ -60,6 +61,7 @@ import {
   getScopedCacheActivityEntries,
   type ScopedCacheActivityEntry,
 } from '#src/utils/cacheActivity';
+import { copyTextToClipboard } from '#src/utils/clipboard';
 import { formatNumericCellValue } from '#src/utils/formatters';
 import {
   findDiagnosticOutputMatch,
@@ -69,6 +71,11 @@ import {
   getDisplayColumnLabel,
   mergeRuntimeColumnDefs,
 } from '#src/utils/runtimeColumnDefs';
+import {
+  formatCaseDetailPath,
+  formatRunFolderPath,
+  getCaseArtifactFileId,
+} from '#src/utils/runPaths';
 
 type Tab =
   | 'input'
@@ -401,7 +408,11 @@ export function CaseDrawer() {
       ? null
       : { runId: selectedCaseRunId, caseId: selectedCaseId },
   );
+  const selectedRunResult = runDetailStore.useItem(
+    selectedCaseRunId === null ? null : { runId: selectedCaseRunId },
+  );
   const selectedCaseDetail = selectedCaseResult.data;
+  const selectedRunDetail = selectedRunResult.data;
   const evals = evalSummariesStore.useDocument().data ?? [];
   const { sidebarWidth } = layoutStore.useSelectorRC((s) => ({
     sidebarWidth: s.sidebarWidth,
@@ -468,6 +479,26 @@ export function CaseDrawer() {
   }
 
   const d = selectedCaseDetail;
+  const runFolderPath =
+    selectedCaseRunId === null
+      ? null
+      : formatRunFolderPath(workspaceRoot, selectedCaseRunId);
+  const caseArtifactFileId = selectedRunDetail
+    ? getCaseArtifactFileId(selectedRunDetail.cases, d)
+    : d.caseId;
+  const casePath =
+    runFolderPath === null
+      ? null
+      : formatCaseDetailPath({ runFolderPath, caseArtifactFileId });
+  async function handleCopyCasePath() {
+    if (casePath === null) return;
+    await copyTextToClipboard(casePath, 'Copy case path');
+  }
+
+  async function handleCopyRunPath() {
+    if (runFolderPath === null) return;
+    await copyTextToClipboard(runFolderPath, 'Copy run path');
+  }
   const evalSummary = evals.find((e) => e.key === (d.evalKey ?? d.evalId));
   const columnDefs = mergeRuntimeColumnDefs(
     evalSummary?.columnDefs ?? [],
@@ -514,6 +545,22 @@ export function CaseDrawer() {
   if (d.error) tabs.push('error');
   const activeTab = resolveActiveTab(searchParams.get('caseTab'), tabs);
   const menuEntries: SplitButtonMenuEntry[] = [
+    {
+      id: 'copy-case-path',
+      label: 'Copy case path',
+      description: 'Copy the saved case detail artifact path.',
+      onSelect: () => {
+        void handleCopyCasePath();
+      },
+    },
+    {
+      id: 'copy-run-path',
+      label: 'Copy run path',
+      description: 'Copy the saved run artifact directory.',
+      onSelect: () => {
+        void handleCopyRunPath();
+      },
+    },
     {
       id: 'recalculate-derived-attributes',
       label: 'Recalculate derived attributes',
