@@ -88,14 +88,8 @@ const RunFilterSelect = styled.select`
 `;
 
 const ShowMoreRow = styled.div`
-  ${inline({ justify: 'center', gap: 10 })};
+  ${inline({ justify: 'center' })};
   margin-top: 12px;
-`;
-
-const ShowMoreMeta = styled.span`
-  ${monoFont};
-  font-size: 10.5px;
-  color: ${colors.textMuted.var};
 `;
 
 export function runMatchesFilter(
@@ -303,7 +297,6 @@ export function EvalRunsSection({
           >
             {`Show ${nextPageSize} more ${nextPageSize === 1 ? 'run' : 'runs'}`}
           </Button>
-          <ShowMoreMeta>{`${hiddenRunCount} more hidden`}</ShowMoreMeta>
         </ShowMoreRow>
       ) : null}
     </>
