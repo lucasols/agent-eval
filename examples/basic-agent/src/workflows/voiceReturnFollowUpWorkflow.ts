@@ -40,7 +40,13 @@ export async function runVoiceReturnFollowUpWorkflow(
               input: { voiceNote: input.voiceNote },
               output: {
                 text: 'Customer requested a return and follow-up instructions.',
-                toolCalls: [],
+                toolCalls: [
+                  {
+                    id: 'call_extract_locale',
+                    name: 'extract-locale-from-transcript',
+                    arguments: { source: 'voice-note' },
+                  },
+                ],
               },
             });
           });

@@ -10,6 +10,7 @@ import type {
   EvalTraceSpanError,
   EvalTraceSpanWarning,
 } from '../schemas/trace.ts';
+import { resultify } from 't-result';
 import { getNestedAttribute } from './getNestedAttribute.ts';
 
 /** Resolved value for one user-defined metric on an LLM call row. */
@@ -70,6 +71,15 @@ function readNumber(attributes: unknown, path: string): number | null {
 function readString(attributes: unknown, path: string): string | null {
   const raw = getNestedAttribute(attributes, path);
   return typeof raw === 'string' && raw.length > 0 ? raw : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function readRecordValue(value: unknown, key: string): unknown {
+  if (!isRecord(value)) return undefined;
+  return value[key];
 }
 
 function computeTokenCost(
@@ -464,6 +474,132 @@ function buildModelStepsByParent(
   return stepsByParent;
 }
 
+function buildChildrenByParent(
+  spans: EvalTraceSpan[],
+): Map<string, EvalTraceSpan[]> {
+  const childrenByParent = new Map<string, EvalTraceSpan[]>();
+  for (const span of spans) {
+    if (span.parentId === null) continue;
+
+    const current = childrenByParent.get(span.parentId);
+    if (current === undefined) {
+      childrenByParent.set(span.parentId, [span]);
+      continue;
+    }
+    current.push(span);
+  }
+  return childrenByParent;
+}
+
+function appendToolCallValues(out: unknown[], value: unknown): boolean {
+  if (Array.isArray(value)) {
+    out.push(...value);
+    return value.length > 0;
+  }
+  if (value === undefined || value === null) return false;
+  out.push(value);
+  return true;
+}
+
+function parseJsonRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== 'string') return null;
+
+  const parsed = resultify((): unknown => JSON.parse(value));
+  if (parsed.error || !isRecord(parsed.value)) return null;
+  return parsed.value;
+}
+
+function readMastraModelStepOutput(
+  step: unknown,
+): Record<string, unknown> | null {
+  const attributes = readRecordValue(step, 'attributes');
+  const genAI = readRecordValue(attributes, 'genAI');
+  return parseJsonRecord(readRecordValue(genAI, 'mastra.model_step.output'));
+}
+
+function isTraceSpan(value: unknown): value is EvalTraceSpan {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.kind === 'string' &&
+    typeof value.name === 'string'
+  );
+}
+
+function toolCallSpanToEntry(span: EvalTraceSpan): Record<string, unknown> {
+  const attrs = span.attributes;
+  const genAI = readRecordValue(attrs, 'genAI');
+  return {
+    id: span.id,
+    name: span.name,
+    kind: span.kind,
+    status: span.status,
+    input: getNestedAttribute(attrs, 'input'),
+    output: getNestedAttribute(attrs, 'output'),
+    arguments: readRecordValue(genAI, 'gen_ai.tool.call.arguments'),
+    result: readRecordValue(genAI, 'gen_ai.tool.call.result'),
+  };
+}
+
+function appendToolCallsFromStep({
+  out,
+  step,
+  childrenByParent,
+}: {
+  out: unknown[];
+  step: unknown;
+  childrenByParent: Map<string, EvalTraceSpan[]>;
+}) {
+  let foundStepCalls = false;
+  foundStepCalls =
+    appendToolCallValues(out, getNestedAttribute(step, 'toolCalls')) ||
+    foundStepCalls;
+  foundStepCalls =
+    appendToolCallValues(out, getNestedAttribute(step, 'output.toolCalls')) ||
+    foundStepCalls;
+  foundStepCalls =
+    appendToolCallValues(
+      out,
+      getNestedAttribute(step, 'attributes.output.toolCalls'),
+    ) || foundStepCalls;
+
+  const mastraOutput = readMastraModelStepOutput(step);
+  if (!foundStepCalls && mastraOutput !== null) {
+    foundStepCalls =
+      appendToolCallValues(out, mastraOutput.toolCalls) || foundStepCalls;
+  }
+
+  if (!isTraceSpan(step)) return;
+  const childToolSpans =
+    childrenByParent.get(step.id)?.filter((child) => child.kind === 'tool_call') ??
+    [];
+  if (childToolSpans.length === 0) return;
+  out.push(...childToolSpans.map((child) => toolCallSpanToEntry(child)));
+}
+
+function readToolCalls({
+  attributes,
+  path,
+  stepDetails,
+  childrenByParent,
+}: {
+  attributes: unknown;
+  path: string;
+  stepDetails: unknown[] | null;
+  childrenByParent: Map<string, EvalTraceSpan[]>;
+}): unknown {
+  const out: unknown[] = [];
+  appendToolCallValues(out, getNestedAttribute(attributes, path));
+
+  if (stepDetails !== null) {
+    for (const step of stepDetails) {
+      appendToolCallsFromStep({ out, step, childrenByParent });
+    }
+  }
+
+  return out.length > 0 ? out : undefined;
+}
+
 function collectWarnings(span: EvalTraceSpan): EvalTraceSpanWarning[] {
   const out: EvalTraceSpanWarning[] = [];
   if (span.warning) out.push(span.warning);
@@ -512,6 +648,7 @@ export function extractLlmCalls(
 ): LlmCallEntry[] {
   const kindSet = new Set(config.kinds);
   const modelStepsByParent = buildModelStepsByParent(spans);
+  const childrenByParent = buildChildrenByParent(spans);
   const result: LlmCallEntry[] = [];
 
   for (const span of spans) {
@@ -599,6 +736,9 @@ export function extractLlmCalls(
       });
     }
 
+    const childModelSteps = modelStepsByParent.get(span.id) ?? [];
+    const stepInfo = readSteps(attrs, config.attributes.steps, childModelSteps);
+
     result.push({
       id: span.id,
       name: span.name,
@@ -623,17 +763,18 @@ export function extractLlmCalls(
       cachedInputCostUsd,
       cacheCreationInputCostUsd,
       reasoningCostUsd,
-      ...readSteps(
-        attrs,
-        config.attributes.steps,
-        modelStepsByParent.get(span.id) ?? [],
-      ),
+      ...stepInfo,
       finishReason: readString(attrs, config.attributes.finishReason),
       durationMs,
       input: getNestedAttribute(attrs, config.attributes.input),
       output: getNestedAttribute(attrs, config.attributes.output),
       reasoning: getNestedAttribute(attrs, config.attributes.reasoning),
-      toolCalls: getNestedAttribute(attrs, config.attributes.toolCalls),
+      toolCalls: readToolCalls({
+        attributes: attrs,
+        path: config.attributes.toolCalls,
+        stepDetails: stepInfo.stepDetails,
+        childrenByParent,
+      }),
       metrics,
       warnings: collectWarnings(span),
       error: pickError(span),

@@ -460,8 +460,8 @@ function metricKey(metric: LlmCallMetricValue): string {
  * reveal token breakdown, built-in and body-placement metrics, then the JSON
  * sections in order: Input / Output / Reasoning / Steps (when the configured
  * `steps` attribute resolved to an array, or when direct child `model_step`
- * spans were captured) / Tool calls. Span warnings and any captured error
- * render at the bottom.
+ * spans were captured) / Tool calls aggregated from the call and its steps.
+ * Span warnings and any captured error render at the bottom.
  *
  * `scenario` controls how costs are displayed. `'actual'` uses the recorded
  * costs as-is. The simulated scenarios (`'noCache'`, `'withBaseCaching'`,

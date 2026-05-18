@@ -706,6 +706,7 @@ test('extractLlmCalls reads steps as an array of step details', () => {
         attributes: {
           model: 'gpt-4o',
           usage: { inputTokens: 10, outputTokens: 5 },
+          toolCalls: [{ id: 'top', name: 'top-level' }],
           steps: stepArray,
         },
       }),
@@ -713,7 +714,15 @@ test('extractLlmCalls reads steps as an array of step details', () => {
     DEFAULT_LLM_CALLS_CONFIG,
   );
 
-  expect(calls[0]).toMatchObject({ stepCount: 2, stepDetails: stepArray });
+  expect(calls[0]).toMatchObject({
+    stepCount: 2,
+    stepDetails: stepArray,
+    toolCalls: [
+      { id: 'top', name: 'top-level' },
+      { id: '1', name: 'lookup' },
+      { id: '2', name: 'apply' },
+    ],
+  });
 });
 
 test('extractLlmCalls falls back to child model step spans', () => {
@@ -763,9 +772,124 @@ test('extractLlmCalls falls back to child model step spans', () => {
         endedAt: '2026-04-21T12:00:00.030Z',
         status: 'ok',
       },
+      {
+        id: 'tool-1',
+        parentId: 'step-1',
+        caseId: 'case-1',
+        kind: 'tool_call',
+        name: 'execute_tool lookup',
+        startedAt: '2026-04-21T12:00:00.030Z',
+        endedAt: '2026-04-21T12:00:00.040Z',
+        status: 'ok',
+        attributes: {
+          input: { query: 'policy' },
+          output: { results: 2 },
+        },
+      },
     ],
     DEFAULT_LLM_CALLS_CONFIG,
   );
 
-  expect(calls[0]).toMatchObject({ stepCount: 2, stepDetails: stepSpans });
+  expect(calls[0]).toMatchObject({
+    stepCount: 2,
+    stepDetails: stepSpans,
+    toolCalls: [
+      { id: '1', name: 'lookup' },
+      {
+        id: 'tool-1',
+        name: 'execute_tool lookup',
+        kind: 'tool_call',
+        input: { query: 'policy' },
+        output: { results: 2 },
+      },
+    ],
+  });
+});
+
+test('extractLlmCalls reads serialized Mastra model step tool calls', () => {
+  const calls = extractLlmCalls(
+    [
+      llmSpan(),
+      {
+        id: 'step-1',
+        parentId: 'span-1',
+        caseId: 'case-1',
+        kind: 'model_step',
+        name: 'step: 0',
+        startedAt: '2026-04-21T12:00:00.010Z',
+        endedAt: '2026-04-21T12:00:00.050Z',
+        status: 'ok',
+        attributes: {
+          genAI: {
+            'mastra.model_step.output':
+              '{"text":"","toolCalls":[{"toolCallId":"call-1","toolName":"createFullApp","args":{"appLanguage":"English"}}]}',
+          },
+        },
+      },
+    ],
+    DEFAULT_LLM_CALLS_CONFIG,
+  );
+
+  expect(calls[0]).toMatchObject({
+    stepCount: 1,
+    toolCalls: [
+      {
+        toolCallId: 'call-1',
+        toolName: 'createFullApp',
+        args: { appLanguage: 'English' },
+      },
+    ],
+  });
+});
+
+test('extractLlmCalls falls back to model step child tool call spans', () => {
+  const calls = extractLlmCalls(
+    [
+      llmSpan(),
+      {
+        id: 'step-1',
+        parentId: 'span-1',
+        caseId: 'case-1',
+        kind: 'model_step',
+        name: 'step: 0',
+        startedAt: '2026-04-21T12:00:00.010Z',
+        endedAt: '2026-04-21T12:00:00.050Z',
+        status: 'ok',
+      },
+      {
+        id: 'tool-1',
+        parentId: 'step-1',
+        caseId: 'case-1',
+        kind: 'tool_call',
+        name: 'execute_tool createFullApp',
+        startedAt: '2026-04-21T12:00:00.020Z',
+        endedAt: '2026-04-21T12:00:00.040Z',
+        status: 'ok',
+        attributes: {
+          input: { appLanguage: 'English' },
+          output: { createdTables: [] },
+          genAI: {
+            'gen_ai.tool.call.arguments': '{"appLanguage":"English"}',
+            'gen_ai.tool.call.result': '{"createdTables":[]}',
+          },
+        },
+      },
+    ],
+    DEFAULT_LLM_CALLS_CONFIG,
+  );
+
+  expect(calls[0]).toMatchObject({
+    stepCount: 1,
+    toolCalls: [
+      {
+        id: 'tool-1',
+        name: 'execute_tool createFullApp',
+        kind: 'tool_call',
+        input: { appLanguage: 'English' },
+        output: { createdTables: [] },
+        arguments: '{"appLanguage":"English"}',
+        result: '{"createdTables":[]}',
+      },
+    ],
+  });
 });

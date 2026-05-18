@@ -385,9 +385,13 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   `usage.*`, `latencyMs`, `input`, `output`, etc. read from conventional
   attribute paths. The default `steps` path reads an array from
   `span.attributes.steps`; if it is missing, direct child `model_step` spans are
-  shown as that call's steps. `latencyMs` is time to first token; duration,
-  total tokens, output tokens/sec, and USD costs are derived. Override `kinds`
-  to broaden the filter,
+  shown as that call's steps. Tool calls are aggregated from the configured
+  `toolCalls` path plus step-level `toolCalls` on authored step arrays or
+  direct `model_step` child spans, including Mastra's serialized
+  `mastra.model_step.output` format, and child `tool_call` execution spans
+  under each model step. `latencyMs` is time to first token; duration, total
+  tokens, output tokens/sec, and USD costs are derived. Override `kinds` to
+  broaden the filter,
   override `attributes.<field>` for non-default primitive span shapes, configure
   model-keyed `pricing` to derive USD costs from token counts, with nested
   `providers` entries for provider-specific rates, add `costCurrencies` to show

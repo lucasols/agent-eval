@@ -21,6 +21,7 @@
     "eslint": "eslint ."
   },
   "dependencies": {
+    "t-result": "^0.6.1",
     "zod": "^4.1.11"
   },
   "devDependencies": {
