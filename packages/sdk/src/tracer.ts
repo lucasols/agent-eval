@@ -5,11 +5,7 @@ import type {
   SpanCacheOptions,
 } from '@agent-evals/shared';
 import { hashCacheKey } from './cacheKey.ts';
-import {
-  appendSubSpanOps,
-  replayRecording,
-  stripCacheAttributes,
-} from './cacheRecording.ts';
+import { appendSubSpanOps, replayRecording } from './cacheRecording.ts';
 import {
   deserializeCacheRecording,
   serializeCacheRecording,
@@ -19,6 +15,10 @@ import {
   getCurrentActiveSpan,
   getCurrentScope,
   getRealDateNowMs,
+  recordCacheRecordingAttributesIfActive,
+  recordCacheRecordingOpIfActive,
+  recordSpanForActiveCacheRecording,
+  runWithCacheRecordingFrame,
   runWithActiveSpan,
   startEvalBackgroundJob,
 } from './runtime.ts';
@@ -180,6 +180,22 @@ function mergeSpanAttributes(
   attributes: Record<string, unknown>,
 ): void {
   span.attributes = { ...span.attributes, ...attributes };
+  const scope = getCurrentScope();
+  if (scope !== undefined) {
+    recordCacheRecordingAttributesIfActive(scope, span, attributes);
+  }
+}
+
+function copyNonCacheAttributes(
+  attributes: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(attributes ?? {})) {
+    if (!key.startsWith('cache.')) {
+      result[key] = value;
+    }
+  }
+  return result;
 }
 
 function isRecordLike(value: unknown): value is Record<string, unknown> {
@@ -387,6 +403,7 @@ function startExternalSpan(
     status: 'running',
     attributes: info.attributes,
   });
+  recordSpanForActiveCacheRecording(scope, id);
 
   return createExternalSpanHandle(id);
 }
@@ -460,6 +477,7 @@ function recordExternalSpan(info: TraceExternalSpanRecordInfo): string {
     warning: info.warning,
     warnings: info.warnings,
   });
+  recordSpanForActiveCacheRecording(scope, id);
 
   return id;
 }
@@ -621,6 +639,7 @@ async function traceSpanInternal(
   };
 
   scope.spans.push(spanRecord);
+  recordSpanForActiveCacheRecording(scope, id);
 
   const activeSpan = createSpanHandle(spanRecord);
 
@@ -689,16 +708,14 @@ async function traceSpanInternal(
         const frame: CacheRecordingFrame = {
           baseSpanIndex: scope.spans.length,
           replayParentSpanId: id,
+          spanIds: new Set<string>(),
+          finalAttributes: copyNonCacheAttributes(spanRecord.attributes),
           ops: [],
         };
-        scope.recordingStack.push(frame);
 
-        let bodyResult: unknown;
-        try {
-          bodyResult = await fn(activeSpan);
-        } finally {
-          scope.recordingStack.pop();
-        }
+        const bodyResult = await runWithCacheRecordingFrame(frame, async () => {
+          return await fn(activeSpan);
+        });
 
         appendSubSpanOps(scope, frame);
         finishSpanWithoutThrownError(spanRecord, realStartedAt);
@@ -706,7 +723,7 @@ async function traceSpanInternal(
         if (canStore) {
           const recording: CacheRecording = {
             returnValue: bodyResult,
-            finalAttributes: stripCacheAttributes(spanRecord.attributes),
+            finalAttributes: frame.finalAttributes,
             finalStatus: spanRecord.status,
             finalError: spanRecord.error,
             finalErrors: spanRecord.errors,
@@ -831,10 +848,8 @@ export const evalTracer = {
       status: 'ok',
       attributes: { value: data },
     });
-    if (scope.replayingDepth === 0) {
-      const top = scope.recordingStack.at(-1);
-      if (top) top.ops.push({ kind: 'checkpoint', name, data });
-    }
+    recordSpanForActiveCacheRecording(scope, id);
+    recordCacheRecordingOpIfActive(scope, { kind: 'checkpoint', name, data });
   },
 };
 

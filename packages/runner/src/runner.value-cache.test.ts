@@ -2,7 +2,13 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { CacheAdapter } from '@agent-evals/sdk';
-import { evalTracer, runInEvalScope, setEvalOutput } from '@agent-evals/sdk';
+import {
+  appendToEvalOutput,
+  evalSpan,
+  evalTracer,
+  runInEvalScope,
+  setEvalOutput,
+} from '@agent-evals/sdk';
 import type { CacheEntry, EvalTraceSpan } from '@agent-evals/shared';
 import { afterEach, expect, test } from 'vitest';
 import { createRunner } from './runner.ts';
@@ -417,4 +423,92 @@ test('revives rich cached values with Seroval while using the existing cache key
   if (isRecord(checkpoint)) {
     expectDateValue(checkpoint.generatedAt, '2024-01-02T03:04:05.000Z');
   }
+});
+
+test('value cache replay does not duplicate sibling spans from concurrent work', async () => {
+  const entries = new Map<string, CacheEntry>();
+  const adapter = {
+    lookup(namespace, keyHash) {
+      return Promise.resolve(entries.get(`${namespace}:${keyHash}`) ?? null);
+    },
+    write(entry) {
+      entries.set(`${entry.namespace}:${entry.key}`, entry);
+      return Promise.resolve();
+    },
+  } satisfies CacheAdapter;
+
+  let cacheBodyCalls = 0;
+
+  async function runConcurrentTrace(): Promise<{
+    outputs: Record<string, unknown>;
+    spans: EvalTraceSpan[];
+  }> {
+    let markCacheBodyStarted: (() => void) | undefined;
+    const cacheBodyStarted = new Promise<'body'>((resolve) => {
+      markCacheBodyStarted = () => {
+        resolve('body');
+      };
+    });
+    let allowCacheFinish: (() => void) | undefined;
+    const cacheMayFinish = new Promise<void>((resolve) => {
+      allowCacheFinish = resolve;
+    });
+
+    const result = await runInEvalScope(
+      'case',
+      async () => {
+        await evalTracer.span({ kind: 'agent', name: 'parent' }, async () => {
+          const cachedPlan = evalTracer.cache(
+            { name: 'plan', key: { id: 'same-plan' } },
+            async () => {
+              cacheBodyCalls++;
+              markCacheBodyStarted?.();
+              await cacheMayFinish;
+              evalSpan.setAttribute('cacheBranch', 'fresh');
+              return { plan: 'cached' };
+            },
+          );
+
+          const siblingApi = (async () => {
+            await Promise.race([cacheBodyStarted, cachedPlan]);
+            evalSpan.incrementAttribute('siblingCount', 1);
+            appendToEvalOutput('siblingEvents', 'api');
+            await evalTracer.span({ kind: 'api', name: 'sibling-api' }, () => {
+              setEvalOutput('siblingApiRan', true);
+            });
+            allowCacheFinish?.();
+          })();
+
+          await Promise.all([cachedPlan, siblingApi]);
+        });
+      },
+      { cacheContext: { adapter, mode: 'use', evalId: 'concurrent-cache' } },
+    );
+
+    expect(result.error).toBeUndefined();
+    return { outputs: result.scope.outputs, spans: result.scope.spans };
+  }
+
+  const firstTrace = await runConcurrentTrace();
+  const secondTrace = await runConcurrentTrace();
+
+  expect(cacheBodyCalls).toBe(1);
+  const firstParent = findSpan(firstTrace.spans, 'parent');
+  const secondParent = findSpan(secondTrace.spans, 'parent');
+  expect(firstParent.attributes).toMatchObject({
+    cacheBranch: 'fresh',
+    siblingCount: 1,
+  });
+  expect(secondParent.attributes).toMatchObject({
+    cacheBranch: 'fresh',
+    siblingCount: 1,
+  });
+  expect(firstTrace.outputs.siblingEvents).toEqual(['api']);
+  expect(secondTrace.outputs.siblingEvents).toEqual(['api']);
+  expect(
+    firstTrace.spans.filter((span) => span.name === 'sibling-api'),
+  ).toHaveLength(1);
+  expect(
+    secondTrace.spans.filter((span) => span.name === 'sibling-api'),
+  ).toHaveLength(1);
 });

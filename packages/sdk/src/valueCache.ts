@@ -2,10 +2,8 @@ import type { CacheRecording } from '@agent-evals/shared';
 import { hashCacheKey } from './cacheKey.ts';
 import {
   appendSubSpanOps,
-  diffNonCacheAttributes,
   recordCacheRef,
   replayRecording,
-  snapshotNonCacheAttributes,
 } from './cacheRecording.ts';
 import {
   deserializeCacheRecording,
@@ -16,6 +14,7 @@ import {
   getCurrentActiveSpan,
   getCurrentScope,
   getRealDateNowMs,
+  runWithCacheRecordingFrame,
 } from './runtime.ts';
 
 /** Info accepted by `evalTracer.cache(info, fn)` for spanless value caching. */
@@ -114,31 +113,24 @@ export function createTraceCache(generateSpanId: () => string): {
       });
     }
 
-    const beforeAttributes = await snapshotNonCacheAttributes(activeSpan);
     const frame: CacheRecordingFrame = {
       baseSpanIndex: scope.spans.length,
       replayParentSpanId: activeSpan?.id ?? null,
+      spanIds: new Set<string>(),
+      finalAttributes: {},
       ops: [],
     };
-    scope.recordingStack.push(frame);
 
-    let bodyResult: unknown;
-    try {
-      bodyResult = await fn();
-    } finally {
-      scope.recordingStack.pop();
-    }
+    const bodyResult = await runWithCacheRecordingFrame(frame, async () => {
+      return await fn();
+    });
 
     appendSubSpanOps(scope, frame);
 
     if (canStore) {
-      const finalAttributes = diffNonCacheAttributes(
-        beforeAttributes,
-        await snapshotNonCacheAttributes(activeSpan),
-      );
       const recording: CacheRecording = {
         returnValue: bodyResult,
-        finalAttributes,
+        finalAttributes: frame.finalAttributes,
         ops: frame.ops,
       };
       await cacheCtx.adapter.write(

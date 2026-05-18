@@ -90,6 +90,10 @@ export type CacheRecordingFrame = {
   baseSpanIndex: number;
   /** Parent id used when recording and replaying direct child spans. */
   replayParentSpanId: string | null;
+  /** Spans created by this cache body's async execution branch. */
+  spanIds: Set<string>;
+  /** Non-cache attributes written to the replay parent by this async branch. */
+  finalAttributes: Record<string, unknown>;
   /** Ordered observable effects recorded during the cached body. */
   ops: CacheRecordingOp[];
 };
@@ -135,11 +139,6 @@ export type EvalCaseScope = {
   spans: EvalTraceSpan[];
   checkpoints: Map<string, unknown>;
   /**
-   * Stack of active cache recorders. Ops are written to the top-most frame
-   * when it exists and `replayingDepth === 0`.
-   */
-  recordingStack: CacheRecordingFrame[];
-  /**
    * Incremented while replaying a cached operation, so nested SDK calls do not
    * accidentally double-record ops into outer recorders.
    */
@@ -175,6 +174,7 @@ const scopeStorage = new AsyncLocalStorage<EvalCaseScope>();
 const runtimeScopeStorage = new AsyncLocalStorage<EvalRuntimeScope>();
 const evalClockStorage = new AsyncLocalStorage<EvalClockState>();
 const activeSpanStackStorage = new AsyncLocalStorage<EvalTraceSpan[]>();
+const recordingStackStorage = new AsyncLocalStorage<CacheRecordingFrame[]>();
 let activeEvalScopeCount = 0;
 let activeEvalRuntimeScopeCount = 0;
 let consoleCaptureEnabled = true;
@@ -419,6 +419,33 @@ export async function runWithActiveSpan<T>(
 ): Promise<T> {
   const currentStack = activeSpanStackStorage.getStore() ?? [];
   return await activeSpanStackStorage.run([...currentStack, span], fn);
+}
+
+/** Execute a callback with a cache recording frame scoped to this async branch. */
+export async function runWithCacheRecordingFrame<T>(
+  frame: CacheRecordingFrame,
+  fn: () => Promise<T> | T,
+): Promise<T> {
+  const currentStack = recordingStackStorage.getStore() ?? [];
+  return await recordingStackStorage.run([...currentStack, frame], fn);
+}
+
+function getCurrentCacheRecordingFrame(
+  scope: EvalCaseScope,
+): CacheRecordingFrame | undefined {
+  if (scope.replayingDepth > 0) return undefined;
+  return recordingStackStorage.getStore()?.at(-1);
+}
+
+/** Mark a span as created by the active cache recorder, when one exists. */
+export function recordSpanForActiveCacheRecording(
+  scope: EvalCaseScope,
+  spanId: string,
+): void {
+  if (scope.replayingDepth > 0) return;
+  for (const frame of recordingStackStorage.getStore() ?? []) {
+    frame.spanIds.add(spanId);
+  }
 }
 
 /**
@@ -858,7 +885,6 @@ export async function runInEvalScope<T>(
     logs: [],
     spans: [],
     checkpoints: new Map(),
-    recordingStack: [],
     replayingDepth: 0,
     cacheContext: options.cacheContext,
     caseCacheRefs: [],
@@ -905,10 +931,29 @@ export function nextEvalId(): string {
   return `${scope.idPrefix}-${scope.nextEvalIdCounter}`;
 }
 
-function recordOpIfActive(scope: EvalCaseScope, op: CacheRecordingOp): void {
-  if (scope.replayingDepth > 0) return;
-  const top = scope.recordingStack.at(-1);
-  if (top) top.ops.push(op);
+export function recordCacheRecordingOpIfActive(
+  scope: EvalCaseScope,
+  op: CacheRecordingOp,
+): void {
+  getCurrentCacheRecordingFrame(scope)?.ops.push(op);
+}
+
+export function recordCacheRecordingAttributesIfActive(
+  scope: EvalCaseScope,
+  span: EvalTraceSpan,
+  attributes: Record<string, unknown>,
+): void {
+  const frames = recordingStackStorage.getStore();
+  if (scope.replayingDepth > 0 || frames === undefined) return;
+
+  for (const [key, value] of Object.entries(attributes)) {
+    if (key.startsWith('cache.')) continue;
+    for (const frame of frames) {
+      if (span.id === frame.replayParentSpanId) {
+        frame.finalAttributes[key] = value;
+      }
+    }
+  }
 }
 
 function normalizeEvalOutputOptions(
@@ -956,7 +1001,12 @@ export function setEvalOutput(
   if (column !== undefined) {
     scope.outputColumnOverrides[key] = column;
   }
-  recordOpIfActive(scope, { kind: 'setOutput', key, value, column });
+  recordCacheRecordingOpIfActive(scope, {
+    kind: 'setOutput',
+    key,
+    value,
+    column,
+  });
 }
 
 /**
@@ -976,7 +1026,7 @@ export function appendToEvalOutput(key: string, value: unknown): void {
   } else {
     scope.outputs[key] = [existing, value];
   }
-  recordOpIfActive(scope, { kind: 'appendOutput', key, value });
+  recordCacheRecordingOpIfActive(scope, { kind: 'appendOutput', key, value });
 }
 
 /**
@@ -994,7 +1044,7 @@ export function mergeEvalOutput(
   const existing = scope.outputs[key];
   if (existing === undefined) {
     scope.outputs[key] = { ...patch };
-    recordOpIfActive(scope, { kind: 'mergeOutput', key, patch });
+    recordCacheRecordingOpIfActive(scope, { kind: 'mergeOutput', key, patch });
     return;
   }
   if (!isObjectRecord(existing)) {
@@ -1007,7 +1057,7 @@ export function mergeEvalOutput(
     return;
   }
   scope.outputs[key] = { ...existing, ...patch };
-  recordOpIfActive(scope, { kind: 'mergeOutput', key, patch });
+  recordCacheRecordingOpIfActive(scope, { kind: 'mergeOutput', key, patch });
 }
 
 /**
@@ -1022,7 +1072,11 @@ export function incrementEvalOutput(key: string, delta: number): void {
   const existing = scope.outputs[key];
   if (existing === undefined) {
     scope.outputs[key] = delta;
-    recordOpIfActive(scope, { kind: 'incrementOutput', key, delta });
+    recordCacheRecordingOpIfActive(scope, {
+      kind: 'incrementOutput',
+      key,
+      delta,
+    });
     return;
   }
   if (typeof existing !== 'number') {
@@ -1035,7 +1089,11 @@ export function incrementEvalOutput(key: string, delta: number): void {
     return;
   }
   scope.outputs[key] = existing + delta;
-  recordOpIfActive(scope, { kind: 'incrementOutput', key, delta });
+  recordCacheRecordingOpIfActive(scope, {
+    kind: 'incrementOutput',
+    key,
+    delta,
+  });
 }
 
 /**

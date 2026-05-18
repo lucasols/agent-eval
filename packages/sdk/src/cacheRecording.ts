@@ -5,7 +5,6 @@ import type {
   SerializedCacheSpan,
   TraceCacheRef,
 } from '@agent-evals/shared';
-import { cloneCacheValue } from './cacheSerialization.ts';
 import type { CacheRecordingFrame, EvalCaseScope } from './runtime.ts';
 
 export type { TraceCacheRef } from '@agent-evals/shared';
@@ -29,50 +28,6 @@ function valueKind(value: unknown): string {
 
 function copyArray(value: unknown[]): unknown[] {
   return value.map((item: unknown) => item);
-}
-
-export function stripCacheAttributes(
-  attributes: Record<string, unknown> | undefined,
-): Record<string, unknown> {
-  if (!attributes) return {};
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(attributes)) {
-    if (!key.startsWith('cache.')) {
-      result[key] = value;
-    }
-  }
-  return result;
-}
-
-export async function snapshotNonCacheAttributes(
-  span: EvalTraceSpan | undefined,
-): Promise<Record<string, unknown>> {
-  const snapshot = await cloneCacheValue(
-    stripCacheAttributes(span?.attributes),
-  );
-  return isRecordLike(snapshot) ? snapshot : {};
-}
-
-export function diffNonCacheAttributes(
-  before: Record<string, unknown>,
-  after: Record<string, unknown>,
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(after)) {
-    if (!cacheAttributeValuesEqual(before[key], value)) {
-      result[key] = value;
-    }
-  }
-  return result;
-}
-
-function cacheAttributeValuesEqual(left: unknown, right: unknown): boolean {
-  if (Object.is(left, right)) return true;
-  try {
-    return JSON.stringify(left) === JSON.stringify(right);
-  } catch {
-    return false;
-  }
 }
 
 export function appendCacheRef(
@@ -106,6 +61,7 @@ export function recordCacheRef(
 function serializeSubSpanTree(
   scope: EvalCaseScope,
   spanId: string,
+  spanIds: Set<string>,
 ): SerializedCacheSpan {
   const original = scope.spans.find((s) => s.id === spanId);
   if (!original) {
@@ -122,8 +78,8 @@ function serializeSubSpanTree(
     };
   }
   const children = scope.spans
-    .filter((s) => s.parentId === spanId)
-    .map((child) => serializeSubSpanTree(scope, child.id));
+    .filter((s) => s.parentId === spanId && spanIds.has(s.id))
+    .map((child) => serializeSubSpanTree(scope, child.id, spanIds));
   return {
     kind: original.kind,
     name: original.name,
@@ -143,10 +99,13 @@ export function appendSubSpanOps(
 ): void {
   for (let i = frame.baseSpanIndex; i < scope.spans.length; i++) {
     const candidate = scope.spans[i];
-    if (candidate?.parentId === frame.replayParentSpanId) {
+    if (
+      candidate?.parentId === frame.replayParentSpanId &&
+      frame.spanIds.has(candidate.id)
+    ) {
       frame.ops.push({
         kind: 'subSpan',
-        span: serializeSubSpanTree(scope, candidate.id),
+        span: serializeSubSpanTree(scope, candidate.id, frame.spanIds),
       });
     }
   }
