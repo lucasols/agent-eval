@@ -1,5 +1,5 @@
 import { formatWithOptions, isDeepStrictEqual } from 'node:util';
-import { evalAssert } from './runtime.ts';
+import { assertEvalAssertionsAllowed, evalAssert } from './runtime.ts';
 
 /**
  * Focused expectation helpers for eval case invariants.
@@ -260,5 +260,6 @@ class EvalExpectationImpl<T> implements EvalExpectation<T> {
  * case scope is active, matching `evalAssert(...)`.
  */
 export function evalExpect<T>(value: T): EvalExpectation<T> {
+  assertEvalAssertionsAllowed('evalExpect(...)');
   return new EvalExpectationImpl(value, false);
 }

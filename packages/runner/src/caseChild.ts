@@ -126,6 +126,7 @@ async function executeCaseChild(
         globalTraceDisplay: context.globalTraceDisplay,
         globalColumns: config.columns,
         globalDeriveFromTracing: config.deriveFromTracing,
+        globalTracingAssertions: config.tracingAssertions,
         llmCallsConfig,
         apiCallsConfig,
         globalRemoveDefaultConfig: config.removeDefaultConfig,

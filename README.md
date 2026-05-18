@@ -155,7 +155,7 @@ defineEval({
 
 Notes:
 
-- `isInEvalScope()` returns the current eval runner phase (`'env'`, `'cases'`, `'eval'`, `'derive'`, `'outputsSchema'`, or `'scorer'`) and returns `null` outside eval-owned work. This is useful when shared workflow code needs to branch on eval-only behavior. Top-level modules imported while a run is being prepared see `'env'`; code called from `execute` sees `'eval'`.
+- `isInEvalScope()` returns the current eval runner phase (`'env'`, `'cases'`, `'eval'`, `'derive'`, `'tracingAssertions'`, `'outputsSchema'`, or `'scorer'`) and returns `null` outside eval-owned work. This is useful when shared workflow code needs to branch on eval-only behavior. Top-level modules imported while a run is being prepared see `'env'`; code called from `execute` sees `'eval'`.
 - `matchesEvalTags('tag')` and `matchesEvalTags({ all, any, not })` check the active case's effective tags with typed exact tag names. Calls outside a case scope return `false`.
 - `getEvalCaseInput()` returns the current case input while an eval case is executing, and `getEvalCaseInput('customer.tier')` reads nested values with dot-path access. Outside a case scope, both return `undefined`.
 - `nextEvalId()` returns a stable sequential id for the active eval file, eval id, and case id, such as `refund-workflow-evals-refund-workflow-eval-ts-simple-text-1`. It throws outside an eval case scope so accidental production-only usage is visible.
@@ -223,6 +223,7 @@ build also bundles the web UI assets used by `agent-evals app`.
 | `traceDisplay`         | `TraceDisplayConfig?`           | Global trace attribute display config for the UI                                        |
 | `columns`              | `EvalColumns?`                  | Global column display overrides applied to every eval                                   |
 | `deriveFromTracing`    | `EvalDeriveConfig?`             | Global trace-derived outputs applied to every eval case                                 |
+| `tracingAssertions`    | `EvalTracingAssertionsConfig?`  | Global assertions derived from each finished execution trace                            |
 | `stats`                | `EvalStatsConfig?`              | Global stats prepended to every eval card                                               |
 | `defaultStatAggregate` | `EvalStatAggregate?`            | Initial aggregate mode for duration and column stats on every eval card                 |
 | `llmCalls`             | `LlmCallsConfig?`               | LLM calls tab config for the case-run drawer (kinds, attribute paths, pricing, metrics) |
@@ -286,6 +287,7 @@ export const config: AgentEvalsConfig = {
 | `startTime`             |            | Initial Date clock for this eval (default `2026-04-10T00:00:00.000Z`)            |
 | `freezeTime`            |            | Set `true` to keep Date frozen until `evalTime.advance(...)` is called           |
 | `deriveFromTracing`     |            | Derive output columns from the finished trace tree                               |
+| `tracingAssertions`     |            | Record assertions from the finished trace tree                                   |
 | `scores`                |            | Record of scoring functions returning `0..1`                                     |
 | `columns`               |            | Custom columns shown in the results table                                        |
 | `stats`                 |            | Opt-in stats row on the eval page (see [Stats row](#stats-row))                  |
@@ -1078,7 +1080,37 @@ deriveFromTracing: ({ trace }) => ({
 Global derivations run before eval-level derivations. Neither form overwrites
 outputs already recorded during execution, and eval-level derivations only fill
 keys still missing after global derivations. In keyed form, return `undefined`
-to omit that output for one case.
+to omit that output for one case. Do not call `evalAssert(...)` or
+`evalExpect(...)` from `deriveFromTracing`; use `tracingAssertions` for
+trace-derived pass/fail checks.
+
+### Trace-derived assertions
+
+Use `tracingAssertions` when a trace invariant should pass or fail the case
+without creating a fake numeric score column. It runs after
+`deriveFromTracing` with the same `{ trace, input, case }` context:
+
+```ts
+import { defineEval, evalAssert } from '@ls-stack/agent-eval';
+
+defineEval({
+  id: 'refund-routing',
+  execute: async ({ input }) => {
+    await runRefundWorkflow(input);
+  },
+  tracingAssertions: ({ trace }) => {
+    evalAssert(
+      trace.hasToolCallSpan('open-finance-escalation'),
+      'high value refunds should open a finance escalation',
+    );
+  },
+});
+```
+
+The trace tree includes helpers for common span checks: `findSpan(name)`,
+`findSpans(name)`, `hasSpan(name)`, `findSpansByKind(kind)`,
+`findToolCallSpans()`, `listToolCallSpanNames()`, `hasToolCallSpan(name)`,
+`listSpanNames(kind?)`, `listSpanNamesDfs(kind?)`, and `flattenDfs()`.
 
 ### Stats row
 

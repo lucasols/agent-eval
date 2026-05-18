@@ -2,6 +2,7 @@ import { relative } from 'node:path';
 import {
   buildTraceTree,
   EvalAssertionError,
+  EvalRuntimeUsageError,
   getEvalClockStateTimeMs,
   runInExistingEvalScope,
   runInEvalScope,
@@ -20,6 +21,7 @@ import type {
   CaseRow,
   CellValue,
   EvalDeriveConfig,
+  EvalTracingAssertionsConfig,
   EvalColumns,
   EvalTraceTree,
   RemoveDefaultConfig,
@@ -156,8 +158,8 @@ async function runDeriveFromTracingConfig<TInput>(params: {
   scope: EvalCaseScope;
   traceTree: EvalTraceTree;
   evalCase: { id: string; input: unknown; tags?: string[] };
-}): Promise<void> {
-  if (params.deriveFromTracing === undefined) return;
+}): Promise<Error | null> {
+  if (params.deriveFromTracing === undefined) return null;
   const { deriveFromTracing } = params;
 
   try {
@@ -172,12 +174,79 @@ async function runDeriveFromTracingConfig<TInput>(params: {
         }),
     );
     assignDerivedOutputs({ outputs: params.scope.outputs, derived });
+    return null;
   } catch (e) {
+    if (e instanceof EvalRuntimeUsageError) return e;
+
     const message = `deriveFromTracing threw: ${e instanceof Error ? e.message : String(e)}`;
     recordAssertionFailure(
       params.scope,
       toAssertionFailure(message, e instanceof Error ? e : undefined),
     );
+    return null;
+  }
+}
+
+async function runOneTracingAssertion(params: {
+  label: string;
+  tracingAssertion: unknown;
+  scope: EvalCaseScope;
+  traceTree: EvalTraceTree;
+  evalCase: { id: string; input: unknown; tags?: string[] };
+}): Promise<void> {
+  const { label, tracingAssertion, scope, traceTree, evalCase } = params;
+  const failureCountBefore = scope.assertionFailures.length;
+  const ctx = { trace: traceTree, input: evalCase.input, case: evalCase };
+
+  try {
+    await runInExistingEvalScope(scope, 'tracingAssertions', async () => {
+      await callUnknownFunction(tracingAssertion, [ctx]);
+    });
+  } catch (e) {
+    if (
+      e instanceof EvalAssertionError &&
+      scope.assertionFailures.length > failureCountBefore
+    ) {
+      return;
+    }
+
+    const message = `${label} threw: ${e instanceof Error ? e.message : String(e)}`;
+    recordAssertionFailure(
+      scope,
+      toAssertionFailure(message, e instanceof Error ? e : undefined),
+    );
+  }
+}
+
+async function runTracingAssertionsConfig<TInput>(params: {
+  tracingAssertions: EvalTracingAssertionsConfig<TInput> | undefined;
+  scope: EvalCaseScope;
+  traceTree: EvalTraceTree;
+  evalCase: { id: string; input: unknown; tags?: string[] };
+}): Promise<void> {
+  if (params.tracingAssertions === undefined) return;
+
+  if (typeof params.tracingAssertions === 'function') {
+    await runOneTracingAssertion({
+      label: 'tracingAssertions',
+      tracingAssertion: params.tracingAssertions,
+      scope: params.scope,
+      traceTree: params.traceTree,
+      evalCase: params.evalCase,
+    });
+    return;
+  }
+
+  for (const [key, tracingAssertion] of Object.entries(
+    params.tracingAssertions,
+  )) {
+    await runOneTracingAssertion({
+      label: `tracingAssertions "${key}"`,
+      tracingAssertion,
+      scope: params.scope,
+      traceTree: params.traceTree,
+      evalCase: params.evalCase,
+    });
   }
 }
 
@@ -193,6 +262,7 @@ export async function runCase<
   globalTraceDisplay: TraceDisplayInputConfig | undefined;
   globalColumns?: EvalColumns;
   globalDeriveFromTracing?: EvalDeriveConfig<TRunInput>;
+  globalTracingAssertions?: EvalTracingAssertionsConfig<TRunInput>;
   llmCallsConfig?: ResolvedLlmCallsConfig;
   apiCallsConfig?: ResolvedApiCallsConfig;
   globalRemoveDefaultConfig?: RemoveDefaultConfig;
@@ -215,6 +285,7 @@ export async function runCase<
     globalTraceDisplay,
     globalColumns,
     globalDeriveFromTracing,
+    globalTracingAssertions,
     llmCallsConfig = resolveLlmCallsConfig(undefined),
     apiCallsConfig = resolveApiCallsConfig(undefined),
     globalRemoveDefaultConfig,
@@ -285,7 +356,7 @@ export async function runCase<
     scope.checkpoints,
   );
 
-  const nonAssertError =
+  let nonAssertError =
     executeError && !(executeError instanceof EvalAssertionError)
       ? executeError
       : null;
@@ -301,14 +372,31 @@ export async function runCase<
   }
 
   if (!nonAssertError) {
-    await runDeriveFromTracingConfig({
+    nonAssertError = await runDeriveFromTracingConfig({
       deriveFromTracing: globalDeriveFromTracing,
       scope,
       traceTree,
       evalCase,
     });
-    await runDeriveFromTracingConfig({
-      deriveFromTracing: evalDef.deriveFromTracing,
+    if (!nonAssertError) {
+      nonAssertError = await runDeriveFromTracingConfig({
+        deriveFromTracing: evalDef.deriveFromTracing,
+        scope,
+        traceTree,
+        evalCase,
+      });
+    }
+  }
+
+  if (!nonAssertError) {
+    await runTracingAssertionsConfig({
+      tracingAssertions: globalTracingAssertions,
+      scope,
+      traceTree,
+      evalCase,
+    });
+    await runTracingAssertionsConfig({
+      tracingAssertions: evalDef.tracingAssertions,
       scope,
       traceTree,
       evalCase,

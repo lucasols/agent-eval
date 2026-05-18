@@ -363,7 +363,18 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   The older object-returning function form remains supported. Global
   derivations run first; runtime outputs are never overwritten, and eval-level
   derivations only fill keys still missing after global derivations. In keyed
-  form, return `undefined` to omit one output for that case.
+  form, return `undefined` to omit one output for that case. Do not call
+  `evalAssert(...)` or `evalExpect(...)` from `deriveFromTracing`; use
+  `tracingAssertions` for trace-derived pass/fail checks.
+- `tracingAssertions` can be authored globally or locally on one eval when a
+  finished-trace invariant should pass or fail the case without creating a fake
+  score column. It receives the same `{ trace, input, case }` context as
+  `deriveFromTracing`; call `evalAssert(...)` or `evalExpect(...)` inside it.
+  Useful trace helpers include `trace.findSpan(name)`, `trace.findSpans(name)`,
+  `trace.hasSpan(name)`, `trace.findSpansByKind(kind)`,
+  `trace.findToolCallSpans()`, `trace.listToolCallSpanNames()`,
+  `trace.hasToolCallSpan(name)`, `trace.listSpanNames(kind?)`,
+  `trace.listSpanNamesDfs(kind?)`, and `trace.flattenDfs()`.
 - `traceDisplay` promotes selected span attributes into the trace tree and
   detail pane; it supports aggregation across subtrees (`scope`, `mode`) and
   user-defined `transform(...)` for derived views (e.g. currency conversion).
@@ -632,8 +643,9 @@ When adding or changing evals:
 3. `evalAssert` for hard invariants and truthy type narrowing. It records
    pass/fail entries in case-detail `assertions`; failed entries are also kept
    in `assertionFailures` and fail the case. Use `evalExpect` for non-trivial
-   comparisons, `scores` for graded signals, and `passThreshold` only on
-   scores that should gate pass/fail.
+   comparisons, `tracingAssertions` for invariants derived from the finished
+   trace, `scores` for graded signals, and `passThreshold` only on scores that
+   should gate pass/fail.
 4. Surface reviewable values through execute-context `setOutput` or ambient
    `setEvalOutput` in shared workflow code, and shape them with `columns`
    formats from the `ColumnFormat` type.

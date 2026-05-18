@@ -859,6 +859,27 @@ export function buildTraceTree(
   checkpoints: Map<string, unknown>,
 ): EvalTraceTree {
   const rootSpans = spans.filter((s) => s.parentId === null);
+  const flattenDfs = (): EvalTraceSpan[] => {
+    const result: EvalTraceSpan[] = [];
+    function visit(parentId: string | null) {
+      for (const childSpan of spans) {
+        if (childSpan.parentId === parentId) {
+          result.push(childSpan);
+          visit(childSpan.id);
+        }
+      }
+    }
+    visit(null);
+    return result;
+  };
+  const filterSpanNames = (
+    sourceSpans: EvalTraceSpan[],
+    kind: string | undefined,
+  ): string[] => {
+    return sourceSpans
+      .filter((span) => kind === undefined || span.kind === kind)
+      .map((span) => span.name);
+  };
 
   return {
     spans,
@@ -866,21 +887,32 @@ export function buildTraceTree(
     findSpan(name) {
       return spans.find((s) => s.name === name);
     },
+    findSpans(name) {
+      return spans.filter((s) => s.name === name);
+    },
+    hasSpan(name) {
+      return spans.some((s) => s.name === name);
+    },
     findSpansByKind(kind) {
       return spans.filter((s) => s.kind === kind);
     },
+    findToolCallSpans() {
+      return spans.filter((s) => s.kind === 'tool');
+    },
+    listToolCallSpanNames() {
+      return filterSpanNames(spans, 'tool');
+    },
+    hasToolCallSpan(name) {
+      return spans.some((s) => s.kind === 'tool' && s.name === name);
+    },
+    listSpanNames(kind) {
+      return filterSpanNames(spans, kind);
+    },
+    listSpanNamesDfs(kind) {
+      return filterSpanNames(flattenDfs(), kind);
+    },
     flattenDfs() {
-      const result: EvalTraceSpan[] = [];
-      function visit(parentId: string | null) {
-        for (const childSpan of spans) {
-          if (childSpan.parentId === parentId) {
-            result.push(childSpan);
-            visit(childSpan.id);
-          }
-        }
-      }
-      visit(null);
-      return result;
+      return flattenDfs();
     },
     checkpoints,
   };

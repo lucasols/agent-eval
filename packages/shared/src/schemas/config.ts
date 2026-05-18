@@ -55,10 +55,29 @@ export type EvalCase<TInput = unknown> = {
 
 /** Query helpers built from the flattened trace recorded for one eval case. */
 export type EvalTraceTree = {
+  /** Flat span list in creation order. */
   spans: EvalTraceSpan[];
+  /** Top-level spans whose `parentId` is `null`. */
   rootSpans: EvalTraceSpan[];
+  /** Return the first span whose name exactly matches `name`. */
   findSpan: (name: string) => EvalTraceSpan | undefined;
+  /** Return every span whose name exactly matches `name`. */
+  findSpans: (name: string) => EvalTraceSpan[];
+  /** Return whether any span name exactly matches `name`. */
+  hasSpan: (name: string) => boolean;
+  /** Return every span whose kind exactly matches `kind`. */
   findSpansByKind: (kind: string) => EvalTraceSpan[];
+  /** Return every span with `kind: 'tool'`. */
+  findToolCallSpans: () => EvalTraceSpan[];
+  /** Return the names of every span with `kind: 'tool'`. */
+  listToolCallSpanNames: () => string[];
+  /** Return whether a `kind: 'tool'` span has a name exactly matching `name`. */
+  hasToolCallSpan: (name: string) => boolean;
+  /** Return span names in creation order, optionally filtered by kind. */
+  listSpanNames: (kind?: string) => string[];
+  /** Return span names in depth-first tree order, optionally filtered by kind. */
+  listSpanNamesDfs: (kind?: string) => string[];
+  /** Return all spans in depth-first tree order. */
   flattenDfs: () => EvalTraceSpan[];
   checkpoints: Map<string, unknown>;
 };
@@ -105,6 +124,36 @@ export const evalDeriveConfigSchema: z.ZodType<EvalDeriveConfig> = z.union([
   }),
   z.record(z.string().min(1), evalDeriveValueFnSchema),
 ]);
+
+/** Function that records trace-derived assertions for one case. */
+export type EvalTracingAssertionsFn<TInput = unknown> = (
+  ctx: EvalDeriveContext<TInput>,
+) => MaybePromise<void>;
+
+/** Keyed trace-derived assertion config for grouping related checks. */
+export type EvalTracingAssertionsMap<TInput = unknown> = Record<
+  string,
+  EvalTracingAssertionsFn<TInput>
+>;
+
+/** Trace-derived assertion config accepted globally and on eval definitions. */
+export type EvalTracingAssertionsConfig<TInput = unknown> =
+  | EvalTracingAssertionsMap<TInput>
+  | EvalTracingAssertionsFn<TInput>;
+
+const evalTracingAssertionsFnSchema = z.custom<EvalTracingAssertionsFn>(
+  (value) => typeof value === 'function',
+  { message: 'Expected a tracing assertions function' },
+);
+
+/** Schema for function or keyed trace-derived assertion config. */
+export const evalTracingAssertionsConfigSchema: z.ZodType<EvalTracingAssertionsConfig> =
+  z.union([
+    z.custom<EvalTracingAssertionsFn>((value) => typeof value === 'function', {
+      message: 'Expected a tracingAssertions function',
+    }),
+    z.record(z.string().min(1), evalTracingAssertionsFnSchema),
+  ]);
 
 /** UI overrides for a derived or scored column emitted by an eval. */
 export type EvalColumnOverride = {
@@ -831,9 +880,19 @@ export type AgentEvalsConfig = {
    * Prefer the keyed map form for shared metrics:
    * `{ toolCalls: ({ trace }) => trace.findSpansByKind('tool').length }`.
    * The object-returning function form is also supported. Derived outputs
-   * only fill keys that were not already recorded by eval execution.
+   * only fill keys that were not already recorded by eval execution. Do not
+   * call assertion helpers here; use `tracingAssertions` for trace-derived
+   * pass/fail checks.
    */
   deriveFromTracing?: EvalDeriveConfig;
+  /**
+   * Workspace-wide assertions derived from the finished execution trace.
+   *
+   * These run after `deriveFromTracing` and before output schema validation and
+   * scores. Use `evalAssert(...)` or `evalExpect(...)` inside the callback to
+   * record normal assertion results without creating fake score columns.
+   */
+  tracingAssertions?: EvalTracingAssertionsConfig;
   /**
    * Workspace-wide stats prepended to every eval's stats row.
    *
@@ -975,6 +1034,7 @@ export const agentEvalsConfigSchema = z.object({
   traceDisplay: traceDisplayInputConfigSchema.optional(),
   columns: evalColumnsSchema.optional(),
   deriveFromTracing: evalDeriveConfigSchema.optional(),
+  tracingAssertions: evalTracingAssertionsConfigSchema.optional(),
   stats: evalStatsConfigSchema.optional(),
   defaultStatAggregate: evalStatAggregateSchema.optional(),
   llmCalls: llmCallsConfigSchema.optional(),

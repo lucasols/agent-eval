@@ -16,6 +16,9 @@ import type {
   EvalDeriveFn,
   EvalDeriveMap,
   EvalDeriveValueFn,
+  EvalTracingAssertionsConfig,
+  EvalTracingAssertionsFn,
+  EvalTracingAssertionsMap,
   ColumnFormat,
   EvalStatAggregate,
   EvalStatItem,
@@ -43,6 +46,9 @@ export type {
   EvalDeriveFn,
   EvalDeriveMap,
   EvalDeriveValueFn,
+  EvalTracingAssertionsConfig,
+  EvalTracingAssertionsFn,
+  EvalTracingAssertionsMap,
   ColumnFormat,
   EvalStatAggregate,
   EvalStatItem,
@@ -473,9 +479,18 @@ type EvalDefinitionBase<
    *
    * Prefer the keyed map form when each key has one derivation. The
    * object-returning callback form is also supported. Derived values only fill
-   * keys not already recorded during execution.
+   * keys not already recorded during execution. Assertion helpers are not
+   * allowed here; use `tracingAssertions` for trace-derived pass/fail checks.
    */
   deriveFromTracing?: EvalDeriveConfig<TInput>;
+  /**
+   * Record assertions from the finished execution trace.
+   *
+   * Runs after `deriveFromTracing` and before output schema validation and
+   * scores. Use `evalAssert(...)` or `evalExpect(...)` inside the callback to
+   * write normal assertion results without creating score columns.
+   */
+  tracingAssertions?: EvalTracingAssertionsConfig<TInput>;
   /**
    * Computed score columns for each case.
    *

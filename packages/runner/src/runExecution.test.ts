@@ -445,6 +445,9 @@ test('runCase reports execute, derive, outputs schema, and scorer phases', async
         observedScopes.push(scope);
         return { derivedScope: scope ?? 'missing' };
       },
+      tracingAssertions: () => {
+        observedScopes.push(isInEvalScope());
+      },
       scores: {
         phase: {
           compute: () => {
@@ -469,7 +472,13 @@ test('runCase reports execute, derive, outputs schema, and scorer phases', async
     runId: 'run-id',
   });
 
-  expect(observedScopes).toEqual(['eval', 'derive', 'outputsSchema', 'scorer']);
+  expect(observedScopes).toEqual([
+    'eval',
+    'derive',
+    'tracingAssertions',
+    'outputsSchema',
+    'scorer',
+  ]);
   expect(result.caseDetail.columns).toMatchObject({
     derivedScope: 'derive',
     executeScope: 'eval',

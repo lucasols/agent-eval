@@ -270,6 +270,143 @@ describe('CLI eval features', () => {
     });
   });
 
+  test('persists trace-derived assertions from example evals', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const result = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'high-value-refund',
+      ]);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe('');
+
+      const artifacts = await readSingleRunArtifacts(workspacePath);
+      const caseRow = requireCase(artifacts.cases, 'espresso-machine');
+      const caseDetail = requireCaseDetail(
+        artifacts.caseDetails,
+        'espresso-machine',
+      );
+      const trace = requireTrace(artifacts.traces, 'espresso-machine.json');
+      const toolSpanNames = trace
+        .filter((span) => span.kind === 'tool')
+        .map((span) => span.name);
+
+      expect(caseRow.status).toBe('pass');
+      expect(caseDetail.assertionFailures).toEqual([]);
+      expect(caseDetail.assertions).toEqual([
+        {
+          message:
+            'high value refunds should mention the finance review handoff',
+          status: 'pass',
+        },
+        {
+          message: 'high value refunds should inspect the receipt',
+          status: 'pass',
+        },
+        {
+          message: 'high value refunds should open a finance escalation',
+          status: 'pass',
+        },
+      ]);
+      expect(toolSpanNames).toEqual([
+        'inspect-premium-receipt',
+        'open-finance-escalation',
+      ]);
+
+      expect(
+        normalizeSnapshotValue(workspacePath, {
+          case: {
+            caseId: caseRow.caseId,
+            columns: {
+              escalationQueue: caseRow.columns.escalationQueue,
+              financeEscalated: caseRow.columns.financeEscalated,
+              llmTurns: caseRow.columns.llmTurns,
+              reasoningTokens: caseRow.columns.reasoningTokens,
+              response: caseRow.columns.response,
+              riskLevel: caseRow.columns.riskLevel,
+              toolCalls: caseRow.columns.toolCalls,
+            },
+            status: caseRow.status,
+          },
+          assertions: caseDetail.assertions,
+          trace: trace.map((span) => ({
+            kind: span.kind,
+            name: span.name,
+            status: span.status,
+          })),
+        }),
+      ).toMatchInlineSnapshot(`
+        {
+          "assertions": [
+            {
+              "message": "high value refunds should mention the finance review handoff",
+              "status": "pass",
+            },
+            {
+              "message": "high value refunds should inspect the receipt",
+              "status": "pass",
+            },
+            {
+              "message": "high value refunds should open a finance escalation",
+              "status": "pass",
+            },
+          ],
+          "case": {
+            "caseId": "espresso-machine",
+            "columns": {
+              "escalationQueue": "finance-review",
+              "financeEscalated": 1,
+              "llmTurns": 1,
+              "reasoningTokens": 320,
+              "response": "Escalated a $1299.00 refund for order #9001 to finance review.",
+              "riskLevel": "high",
+              "toolCalls": 2,
+            },
+            "status": "pass",
+          },
+          "trace": [
+            {
+              "kind": "agent",
+              "name": "high-value-refund",
+              "status": "ok",
+            },
+            {
+              "kind": "policy.retrieval",
+              "name": "premium-refund-policy-snapshot",
+              "status": "ok",
+            },
+            {
+              "kind": "llm",
+              "name": "assess-refund-risk",
+              "status": "ok",
+            },
+            {
+              "kind": "tool",
+              "name": "inspect-premium-receipt",
+              "status": "ok",
+            },
+            {
+              "kind": "llm",
+              "name": "summarize-finance-handoff",
+              "status": "ok",
+            },
+            {
+              "kind": "tool",
+              "name": "open-finance-escalation",
+              "status": "ok",
+            },
+            {
+              "kind": "checkpoint",
+              "name": "finance-escalation",
+              "status": "ok",
+            },
+          ],
+        }
+      `);
+    });
+  });
+
   test('persists multimodal inputs and trace span attributes in run artifacts', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const result = await runExampleCli(workspacePath, [

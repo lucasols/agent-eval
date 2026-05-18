@@ -243,6 +243,7 @@ export type RunLogLevel = z.infer<typeof runLogLevelSchema>;
 export const runLogPhaseSchema = z.enum([
   'eval',
   'derive',
+  'tracingAssertions',
   'outputsSchema',
   'scorer',
 ]);

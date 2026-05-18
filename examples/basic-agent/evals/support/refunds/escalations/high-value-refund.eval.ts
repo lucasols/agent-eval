@@ -1,4 +1,4 @@
-import { defineEval } from '@ls-stack/agent-eval';
+import { defineEval, evalAssert } from '@ls-stack/agent-eval';
 import { sharedTraceDisplay } from '../../../../src/evals/exampleEvalUtils.ts';
 import {
   runHighValueRefundWorkflow,
@@ -33,6 +33,16 @@ defineEval<HighValueRefundInput>({
   traceDisplay: sharedTraceDisplay,
   execute: async ({ input }) => {
     await runHighValueRefundWorkflow(input);
+  },
+  tracingAssertions: ({ trace }) => {
+    evalAssert(
+      trace.hasToolCallSpan('inspect-premium-receipt'),
+      'high value refunds should inspect the receipt',
+    );
+    evalAssert(
+      trace.hasToolCallSpan('open-finance-escalation'),
+      'high value refunds should open a finance escalation',
+    );
   },
   scores: {
     financeEscalated: {

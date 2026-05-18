@@ -167,6 +167,7 @@ export type EvalRuntimeScope =
   | 'cases'
   | 'eval'
   | 'derive'
+  | 'tracingAssertions'
   | 'outputsSchema'
   | 'scorer';
 
@@ -270,6 +271,23 @@ export class EvalAssertionError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'EvalAssertionError';
+  }
+}
+
+/** Error thrown when an SDK helper is used in an unsupported runner phase. */
+export class EvalRuntimeUsageError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'EvalRuntimeUsageError';
+  }
+}
+
+/** Throw when assertion helpers are used in a runner phase that forbids them. */
+export function assertEvalAssertionsAllowed(apiName: string): void {
+  if (getCurrentScope() && runtimeScopeStorage.getStore() === 'derive') {
+    throw new EvalRuntimeUsageError(
+      `${apiName} cannot be used inside deriveFromTracing. Use tracingAssertions for trace-derived assertions.`,
+    );
   }
 }
 
@@ -453,8 +471,10 @@ export function recordSpanForActiveCacheRecording(
  *
  * Returns `null` outside eval-owned work, `env` while the runner is loading
  * eval modules for a run, `cases` while generating cases, `eval` while running
- * case `execute`, `derive` while deriving outputs from traces, `outputsSchema`
- * while validating outputs, and `scorer` while computing scores.
+ * case `execute`, `derive` while deriving outputs from traces,
+ * `tracingAssertions` while checking trace-derived assertions,
+ * `outputsSchema` while validating outputs, and `scorer` while computing
+ * scores.
  */
 export function isInEvalScope(): EvalRuntimeScope | null {
   if (activeEvalRuntimeScopeCount === 0) return null;
@@ -481,6 +501,7 @@ function getCurrentLogPhase(): RunLogPhase | null {
   if (
     runtimeScope === 'eval' ||
     runtimeScope === 'derive' ||
+    runtimeScope === 'tracingAssertions' ||
     runtimeScope === 'outputsSchema' ||
     runtimeScope === 'scorer'
   ) {
@@ -1102,13 +1123,15 @@ export function incrementEvalOutput(key: string, delta: number): void {
  * Calls made outside `runInEvalScope(...)` are ignored so shared workflow code
  * can safely reuse `evalAssert(...)` when it also runs outside an eval. The
  * TypeScript assertion signature still narrows the checked value after the
- * call.
+ * call. Calls inside `deriveFromTracing` throw because derivations must only
+ * write outputs; use `tracingAssertions` for trace-derived pass/fail checks.
  */
 export function evalAssert(
   condition: unknown,
   message: string,
 ): asserts condition {
   const scope = getCurrentScope();
+  assertEvalAssertionsAllowed('evalAssert(...)');
   if (condition) {
     if (scope) scope.assertions.push({ message, status: 'pass' });
     return;

@@ -215,13 +215,20 @@ const TruncatedTag = styled.span`
 const LOG_PHASE_LABELS: Record<RunLogPhase, string> = {
   eval: 'Execute',
   derive: 'Derive',
+  tracingAssertions: 'Trace assertions',
   outputsSchema: 'Outputs schema',
   scorer: 'Scorer',
 };
 const collapsedPreviewMaxChars = 220;
 
 export function getLogPhases(logs: { phase: RunLogPhase }[]): RunLogPhase[] {
-  const order: RunLogPhase[] = ['eval', 'derive', 'outputsSchema', 'scorer'];
+  const order: RunLogPhase[] = [
+    'eval',
+    'derive',
+    'tracingAssertions',
+    'outputsSchema',
+    'scorer',
+  ];
   const present = new Set(logs.map((entry) => entry.phase));
   return order.filter((phase) => present.has(phase));
 }
@@ -384,6 +391,7 @@ function parseLogPhaseFilter(value: string): RunLogPhase | 'all' {
   if (
     value === 'eval' ||
     value === 'derive' ||
+    value === 'tracingAssertions' ||
     value === 'outputsSchema' ||
     value === 'scorer'
   ) {
