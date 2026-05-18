@@ -151,25 +151,46 @@ test('runCase supports trace-derived assertions and trace tree helpers', async (
               { kind: 'tool', name: 'submit-refund' },
               () => {},
             );
+            await evalTracer.span(
+              { kind: 'tool_call', name: 'execute_tool notify-customer' },
+              () => {},
+            );
+            await evalTracer.span(
+              { kind: 'tool_call', name: 'execute_tool notify-customer' },
+              () => {},
+            );
           },
         );
       },
       tracingAssertions: ({ trace }) => {
         evalExpect(isInEvalScope()).toBe('tracingAssertions');
         evalExpect(trace.findSpans('lookup-customer')).toHaveLength(1);
-        evalExpect(trace.findToolCallSpans()).toHaveLength(2);
+        evalExpect(trace.findToolCallSpans()).toHaveLength(4);
         evalExpect(trace.listToolCallSpanNames()).toEqual([
           'lookup-customer',
           'submit-refund',
+          'execute_tool notify-customer',
+          'execute_tool notify-customer',
         ]);
+        evalExpect(trace.hasNToolCallSpans('submit-refund', 1)).toBe(true);
+        evalExpect(trace.hasNToolCallSpans('submit-refund', 2)).toBe(false);
+        evalExpect(
+          trace.hasNToolCallSpans('execute_tool notify-customer', 2),
+        ).toBe(true);
         evalAssert(
           trace.hasToolCallSpan('submit-refund'),
           'refund submission tool should be called',
+        );
+        evalAssert(
+          trace.hasToolCallSpan('execute_tool notify-customer'),
+          'customer notification tool should be called',
         );
         evalExpect(trace.listSpanNamesDfs()).toEqual([
           'refund-agent',
           'lookup-customer',
           'submit-refund',
+          'execute_tool notify-customer',
+          'execute_tool notify-customer',
         ]);
       },
     },
@@ -178,6 +199,7 @@ test('runCase supports trace-derived assertions and trace tree helpers', async (
   expect(result.caseRowUpdate.status).toBe('pass');
   expect(result.caseDetail.assertions).toEqual([
     { message: 'refund submission tool should be called', status: 'pass' },
+    { message: 'customer notification tool should be called', status: 'pass' },
   ]);
 });
 

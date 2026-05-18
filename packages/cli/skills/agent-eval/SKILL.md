@@ -374,8 +374,12 @@ See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape
   Useful trace helpers include `trace.findSpan(name)`, `trace.findSpans(name)`,
   `trace.hasSpan(name)`, `trace.findSpansByKind(kind)`,
   `trace.findToolCallSpans()`, `trace.listToolCallSpanNames()`,
-  `trace.hasToolCallSpan(name)`, `trace.listSpanNames(kind?)`,
-  `trace.listSpanNamesDfs(kind?)`, and `trace.flattenDfs()`.
+  `trace.hasToolCallSpan(name)`,
+  `trace.hasNToolCallSpans(toolName, expectedCalls)`,
+  `trace.listSpanNames(kind?)`, `trace.listSpanNamesDfs(kind?)`, and
+  `trace.flattenDfs()`.
+  The tool-call helpers include both `kind: 'tool'` spans and imported
+  execution spans recorded as `kind: 'tool_call'`.
 - `traceDisplay` promotes selected span attributes into the trace tree and
   detail pane; it supports aggregation across subtrees (`scope`, `mode`) and
   user-defined `transform(...)` for derived views (e.g. currency conversion).

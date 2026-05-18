@@ -872,6 +872,9 @@ export function buildTraceTree(
     visit(null);
     return result;
   };
+  const isToolCallSpan = (span: EvalTraceSpan) => {
+    return span.kind === 'tool' || span.kind === 'tool_call';
+  };
   const filterSpanNames = (
     sourceSpans: EvalTraceSpan[],
     kind: string | undefined,
@@ -897,13 +900,19 @@ export function buildTraceTree(
       return spans.filter((s) => s.kind === kind);
     },
     findToolCallSpans() {
-      return spans.filter((s) => s.kind === 'tool');
+      return spans.filter(isToolCallSpan);
     },
     listToolCallSpanNames() {
-      return filterSpanNames(spans, 'tool');
+      return spans.filter(isToolCallSpan).map((span) => span.name);
     },
     hasToolCallSpan(name) {
-      return spans.some((s) => s.kind === 'tool' && s.name === name);
+      return spans.some((s) => isToolCallSpan(s) && s.name === name);
+    },
+    hasNToolCallSpans(toolName, expectedCalls) {
+      const actualCalls = spans.filter((span) => {
+        return isToolCallSpan(span) && span.name === toolName;
+      }).length;
+      return actualCalls === expectedCalls;
     },
     listSpanNames(kind) {
       return filterSpanNames(spans, kind);

@@ -36,12 +36,12 @@ defineEval<HighValueRefundInput>({
   },
   tracingAssertions: ({ trace }) => {
     evalAssert(
-      trace.hasToolCallSpan('inspect-premium-receipt'),
-      'high value refunds should inspect the receipt',
+      trace.hasNToolCallSpans('inspect-premium-receipt', 1),
+      'high value refunds should inspect the receipt once',
     );
     evalAssert(
-      trace.hasToolCallSpan('open-finance-escalation'),
-      'high value refunds should open a finance escalation',
+      trace.hasNToolCallSpans('open-finance-escalation', 1),
+      'high value refunds should open one finance escalation',
     );
   },
   scores: {

@@ -639,6 +639,7 @@ export function CaseDrawer() {
   function openTraceSpan(spanId: string) {
     updateSearchParams((nextSearchParams) => {
       nextSearchParams.set('caseTab', 'trace');
+      nextSearchParams.set('traceScope', spanId);
       nextSearchParams.set('span', spanId);
     });
   }

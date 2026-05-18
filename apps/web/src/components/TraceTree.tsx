@@ -556,6 +556,49 @@ const Empty = styled.div`
   text-align: center;
 `;
 
+const ScopeBanner = styled.div`
+  ${inline({ justify: 'space-between', align: 'center', gap: 10 })}
+  padding: 8px 10px;
+  border-bottom: 1px solid ${colors.border.var};
+  background: ${colors.accent.alpha(0.08)};
+  color: ${colors.textMuted.var};
+  font-size: 11.5px;
+  flex-shrink: 0;
+`;
+
+const ScopeLabel = styled.div`
+  ${inline({ align: 'center', gap: 6 })}
+  min-width: 0;
+`;
+
+const ScopeName = styled.span`
+  ${monoFont};
+  color: ${colors.text.var};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const ClearScopeButton = styled.button`
+  ${transition({ property: 'background, color, border-color' })}
+  border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-sm);
+  background: ${colors.bg.var};
+  color: ${colors.textMuted.var};
+  height: 24px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 500;
+  flex-shrink: 0;
+  cursor: pointer;
+
+  &:hover {
+    color: ${colors.text.var};
+    border-color: ${colors.borderStrong.var};
+    background: ${colors.surfaceHover.var};
+  }
+`;
+
 type TraceTreeProps = {
   spans: EvalTraceSpan[];
   traceDisplay: TraceDisplayConfig;
@@ -564,6 +607,7 @@ type TraceTreeProps = {
 const TIMELINE_COLLAPSED_STORAGE_KEY = 'agent-evals.trace-timeline-collapsed';
 const TRACE_NESTING_MODE_STORAGE_KEY = 'agent-evals.trace-nesting-mode';
 const SPAN_SEARCH_PARAM_KEY = 'span';
+const TRACE_SCOPE_SEARCH_PARAM_KEY = 'traceScope';
 
 function readTimelineCollapsed(): boolean {
   if (typeof window === 'undefined') return false;
@@ -587,6 +631,32 @@ function spanMatchesKindFilter(
   return filterMode === 'only' ? selected : !selected;
 }
 
+function getSubtreeSpanIds(spans: EvalTraceSpan[], rootSpanId: string) {
+  const childIdsByParent = new Map<string, string[]>();
+  for (const span of spans) {
+    if (span.parentId === null) continue;
+    const current = childIdsByParent.get(span.parentId);
+    if (current === undefined) {
+      childIdsByParent.set(span.parentId, [span.id]);
+      continue;
+    }
+    current.push(span.id);
+  }
+
+  const ids = new Set<string>([rootSpanId]);
+  const queue = [rootSpanId];
+  for (let index = 0; index < queue.length; index++) {
+    const parentId = queue[index];
+    if (parentId === undefined) continue;
+    for (const childId of childIdsByParent.get(parentId) ?? []) {
+      if (ids.has(childId)) continue;
+      ids.add(childId);
+      queue.push(childId);
+    }
+  }
+  return ids;
+}
+
 export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
   const searchParams = useSearchParams();
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
@@ -608,6 +678,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const detailRef = useRef<HTMLDivElement>(null);
   const selectedSpanId = searchParams.get(SPAN_SEARCH_PARAM_KEY);
+  const traceScopeSpanId = searchParams.get(TRACE_SCOPE_SEARCH_PARAM_KEY);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -637,10 +708,19 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
     return () => observer.disconnect();
   }, []);
 
+  const scopedRootSpan = traceScopeSpanId
+    ? (spans.find((span) => span.id === traceScopeSpanId) ?? null)
+    : null;
+  const scopedSpans = useMemo(() => {
+    if (traceScopeSpanId === null || scopedRootSpan === null) return spans;
+    const subtreeIds = getSubtreeSpanIds(spans, traceScopeSpanId);
+    return spans.filter((span) => subtreeIds.has(span.id));
+  }, [scopedRootSpan, spans, traceScopeSpanId]);
+
   const isNarrow = containerWidth > 0 && containerWidth < NARROW_BREAKPOINT;
   const spanKindOptions = useMemo(
-    () => [...new Set(spans.map((span) => span.kind))].sort(),
-    [spans],
+    () => [...new Set(scopedSpans.map((span) => span.kind))].sort(),
+    [scopedSpans],
   );
   const spanNameFilterRegex = useMemo(
     () => buildSpanNameWildcardRegex(spanNameFilterPattern),
@@ -652,7 +732,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
   const filteredSpanIds = useMemo(
     () =>
       new Set(
-        spans
+        scopedSpans
           .filter((span) => {
             return (
               spanMatchesKindFilter(
@@ -665,16 +745,21 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
           })
           .map((span) => span.id),
       ),
-    [selectedSpanKinds, spanKindFilterMode, spanNameFilterRegex, spans],
+    [
+      scopedSpans,
+      selectedSpanKinds,
+      spanKindFilterMode,
+      spanNameFilterRegex,
+    ],
   );
   const filteredSpans = useMemo(
-    () => spans.filter((span) => filteredSpanIds.has(span.id)),
-    [filteredSpanIds, spans],
+    () => scopedSpans.filter((span) => filteredSpanIds.has(span.id)),
+    [filteredSpanIds, scopedSpans],
   );
   const displayedSpans =
-    filteredSpanVisibility === 'faded' ? spans : filteredSpans;
+    filteredSpanVisibility === 'faded' ? scopedSpans : filteredSpans;
   const displayMetricsSpans =
-    filteredSpanVisibility === 'faded' ? spans : filteredSpans;
+    filteredSpanVisibility === 'faded' ? scopedSpans : filteredSpans;
 
   const metrics = useMemo(
     () => computeTraceMetrics(displayMetricsSpans),
@@ -683,7 +768,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
 
   const filteredLabel =
     hasKindFilter || hasSpanNameFilter
-      ? `${String(filteredSpans.length)} of ${String(spans.length)} spans`
+      ? `${String(filteredSpans.length)} of ${String(scopedSpans.length)} spans`
       : 'All spans';
   const showSpanNameFilter = spanNameFilterVisible || hasSpanNameFilter;
   const showFilterOptions = spanKindFilterMode !== 'all' || showSpanNameFilter;
@@ -796,6 +881,20 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
   return (
     <Root ref={rootRef}>
       <TimelinePane>
+        {scopedRootSpan !== null ? (
+          <ScopeBanner>
+            <ScopeLabel>
+              Showing trace for
+              <ScopeName>{scopedRootSpan.name}</ScopeName>
+            </ScopeLabel>
+            <ClearScopeButton
+              type="button"
+              onClick={clearTraceScope}
+            >
+              Show all spans
+            </ClearScopeButton>
+          </ScopeBanner>
+        ) : null}
         <TraceFilterToolbar
           filteredLabel={filteredLabel}
           filteredSpanVisibility={filteredSpanVisibility}
@@ -910,7 +1009,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
                 );
                 const treeAttributeItems = getTraceAttributeItems(
                   span,
-                  spans,
+                  scopedSpans,
                   traceDisplay,
                   'tree',
                 );
@@ -1055,7 +1154,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
         <DetailPane ref={detailRef}>
           <SpanDetail
             span={selectedSpan}
-            spans={spans}
+            spans={scopedSpans}
             traceDisplay={traceDisplay}
           />
         </DetailPane>
@@ -1076,7 +1175,7 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
           <OverlayBody>
             <SpanDetail
               span={selectedSpan}
-              spans={spans}
+              spans={scopedSpans}
               traceDisplay={traceDisplay}
             />
           </OverlayBody>
@@ -1089,6 +1188,12 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
     updateSearchParams((nextSearchParams) => {
       nextSearchParams.delete(SPAN_SEARCH_PARAM_KEY);
       if (id) nextSearchParams.set(SPAN_SEARCH_PARAM_KEY, id);
+    });
+  }
+
+  function clearTraceScope(): void {
+    updateSearchParams((nextSearchParams) => {
+      nextSearchParams.delete(TRACE_SCOPE_SEARCH_PARAM_KEY);
     });
   }
 }

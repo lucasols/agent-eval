@@ -67,12 +67,14 @@ export type EvalTraceTree = {
   hasSpan: (name: string) => boolean;
   /** Return every span whose kind exactly matches `kind`. */
   findSpansByKind: (kind: string) => EvalTraceSpan[];
-  /** Return every span with `kind: 'tool'`. */
+  /** Return every span with `kind: 'tool'` or `kind: 'tool_call'`. */
   findToolCallSpans: () => EvalTraceSpan[];
-  /** Return the names of every span with `kind: 'tool'`. */
+  /** Return the names of every span with `kind: 'tool'` or `kind: 'tool_call'`. */
   listToolCallSpanNames: () => string[];
-  /** Return whether a `kind: 'tool'` span has a name exactly matching `name`. */
+  /** Return whether a tool-call span has a name exactly matching `name`. */
   hasToolCallSpan: (name: string) => boolean;
+  /** Return whether a tool-call span name appears exactly `expectedCalls` times. */
+  hasNToolCallSpans: (toolName: string, expectedCalls: number) => boolean;
   /** Return span names in creation order, optionally filtered by kind. */
   listSpanNames: (kind?: string) => string[];
   /** Return span names in depth-first tree order, optionally filtered by kind. */
