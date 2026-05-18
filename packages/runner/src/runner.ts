@@ -22,6 +22,7 @@ import {
 } from '@agent-evals/shared';
 import { watch, type FSWatcher } from 'chokidar';
 import { glob } from 'glob';
+import { getCacheRetentionOptions } from './cacheConfig.ts';
 import { createFsCacheStore, type FsCacheStore } from './cacheStore.ts';
 import { resolveCaseDetailLookup } from './caseDetailLookup.ts';
 import { validateCharts } from './chartValidation.ts';
@@ -751,12 +752,12 @@ export function createRunner({
     await mkdir(join(localStateDir, 'runs'), { recursive: true });
     await cleanupStagedManualInputFiles(workspaceRoot);
 
+    const cacheRetentionOptions = getCacheRetentionOptions(config.cache);
     cacheStore = createFsCacheStore({
       workspaceRoot,
       dir: config.cache?.dir,
-      maxEntriesPerNamespace:
-        config.cache?.maxEntriesPerNamespace ?? config.cache?.maxEntriesPerEval,
-      maxEntriesByNamespace: config.cache?.maxEntriesByNamespace,
+      maxEntriesPerNamespace: cacheRetentionOptions.maxEntriesPerNamespace,
+      maxEntriesByNamespace: cacheRetentionOptions.maxEntriesByNamespace,
       lastAccessedAtUpdateIntervalMs:
         config.cache?.lastAccessedAtUpdateIntervalMs,
     });

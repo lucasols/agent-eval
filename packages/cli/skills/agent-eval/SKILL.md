@@ -546,8 +546,8 @@ Mental model:
   JSON blob refs. Each namespace is capped at 100 entries by default. The runner
   prunes least recently accessed indexed entries after a run finishes and the
   runner stays idle for `cache.pruneIdleDelayMs ?? 5000` milliseconds. Configure
-  `cache.maxEntriesPerNamespace` for the default cap and
-  `cache.maxEntriesByNamespace` for exact namespace-specific caps.
+  `cache.maxEntries` as a number for the default cap, or as
+  `{ default, namespaces }` for exact namespace-specific caps.
 - Unindexed legacy cache files are ignored by normal lookup/listing. Use
   `agent-evals cache repair` to remove unindexed cache files, stale index rows,
   debug sidecars, and unreferenced blob files.

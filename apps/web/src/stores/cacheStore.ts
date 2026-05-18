@@ -52,10 +52,16 @@ export async function deleteCacheEntry(
   return null;
 }
 
-export async function deleteAllCacheEntries(): Promise<string | null> {
-  const result = await getRpcResult(apiClient.api.cache.$delete());
+export async function deleteCacheEntriesForRunAndPrevious(
+  runId: string,
+): Promise<string | null> {
+  const result = await getRpcResult(
+    apiClient.api.cache.actions['run-history'][':runId'].$delete({
+      param: { runId: encodeURIComponent(runId) },
+    }),
+  );
 
   if (result.error) return result.error.message;
-  cacheEntryStore.deleteItemState(() => true);
+  cacheEntryStore.deleteItemState(result.value.entries);
   return null;
 }

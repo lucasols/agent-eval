@@ -17,6 +17,7 @@ import {
 } from '@agent-evals/shared';
 import { glob } from 'glob';
 import { z } from 'zod/v4';
+import { getCacheRetentionOptions } from './cacheConfig.ts';
 import { createFsCacheStore } from './cacheStore.ts';
 import { loadConfig } from './config.ts';
 import { parseEvalDiscovery } from './discovery.ts';
@@ -202,12 +203,12 @@ async function main(): Promise<void> {
   configureEvalRunLogs({
     captureConsole: config.runLogs?.captureConsole !== false,
   });
+  const cacheRetentionOptions = getCacheRetentionOptions(config.cache);
   const cacheStore = createFsCacheStore({
     workspaceRoot: context.workspaceRoot,
     dir: config.cache?.dir,
-    maxEntriesPerNamespace:
-      config.cache?.maxEntriesPerNamespace ?? config.cache?.maxEntriesPerEval,
-    maxEntriesByNamespace: config.cache?.maxEntriesByNamespace,
+    maxEntriesPerNamespace: cacheRetentionOptions.maxEntriesPerNamespace,
+    maxEntriesByNamespace: cacheRetentionOptions.maxEntriesByNamespace,
     lastAccessedAtUpdateIntervalMs:
       config.cache?.lastAccessedAtUpdateIntervalMs,
   });

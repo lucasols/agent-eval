@@ -783,10 +783,7 @@ describe('CLI operation caching', () => {
       const configSource = await readFile(configPath, 'utf8');
       await writeFile(
         configPath,
-        configSource.replace(
-          '\n};\n',
-          '\n  cache: { maxEntriesPerNamespace: 2 },\n};\n',
-        ),
+        configSource.replace('\n};\n', '\n  cache: { maxEntries: 2 },\n};\n'),
       );
 
       const run = await runExampleCli(workspacePath, [
@@ -826,7 +823,7 @@ describe('CLI operation caching', () => {
         configPath,
         configSource.replace(
           '\n};\n',
-          "\n  cache: { maxEntriesByNamespace: { 'receipt-audit.receipt-audit-context': 1 } },\n};\n",
+          "\n  cache: { maxEntries: { namespaces: { 'receipt-audit.receipt-audit-context': 1 } } },\n};\n",
         ),
       );
 

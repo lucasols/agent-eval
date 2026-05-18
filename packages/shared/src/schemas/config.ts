@@ -981,15 +981,25 @@ export type AgentEvalsConfig = {
     /** Override the directory used to persist cache entries. */
     dir?: string;
     /**
-     * Default maximum entries retained for each cache namespace. Defaults to
-     * `100`; non-positive or non-finite values fall back to the default.
+     * Maximum entries retained per cache namespace.
+     *
+     * Pass a number to set the default cap for every namespace. Pass an object
+     * to set a default cap plus exact namespace-specific caps. Non-positive or
+     * non-finite values fall back to the default.
+     *
+     * @example
+     * ```ts
+     * cache: {
+     *   maxEntries: {
+     *     default: 50,
+     *     namespaces: { 'receipt-audit.receipt-audit-context': 200 },
+     *   },
+     * }
+     * ```
      */
-    maxEntriesPerNamespace?: number;
-    /**
-     * Exact namespace-specific retention caps. Values override
-     * `maxEntriesPerNamespace` for matching namespaces.
-     */
-    maxEntriesByNamespace?: Record<string, number>;
+    maxEntries?:
+      | number
+      | { default?: number; namespaces?: Record<string, number> };
     /**
      * Milliseconds the runner waits after becoming idle before pruning indexed
      * cache entries. Defaults to `5000`; non-positive or non-finite values use
@@ -1001,10 +1011,18 @@ export type AgentEvalsConfig = {
      * cache hits. Defaults to four hours. Set to `0` to record every hit.
      */
     lastAccessedAtUpdateIntervalMs?: number;
-    /** Legacy alias for `maxEntriesPerNamespace`, retained so older config files keep working. */
-    maxEntriesPerEval?: number;
   };
 };
+
+const cacheMaxEntriesSchema = z
+  .union([
+    z.number(),
+    z.object({
+      default: z.number().optional(),
+      namespaces: z.record(z.string(), z.number()).optional(),
+    }),
+  ])
+  .optional();
 
 /** Zod schema for validating `agent-evals.config.ts` input. */
 export const agentEvalsConfigSchema = z.object({
@@ -1030,13 +1048,8 @@ export const agentEvalsConfigSchema = z.object({
     .object({
       enabled: z.boolean().optional(),
       dir: z.string().optional(),
-      maxEntriesPerNamespace: z.preprocess(
-        (value) =>
-          typeof value === 'number' && Number.isFinite(value)
-            ? value
-            : undefined,
-        z.number().optional(),
-      ),
+      maxEntries: cacheMaxEntriesSchema,
+      maxEntriesPerNamespace: z.number().optional(),
       maxEntriesByNamespace: z.record(z.string(), z.number()).optional(),
       pruneIdleDelayMs: z.preprocess(
         (value) =>
@@ -1052,13 +1065,32 @@ export const agentEvalsConfigSchema = z.object({
             : undefined,
         z.number().optional(),
       ),
-      maxEntriesPerEval: z.preprocess(
-        (value) =>
-          typeof value === 'number' && Number.isFinite(value)
-            ? value
-            : undefined,
-        z.number().optional(),
-      ),
+      maxEntriesPerEval: z.number().optional(),
     })
+    .transform(
+      ({
+        maxEntries,
+        maxEntriesByNamespace,
+        maxEntriesPerEval,
+        maxEntriesPerNamespace,
+        ...cache
+      }) => {
+        const defaultMaxEntries = maxEntriesPerNamespace ?? maxEntriesPerEval;
+        if (maxEntries !== undefined) return { ...cache, maxEntries };
+        if (
+          defaultMaxEntries !== undefined ||
+          maxEntriesByNamespace !== undefined
+        ) {
+          return {
+            ...cache,
+            maxEntries: {
+              default: defaultMaxEntries,
+              namespaces: maxEntriesByNamespace,
+            },
+          };
+        }
+        return cache;
+      },
+    )
     .optional(),
 });

@@ -50,7 +50,7 @@ import {
   useSearchParams,
 } from '#src/hooks/useSearchParams';
 import { useWindowWidth } from '#src/hooks/useWindowWidth';
-import { deleteAllCacheEntries } from '#src/stores/cacheStore';
+import { deleteCacheEntry } from '#src/stores/cacheStore';
 import { evalSummariesStore } from '#src/stores/evalsStore';
 import { layoutStore } from '#src/stores/layoutStore';
 import {
@@ -505,7 +505,9 @@ export function CaseDrawer() {
   );
   const [cacheFilter, setCacheFilter] = useState<CacheFilter>('execute');
   const [cacheClearError, setCacheClearError] = useState<string | null>(null);
-  const [allCachesDeleted, setAllCachesDeleted] = useState(false);
+  const [deletedCacheEntryIds, setDeletedCacheEntryIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [costScenario, setCostScenario] = useState<LlmCostScenario>('actual');
   const { selectedCaseRunId, selectedCaseId } = runStore.useSelectorRC((s) => ({
     selectedCaseRunId: s.selectedCaseRunId,
@@ -570,12 +572,30 @@ export function CaseDrawer() {
     });
   });
 
-  const deleteAllCacheEntriesAction = useActionFn(async () => {
-    if (!window.confirm('Delete all persisted cache entries?')) return;
+  const deleteShownCacheEntriesAction = useActionFn(async () => {
+    if (shownCacheEntriesToDelete.length === 0) return;
+    if (
+      !window.confirm(
+        `Delete ${String(shownCacheEntriesToDelete.length)} shown cached entries?`,
+      )
+    ) {
+      return;
+    }
     setCacheClearError(null);
-    const errorMessage = await deleteAllCacheEntries();
+    const results = await Promise.all(
+      shownCacheEntriesToDelete.map((entry) => deleteCacheEntry(entry)),
+    );
+    const errorMessage = results.find((result) => result !== null) ?? null;
     setCacheClearError(errorMessage);
-    if (errorMessage === null) setAllCachesDeleted(true);
+    if (errorMessage !== null) return;
+
+    setDeletedCacheEntryIds((previous) => {
+      const next = new Set(previous);
+      for (const entry of shownCacheEntriesToDelete) {
+        next.add(getCacheEntryId(entry));
+      }
+      return next;
+    });
   });
 
   if (selectedCaseResult.error !== null && selectedCaseDetail === null) {
@@ -639,6 +659,8 @@ export function CaseDrawer() {
     })),
   });
   const filteredCacheEntries = filterCacheEntries(cacheEntries, cacheFilter);
+  const shownCacheEntriesToDelete =
+    getUniqueStoredCacheEntryPayloads(filteredCacheEntries);
   const logPhases = getLogPhases(d.logs);
   const selectedLogPhase =
     logPhaseFilter === 'all' || logPhases.includes(logPhaseFilter)
@@ -857,14 +879,17 @@ export function CaseDrawer() {
                 <Button
                   variant="danger"
                   leftIcon={<Trash2 />}
-                  disabled={deleteAllCacheEntriesAction.isInProgress}
+                  disabled={
+                    deleteShownCacheEntriesAction.isInProgress ||
+                    shownCacheEntriesToDelete.length === 0
+                  }
                   onClick={() => {
-                    void deleteAllCacheEntriesAction.call();
+                    void deleteShownCacheEntriesAction.call();
                   }}
                 >
-                  {deleteAllCacheEntriesAction.isInProgress
-                    ? 'Deleting caches'
-                    : 'Delete all caches'}
+                  {deleteShownCacheEntriesAction.isInProgress
+                    ? 'Deleting shown caches'
+                    : 'Delete shown caches'}
                 </Button>
                 <CacheFilterSelect
                   value={cacheFilter}
@@ -897,7 +922,9 @@ export function CaseDrawer() {
                       currentCaseKey={d.caseKey ?? d.caseId}
                       currentEvalKey={d.evalKey ?? d.evalId}
                       currentCacheIndex={cacheIndex < 0 ? 0 : cacheIndex}
-                      forceDeleted={allCachesDeleted}
+                      forceDeleted={deletedCacheEntryIds.has(
+                        getCacheEntryId(scopedEntry.entry),
+                      )}
                     />
                   );
                 })}
@@ -1084,6 +1111,35 @@ function filterCacheEntries(
     case 'all':
       return entries;
   }
+}
+
+type CacheEntryIdentity = { namespace: string; key: string };
+
+function getCacheEntryId(entry: CacheEntryIdentity): string {
+  return `${entry.namespace}\u0000${entry.key}`;
+}
+
+function getUniqueStoredCacheEntryPayloads(
+  entries: ScopedCacheActivityEntry[],
+): CacheEntryIdentity[] {
+  const seen = new Set<string>();
+  const payloads: CacheEntryIdentity[] = [];
+
+  for (const scopedEntry of entries) {
+    if (!scopedEntry.entry.stored) continue;
+
+    const payload = {
+      namespace: scopedEntry.entry.namespace,
+      key: scopedEntry.entry.key,
+    };
+    const id = getCacheEntryId(payload);
+    if (seen.has(id)) continue;
+
+    seen.add(id);
+    payloads.push(payload);
+  }
+
+  return payloads;
 }
 
 function parseCacheFilter(value: string): CacheFilter {

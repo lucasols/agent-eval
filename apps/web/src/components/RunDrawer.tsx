@@ -3,6 +3,7 @@ import {
   deriveStatusFromCaseRows,
   type CaseRow,
 } from '@agent-evals/shared';
+import { useActionFn } from '@ls-stack/react-utils/useActionFn';
 import { Copy, SquareStop, X } from 'lucide-react';
 import { styled } from 'vindur';
 import { Button } from '#src/components/Button';
@@ -19,6 +20,7 @@ import { StatusBadge } from '#src/components/StatusBadge';
 import { Tooltip } from '#src/components/Tooltip';
 import { useResizableWidth } from '#src/hooks/useResizableWidth';
 import { useWindowWidth } from '#src/hooks/useWindowWidth';
+import { deleteCacheEntriesForRunAndPrevious } from '#src/stores/cacheStore';
 import { evalSummariesStore } from '#src/stores/evalsStore';
 import { layoutStore } from '#src/stores/layoutStore';
 import {
@@ -527,6 +529,19 @@ export function RunDrawer() {
       edge: 'left',
     });
 
+  const deleteRunCacheAction = useActionFn(async (runId: string) => {
+    if (
+      !window.confirm(
+        'Delete cached entries recorded by this run and all previous runs?',
+      )
+    ) {
+      return;
+    }
+
+    const errorMessage = await deleteCacheEntriesForRunAndPrevious(runId);
+    if (errorMessage !== null) window.alert(errorMessage);
+  });
+
   if (selectedRunResult.error !== null && selectedRunDetail === null) {
     return (
       <DrawerError style={{ width: `${width}px` }}>
@@ -619,6 +634,19 @@ export function RunDrawer() {
       description: 'Copy the saved artifact directory for this run.',
       onSelect: () => {
         void handleCopyRunFolderPath();
+      },
+    },
+    {
+      id: 'delete-run-cache-history',
+      label: deleteRunCacheAction.isInProgress
+        ? 'Deleting run caches'
+        : 'Delete run caches',
+      description:
+        'Remove cache entries recorded by this run and earlier saved runs.',
+      tone: 'danger',
+      onSelect: () => {
+        if (deleteRunCacheAction.isInProgress) return;
+        void deleteRunCacheAction.call(manifest.id);
       },
     },
     {

@@ -36,7 +36,7 @@ test('prunes cache retention only after the runner stays idle', async () => {
     join(workspacePath, 'agent-evals.config.ts'),
     `export default {
   include: ['evals/**/*.eval.ts'],
-  cache: { maxEntriesPerNamespace: 1, pruneIdleDelayMs: 500 },
+  cache: { maxEntries: 1, pruneIdleDelayMs: 500 },
 };
 `,
   );

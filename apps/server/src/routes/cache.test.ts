@@ -121,4 +121,148 @@ describe('cache routes', () => {
     });
     expect(mockRunner.clearCache).not.toHaveBeenCalled();
   });
+
+  test('clears cache entries recorded by a run and earlier runs', async () => {
+    mockRunner.getRuns.mockReturnValue([
+      { id: 'old-run' },
+      { id: 'selected-run' },
+      { id: 'new-run' },
+    ]);
+    mockRunner.getRun.mockImplementation((runId: string) => {
+      if (runId === 'old-run') {
+        return {
+          manifest: {
+            id: 'old-run',
+            shortId: 'r1',
+            startedAt: '2026-05-18T10:00:00.000Z',
+          },
+          cases: [{ caseId: 'old-run-case' }],
+        };
+      }
+      if (runId === 'selected-run') {
+        return {
+          manifest: {
+            id: 'selected-run',
+            shortId: 'r2',
+            startedAt: '2026-05-18T11:00:00.000Z',
+          },
+          cases: [{ caseId: 'selected-run-case' }],
+        };
+      }
+      if (runId === 'new-run') {
+        return {
+          manifest: {
+            id: 'new-run',
+            shortId: 'r3',
+            startedAt: '2026-05-18T12:00:00.000Z',
+          },
+          cases: [{ caseId: 'new-run-case' }],
+        };
+      }
+      return undefined;
+    });
+    mockRunner.getCaseDetail.mockImplementation(
+      (runId: string, caseId: string) => {
+        if (runId === 'new-run') {
+          return {
+            cacheRefs: [],
+            trace: [
+              {
+                id: 'ignored-new-span',
+                name: caseId,
+                attributes: {
+                  'cache.status': 'hit',
+                  'cache.namespace': 'new-run-namespace',
+                  'cache.key': 'new-run-key',
+                },
+              },
+            ],
+          };
+        }
+
+        return {
+          cacheRefs:
+            runId === 'old-run'
+              ? [
+                  {
+                    type: 'value',
+                    name: 'old-value',
+                    namespace: 'shared-namespace',
+                    key: 'shared-key',
+                    status: 'hit',
+                  },
+                ]
+              : [],
+          scoringTraces:
+            runId === 'selected-run'
+              ? {
+                  quality: {
+                    cacheRefs: [],
+                    trace: [
+                      {
+                        id: 'score-span',
+                        name: 'score-cache',
+                        attributes: {
+                          'cache.status': 'hit',
+                          'cache.namespace': 'score-namespace',
+                          'cache.key': 'score-key',
+                        },
+                      },
+                    ],
+                  },
+                }
+              : undefined,
+          trace: [
+            {
+              id: `${runId}-span`,
+              name: caseId,
+              attributes: {
+                'cache.status': 'miss',
+                'cache.namespace':
+                  runId === 'old-run'
+                    ? 'shared-namespace'
+                    : 'selected-namespace',
+                'cache.key':
+                  runId === 'old-run' ? 'shared-key' : 'selected-key',
+              },
+            },
+          ],
+        };
+      },
+    );
+
+    const response = await app.request(
+      '/cache/actions/run-history/selected-run',
+      { method: 'DELETE' },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      deletedEntries: 3,
+      entries: [
+        { namespace: 'shared-namespace', key: 'shared-key' },
+        { namespace: 'selected-namespace', key: 'selected-key' },
+        { namespace: 'score-namespace', key: 'score-key' },
+      ],
+    });
+    expect(mockRunner.clearCache).toHaveBeenCalledTimes(3);
+    expect(mockRunner.clearCache).not.toHaveBeenCalledWith({
+      namespace: 'new-run-namespace',
+      key: 'new-run-key',
+    });
+  });
+
+  test('rejects clear-by-run-history when the run is missing', async () => {
+    mockRunner.getRun.mockReturnValue(undefined);
+
+    const response = await app.request(
+      '/cache/actions/run-history/missing-run',
+      { method: 'DELETE' },
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ error: 'Run not found' });
+    expect(mockRunner.clearCache).not.toHaveBeenCalled();
+  });
 });

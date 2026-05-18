@@ -1,4 +1,8 @@
-import { extractCacheEntries } from '@agent-evals/shared';
+import {
+  extractCacheEntries,
+  type CaseDetail,
+  type RunManifest,
+} from '@agent-evals/shared';
 import type { EvalRunner } from '@ls-stack/agent-eval';
 import { Hono } from 'hono';
 import { getRunnerInstance } from '../runner.ts';
@@ -12,6 +16,8 @@ import { getRunnerInstance } from '../runner.ts';
  * - `DELETE /` clears the entire cache directory.
  * - `DELETE /actions/eval?evalKey=<key>` clears entries recorded by saved runs
  *   for one exact eval identity.
+ * - `DELETE /actions/run-history/:runId` clears entries recorded by the run
+ *   and all earlier saved runs.
  * - `DELETE /:namespace` clears one namespace.
  * - `DELETE /:namespace/:key` clears a single entry by its key hash.
  */
@@ -53,6 +59,22 @@ export const cacheRoutes = new Hono()
 
     return c.json({ ok: true, deletedEntries: entries.length }, 200);
   })
+  .delete('/actions/run-history/:runId', async (c) => {
+    const runId = c.req.param('runId');
+    const runner = getRunnerInstance();
+    const entries = getCacheEntriesForRunAndPrevious(runner, runId);
+    if (entries === null) {
+      return c.json({ error: 'Run not found' }, 404);
+    }
+
+    await Promise.all(
+      entries.map((entry) =>
+        runner.clearCache({ namespace: entry.namespace, key: entry.key }),
+      ),
+    );
+
+    return c.json({ ok: true, deletedEntries: entries.length, entries }, 200);
+  })
   .delete('/:namespace', async (c) => {
     const namespace = c.req.param('namespace');
     const runner = getRunnerInstance();
@@ -82,11 +104,7 @@ function getCacheEntriesForEvalRuns(
       const caseDetail = runner.getCaseDetail(manifest.id, caseRow.caseId);
       if (caseDetail === undefined) continue;
 
-      for (const entry of extractCacheEntries(
-        caseDetail.trace,
-        caseDetail.cacheRefs,
-      )) {
-        if (!entry.stored) continue;
+      for (const entry of getStoredCacheEntriesForCase(caseDetail)) {
         entries.set(`${entry.namespace}\u0000${entry.key}`, {
           namespace: entry.namespace,
           key: entry.key,
@@ -96,4 +114,75 @@ function getCacheEntriesForEvalRuns(
   }
 
   return [...entries.values()];
+}
+
+function getCacheEntriesForRunAndPrevious(
+  runner: EvalRunner,
+  runId: string,
+): Array<{ namespace: string; key: string }> | null {
+  const selectedRun = runner.getRun(runId);
+  if (selectedRun === undefined) return null;
+
+  const entries = new Map<string, { namespace: string; key: string }>();
+
+  for (const manifest of runner.getRuns()) {
+    const run = runner.getRun(manifest.id);
+    if (run === undefined) continue;
+    if (!runIsSelectedOrPrevious(run.manifest, selectedRun.manifest)) {
+      continue;
+    }
+
+    for (const caseRow of run.cases) {
+      const caseDetail = runner.getCaseDetail(manifest.id, caseRow.caseId);
+      if (caseDetail === undefined) continue;
+
+      for (const entry of getStoredCacheEntriesForCase(caseDetail)) {
+        entries.set(`${entry.namespace}\u0000${entry.key}`, {
+          namespace: entry.namespace,
+          key: entry.key,
+        });
+      }
+    }
+  }
+
+  return [...entries.values()];
+}
+
+function getStoredCacheEntriesForCase(caseDetail: CaseDetail) {
+  const entries = extractCacheEntries(caseDetail.trace, caseDetail.cacheRefs);
+
+  for (const scoreTrace of Object.values(caseDetail.scoringTraces ?? {})) {
+    entries.push(
+      ...extractCacheEntries(scoreTrace.trace, scoreTrace.cacheRefs),
+    );
+  }
+
+  return entries.filter((entry) => entry.stored);
+}
+
+function runIsSelectedOrPrevious(
+  manifest: RunManifest,
+  selectedManifest: RunManifest,
+): boolean {
+  if (manifest.id === selectedManifest.id) return true;
+
+  const runSequence = readRunSequence(manifest.shortId);
+  const selectedSequence = readRunSequence(selectedManifest.shortId);
+  if (runSequence !== undefined && selectedSequence !== undefined) {
+    return runSequence <= selectedSequence;
+  }
+
+  const runStartedAt = Date.parse(manifest.startedAt);
+  const selectedStartedAt = Date.parse(selectedManifest.startedAt);
+  if (!Number.isFinite(runStartedAt) || !Number.isFinite(selectedStartedAt)) {
+    return false;
+  }
+
+  return runStartedAt <= selectedStartedAt;
+}
+
+function readRunSequence(shortId: string): number | undefined {
+  if (!shortId.startsWith('r')) return undefined;
+  const value = Number(shortId.slice(1));
+  return Number.isInteger(value) && value >= 0 ? value : undefined;
 }

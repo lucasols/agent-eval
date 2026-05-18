@@ -8,6 +8,7 @@ import {
   resolveApiCallsConfig,
   resolveLlmCallsConfig,
 } from '@agent-evals/shared';
+import { getCacheRetentionOptions } from './cacheConfig.ts';
 import { createBufferedCacheStore, createFsCacheStore } from './cacheStore.ts';
 import {
   isCaseChildParentMessage,
@@ -97,12 +98,12 @@ async function executeCaseChild(
   configureEvalRunLogs({
     captureConsole: config.runLogs?.captureConsole !== false,
   });
+  const cacheRetentionOptions = getCacheRetentionOptions(config.cache);
   const cacheStore = createFsCacheStore({
     workspaceRoot: context.workspaceRoot,
     dir: config.cache?.dir,
-    maxEntriesPerNamespace:
-      config.cache?.maxEntriesPerNamespace ?? config.cache?.maxEntriesPerEval,
-    maxEntriesByNamespace: config.cache?.maxEntriesByNamespace,
+    maxEntriesPerNamespace: cacheRetentionOptions.maxEntriesPerNamespace,
+    maxEntriesByNamespace: cacheRetentionOptions.maxEntriesByNamespace,
     lastAccessedAtUpdateIntervalMs:
       config.cache?.lastAccessedAtUpdateIntervalMs,
   });

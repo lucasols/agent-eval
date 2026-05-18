@@ -1389,13 +1389,14 @@ Server API (`/api/cache`):
   inspection. This folder may contain prompts, user inputs, cached payloads, or
   other sensitive data, is not needed for cache reuse, and should be gitignored.
   Normal cache files remain hash-only.
-- Each namespace keeps at most `cache.maxEntriesPerNamespace ?? 100` entries,
+- Each namespace keeps at most `cache.maxEntries` entries, or `100` entries
+  when no cache retention cap is configured,
   pruning the least recently accessed indexed entries after a run finishes and
   the runner stays idle for `cache.pruneIdleDelayMs ?? 5000` milliseconds. Cache
   hits update `lastAccessedAt` in the namespace index at most once every
   `cache.lastAccessedAtUpdateIntervalMs ?? 14_400_000` milliseconds (four
-  hours); never-hit entries keep `lastAccessedAt: null`. Use
-  `cache.maxEntriesByNamespace` for exact namespace overrides.
+  hours); never-hit entries keep `lastAccessedAt: null`. Use the object form of
+  `cache.maxEntries` for exact namespace overrides.
 - Unindexed legacy cache files are ignored by normal lookup, listing, and
   retention. Run `pnpm eval cache repair` when you want to remove unindexed
   cache files, stale index rows, debug sidecars, and unreferenced blob files.
@@ -1440,8 +1441,10 @@ namespaces:
 export const config: AgentEvalsConfig = {
   include: ['evals/**/*.eval.ts'],
   cache: {
-    maxEntriesPerNamespace: 50,
-    maxEntriesByNamespace: { 'receipt-audit.receipt-audit-context': 200 },
+    maxEntries: {
+      default: 50,
+      namespaces: { 'receipt-audit.receipt-audit-context': 200 },
+    },
     pruneIdleDelayMs: 5_000,
     lastAccessedAtUpdateIntervalMs: 4 * 60 * 60 * 1000,
   },
