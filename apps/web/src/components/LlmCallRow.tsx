@@ -6,9 +6,10 @@ import {
   type ResolvedLlmCallCostCurrency,
   type ResolvedLlmCallPricing,
 } from '@agent-evals/shared';
-import { ChevronDown, ChevronRight, Maximize2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, GitFork, Maximize2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { styled } from 'vindur';
+import { Button } from '#src/components/Button';
 import { IconButton } from '#src/components/IconButton';
 import { JsonViewer } from '#src/components/JsonViewer';
 import {
@@ -214,6 +215,10 @@ const MessageText = styled.pre`
 
 const MetricsSection = styled.div`
   ${stack({ gap: 6 })}
+`;
+
+const TraceActionRow = styled.div`
+  ${inline({ justify: 'right', align: 'center' })}
 `;
 
 const StepsWrapper = styled.div`
@@ -461,7 +466,8 @@ function metricKey(metric: LlmCallMetricValue): string {
  * sections in order: Input / Output / Reasoning / Steps (when the configured
  * `steps` attribute resolved to an array, or when direct child `model_step`
  * spans were captured) / Tool calls aggregated from the call and its steps.
- * Span warnings and any captured error render at the bottom.
+ * Span warnings and any captured error render at the bottom. `onOpenTrace`
+ * switches the case drawer to the Trace tab with this LLM call's span selected.
  *
  * `scenario` controls how costs are displayed. `'actual'` uses the recorded
  * costs as-is. The simulated scenarios (`'noCache'`, `'withBaseCaching'`,
@@ -475,11 +481,13 @@ export function LlmCallRow({
   costCurrencies,
   scenario,
   pricing,
+  onOpenTrace,
 }: {
   entry: LlmCallEntry;
   costCurrencies: ResolvedLlmCallCostCurrency[];
   scenario: LlmCostScenario;
   pricing: ResolvedLlmCallPricing[];
+  onOpenTrace: (spanId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -740,6 +748,18 @@ export function LlmCallRow({
           {entry.input !== undefined ? (
             <MessagesSection input={entry.input} />
           ) : null}
+
+          <TraceActionRow>
+            <Button
+              variant="secondary"
+              leftIcon={<GitFork />}
+              onClick={() => {
+                onOpenTrace(entry.id);
+              }}
+            >
+              Open LLM trace
+            </Button>
+          </TraceActionRow>
         </Body>
       ) : null}
     </Card>

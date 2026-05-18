@@ -635,6 +635,14 @@ export function CaseDrawer() {
     if (runFolderPath === null) return;
     await copyTextToClipboard(runFolderPath, 'Copy run path');
   }
+
+  function openTraceSpan(spanId: string) {
+    updateSearchParams((nextSearchParams) => {
+      nextSearchParams.set('caseTab', 'trace');
+      nextSearchParams.set('span', spanId);
+    });
+  }
+
   const evalSummary = evals.find((e) => e.key === (d.evalKey ?? d.evalId));
   const columnDefs = mergeRuntimeColumnDefs(
     evalSummary?.columnDefs ?? [],
@@ -841,6 +849,7 @@ export function CaseDrawer() {
                     costCurrencies={llmCallsConfig.costCurrencies}
                     scenario={costScenario}
                     pricing={llmCallsConfig.pricing}
+                    onOpenTrace={openTraceSpan}
                   />
                 ))}
               </LlmCallsList>
