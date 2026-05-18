@@ -1,11 +1,7 @@
 import { styled } from 'vindur';
 import { CollapsibleDetails } from '#src/components/CollapsibleDetails';
+import { ErrorStackTrace } from '#src/components/ErrorStackTrace';
 import { JsonViewer } from '#src/components/JsonViewer';
-import { StackTraceViewer } from '#src/components/StackTraceViewer';
-import {
-  DEFAULT_WORKSPACE_CONFIG,
-  workspaceConfigStore,
-} from '#src/stores/workspaceConfigStore';
 import { colors } from '#src/style/colors';
 import { kicker, monoFont, stack } from '#src/style/helpers';
 
@@ -97,9 +93,6 @@ export function ErrorDetails({
   tone?: ErrorDetailTone;
 }) {
   const isWarning = tone === 'warning';
-  const workspaceRoot =
-    workspaceConfigStore.useDocument().data?.workspaceRoot ??
-    DEFAULT_WORKSPACE_CONFIG.workspaceRoot;
 
   return (
     <ErrorContainer warning={isWarning}>
@@ -118,10 +111,7 @@ export function ErrorDetails({
             <ErrorMeta warning={isWarning}>{error.meta}</ErrorMeta>
           ) : null}
           {error.stack !== undefined ? (
-            <StackTraceViewer
-              stack={error.stack}
-              workspaceRoot={workspaceRoot}
-            />
+            <ErrorStackTrace stack={error.stack} />
           ) : null}
           {error.attributes !== undefined ? (
             <CollapsibleDetails>

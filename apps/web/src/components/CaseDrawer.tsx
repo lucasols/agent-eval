@@ -27,6 +27,7 @@ import { CaseRunLogs, getLogPhases } from '#src/components/CaseRunLogs';
 import { CaseScores } from '#src/components/CaseScores';
 import { EmptyState } from '#src/components/EmptyState';
 import { ErrorDetails } from '#src/components/ErrorDetails';
+import { ErrorStackTrace } from '#src/components/ErrorStackTrace';
 import {
   FormattedCellValue,
   hasRichColumnFormat,
@@ -441,19 +442,6 @@ const AssertionName = styled.div`
   ${monoFont};
   font-size: 11.5px;
   color: ${colors.textMuted.var};
-`;
-
-const AssertionStack = styled.pre`
-  ${monoFont};
-  margin: 0;
-  padding: 10px;
-  border-radius: var(--radius-sm);
-  background: ${colors.surface.var};
-  color: ${colors.textMuted.var};
-  font-size: 11.5px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
 `;
 
 function resolveActiveTab(
@@ -1056,9 +1044,7 @@ function AssertionResultCard({ assertion }: { assertion: AssertionResult }) {
         </AssertionBadge>
       </AssertionHeader>
       {assertion.name ? <AssertionName>{assertion.name}</AssertionName> : null}
-      {assertion.stack ? (
-        <AssertionStack>{assertion.stack}</AssertionStack>
-      ) : null}
+      {assertion.stack ? <ErrorStackTrace stack={assertion.stack} /> : null}
     </AssertionCard>
   );
 }

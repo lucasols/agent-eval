@@ -2,6 +2,7 @@ import type { ApiCallEntry, ApiCallMetricValue } from '@agent-evals/shared';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { styled } from 'vindur';
+import { ErrorStackTrace } from '#src/components/ErrorStackTrace';
 import { JsonViewer } from '#src/components/JsonViewer';
 import { StatusBadge } from '#src/components/StatusBadge';
 import { Tooltip } from '#src/components/Tooltip';
@@ -193,17 +194,6 @@ const ErrorContainer = styled.div`
 const ErrorTitle = styled.div`
   font-weight: 600;
   margin-bottom: 8px;
-`;
-
-const ErrorStack = styled.pre`
-  ${monoFont};
-  font-size: 11px;
-  white-space: pre-wrap;
-  opacity: 0.8;
-  background: ${colors.surface.var};
-  border: 1px solid ${colors.border.var};
-  border-radius: var(--radius-sm);
-  padding: 10px;
 `;
 
 const WarningContainer = styled.div`
@@ -452,7 +442,7 @@ export function ApiCallRow({ entry }: { entry: ApiCallEntry }) {
               <WarningTitle>
                 {warning.name ?? 'Warning'}: {warning.message}
               </WarningTitle>
-              {warning.stack ? <ErrorStack>{warning.stack}</ErrorStack> : null}
+              {warning.stack ? <ErrorStackTrace stack={warning.stack} /> : null}
             </WarningContainer>
           ))}
 
@@ -462,7 +452,7 @@ export function ApiCallRow({ entry }: { entry: ApiCallEntry }) {
                 {entry.error.name ?? 'Error'}: {entry.error.message}
               </ErrorTitle>
               {entry.error.stack ? (
-                <ErrorStack>{entry.error.stack}</ErrorStack>
+                <ErrorStackTrace stack={entry.error.stack} />
               ) : null}
             </ErrorContainer>
           ) : null}
