@@ -292,7 +292,7 @@ describe('filesystem cache store raw-key debug storage', () => {
     });
   });
 
-  test('writes minimal namespace index rows', async () => {
+  test('writes namespace index rows with last access initialized', async () => {
     const workspacePath = await createWorkspace();
     const store = createFsCacheStore({ workspaceRoot: workspacePath });
 
@@ -306,7 +306,7 @@ describe('filesystem cache store raw-key debug storage', () => {
       entries: {
         'hashed-key': {
           storedAt: '2026-04-29T00:00:00.000Z',
-          lastAccessedAt: null,
+          lastAccessedAt: '2026-04-29T00:00:00.000Z',
           blobRefs: [],
         },
       },
@@ -329,7 +329,7 @@ describe('filesystem cache store raw-key debug storage', () => {
         key: 'hashed-key',
         namespace: defaultNamespace,
         storedAt: '2026-04-29T00:00:00.000Z',
-        lastAccessedAt: null,
+        lastAccessedAt: '2026-04-29T00:00:00.000Z',
       },
     ]);
     await expect(

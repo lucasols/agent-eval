@@ -1405,10 +1405,11 @@ Server API (`/api/cache`):
   when no cache retention cap is configured,
   pruning the least recently accessed indexed entries after a run finishes and
   the runner stays idle for `cache.pruneIdleDelayMs ?? 5000` milliseconds. Cache
-  hits update `lastAccessedAt` in the namespace index at most once every
+  writes initialize `lastAccessedAt` to the entry's `storedAt`, and hits update
+  `lastAccessedAt` in the namespace index at most once every
   `cache.lastAccessedAtUpdateIntervalMs ?? 14_400_000` milliseconds (four
-  hours); never-hit entries keep `lastAccessedAt: null`. Use the object form of
-  `cache.maxEntries` for exact namespace overrides.
+  hours). Legacy index rows may still have `lastAccessedAt: null`. Use the
+  object form of `cache.maxEntries` for exact namespace overrides.
 - Unindexed legacy cache files are ignored by normal lookup, listing, and
   retention. Run `pnpm eval cache repair` when you want to remove unindexed
   cache files, stale index rows, debug sidecars, and unreferenced blob files.

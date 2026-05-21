@@ -228,7 +228,7 @@ export function createFsCacheStore(options: {
           const index = await readNamespaceIndex(cacheDir, entry.namespace);
           index.entries[entry.key] = {
             storedAt: entry.storedAt,
-            lastAccessedAt: null,
+            lastAccessedAt: entry.storedAt,
             blobRefs: await collectExternalJsonBlobRefs(entry, blobDirs),
           };
           await writeNamespaceIndex(cacheDir, index);

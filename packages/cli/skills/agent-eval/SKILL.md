@@ -568,6 +568,8 @@ Mental model:
   runner stays idle for `cache.pruneIdleDelayMs ?? 5000` milliseconds. Configure
   `cache.maxEntries` as a number for the default cap, or as
   `{ default, namespaces }` for exact namespace-specific caps.
+  Writes initialize the row's last access time to the stored time; later cache
+  hits refresh that timestamp at the configured access-time update interval.
 - Unindexed legacy cache files are ignored by normal lookup/listing. Use
   `agent-evals cache repair` to remove unindexed cache files, stale index rows,
   debug sidecars, and unreferenced blob files.
