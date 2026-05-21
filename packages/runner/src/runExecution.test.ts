@@ -8,11 +8,11 @@ import {
   nextEvalId,
   setEvalOutput,
   startEvalBackgroundJob,
-  z,
   type CacheAdapter,
 } from '@agent-evals/sdk';
 import { resolveLlmCallsConfig, type CacheEntry } from '@agent-evals/shared';
 import { expect, test } from 'vitest';
+import { z } from 'zod';
 import { buildScopedEvalIdPrefix, runCase } from './runExecution.ts';
 
 type RunCaseOverrides = Partial<Parameters<typeof runCase>[0]>;

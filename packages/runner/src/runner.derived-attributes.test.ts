@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { caseDetailSchema, traceSpanSchema } from '@agent-evals/shared';
 import { afterEach, describe, expect, test } from 'vitest';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 import { createRunner } from './runner.ts';
 
 const createdWorkspaces: string[] = [];

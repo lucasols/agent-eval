@@ -1,6 +1,6 @@
 import type { ManualInputFieldDescriptor } from '@agent-evals/shared';
 import { describe, expect, test } from 'vitest';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 import {
   buildManualInputDescriptor,
   ManualInputValidationError,

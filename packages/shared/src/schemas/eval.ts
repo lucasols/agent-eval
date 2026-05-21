@@ -1,4 +1,4 @@
-import { z } from 'zod/v4';
+import { z } from 'zod';
 import { traceCacheRefSchema } from './cache.ts';
 import { evalChartsConfigSchema } from './chart.ts';
 import {

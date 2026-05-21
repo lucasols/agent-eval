@@ -5,7 +5,6 @@ export {
   type EvalRegistryEntry,
 } from './defineEval.ts';
 export { evalExpect, type EvalExpectation } from './evalExpect.ts';
-export { z } from 'zod/v4';
 export {
   manualInputFileValueSchema,
   readManualInputFile,

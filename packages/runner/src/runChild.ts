@@ -16,7 +16,7 @@ import {
   type EvalSummary,
 } from '@agent-evals/shared';
 import { glob } from 'glob';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 import { getCacheRetentionOptions } from './cacheConfig.ts';
 import { createFsCacheStore } from './cacheStore.ts';
 import { loadConfig } from './config.ts';

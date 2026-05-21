@@ -77,7 +77,6 @@ export {
   type MaterializeManualInputFilesResult,
 } from '@agent-evals/runner';
 export {
-  z,
   getEvalRegistry,
   manualInputFileValueSchema,
   readManualInputFile,

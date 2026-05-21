@@ -9,6 +9,7 @@ describe('public package exports', () => {
     );
 
     expect(schemaExports).toEqual(['manualInputFileValueSchema']);
+    expect(Object.hasOwn(apiExports, 'z')).toBe(false);
     expect(Object.hasOwn(apiExports, 'evalChartAxisSchema')).toBe(false);
     expect(Object.hasOwn(apiExports, 'createRunRequestSchema')).toBe(false);
   });

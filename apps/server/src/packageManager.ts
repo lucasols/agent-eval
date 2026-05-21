@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { resultify } from 't-result';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 
 const packageJsonSchema = z.object({ packageManager: z.string().optional() });
 const packageManagerNameSeparatorRegex = /[ @/]/;

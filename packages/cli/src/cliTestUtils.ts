@@ -11,7 +11,7 @@ import {
   traceSpanSchema,
   type EvalTraceSpan,
 } from '@agent-evals/shared';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 export const repoRoot = resolve(currentDir, '../../..');

@@ -27,7 +27,7 @@ import type {
   DefaultConfigKey,
   TraceDisplayInputConfig,
 } from '@agent-evals/shared';
-import type { z } from 'zod/v4';
+import type { z } from 'zod';
 
 export type {
   EvalChartAggregate,

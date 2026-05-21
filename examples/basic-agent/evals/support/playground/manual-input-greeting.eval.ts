@@ -1,4 +1,5 @@
-import { defineEval, z } from '@ls-stack/agent-eval';
+import { defineEval } from '@ls-stack/agent-eval';
+import { z } from 'zod';
 
 const manualInputGreetingSchema = z.object({
   name: z

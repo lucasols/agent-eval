@@ -7,16 +7,16 @@ to the bundled `agent-eval` skill for day-to-day authoring.
 
 ---
 
-Install `@ls-stack/agent-eval` in this project and scaffold the minimum files
-needed to author evals.
+Install `@ls-stack/agent-eval` and `zod` in this project and scaffold the
+minimum files needed to author evals.
 
 1. Detect the package manager (`pnpm-lock.yaml`, `yarn.lock`, `bun.lock`,
-   `package-lock.json`) and add `@ls-stack/agent-eval` as a dev dependency
-   with it. Do not switch package managers.
-   - pnpm: `pnpm add -D @ls-stack/agent-eval`
-   - npm: `npm install -D @ls-stack/agent-eval`
-   - yarn: `yarn add -D @ls-stack/agent-eval`
-   - bun: `bun add -d @ls-stack/agent-eval`
+   `package-lock.json`) and add `@ls-stack/agent-eval` plus `zod` as dev
+   dependencies with it. Do not switch package managers.
+   - pnpm: `pnpm add -D @ls-stack/agent-eval zod`
+   - npm: `npm install -D @ls-stack/agent-eval zod`
+   - yarn: `yarn add -D @ls-stack/agent-eval zod`
+   - bun: `bun add -d @ls-stack/agent-eval zod`
 
 2. Create `agent-evals.config.ts` at the repo root if it does not exist:
 

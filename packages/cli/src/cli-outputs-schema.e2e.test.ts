@@ -16,7 +16,8 @@ describe('CLI output schemas', () => {
           workspacePath,
           'evals/support/playground/output-schema.eval.ts',
         ),
-        `import { defineEval, z } from '@ls-stack/agent-eval';
+        `import { defineEval } from '@ls-stack/agent-eval';
+import { z } from 'zod';
 
 const outputsSchema = z.object({
   response: z.string(),

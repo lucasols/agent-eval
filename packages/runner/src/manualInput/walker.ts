@@ -8,7 +8,7 @@ import type {
   ManualInputSelectOption,
 } from '@agent-evals/shared';
 import { Result } from 't-result';
-import type { z } from 'zod/v4';
+import type { z } from 'zod';
 
 type ZodDef = Record<string, unknown> & { type: string };
 

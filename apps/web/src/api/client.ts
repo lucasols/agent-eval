@@ -2,7 +2,7 @@ import { __LEGIT_CAST__ } from '@ls-stack/utils/saferTyping';
 import { hc, type ClientResponse } from 'hono/client';
 import type { SuccessStatusCode } from 'hono/utils/http-status';
 import { Result, resultify } from 't-result';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 import { apiBaseUrl } from '#src/utils/apiUrl';
 // eslint-disable-next-line @ls-stack/no-relative-imports, no-restricted-syntax -- this is needed
 import type { AppType } from '../../../server/src/app.ts';

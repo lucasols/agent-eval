@@ -12,7 +12,7 @@ Local-first, UI-first eval tool for LLM/agent systems. Author evals in strict Ty
 ## Install
 
 ```sh
-pnpm add -D @ls-stack/agent-eval
+pnpm add -D @ls-stack/agent-eval zod
 ```
 
 ## Quick start
@@ -40,8 +40,8 @@ pnpm add -D @ls-stack/agent-eval
      mergeEvalOutput,
      evalSpan,
      evalTracer,
-     z,
    } from '@ls-stack/agent-eval';
+   import { z } from 'zod';
    import { myAgent } from '../src/agent';
 
    defineEval({
@@ -376,7 +376,8 @@ For exploratory evals where you want to type values before each run, declare
 schema and the CLI accepts `--input '<json>'` (or `--input-file <path>`):
 
 ```ts
-import { defineEval, z } from '@ls-stack/agent-eval';
+import { defineEval } from '@ls-stack/agent-eval';
+import { z } from 'zod';
 
 const inputSchema = z.object({
   name: z.string().min(1).describe('Recipient'),
@@ -426,8 +427,8 @@ import {
   defineEval,
   manualInputFileValueSchema,
   readManualInputFile,
-  z,
 } from '@ls-stack/agent-eval';
+import { z } from 'zod';
 
 const inputSchema = z.object({
   image: manualInputFileValueSchema,

@@ -1,4 +1,4 @@
-import { z } from 'zod/v4';
+import { z } from 'zod';
 
 /** Chart type rendered for a single eval history chart. */
 export const evalChartTypeSchema = z.enum(['area', 'line', 'bar']);

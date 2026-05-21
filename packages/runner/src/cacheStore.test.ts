@@ -22,7 +22,7 @@ import {
   type CacheEntry,
 } from '@agent-evals/shared';
 import { afterEach, describe, expect, test } from 'vitest';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 import { createBufferedCacheStore, createFsCacheStore } from './cacheStore.ts';
 
 const workspaces: string[] = [];

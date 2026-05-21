@@ -1,4 +1,5 @@
-import { defineEval, evalTracer, setEvalOutput, z } from '@ls-stack/agent-eval';
+import { defineEval, evalTracer, setEvalOutput } from '@ls-stack/agent-eval';
+import { z } from 'zod';
 
 type LargeCacheKeyInput = { accountId: string; scenario: string };
 

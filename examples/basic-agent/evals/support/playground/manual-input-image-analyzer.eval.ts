@@ -2,9 +2,9 @@ import {
   defineEval,
   manualInputFileValueSchema,
   readManualInputFile,
-  z,
   type ManualInputFileValue,
 } from '@ls-stack/agent-eval';
+import { z } from 'zod';
 
 const manualInputImageAnalyzerInputSchema = z.object({
   image: manualInputFileValueSchema.describe(

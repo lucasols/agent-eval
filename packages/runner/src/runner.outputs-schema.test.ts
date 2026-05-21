@@ -1,10 +1,12 @@
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { createRunner } from './runner.ts';
 
 const createdWorkspaces: string[] = [];
+const require = createRequire(import.meta.url);
 
 afterEach(async () => {
   await Promise.all(
@@ -23,6 +25,11 @@ describe('runner output schemas', () => {
     createdWorkspaces.push(workspacePath);
 
     await mkdir(join(workspacePath, 'evals'), { recursive: true });
+    await mkdir(join(workspacePath, 'node_modules'), { recursive: true });
+    await symlink(
+      dirname(require.resolve('zod/package.json')),
+      join(workspacePath, 'node_modules', 'zod'),
+    );
     await writeFile(
       join(workspacePath, 'agent-evals.config.ts'),
       `export default {
@@ -32,7 +39,8 @@ describe('runner output schemas', () => {
     );
     await writeFile(
       join(workspacePath, 'evals', 'output-schema.eval.ts'),
-      `import { defineEval, z } from '@agent-evals/sdk';
+      `import { defineEval } from '@agent-evals/sdk';
+import { z } from 'zod';
 
 const outputsSchema = z.object({
   response: z.string(),

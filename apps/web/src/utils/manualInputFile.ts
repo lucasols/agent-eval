@@ -1,5 +1,5 @@
 import { Result } from 't-result';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 import { apiClient, getRpcResult } from '#src/api/client';
 import { apiUrl } from '#src/utils/apiUrl';
 

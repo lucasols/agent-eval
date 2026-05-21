@@ -2,7 +2,7 @@ import { configReloadStateSchema } from '@agent-evals/shared';
 import { useEffect, useState } from 'react';
 import { resultify } from 't-result';
 import { styled } from 'vindur';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 import { CaseDrawer } from '#src/components/CaseDrawer';
 import { EmptyState } from '#src/components/EmptyState';
 import { FolderView } from '#src/components/FolderView';

@@ -4,8 +4,8 @@ import {
   evalTracer,
   getEvalCaseInput,
   nextEvalId,
-  z,
 } from '@ls-stack/agent-eval';
+import { z } from 'zod';
 
 const defaultSupportQueue = 'standard-refund-queue';
 

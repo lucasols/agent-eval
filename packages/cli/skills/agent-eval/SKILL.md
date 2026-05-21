@@ -17,8 +17,10 @@ display rules), read the TypeScript declarations shipped with the package:
 
 - `AgentEvalsConfig`, `EvalDefinition`, `EvalCase`, `EvalOutputs`,
   `EvalColumnOverride`, `EvalDeriveConfig`, `EvalScoreDef`,
-  `EvalManualScoreDef`, `EvalTraceTree`, `TraceSpanInfo`, and `z` are exported
-  from `@ls-stack/agent-eval`.
+  `EvalManualScoreDef`, `EvalTraceTree`, and `TraceSpanInfo` are exported from
+  `@ls-stack/agent-eval`.
+- Import Zod directly from `zod` when authoring `outputsSchema` or
+  `manualInput.schema`; `@ls-stack/agent-eval` does not re-export Zod.
 - `.d.ts` files land in `node_modules/@ls-stack/agent-eval/dist/`.
 - CLI surface: `agent-evals --help` and `agent-evals <command> --help`.
   Unknown help targets exit non-zero instead of falling back to global help.
@@ -213,7 +215,8 @@ JSON and `deriveFromTracing` use the recorded hierarchy.
 
 ```ts
 // evals/refund-workflow.eval.ts
-import { defineEval, z } from '@ls-stack/agent-eval';
+import { defineEval } from '@ls-stack/agent-eval';
+import { z } from 'zod';
 import { runRefundWorkflow } from '../src/workflows/refundWorkflow.ts';
 
 const outputsSchema = z.object({

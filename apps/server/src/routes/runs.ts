@@ -16,7 +16,7 @@ import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import launch from 'launch-editor';
 import { resultify } from 't-result';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 import { getRunnerInstance } from '../runner.ts';
 
 const openRunLocationRequestSchema = z.object({

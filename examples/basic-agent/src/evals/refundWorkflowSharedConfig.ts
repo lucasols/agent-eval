@@ -1,4 +1,5 @@
-import { matchesEvalTags, z, type EvalDefinition } from '@ls-stack/agent-eval';
+import { matchesEvalTags, type EvalDefinition } from '@ls-stack/agent-eval';
+import { z } from 'zod';
 import {
   triggerWorkflow,
   type WorkflowInput,

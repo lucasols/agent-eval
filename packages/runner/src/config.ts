@@ -6,7 +6,7 @@ import {
   agentEvalsConfigSchema,
   type AgentEvalsConfig,
 } from '@agent-evals/shared';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 
 const configModuleSchema = z.object({
   default: agentEvalsConfigSchema.optional(),

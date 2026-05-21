@@ -14,7 +14,7 @@ import {
 import { resultify } from 't-result';
 import { Store } from 't-state';
 import { createCollectionStore } from 'tsdf';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 import {
   apiClient,
   getRpcResult,

@@ -12,7 +12,8 @@
     "eslint": "eslint ."
   },
   "dependencies": {
-    "@ls-stack/agent-eval": "workspace:*"
+    "@ls-stack/agent-eval": "workspace:*",
+    "zod": "^4.1.11"
   },
   "devDependencies": {
     "@types/node": "^24.12.0",

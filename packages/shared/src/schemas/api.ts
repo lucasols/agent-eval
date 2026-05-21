@@ -1,4 +1,4 @@
-import { z } from 'zod/v4';
+import { z } from 'zod';
 import { cacheModeSchema } from './cache.ts';
 
 /** Lifecycle state for an app config reload triggered by `agent-evals.config.ts`. */

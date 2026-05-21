@@ -1,4 +1,4 @@
-import { z } from 'zod/v4';
+import { z } from 'zod';
 
 /**
  * Common metadata shared by every manual-input field descriptor exposed to
