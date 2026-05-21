@@ -20,6 +20,7 @@ afterEach(async () => {
 async function createReloadWorkspace(): Promise<{
   workspacePath: string;
   configPath: string;
+  envPath: string;
   startedLogPath: string;
 }> {
   const workspacePath = await mkdtemp(
@@ -37,6 +38,7 @@ async function createReloadWorkspace(): Promise<{
     join(workspacePath, 'node_modules', '@agent-evals', 'sdk'),
   );
   const configPath = join(workspacePath, 'agent-evals.config.ts');
+  const envPath = join(workspacePath, '.env');
   const startedLogPath = join(workspacePath, 'run-started.txt');
   await writeConfig(configPath, 'evals/**/*.eval.ts');
   await writeFile(
@@ -56,6 +58,23 @@ defineEval({
 `,
   );
   await writeFile(
+    join(workspacePath, 'evals', 'env.eval.ts'),
+    `import { defineEval } from '@agent-evals/sdk';
+
+defineEval({
+  id: 'env-config-eval',
+  title: 'Env Config Eval',
+  cases: [{ id: 'env-case', input: {} }],
+  columns: {
+    queue: { label: 'Queue' },
+  },
+  execute: ({ setOutput }) => {
+    setOutput('queue', process.env.AGENT_EVALS_CONFIG_RELOAD_TEST_QUEUE ?? 'missing');
+  },
+});
+`,
+  );
+  await writeFile(
     join(workspacePath, 'other', 'next.eval.ts'),
     `import { defineEval } from '@agent-evals/sdk';
 
@@ -66,7 +85,7 @@ defineEval({
 `,
   );
 
-  return { workspacePath, configPath, startedLogPath };
+  return { workspacePath, configPath, envPath, startedLogPath };
 }
 
 async function writeConfig(configPath: string, include: string): Promise<void> {
@@ -80,6 +99,69 @@ async function writeConfig(configPath: string, include: string): Promise<void> {
 }
 
 describe('runner config reload watcher', () => {
+  test('reloads .env changes while idle', async () => {
+    const { workspacePath, envPath } = await createReloadWorkspace();
+    const previousEnvValue = process.env.AGENT_EVALS_CONFIG_RELOAD_TEST_QUEUE;
+    delete process.env.AGENT_EVALS_CONFIG_RELOAD_TEST_QUEUE;
+    const previousCwd = process.cwd();
+    process.chdir(workspacePath);
+    const runner = createRunner({ watchForChanges: true });
+
+    try {
+      await writeFile(
+        envPath,
+        'AGENT_EVALS_CONFIG_RELOAD_TEST_QUEUE=priority-refunds\n',
+      );
+      await runner.init();
+
+      const firstRun = await runner.startRun({
+        target: { mode: 'evalIds', evalIds: ['env-config-eval'] },
+        trials: 1,
+      });
+      await expect
+        .poll(() => runner.getRun(firstRun.manifest.id)?.manifest.status, {
+          timeout: 10_000,
+        })
+        .toBe('completed');
+      expect(runner.getRun(firstRun.manifest.id)?.cases[0]?.columns.queue).toBe(
+        'priority-refunds',
+      );
+
+      await writeFile(
+        envPath,
+        'AGENT_EVALS_CONFIG_RELOAD_TEST_QUEUE=priority-escalations\n',
+      );
+
+      await expect
+        .poll(() => runner.getConfigReloadState().lastReloadedAt, {
+          timeout: 10_000,
+        })
+        .not.toBeNull();
+
+      const secondRun = await runner.startRun({
+        target: { mode: 'evalIds', evalIds: ['env-config-eval'] },
+        trials: 1,
+      });
+      await expect
+        .poll(() => runner.getRun(secondRun.manifest.id)?.manifest.status, {
+          timeout: 10_000,
+        })
+        .toBe('completed');
+      expect(
+        runner.getRun(secondRun.manifest.id)?.cases[0]?.columns.queue,
+      ).toBe('priority-escalations');
+      expect(runner.getConfigReloadState().status).toBe('idle');
+    } finally {
+      await runner.close();
+      process.chdir(previousCwd);
+      if (previousEnvValue === undefined) {
+        delete process.env.AGENT_EVALS_CONFIG_RELOAD_TEST_QUEUE;
+      } else {
+        process.env.AGENT_EVALS_CONFIG_RELOAD_TEST_QUEUE = previousEnvValue;
+      }
+    }
+  }, 15_000);
+
   test('reloads agent-evals.config.ts changes while idle', async () => {
     const { workspacePath, configPath } = await createReloadWorkspace();
     const previousCwd = process.cwd();

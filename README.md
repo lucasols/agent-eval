@@ -1343,7 +1343,9 @@ CLI:
 UI: every `EvalCard` has a split button next to **Run** with a chevron menu
 containing the cache run modes and, for single evals, a case picker. The single
 eval page's more menu includes a danger-toned "Clear cache for this eval" that
-deletes the cache namespace/key pairs recorded by saved runs for that eval.
+deletes the cache namespace/key pairs recorded by saved runs for that eval, plus
+a "Clear non-successful runs" action for failed, errored, and cancelled saved
+runs.
 While a run is active, eval cards, folder headers, and the run drawer show
 **Stop** to cancel the whole in-flight run by terminating its isolated run
 process.
@@ -1596,7 +1598,9 @@ Flags:
 
 The CLI automatically loads `.env` from the current workspace before running a
 command. Variables already set in the shell take precedence over `.env` values;
-use `--no-env` to disable this loading for a single invocation.
+use `--no-env` to disable this loading for a single invocation. `agent-evals app`
+also watches the workspace `.env` file and reloads it while idle, so later
+app-triggered runs pick up changed or removed `.env` values without restarting.
 
 `run` requires `--eval`, `--file`, `--case`, or `--tags-filter` unless
 `allowCliRunAll: true` is set in `agent-evals.config.ts`. It exits non-zero if

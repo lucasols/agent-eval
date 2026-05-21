@@ -34,9 +34,10 @@ display rules), read the TypeScript declarations shipped with the package:
   it before the next run starts. Temporary runs appear in `show-runs` while
   present; normal runs are never deleted by temporary-run cleanup. In the app,
   the run drawer can promote a temporary run to durable history.
-- `agent-evals app` watches `agent-evals.config.ts` and reloads config in
-  place when the runner is idle. If config changes during an active run, the
-  reload applies after the current run reaches a terminal state.
+- `agent-evals app` watches `agent-evals.config.ts` and the workspace `.env`
+  and reloads them in place when the runner is idle. If config or `.env`
+  changes during an active run, the reload applies after the current run
+  reaches a terminal state.
 - App-triggered runs log the queued target evals, resolved case concurrency,
   each case start for evals that are actually running, and the terminal run
   summary in the server terminal.

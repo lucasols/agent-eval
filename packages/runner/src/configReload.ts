@@ -9,7 +9,7 @@ type ConfigReloadControllerOptions = {
   emitToDiscoveryListeners: (event: SseEnvelope) => void;
 };
 
-/** Coordinates idle-only reloads for `agent-evals.config.ts` in app mode. */
+/** Coordinates idle-only reloads for workspace config and `.env` in app mode. */
 export function createConfigReloadController({
   getActiveRunCount,
   closeRunnerWatchers,
@@ -103,11 +103,17 @@ export function createConfigReloadController({
   }
 
   async function setupWatcher(): Promise<void> {
-    const nextWatcher = watch(resolve(process.cwd(), 'agent-evals.config.ts'), {
-      awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 20 },
-      ignoreInitial: true,
-      persistent: true,
-    });
+    const nextWatcher = watch(
+      [
+        resolve(process.cwd(), 'agent-evals.config.ts'),
+        resolve(process.cwd(), '.env'),
+      ],
+      {
+        awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 20 },
+        ignoreInitial: true,
+        persistent: true,
+      },
+    );
     watcher = nextWatcher;
 
     const scheduleReload = () => {

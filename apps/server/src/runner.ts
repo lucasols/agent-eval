@@ -3,15 +3,21 @@ import { createRunner } from '@ls-stack/agent-eval';
 
 let runnerInstance: EvalRunner | null = null;
 
-export function getRunnerInstance(): EvalRunner {
+type InitRunnerOptions = { loadEnv?: boolean };
+
+export function getRunnerInstance({
+  loadEnv = true,
+}: InitRunnerOptions = {}): EvalRunner {
   if (!runnerInstance) {
-    runnerInstance = createRunner();
+    runnerInstance = createRunner({ loadEnv });
   }
   return runnerInstance;
 }
 
-export async function initRunner(): Promise<EvalRunner> {
-  const runner = getRunnerInstance();
+export async function initRunner(
+  options: InitRunnerOptions = {},
+): Promise<EvalRunner> {
+  const runner = getRunnerInstance(options);
   await runner.init();
   return runner;
 }

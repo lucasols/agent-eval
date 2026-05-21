@@ -654,8 +654,18 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const clearableFilteredRunRows = filteredRunRows.filter(
     (run) => run.manifest.status !== 'running',
   );
+  const clearableUnsuccessfulRunRows = allRunRows.filter(
+    (run) =>
+      run.manifest.status !== 'running' &&
+      runMatchesFilter(run, 'unsuccessful'),
+  );
+  const showClearUnsuccessfulRunsAction =
+    isSingle && clearableUnsuccessfulRunRows.length > 0;
   const showClearFilteredRunsAction =
-    isSingle && runFilter !== 'all' && clearableFilteredRunRows.length > 0;
+    isSingle &&
+    runFilter !== 'all' &&
+    runFilter !== 'unsuccessful' &&
+    clearableFilteredRunRows.length > 0;
   const runFilterLabel = getFilterLabel(runFilter, runFilterOptions);
 
   async function handleClearFilteredRuns() {
@@ -672,6 +682,26 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     try {
       await deleteRuns(clearableFilteredRunRows.map((run) => run.manifest.id));
       setRunFilterSearchParam('all');
+    } finally {
+      setMaintenanceAction(null);
+    }
+  }
+
+  async function handleClearUnsuccessfulRuns() {
+    const runCount = clearableUnsuccessfulRunRows.length;
+    if (runCount === 0) return;
+    const noun = runCount === 1 ? 'run' : 'runs';
+    const confirmed = window.confirm(
+      `Delete ${String(runCount)} non-successful ${noun} for this eval? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    setMaintenanceAction('clean');
+    try {
+      await deleteRuns(
+        clearableUnsuccessfulRunRows.map((run) => run.manifest.id),
+      );
+      if (runFilter === 'unsuccessful') setRunFilterSearchParam('all');
     } finally {
       setMaintenanceAction(null);
     }
@@ -742,6 +772,20 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
             tone: 'danger',
             onSelect: () => {
               void handleClearFilteredRuns();
+            },
+          } satisfies SplitButtonMenuEntry,
+        ]
+      : []),
+    ...(showClearUnsuccessfulRunsAction
+      ? [
+          {
+            id: 'clear-unsuccessful-runs',
+            label: 'Clear non-successful runs',
+            description:
+              'Delete failed, errored, and cancelled saved runs for this eval.',
+            tone: 'danger',
+            onSelect: () => {
+              void handleClearUnsuccessfulRuns();
             },
           } satisfies SplitButtonMenuEntry,
         ]

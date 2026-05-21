@@ -72,6 +72,7 @@ import { buildPersistedRunTarget } from './runTargetPersistence.ts';
 import { resolveEvalTags, validateTagsFilters } from './tags.ts';
 import { getTargetEvalKeys } from './targeting.ts';
 import { getWatchRootsForIncludePatterns } from './watchRoots.ts';
+import { loadWorkspaceEnv } from './workspaceEnv.ts';
 
 const defaultCachePruneIdleDelayMs = 5_000;
 
@@ -81,10 +82,18 @@ export type {
 } from './manualInput/validation.ts';
 export type { EvalRunner } from './runnerTypes.ts';
 
-/** Create an in-memory eval runner bound to the current workspace config. */
+/**
+ * Create an in-memory eval runner bound to the current workspace config.
+ *
+ * @param options.watchForChanges Watch eval files, run history, config, and
+ * workspace `.env` for live reloads.
+ * @param options.loadEnv Load `.env` from the current workspace before config,
+ * discovery, and runs. Shell-provided values keep precedence.
+ */
 export function createRunner({
   watchForChanges = true,
-}: { watchForChanges?: boolean } = {}): EvalRunner {
+  loadEnv = true,
+}: { watchForChanges?: boolean; loadEnv?: boolean } = {}): EvalRunner {
   let config: AgentEvalsConfig;
   let workspaceRoot: string;
   let localStateDir: string;
@@ -742,6 +751,13 @@ export function createRunner({
   };
 
   async function loadRunnerState(): Promise<void> {
+    if (loadEnv) {
+      const envResult = await loadWorkspaceEnv(process.cwd());
+      if (envResult.error !== null) {
+        throw new Error(envResult.error);
+      }
+    }
+
     config = await loadConfig();
     workspaceRoot = config.workspaceRoot ?? process.cwd();
     localStateDir = resolve(workspaceRoot, '.agent-evals');

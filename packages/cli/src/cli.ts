@@ -160,10 +160,6 @@ function parseArgs(argv: string[]): CliArgs {
 export async function runCli(argv: string[]): Promise<void> {
   const args = parseArgs(argv);
 
-  if (args.loadEnv && !loadWorkspaceEnv()) {
-    process.exit(1);
-  }
-
   if (args.showHelp) {
     if (args.unknownHelpTarget !== undefined) {
       console.error(`No help found for "${args.unknownHelpTarget}".`);
@@ -236,25 +232,6 @@ function fileMatches(pattern: string, filePath: string): boolean {
   return normalized === filePath || globToRegex(normalized).test(filePath);
 }
 
-function loadWorkspaceEnv(): boolean {
-  const envPath = resolve(process.cwd(), '.env');
-  if (!existsSync(envPath)) {
-    return true;
-  }
-
-  const loadResult = resultify(() => {
-    process.loadEnvFile(envPath);
-  });
-  if (loadResult.error) {
-    console.error(
-      `Failed to load .env at ${envPath}: ${loadResult.error.message}`,
-    );
-    return false;
-  }
-
-  return true;
-}
-
 function formatUnknownErrorDetails(error: unknown): string {
   if (error instanceof Error) return error.stack ?? error.message;
   if (typeof error === 'string') return error;
@@ -321,7 +298,9 @@ function isHonoAppModule(mod: unknown): mod is { app: HonoAppLike } {
 
 function isServerRunnerModule(
   mod: unknown,
-): mod is { initRunner: () => Promise<unknown> } {
+): mod is {
+  initRunner: (options?: { loadEnv?: boolean }) => Promise<unknown>;
+} {
   if (typeof mod !== 'object' || mod === null || !('initRunner' in mod)) {
     return false;
   }
@@ -348,14 +327,17 @@ async function commandApp(args: CliArgs): Promise<void> {
     throw new Error('Server runner module is invalid');
   }
 
-  await runnerModule.initRunner();
+  await runnerModule.initRunner({ loadEnv: args.loadEnv });
 
   console.info(`Agent Evals app: http://localhost:${String(args.port)}`);
   serve({ fetch: appModule.app.fetch, port: args.port });
 }
 
-async function commandList(args_: CliArgs): Promise<void> {
-  const runner = createRunner({ watchForChanges: false });
+async function commandList(args: CliArgs): Promise<void> {
+  const runner = createRunner({
+    watchForChanges: false,
+    loadEnv: args.loadEnv,
+  });
   await runner.init();
 
   const discoveryIssues = runner.getDiscoveryIssues();
@@ -399,7 +381,10 @@ async function commandList(args_: CliArgs): Promise<void> {
 }
 
 async function commandRun(args: CliArgs): Promise<void> {
-  const runner = createRunner({ watchForChanges: false });
+  const runner = createRunner({
+    watchForChanges: false,
+    loadEnv: args.loadEnv,
+  });
   await runner.init();
 
   const runTargetsAllEvals =
@@ -570,7 +555,10 @@ type RunFileIndex = {
 };
 
 async function commandShowRuns(args: CliArgs): Promise<void> {
-  const runner = createRunner({ watchForChanges: false });
+  const runner = createRunner({
+    watchForChanges: false,
+    loadEnv: args.loadEnv,
+  });
   await runner.init();
 
   const runRef = args.positionals[0];
@@ -600,7 +588,10 @@ async function commandShowRuns(args: CliArgs): Promise<void> {
 }
 
 async function commandCache(args: CliArgs): Promise<void> {
-  const runner = createRunner({ watchForChanges: false });
+  const runner = createRunner({
+    watchForChanges: false,
+    loadEnv: args.loadEnv,
+  });
   await runner.init();
 
   if (args.subcommand === 'list' || args.subcommand === undefined) {
