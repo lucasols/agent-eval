@@ -426,7 +426,7 @@ async function markRunTerminalFromChild(
     runState.manifest = snapshot.manifest;
     runState.summary = snapshot.summary;
     runState.cases = snapshot.cases;
-    runState.caseDetails = snapshot.caseDetails;
+    runState.caseDetails = new Map();
   } else if (event.type === 'run.finished') {
     runState.manifest.status = 'completed';
     runState.manifest.endedAt = new Date().toISOString();

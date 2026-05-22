@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
@@ -30,6 +31,8 @@ export type PersistedRunSnapshot = {
   cases: CaseRow[];
   caseDetails: Map<string, CaseDetail>;
 };
+
+type LoadPersistedRunSnapshotOptions = { includeCaseDetails?: boolean };
 
 const SHORT_ID_PATTERN = /^r(\d+)$/;
 
@@ -70,8 +73,17 @@ export function nextShortIdFromSnapshots(
   return maxNum + 1;
 }
 
+/**
+ * Load persisted run metadata from the local state directory.
+ *
+ * Case details are skipped by default so long-running app processes can keep
+ * run history in memory without retaining every trace payload. Pass
+ * `includeCaseDetails` only for narrow maintenance flows that need full
+ * details for every case.
+ */
 export async function loadPersistedRunSnapshots(
   localStateDir: string,
+  options: LoadPersistedRunSnapshotOptions = {},
 ): Promise<PersistedRunSnapshot[]> {
   const runsDir = join(localStateDir, 'runs');
   const entriesResult = await resultify(() =>
@@ -86,7 +98,7 @@ export async function loadPersistedRunSnapshots(
     .toSorted();
 
   for (const runDir of runDirs) {
-    const snapshot = await loadPersistedRunSnapshot(runDir);
+    const snapshot = await loadPersistedRunSnapshot(runDir, options);
     if (!snapshot) continue;
     snapshots.push(snapshot);
   }
@@ -165,8 +177,16 @@ function toLastRunStatus(
   return status === 'pending' ? null : status;
 }
 
+/**
+ * Load one persisted run snapshot from disk.
+ *
+ * The returned snapshot includes manifest, summary, and case rows. Case
+ * details are loaded only when `includeCaseDetails` is true; otherwise callers
+ * should use `loadPersistedCaseDetail` for the specific case being inspected.
+ */
 export async function loadPersistedRunSnapshot(
   runDir: string,
+  options: LoadPersistedRunSnapshotOptions = {},
 ): Promise<PersistedRunSnapshot | null> {
   const manifest = await readParsedJsonFile(join(runDir, 'run.json'), {
     safeParse: runManifestSchema.safeParse.bind(runManifestSchema),
@@ -183,8 +203,27 @@ export async function loadPersistedRunSnapshot(
     manifest,
     summary,
     cases: await readCaseRows(runDir),
-    caseDetails: await readCaseDetails(runDir),
+    caseDetails:
+      options.includeCaseDetails === true
+        ? await readCaseDetails(runDir)
+        : new Map<string, CaseDetail>(),
   };
+}
+
+/**
+ * Load one persisted case detail by its artifact file id.
+ *
+ * Returns `null` when the file is missing, invalid JSON, or no longer matches
+ * the current case-detail schema.
+ */
+export function loadPersistedCaseDetail(
+  runDir: string,
+  fileId: string,
+): CaseDetail | null {
+  return readParsedJsonFileSync(
+    join(runDir, 'case-details', `${encodeCaseDetailFileName(fileId)}.json`),
+    { safeParse: caseDetailSchema.safeParse.bind(caseDetailSchema) },
+  );
 }
 
 async function readParsedJsonFile<T>(
@@ -196,6 +235,26 @@ async function readParsedJsonFile<T>(
   },
 ): Promise<T | null> {
   const fileResult = await resultify(() => readFile(filePath, 'utf-8'));
+  if (fileResult.error) return null;
+
+  const jsonResult = resultify((): unknown => JSON.parse(fileResult.value));
+  if (jsonResult.error) return null;
+
+  const parsed = schema.safeParse(jsonResult.value);
+  if (!parsed.success) return null;
+
+  return parsed.data;
+}
+
+function readParsedJsonFileSync<T>(
+  filePath: string,
+  schema: {
+    safeParse: (
+      value: unknown,
+    ) => { success: true; data: T } | { success: false };
+  },
+): T | null {
+  const fileResult = resultify(() => readFileSync(filePath, 'utf-8'));
   if (fileResult.error) return null;
 
   const jsonResult = resultify((): unknown => JSON.parse(fileResult.value));

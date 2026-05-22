@@ -9,6 +9,8 @@ import type {
   SseEnvelope,
   AgentEvalsConfig,
   CacheMode,
+  CaseDetail,
+  CaseRow,
   ResolvedApiCallsConfig,
   ResolvedLlmCallsConfig,
   DiscoveryIssue,
@@ -24,7 +26,10 @@ import { watch, type FSWatcher } from 'chokidar';
 import { glob } from 'glob';
 import { getCacheRetentionOptions } from './cacheConfig.ts';
 import { createFsCacheStore, type FsCacheStore } from './cacheStore.ts';
-import { resolveCaseDetailLookup } from './caseDetailLookup.ts';
+import {
+  resolveCaseDetailLookup,
+  resolveCaseRowForCaseDetailLookup,
+} from './caseDetailLookup.ts';
 import { validateCharts } from './chartValidation.ts';
 import { buildDeclaredColumnDefs, normalizeScoreDef } from './columnBuilder.ts';
 import { loadConfig } from './config.ts';
@@ -64,6 +69,7 @@ import {
   getLastRunStatuses,
   getLatestRunInfos,
   loadPersistedRunSnapshots,
+  loadPersistedCaseDetail,
   nextShortIdFromSnapshots,
   persistCaseDetail,
   type EvalLatestRunInfo,
@@ -155,6 +161,53 @@ export function createRunner({
     return Math.max(1, Math.floor(config.concurrency));
   }
 
+  function getCaseDetailFileId(
+    run: { cases: CaseRow[] },
+    caseRow: CaseRow,
+  ): string {
+    const caseKey = getCaseRowCaseKey(caseRow);
+    const collides = run.cases.some(
+      (existing) =>
+        existing.caseId === caseRow.caseId &&
+        getCaseRowCaseKey(existing) !== caseKey,
+    );
+    return collides ? caseKey : caseRow.caseId;
+  }
+
+  function hydrateCaseDetailForRow(
+    run: {
+      runDir: string;
+      cases: CaseRow[];
+      caseDetails: Map<string, CaseDetail>;
+    },
+    caseRow: CaseRow,
+  ): CaseDetail | undefined {
+    const caseKey = getCaseRowCaseKey(caseRow);
+    const cached = run.caseDetails.get(caseKey);
+    if (cached !== undefined) return cached;
+
+    const detail = loadPersistedCaseDetail(
+      run.runDir,
+      getCaseDetailFileId(run, caseRow),
+    );
+    if (detail === null) return undefined;
+
+    run.caseDetails.set(detail.caseKey ?? detail.caseId, detail);
+    return detail;
+  }
+
+  function hydrateCaseDetailForLookup(
+    run: RunnerRunState,
+    caseId: string,
+  ): CaseDetail | undefined {
+    const cached = resolveCaseDetailLookup(run, caseId);
+    if (cached !== undefined) return cached;
+
+    const caseRow = resolveCaseRowForCaseDetailLookup(run, caseId);
+    if (caseRow === undefined) return undefined;
+    return hydrateCaseDetailForRow(run, caseRow);
+  }
+
   function nextRegistryLoadIsolationKey(
     prefix: string,
     filePath: string,
@@ -216,6 +269,7 @@ export function createRunner({
         evalKey: evalMeta.key,
         evalExists: evals.has(evalMeta.key),
         scoreThresholds,
+        getCaseDetail: hydrateCaseDetailForRow,
         persistCaseDetail,
       });
 
@@ -225,6 +279,7 @@ export function createRunner({
     async recalculateDerivedAttributesForCase({ runId, caseId }) {
       const run = runs.get(runId);
       if (!run) return { updated: false, reason: 'Run not found' };
+      hydrateCaseDetailForLookup(run, caseId);
       return recalculateDerivedAttributesForRunCase({
         run,
         caseId,
@@ -281,7 +336,7 @@ export function createRunner({
         return { updated: false, reason: 'Manual score not found' };
       }
 
-      const caseDetail = run.caseDetails.get(getCaseRowCaseKey(caseRow));
+      const caseDetail = hydrateCaseDetailForRow(run, caseRow);
       if (!caseDetail) {
         return { updated: false, reason: 'Case detail not found' };
       }
@@ -706,7 +761,7 @@ export function createRunner({
     getCaseDetail(runId, caseId) {
       const run = runs.get(runId);
       if (!run) return undefined;
-      return resolveCaseDetailLookup(run, caseId);
+      return hydrateCaseDetailForLookup(run, caseId);
     },
     subscribe(runId, listener) {
       const run = runs.get(runId);

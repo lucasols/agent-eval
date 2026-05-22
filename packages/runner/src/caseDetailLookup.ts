@@ -36,12 +36,20 @@ export function resolveCaseDetailLookup(
     if (caseDetail) return caseDetail;
   }
 
-  const matchingCaseRow = run.cases.find(
+  const matchingCaseRow = resolveCaseRowForCaseDetailLookup(run, caseId);
+  if (matchingCaseRow === undefined) return undefined;
+
+  return run.caseDetails.get(getCaseRowCaseKey(matchingCaseRow));
+}
+
+export function resolveCaseRowForCaseDetailLookup(
+  run: Pick<CaseDetailLookupRun, 'cases'>,
+  caseId: string,
+): CaseRow | undefined {
+  const lookupIds = new Set(getCaseLookupIds(caseId));
+  return run.cases.find(
     (caseRow) =>
       lookupIds.has(getCaseRowCaseKey(caseRow)) ||
       lookupIds.has(caseRow.caseId),
   );
-  if (matchingCaseRow === undefined) return undefined;
-
-  return run.caseDetails.get(getCaseRowCaseKey(matchingCaseRow));
 }

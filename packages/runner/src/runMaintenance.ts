@@ -111,6 +111,10 @@ export async function recomputeEvalStatusesInRuns(params: {
   evalKey: string;
   evalExists: boolean;
   scoreThresholds: ReadonlyMap<string, number>;
+  getCaseDetail?: (
+    run: MaintainedRunState,
+    caseRow: CaseRow,
+  ) => CaseDetail | undefined;
   persistCaseDetail: (runDir: string, caseDetail: CaseDetail) => Promise<void>;
 }): Promise<number> {
   let updatedRuns = 0;
@@ -130,7 +134,9 @@ export async function recomputeEvalStatusesInRuns(params: {
     let changed = false;
     for (const caseRow of run.cases) {
       if (caseRow.evalKey !== params.evalKey) continue;
-      const caseDetail = run.caseDetails.get(getCaseRowCaseKey(caseRow));
+      const caseDetail =
+        params.getCaseDetail?.(run, caseRow) ??
+        run.caseDetails.get(getCaseRowCaseKey(caseRow));
       const nextStatus = recomputePersistedCaseStatus(
         caseRow,
         caseDetail,

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { createRunner } from './runner.ts';
+import { loadPersistedRunSnapshot } from './runPersistence.ts';
 
 const createdWorkspaces: string[] = [];
 const persistedEvalKey = 'evals%2Fpersisted.eval.ts#persisted-eval';
@@ -17,7 +18,7 @@ afterEach(async () => {
 });
 
 describe('persisted eval identity', () => {
-  test('loads keyed persisted runs and case details during init', async () => {
+  test('loads keyed persisted runs and lazily reads case details', async () => {
     const workspacePath = await mkdtemp(
       join(tmpdir(), 'agent-evals-runner-persisted-runs-'),
     );
@@ -110,6 +111,16 @@ defineEval({ id: 'persisted-eval', title: 'Persisted Eval' });
         2,
       ),
     );
+
+    const lazySnapshot = await loadPersistedRunSnapshot(runPath);
+    expect(lazySnapshot?.caseDetails.size).toBe(0);
+    const eagerSnapshot = await loadPersistedRunSnapshot(runPath, {
+      includeCaseDetails: true,
+    });
+    expect(eagerSnapshot?.caseDetails.get('saved-case')).toMatchObject({
+      evalKey: persistedEvalKey,
+      columns: { answer: 'ok' },
+    });
 
     const previousCwd = process.cwd();
     process.chdir(workspacePath);
