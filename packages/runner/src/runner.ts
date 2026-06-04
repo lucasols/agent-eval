@@ -31,7 +31,7 @@ import {
   resolveCaseRowForCaseDetailLookup,
 } from './caseDetailLookup.ts';
 import { validateCharts } from './chartValidation.ts';
-import { buildDeclaredColumnDefs, normalizeScoreDef } from './columnBuilder.ts';
+import { buildDeclaredColumnDefs } from './columnBuilder.ts';
 import { loadConfig } from './config.ts';
 import { createConfigReloadController } from './configReload.ts';
 import { resolveEvalDefaultConfig } from './defaultConfig.ts';
@@ -119,7 +119,6 @@ export function createRunner({
   let discoveryRefreshTimer: ReturnType<typeof setTimeout> | undefined;
   let runHistoryRefreshTimer: ReturnType<typeof setTimeout> | undefined;
   let cachePruneIdleTimer: ReturnType<typeof setTimeout> | undefined;
-  let registryLoadCounter = 0;
   const configReload = createConfigReloadController({
     getActiveRunCount,
     closeRunnerWatchers: closeWatchers,
@@ -208,12 +207,8 @@ export function createRunner({
     return hydrateCaseDetailForRow(run, caseRow);
   }
 
-  function nextRegistryLoadIsolationKey(
-    prefix: string,
-    filePath: string,
-  ): string {
-    registryLoadCounter++;
-    return `${prefix}:${String(registryLoadCounter)}:${filePath}`;
+  function getDiscoveryModuleIsolationKey(filePath: string): string {
+    return `discovery:${filePath}`;
   }
 
   const runner: EvalRunner = {
@@ -236,33 +231,16 @@ export function createRunner({
       const evalMeta = resolveEvalMeta(evalKey);
       if (!evalMeta) return { updatedRuns: 0 };
 
-      const registry = await loadIsolatedEvalRegistry({
-        evalFilePath: evalMeta.sourceFilePath,
-        sourceFingerprint: evalMeta.sourceFingerprint ?? undefined,
-        moduleIsolation: {
-          key: nextRegistryLoadIsolationKey(
-            'recompute-status',
-            evalMeta.sourceFilePath,
-          ),
-          workspaceRoot,
-        },
-        runtimeScope: 'env',
-      });
-      const entry = registry.get(evalMeta.id);
-      if (!entry) return { updatedRuns: 0 };
-
       const scoreThresholds = new Map<string, number>();
-      entry.use((evalDef) => {
-        for (const [key, def] of Object.entries(evalDef.scores ?? {})) {
-          const threshold = normalizeScoreDef(def).passThreshold;
-          if (threshold !== undefined) scoreThresholds.set(key, threshold);
+      for (const columnDef of evalMeta.columnDefs) {
+        if (
+          columnDef.isScore !== true ||
+          columnDef.passThreshold === undefined
+        ) {
+          continue;
         }
-        for (const [key, def] of Object.entries(evalDef.manualScores ?? {})) {
-          if (def.passThreshold !== undefined) {
-            scoreThresholds.set(key, def.passThreshold);
-          }
-        }
-      });
+        scoreThresholds.set(columnDef.key, columnDef.passThreshold);
+      }
 
       const updatedRuns = await recomputeEvalStatusesInRuns({
         runs: runs.values(),
@@ -482,7 +460,7 @@ export function createRunner({
               evalFilePath: filePath,
               sourceFingerprint,
               moduleIsolation: {
-                key: nextRegistryLoadIsolationKey('discovery', filePath),
+                key: getDiscoveryModuleIsolationKey(filePath),
                 workspaceRoot,
               },
               runtimeScope: 'env',

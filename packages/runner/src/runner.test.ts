@@ -84,6 +84,78 @@ defineEval({
     }
   }, 10_000);
 
+  test('does not reload unchanged workspace imports during eval discovery refreshes', async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), 'agent-evals-runner-discovery-import-cache-'),
+    );
+    createdWorkspaces.push(workspacePath);
+
+    await mkdir(join(workspacePath, 'evals'), { recursive: true });
+    await mkdir(join(workspacePath, 'src'), { recursive: true });
+    await writeFile(
+      join(workspacePath, 'agent-evals.config.ts'),
+      `export default {
+  include: ['evals/**/*.eval.ts'],
+};
+`,
+    );
+    await writeFile(
+      join(workspacePath, 'src', 'discoveryDependency.ts'),
+      `import { appendFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+appendFileSync(resolve(process.cwd(), 'discovery-import-loads.log'), 'load\\n');
+`,
+    );
+    const evalPath = join(workspacePath, 'evals', 'editable.eval.ts');
+    await writeFile(
+      evalPath,
+      `import { defineEval } from '@agent-evals/sdk';
+import '../src/discoveryDependency.ts';
+
+defineEval({
+  id: 'editable-eval',
+  title: 'Original Title',
+});
+`,
+    );
+
+    const previousCwd = process.cwd();
+    process.chdir(workspacePath);
+    let runner: ReturnType<typeof createRunner> | undefined;
+
+    try {
+      const activeRunner = createRunner({ watchForChanges: false });
+      runner = activeRunner;
+      await activeRunner.init();
+
+      await writeFile(
+        evalPath,
+        `import { defineEval } from '@agent-evals/sdk';
+import '../src/discoveryDependency.ts';
+
+defineEval({
+  id: 'editable-eval',
+  title: 'Updated Title',
+});
+`,
+      );
+      await activeRunner.refreshDiscovery();
+
+      expect(activeRunner.getEval('editable-eval')?.title).toBe(
+        'Updated Title',
+      );
+      const importLog = await readFile(
+        join(workspacePath, 'discovery-import-loads.log'),
+        'utf-8',
+      );
+      expect(importLog).toBe('load\n');
+    } finally {
+      await runner?.close();
+      process.chdir(previousCwd);
+    }
+  }, 10_000);
+
   test('derives each eval lastRunStatus from only that eval cases within a run', async () => {
     const workspacePath = await mkdtemp(
       join(tmpdir(), 'agent-evals-runner-status-scope-'),
