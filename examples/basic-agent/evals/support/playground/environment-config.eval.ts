@@ -68,6 +68,7 @@ defineEval<EnvironmentConfigInput, EnvironmentConfigOutputs>({
           attributes: {
             method: 'GET',
             url: `https://support-config.local/queues/${input.customerTier}`,
+            routeAlias: '/queues/:tier',
             statusCode: 200,
             durationMs: 12,
             request: { customerTier: input.customerTier },

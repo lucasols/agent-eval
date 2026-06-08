@@ -3,15 +3,17 @@ import { Search, X } from 'lucide-react';
 import { useState } from 'react';
 import { styled } from 'vindur';
 import { ApiCallRow } from '#src/components/ApiCallRow';
+import {
+  formatCallCount,
+  getApiEndpointLabel,
+  getApiCallSearchValues,
+  getMostCalledApiEndpoints,
+} from '#src/components/ApiCallsTab.helpers';
 import { EmptyState } from '#src/components/EmptyState';
 import { Tooltip } from '#src/components/Tooltip';
 import { buildSpanNameWildcardRegex } from '#src/components/TraceTree.helpers';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
-
-type ApiEndpointCallCount = { key: string; label: string; count: number };
-
-const MAX_ENDPOINT_CHART_ROWS = 8;
 
 const ApiCallsContent = styled.div`
   ${stack({ gap: 14 })}
@@ -166,11 +168,32 @@ const EndpointChartRows = styled.div`
   ${stack({ gap: 10 })}
 `;
 
-const EndpointChartRow = styled.div`
+const EndpointChartButton = styled.button<{ isActive: boolean }>`
   ${stack({ gap: 5 })}
+  width: 100%;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: ${colors.surface.var};
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-color: ${colors.accent.alpha(0.55)};
+  }
+
+  &.isActive {
+    background: ${colors.accent.alpha(0.1)};
+  }
 `;
 
-const EndpointChartLabelRow = styled.div`
+const EndpointChartLabelRow = styled.span`
   ${inline({ justify: 'space-between', align: 'center', gap: 10 })}
   min-width: 0;
 `;
@@ -220,8 +243,11 @@ const EndpointMeter = styled.meter`
 export function ApiCallsTab({ entries }: { entries: ApiCallEntry[] }) {
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchPattern, setSearchPattern] = useState('');
+  const [selectedEndpointKey, setSelectedEndpointKey] = useState<string | null>(
+    null,
+  );
   const searchRegex = buildSpanNameWildcardRegex(searchPattern);
-  const filteredEntries =
+  const searchFilteredEntries =
     searchRegex === null
       ? entries
       : entries.filter((entry) =>
@@ -229,11 +255,26 @@ export function ApiCallsTab({ entries }: { entries: ApiCallEntry[] }) {
             searchRegex.test(value),
           ),
         );
+  const activeEndpointKey =
+    selectedEndpointKey !== null &&
+    searchFilteredEntries.some(
+      (entry) => getApiEndpointLabel(entry) === selectedEndpointKey,
+    )
+      ? selectedEndpointKey
+      : null;
+  const filteredEntries =
+    activeEndpointKey === null
+      ? searchFilteredEntries
+      : searchFilteredEntries.filter(
+          (entry) => getApiEndpointLabel(entry) === activeEndpointKey,
+        );
   const hasSearch = searchRegex !== null;
+  const hasEndpointFilter = activeEndpointKey !== null;
   const showSearch = searchVisible || hasSearch;
-  const filterLabel = hasSearch
-    ? `${String(filteredEntries.length)} of ${String(entries.length)} API calls`
-    : `${String(entries.length)} API calls`;
+  const filterLabel =
+    hasSearch || hasEndpointFilter
+      ? `${String(filteredEntries.length)} of ${String(entries.length)} API calls`
+      : `${String(entries.length)} API calls`;
 
   return (
     <ApiCallsContent>
@@ -241,8 +282,12 @@ export function ApiCallsTab({ entries }: { entries: ApiCallEntry[] }) {
         filteredLabel={filterLabel}
         searchPattern={searchPattern}
         searchVisible={showSearch}
-        onSearchPatternChange={setSearchPattern}
+        onSearchPatternChange={(pattern) => {
+          setSelectedEndpointKey(null);
+          setSearchPattern(pattern);
+        }}
         onSearchVisibleChange={setSearchVisible}
+        onClearFilters={() => setSelectedEndpointKey(null)}
       />
       {filteredEntries.length > 0 ? (
         <>
@@ -254,7 +299,15 @@ export function ApiCallsTab({ entries }: { entries: ApiCallEntry[] }) {
               />
             ))}
           </ApiCallsList>
-          <ApiEndpointChart entries={filteredEntries} />
+          <ApiEndpointChart
+            activeEndpointKey={activeEndpointKey}
+            entries={searchFilteredEntries}
+            onEndpointSelect={(endpointKey) =>
+              setSelectedEndpointKey((current) =>
+                current === endpointKey ? null : endpointKey,
+              )
+            }
+          />
         </>
       ) : (
         <EmptyState
@@ -272,12 +325,14 @@ function ApiCallSearchToolbar({
   searchVisible,
   onSearchPatternChange,
   onSearchVisibleChange,
+  onClearFilters,
 }: {
   filteredLabel: string;
   searchPattern: string;
   searchVisible: boolean;
   onSearchPatternChange: (pattern: string) => void;
   onSearchVisibleChange: (visible: boolean) => void;
+  onClearFilters: () => void;
 }) {
   return (
     <ApiCallsToolbar>
@@ -313,6 +368,7 @@ function ApiCallSearchToolbar({
                 onClick={() => {
                   onSearchPatternChange('');
                   onSearchVisibleChange(false);
+                  onClearFilters();
                 }}
                 aria-label="Clear API call search"
               >
@@ -326,7 +382,15 @@ function ApiCallSearchToolbar({
   );
 }
 
-function ApiEndpointChart({ entries }: { entries: ApiCallEntry[] }) {
+function ApiEndpointChart({
+  activeEndpointKey,
+  entries,
+  onEndpointSelect,
+}: {
+  activeEndpointKey: string | null;
+  entries: ApiCallEntry[];
+  onEndpointSelect: (endpointKey: string) => void;
+}) {
   const endpointCounts = getMostCalledApiEndpoints(entries);
   if (endpointCounts.length === 0) return null;
 
@@ -339,81 +403,41 @@ function ApiEndpointChart({ entries }: { entries: ApiCallEntry[] }) {
         <EndpointChartMeta>{formatCallCount(entries.length)}</EndpointChartMeta>
       </EndpointChartHeader>
       <EndpointChartRows>
-        {endpointCounts.map((endpoint) => (
-          <EndpointChartRow key={endpoint.key}>
-            <EndpointChartLabelRow>
-              <Tooltip content={endpoint.label}>
-                <EndpointChartLabel>{endpoint.label}</EndpointChartLabel>
-              </Tooltip>
-              <EndpointChartCount>
-                {formatCallCount(endpoint.count)}
-              </EndpointChartCount>
-            </EndpointChartLabelRow>
-            <EndpointMeter
-              min={0}
-              max={maxCount}
-              value={endpoint.count}
-              aria-label={`${endpoint.label}: ${formatCallCount(endpoint.count)}`}
-            />
-          </EndpointChartRow>
-        ))}
+        {endpointCounts.map((endpoint) => {
+          const isActive = activeEndpointKey === endpoint.key;
+          return (
+            <Tooltip
+              key={endpoint.key}
+              content={
+                isActive
+                  ? `Clear ${endpoint.label} filter`
+                  : `Show only ${endpoint.label}`
+              }
+            >
+              <EndpointChartButton
+                type="button"
+                isActive={isActive}
+                onClick={() => onEndpointSelect(endpoint.key)}
+                aria-label={`${isActive ? 'Clear filter for' : 'Filter API calls to'} ${endpoint.label}`}
+                aria-pressed={isActive}
+              >
+                <EndpointChartLabelRow>
+                  <EndpointChartLabel>{endpoint.label}</EndpointChartLabel>
+                  <EndpointChartCount>
+                    {formatCallCount(endpoint.count)}
+                  </EndpointChartCount>
+                </EndpointChartLabelRow>
+                <EndpointMeter
+                  min={0}
+                  max={maxCount}
+                  value={endpoint.count}
+                  aria-label={`${endpoint.label}: ${formatCallCount(endpoint.count)}`}
+                />
+              </EndpointChartButton>
+            </Tooltip>
+          );
+        })}
       </EndpointChartRows>
     </EndpointChartSection>
   );
-}
-
-function getMostCalledApiEndpoints(
-  entries: ApiCallEntry[],
-): ApiEndpointCallCount[] {
-  const counts = new Map<string, ApiEndpointCallCount>();
-
-  for (const entry of entries) {
-    const label = getApiEndpointLabel(entry);
-    const existing = counts.get(label);
-    if (existing !== undefined) {
-      counts.set(label, { ...existing, count: existing.count + 1 });
-    } else {
-      counts.set(label, { key: label, label, count: 1 });
-    }
-  }
-
-  return [...counts.values()]
-    .toSorted((a, b) => b.count - a.count || a.label.localeCompare(b.label))
-    .slice(0, MAX_ENDPOINT_CHART_ROWS);
-}
-
-function getApiEndpointLabel(entry: ApiCallEntry): string {
-  const target = getApiEndpointTarget(entry);
-  if (entry.method === null || entry.method.length === 0) return target;
-  return `${entry.method.toUpperCase()} ${target}`;
-}
-
-function getApiCallSearchValues(entry: ApiCallEntry): string[] {
-  return [
-    entry.name,
-    getApiEndpointTarget(entry),
-    getApiEndpointLabel(entry),
-    ...(entry.url === null ? [] : [entry.url]),
-  ];
-}
-
-function getApiEndpointTarget(entry: ApiCallEntry): string {
-  if (entry.url !== null && entry.url.length > 0) {
-    return summarizeEndpointUrl(entry.url);
-  }
-  return entry.name;
-}
-
-function summarizeEndpointUrl(url: string): string {
-  if (URL.canParse(url)) {
-    const parsed = new URL(url);
-    return `${parsed.host}${parsed.pathname}`;
-  }
-
-  const queryIndex = url.indexOf('?');
-  return queryIndex === -1 ? url : url.slice(0, queryIndex);
-}
-
-function formatCallCount(value: number): string {
-  return `${String(value)} ${value === 1 ? 'call' : 'calls'}`;
 }

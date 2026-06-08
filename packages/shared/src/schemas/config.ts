@@ -524,6 +524,7 @@ export const apiCallsConfigSchema = z.object({
     .object({
       method: z.string().optional(),
       url: z.string().optional(),
+      routeAlias: z.string().optional(),
       statusCode: z.string().optional(),
       request: z.string().optional(),
       response: z.string().optional(),
@@ -592,6 +593,7 @@ export type ResolvedApiCallsConfig = {
   attributes: {
     method: string;
     url: string;
+    routeAlias: string;
     statusCode: string;
     request: string;
     response: string;
@@ -677,6 +679,7 @@ export const DEFAULT_API_CALLS_CONFIG: ResolvedApiCallsConfig = {
   attributes: {
     method: 'method',
     url: 'url',
+    routeAlias: 'routeAlias',
     statusCode: 'statusCode',
     request: 'request',
     response: 'response',
@@ -984,6 +987,7 @@ export type AgentEvalsConfig = {
    *   kinds: ['api', 'http.client', 'undici.request'],
    *   attributes: {
    *     statusCode: 'http.status_code',
+   *     routeAlias: 'http.route',
    *   },
    *   metrics: [
    *     { label: 'Retries', path: 'retryCount', format: 'number' },

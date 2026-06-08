@@ -95,34 +95,20 @@ A complete working example lives at [`examples/basic-agent`](./examples/basic-ag
 
 ## Agent Skill
 
-`@ls-stack/agent-eval` ships an [Agent Skills](https://agentskills.io/home)
-skill. The published package includes
-[`skills/agent-eval/SKILL.md`](./packages/cli/skills/agent-eval/SKILL.md).
-After installation, symlink the bundled skill folder into your project's local
-`skills/` directory:
+`@ls-stack/agent-eval` ships an [Agent Skills](https://agentskills.io/home) skill. The published package includes [`skills/agent-eval/SKILL.md`](./packages/cli/skills/agent-eval/SKILL.md). After installation, symlink the bundled skill folder into your project's local `skills/` directory:
 
 ```sh
 mkdir -p skills
 ln -s ../node_modules/@ls-stack/agent-eval/skills/agent-eval skills/agent-eval
 ```
 
-For first-time installation, use
-[`templates/agent-eval/install-prompt.md`](./templates/agent-eval/install-prompt.md)
-instead — it is a one-off prompt template (not a skill) that walks an agent
-through installing the package, creating `agent-evals.config.ts`, and wiring
-convenience scripts.
+For first-time installation, use [`templates/agent-eval/install-prompt.md`](./templates/agent-eval/install-prompt.md) instead — it is a one-off prompt template (not a skill) that walks an agent through installing the package, creating `agent-evals.config.ts`, and wiring convenience scripts.
 
 ## Module mocking
 
-For true module replacement, use `mock.module(...)` from `node:test` and
-register the mock before dynamically importing the module graph you want to
-exercise.
-Each case/trial reloads the eval module graph in its own isolation scope, so
-module-level mock state in workspace files and ESM dependencies does not leak
-between concurrent cases.
+For true module replacement, use `mock.module(...)` from `node:test` and register the mock before dynamically importing the module graph you want to exercise. Each case/trial reloads the eval module graph in its own isolation scope, so module-level mock state in workspace files and ESM dependencies does not leak between concurrent cases.
 
-Node requires the `--experimental-test-module-mocks` flag for this API, and
-Agent Evals enables it automatically for CLI and app runs:
+Node requires the `--experimental-test-module-mocks` flag for this API, and Agent Evals enables it automatically for CLI and app runs:
 
 ```sh
 agent-evals run --eval module-mock-demo
@@ -172,20 +158,11 @@ From `examples/basic-agent`, run `pnpm eval app` for the same single-command flo
 
 From the repo root, `pnpm dev` starts the example-backed Hono server on `http://localhost:5100` together with the Vite web dev server on `http://127.0.0.1:5200` by default, so frontend changes get full HMR while the web app calls the backend directly at `http://127.0.0.1:5100`. The web server binds to IPv4 loopback explicitly to avoid `localhost` resolving differently across browsers and hanging on the wrong loopback family. These repo-local defaults intentionally differ from the packaged `agent-evals app` default of `http://localhost:4100`, so you can run this checkout alongside an app in another project.
 
-The example workspace includes `Run Error Details Demo`
-(`evals/support/playground/run-error-details.eval.ts`) for checking the app's
-run-level error drawer. Run that eval by itself to see the "no cases in this
-run" state together with the persisted setup stack.
+The example workspace includes `Run Error Details Demo` (`evals/support/playground/run-error-details.eval.ts`) for checking the app's run-level error drawer. Run that eval by itself to see the "no cases in this run" state together with the persisted setup stack.
 
-It also includes `Slow Running Demo`
-(`evals/support/playground/slow-running-demo.eval.ts`) for checking live running
-UI states such as elapsed-time badges and running indicators. It disables cache
-reads and writes so each run intentionally takes several seconds.
+It also includes `Slow Running Demo` (`evals/support/playground/slow-running-demo.eval.ts`) for checking live running UI states such as elapsed-time badges and running indicators. It disables cache reads and writes so each run intentionally takes several seconds.
 
-Use `Deep Trace Tree Demo`
-(`evals/support/playground/deep-trace-tree.eval.ts`) when you need a case with a
-deeply nested trace tree, long span labels, and fan-out branches for checking
-timeline layout behavior.
+Use `Deep Trace Tree Demo` (`evals/support/playground/deep-trace-tree.eval.ts`) when you need a case with a deeply nested trace tree, long span labels, and fan-out branches for checking timeline layout behavior.
 
 If you want different local dev ports, add a repo-root `.env` file with one or both of these variables:
 
@@ -198,62 +175,42 @@ AGENT_EVALS_DEV_WEB_PORT=5400
 
 ## Publishing
 
-Only `@ls-stack/agent-eval` is published. The internal `@agent-evals/*`
-workspace packages remain source-first development packages and are bundled into
-the public CLI package with `tsdown`.
+Only `@ls-stack/agent-eval` is published. The internal `@agent-evals/*` workspace packages remain source-first development packages and are bundled into the public CLI package with `tsdown`.
 
-Use `pnpm publish:pkg` from the repo root to publish through `pkg-manager`.
-The publish flow lints and builds the CLI package before publishing, and the CLI
-build also bundles the web UI assets used by `agent-evals app`.
+Use `pnpm publish:pkg` from the repo root to publish through `pkg-manager`. The publish flow lints and builds the CLI package before publishing, and the CLI build also bundles the web UI assets used by `agent-evals app`.
 
 ## Configuration
 
 `agent-evals.config.ts` at your project root defines how evals are discovered and executed.
 
-| Field                  | Type                            | Description                                                                             |
-| ---------------------- | ------------------------------- | --------------------------------------------------------------------------------------- |
-| `include`              | `string[]`                      | Glob patterns for eval files (e.g. `['evals/**/*.eval.ts']`)                            |
-| `workspaceRoot`        | `string?`                       | Root directory; defaults to `process.cwd()`                                             |
-| `tags`                 | `string[]?`                     | Workspace tags inherited by every eval unless removed per eval                          |
-| `defaultTrials`        | `number?`                       | Trials per case when not overridden (default: `1`)                                      |
-| `trialSelection`       | `'lowestScore' \| 'median'?`    | Winner selection strategy for persisted multi-trial case results                        |
-| `concurrency`          | `number?`                       | Max parallel case executions per run, including trials (default: `2`)                   |
-| `staleAfterDays`       | `number?`                       | Days before a mismatched-commit latest run is marked outdated (default: `14`)           |
-| `allowCliRunAll`       | `boolean?`                      | Allow unfiltered `agent-evals run` to run every eval (default: `false`)                 |
-| `traceDisplay`         | `TraceDisplayConfig?`           | Global trace attribute display config for the UI                                        |
-| `columns`              | `EvalColumns?`                  | Global column display overrides applied to every eval                                   |
-| `deriveFromTracing`    | `EvalDeriveConfig?`             | Global trace-derived outputs applied to every eval case                                 |
-| `tracingAssertions`    | `EvalTracingAssertionsConfig?`  | Global assertions derived from each finished execution trace                            |
-| `stats`                | `EvalStatsConfig?`              | Global stats prepended to every eval card                                               |
-| `defaultStatAggregate` | `EvalStatAggregate?`            | Initial aggregate mode for duration and column stats on every eval card                 |
-| `llmCalls`             | `LlmCallsConfig?`               | LLM calls tab config for the case-run drawer (kinds, attribute paths, pricing, metrics) |
-| `removeDefaultConfig`  | `true \| DefaultConfigKey[]?`   | Remove built-in eval-level outputs, columns, stats, and charts                          |
-| `apiCalls`             | `ApiCallsConfig?`               | API calls tab config for the case-run drawer (kinds, attribute paths, custom metrics)   |
-| `runLogs`              | `{ captureConsole?: boolean }?` | Case log capture config; set `captureConsole: false` to stop persisting console calls   |
+| Field | Type | Description |
+| --- | --- | --- |
+| `include` | `string[]` | Glob patterns for eval files (e.g. `['evals/**/*.eval.ts']`) |
+| `workspaceRoot` | `string?` | Root directory; defaults to `process.cwd()` |
+| `tags` | `string[]?` | Workspace tags inherited by every eval unless removed per eval |
+| `defaultTrials` | `number?` | Trials per case when not overridden (default: `1`) |
+| `trialSelection` | `'lowestScore' \| 'median'?` | Winner selection strategy for persisted multi-trial case results |
+| `concurrency` | `number?` | Max parallel case executions per run, including trials (default: `2`) |
+| `staleAfterDays` | `number?` | Days before a mismatched-commit latest run is marked outdated (default: `14`) |
+| `allowCliRunAll` | `boolean?` | Allow unfiltered `agent-evals run` to run every eval (default: `false`) |
+| `traceDisplay` | `TraceDisplayConfig?` | Global trace attribute display config for the UI |
+| `columns` | `EvalColumns?` | Global column display overrides applied to every eval |
+| `deriveFromTracing` | `EvalDeriveConfig?` | Global trace-derived outputs applied to every eval case |
+| `tracingAssertions` | `EvalTracingAssertionsConfig?` | Global assertions derived from each finished execution trace |
+| `stats` | `EvalStatsConfig?` | Global stats prepended to every eval card |
+| `defaultStatAggregate` | `EvalStatAggregate?` | Initial aggregate mode for duration and column stats on every eval card |
+| `llmCalls` | `LlmCallsConfig?` | LLM calls tab config for the case-run drawer (kinds, attribute paths, pricing, metrics) |
+| `removeDefaultConfig` | `true \| DefaultConfigKey[]?` | Remove built-in eval-level outputs, columns, stats, and charts |
+| `apiCalls` | `ApiCallsConfig?` | API calls tab config for the case-run drawer (kinds, attribute paths, custom metrics) |
+| `runLogs` | `{ captureConsole?: boolean }?` | Case log capture config; set `captureConsole: false` to stop persisting console calls |
 
-Each run executes in a separate child process. Within that run, every case and
-trial gets its own module-isolation scope while still respecting `concurrency`,
-so module-level state used by mocks is not shared across parallel cases.
+Each run executes in a separate child process. Within that run, every case and trial gets its own module-isolation scope while still respecting `concurrency`, so module-level state used by mocks is not shared across parallel cases.
 
-When `trials > 1`, the runner executes the case repeatedly but persists a
-single winning result per case. `lowestScore` is the default. `median` uses the
-lower median when the number of trials is even.
+When `trials > 1`, the runner executes the case repeatedly but persists a single winning result per case. `lowestScore` is the default. `median` uses the lower median when the number of trials is even.
 
-By default, CLI runs require explicit targeting with `--eval`, `--file`,
-`--case`, or `--tags-filter`. Set `allowCliRunAll: true` to permit unfiltered
-`agent-evals run`. The web UI can
-still start grouped runs; when a UI action would run more than five evals, it
-asks for confirmation first.
+By default, CLI runs require explicit targeting with `--eval`, `--file`, `--case`, or `--tags-filter`. Set `allowCliRunAll: true` to permit unfiltered `agent-evals run`. The web UI can still start grouped runs; when a UI action would run more than five evals, it asks for confirmation first.
 
-Case run logs are stored on each case detail and rendered as a **Logs** tab
-with a phase filter for execute, derive, output schema validation, and scorer
-logs. Use `evalLog('info', 'message %s', id)` for intentional eval notes. Each
-entry stores the original arguments as JSON-safe values so objects and arrays
-remain inspectable when the row is expanded. When Node provides stack frame
-data, entries also include the most relevant source file, line, and column for
-the log call plus the captured stack so additional frames can be inspected and
-opened in an editor.
-Console capture can be disabled globally:
+Case run logs are stored on each case detail and rendered as a **Logs** tab with a phase filter for execute, derive, output schema validation, and scorer logs. Use `evalLog('info', 'message %s', id)` for intentional eval notes. Each entry stores the original arguments as JSON-safe values so objects and arrays remain inspectable when the row is expanded. When Node provides stack frame data, entries also include the most relevant source file, line, and column for the log call plus the captured stack so additional frames can be inspected and opened in an editor. Console capture can be disabled globally:
 
 ```ts
 import {
@@ -272,28 +229,28 @@ export const config: AgentEvalsConfig = {
 
 `defineEval` takes a single definition object:
 
-| Field                   | Required   | Purpose                                                                          |
-| ----------------------- | ---------- | -------------------------------------------------------------------------------- |
-| `id`                    | yes        | Eval id, unique within one eval file                                             |
-| `title`                 |            | Display title (defaults to a humanized version of `id`)                          |
-| `tags`                  |            | Eval tags inherited by every case                                                |
-| `removeTags`            |            | Workspace tags this eval should not inherit                                      |
-| `cache`                 |            | Per-eval cache controls: `{ read?: boolean; store?: boolean }`                   |
-| `cases`                 | yes        | `EvalCase[]` or `() => Promise<EvalCase[]>` (async loader for dynamic datasets)  |
-| `execute`               | yes        | `async ({ input }) => { ... }`                                                   |
-| `outputsSchema`         | `TOutputs` | Zod schema that validates and types collected outputs before scoring             |
-| `traceDisplay`          |            | Per-eval trace attribute display overrides for the UI                            |
-| `waitForBackgroundJobs` |            | Set `false` to skip waiting for registered background work before finalization   |
-| `startTime`             |            | Initial Date clock for this eval (default `2026-04-10T00:00:00.000Z`)            |
-| `freezeTime`            |            | Set `true` to keep Date frozen until `evalTime.advance(...)` is called           |
-| `deriveFromTracing`     |            | Derive output columns from the finished trace tree                               |
-| `tracingAssertions`     |            | Record assertions from the finished trace tree                                   |
-| `scores`                |            | Record of scoring functions returning `0..1`                                     |
-| `columns`               |            | Custom columns shown in the results table                                        |
-| `stats`                 |            | Opt-in stats row on the eval page (see [Stats row](#stats-row))                  |
-| `defaultStatAggregate`  |            | Override the global initial aggregate mode for this eval's duration/column stats |
-| `charts`                |            | Opt-in history charts on the eval page (see [History charts](#history-charts))   |
-| `removeDefaultConfig`   |            | Remove built-in output, column, stat, and chart defaults for this eval           |
+| Field | Required | Purpose |
+| --- | --- | --- |
+| `id` | yes | Eval id, unique within one eval file |
+| `title` |  | Display title (defaults to a humanized version of `id`) |
+| `tags` |  | Eval tags inherited by every case |
+| `removeTags` |  | Workspace tags this eval should not inherit |
+| `cache` |  | Per-eval cache controls: `{ read?: boolean; store?: boolean }` |
+| `cases` | yes | `EvalCase[]` or `() => Promise<EvalCase[]>` (async loader for dynamic datasets) |
+| `execute` | yes | `async ({ input }) => { ... }` |
+| `outputsSchema` | `TOutputs` | Zod schema that validates and types collected outputs before scoring |
+| `traceDisplay` |  | Per-eval trace attribute display overrides for the UI |
+| `waitForBackgroundJobs` |  | Set `false` to skip waiting for registered background work before finalization |
+| `startTime` |  | Initial Date clock for this eval (default `2026-04-10T00:00:00.000Z`) |
+| `freezeTime` |  | Set `true` to keep Date frozen until `evalTime.advance(...)` is called |
+| `deriveFromTracing` |  | Derive output columns from the finished trace tree |
+| `tracingAssertions` |  | Record assertions from the finished trace tree |
+| `scores` |  | Record of scoring functions returning `0..1` |
+| `columns` |  | Custom columns shown in the results table |
+| `stats` |  | Opt-in stats row on the eval page (see [Stats row](#stats-row)) |
+| `defaultStatAggregate` |  | Override the global initial aggregate mode for this eval's duration/column stats |
+| `charts` |  | Opt-in history charts on the eval page (see [History charts](#history-charts)) |
+| `removeDefaultConfig` |  | Remove built-in output, column, stat, and chart defaults for this eval |
 
 ### Cases
 
@@ -303,20 +260,11 @@ cases: [
 ];
 ```
 
-If you omit `cases` entirely, or resolve them to `[]`, the runner still executes
-the eval once with a synthetic empty-object input and a generated case id.
-Case ids must be unique within one eval. The same eval id may appear in
-different files; the runner treats the exact eval identity as
-`filePath + evalId`, and the exact case identity as `filePath + evalId + caseId`.
-Duplicate eval ids inside one file and duplicate case ids inside one eval are
-reported as errors.
+If you omit `cases` entirely, or resolve them to `[]`, the runner still executes the eval once with a synthetic empty-object input and a generated case id. Case ids must be unique within one eval. The same eval id may appear in different files; the runner treats the exact eval identity as `filePath + evalId`, and the exact case identity as `filePath + evalId + caseId`. Duplicate eval ids inside one file and duplicate case ids inside one eval are reported as errors.
 
 ### Tags
 
-Tags mark evals and cases for targeted runs. Workspace tags from
-`agent-evals.config.ts` apply to every eval; `defineEval({ tags })` adds
-eval-level tags; `case.tags` adds case-only tags. `removeTags` can disable
-workspace tags for one eval and must reference a tag present in config.
+Tags mark evals and cases for targeted runs. Workspace tags from `agent-evals.config.ts` apply to every eval; `defineEval({ tags })` adds eval-level tags; `case.tags` adds case-only tags. `removeTags` can disable workspace tags for one eval and must reference a tag present in config.
 
 ```ts
 export const config: AgentEvalsConfig = {
@@ -340,20 +288,16 @@ defineEval({
 });
 ```
 
-CLI tag filters use Vitest-style expressions with `and`/`&&`, `or`/`||`,
-`not`/`!`, parentheses, and wildcard `*`:
+CLI tag filters use Vitest-style expressions with `and`/`&&`, `or`/`||`, `not`/`!`, parentheses, and wildcard `*`:
 
 ```sh
 agent-evals run --tags-filter "refunds && media"
 agent-evals run --tags-filter "smoke && !slow"
 ```
 
-Multiple `--tags-filter` flags combine with AND. Tag names are freeform but
-cannot be `and`, `or`, `not`, or contain spaces and expression characters
-`(`, `)`, `&`, `|`, `!`, `*`.
+Multiple `--tags-filter` flags combine with AND. Tag names are freeform but cannot be `and`, `or`, `not`, or contain spaces and expression characters `(`, `)`, `&`, `|`, `!`, `*`.
 
-To type tag names globally, add a project `.d.ts` file included by your
-`tsconfig`:
+To type tag names globally, add a project `.d.ts` file included by your `tsconfig`:
 
 ```ts
 import '@ls-stack/agent-eval';
@@ -365,15 +309,11 @@ declare module '@ls-stack/agent-eval' {
 }
 ```
 
-`columns` populates your custom columns. Global `columns` from
-`agent-evals.config.ts` apply to every eval, and eval-level `columns` override
-global metadata for matching keys.
+`columns` populates your custom columns. Global `columns` from `agent-evals.config.ts` apply to every eval, and eval-level `columns` override global metadata for matching keys.
 
 ### Manual input
 
-For exploratory evals where you want to type values before each run, declare
-`manualInput` instead of `cases`. The web UI renders a modal driven by your Zod
-schema and the CLI accepts `--input '<json>'` (or `--input-file <path>`):
+For exploratory evals where you want to type values before each run, declare `manualInput` instead of `cases`. The web UI renders a modal driven by your Zod schema and the CLI accepts `--input '<json>'` (or `--input-file <path>`):
 
 ```ts
 import { defineEval } from '@ls-stack/agent-eval';
@@ -405,22 +345,11 @@ defineEval<z.infer<typeof inputSchema>>({
 });
 ```
 
-Field widgets are derived automatically: `z.string()` becomes a single-line
-text input, `z.number()` a number input (with `min`/`max`/integer detection),
-`z.boolean()` a checkbox, `z.enum(...)` and unions of `z.literal(...)` strings
-become a `select`, and anything else falls back to a JSON textarea. Set
-`fields[key].multiline: true` to switch a string into a textarea, or
-`fields[key].asJson: true` to force the JSON widget. `optional()`/`nullable()`
-wrappers mark a field non-required, `default(...)` prefills it, and
-`describe(...)` populates the helper text.
+Field widgets are derived automatically: `z.string()` becomes a single-line text input, `z.number()` a number input (with `min`/`max`/integer detection), `z.boolean()` a checkbox, `z.enum(...)` and unions of `z.literal(...)` strings become a `select`, and anything else falls back to a JSON textarea. Set `fields[key].multiline: true` to switch a string into a textarea, or `fields[key].asJson: true` to force the JSON widget. `optional()`/`nullable()` wrappers mark a field non-required, `default(...)` prefills it, and `describe(...)` populates the helper text.
 
 #### File and image inputs
 
-Mark a field with `{ asFile: true }` to render a file/image upload widget. The
-widget supports clicking to pick a file, dragging onto the dropzone, and
-pasting an image directly from the system clipboard. Use the
-`manualInputFileValueSchema` helper as the field's Zod type so the runtime
-value stays type-safe end-to-end:
+Mark a field with `{ asFile: true }` to render a file/image upload widget. The widget supports clicking to pick a file, dragging onto the dropzone, and pasting an image directly from the system clipboard. Use the `manualInputFileValueSchema` helper as the field's Zod type so the runtime value stays type-safe end-to-end:
 
 ```ts
 import {
@@ -457,34 +386,18 @@ defineEval<z.infer<typeof inputSchema>>({
 });
 ```
 
-The submitted value carries `{ name, mimeType, sizeBytes, sha256, path }`.
-`path` points to a real workspace-relative run artifact, so agents can inspect
-uploaded files directly on disk. Use `readManualInputFile(value)` when eval code
-needs bytes, a `Blob`, a `File`, text, or parsed JSON. Use `accept` to constrain
-the picker (e.g. `image/*`, `.pdf`) and `maxSizeBytes` to enforce a client-side
-size cap. From the CLI, supply a path object inline through `--input` or via
-`--input-file`, for example `{ "image": { "path": "./screenshot.png" } }`.
+The submitted value carries `{ name, mimeType, sizeBytes, sha256, path }`. `path` points to a real workspace-relative run artifact, so agents can inspect uploaded files directly on disk. Use `readManualInputFile(value)` when eval code needs bytes, a `Blob`, a `File`, text, or parsed JSON. Use `accept` to constrain the picker (e.g. `image/*`, `.pdf`) and `maxSizeBytes` to enforce a client-side size cap. From the CLI, supply a path object inline through `--input` or via `--input-file`, for example `{ "image": { "path": "./screenshot.png" } }`.
 
 Behavior at run time:
 
-- Each run produces a single synthetic case `<evalId>-manual` whose `input` is
-  the validated submission. `cases` and `manualInput` cannot coexist; the
-  runner emits a discovery issue if both are declared.
-- The web UI's "Run" button opens the modal; multi-eval runs ("Run all") skip
-  manual-input evals with a notice — run them individually.
-- The CLI takes `--input '<json>'` for one targeted manual-input eval, or
-  `--input-file <path>` pointing at a JSON object keyed by eval key (or eval
-  id). Missing or invalid input fails the run before the child process starts.
-- Server validation runs against the authored Zod schema. The web UI surfaces
-  the field-keyed errors inline in the modal.
+- Each run produces a single synthetic case `<evalId>-manual` whose `input` is the validated submission. `cases` and `manualInput` cannot coexist; the runner emits a discovery issue if both are declared.
+- The web UI's "Run" button opens the modal; multi-eval runs ("Run all") skip manual-input evals with a notice — run them individually.
+- The CLI takes `--input '<json>'` for one targeted manual-input eval, or `--input-file <path>` pointing at a JSON object keyed by eval key (or eval id). Missing or invalid input fails the run before the child process starts.
+- Server validation runs against the authored Zod schema. The web UI surfaces the field-keyed errors inline in the modal.
 
 ### Eval time
 
-By default, every eval's wall clock starts at
-`2026-04-10T00:00:00.000Z`, and then continues advancing with real elapsed
-time. This gives generated cases, logs, outputs, traces, and scorers a stable
-wall-clock origin without freezing time. Timers are not faked, so `setTimeout`,
-network waits, and other async work still run normally.
+By default, every eval's wall clock starts at `2026-04-10T00:00:00.000Z`, and then continues advancing with real elapsed time. This gives generated cases, logs, outputs, traces, and scorers a stable wall-clock origin without freezing time. Timers are not faked, so `setTimeout`, network waits, and other async work still run normally.
 
 Override the clock per eval with `startTime`:
 
@@ -501,17 +414,11 @@ defineEval({
 });
 ```
 
-Pass `startTime: 'now'` when one eval should use the real current clock.
-Set `freezeTime: true` when you want `new Date()` and `Date.now()` to stay at
-the eval's current shifted time until you move it manually.
+Pass `startTime: 'now'` when one eval should use the real current clock. Set `freezeTime: true` when you want `new Date()` and `Date.now()` to stay at the eval's current shifted time until you move it manually.
 
-Use `evalTime.startTime` when shared workflow code needs the eval's captured
-wall-clock start as a Dayjs object. For `startTime: 'now'`, this returns the
-real time captured when the eval case started. Use `evalTime.dayjs(...)` to
-create other Dayjs date objects from inside eval code.
+Use `evalTime.startTime` when shared workflow code needs the eval's captured wall-clock start as a Dayjs object. For `startTime: 'now'`, this returns the real time captured when the eval case started. Use `evalTime.dayjs(...)` to create other Dayjs date objects from inside eval code.
 
-Use `evalTime.advance(amount, unit)` inside an eval to move the shifted wall
-clock forward between steps. It accepts Dayjs `add(...)` units:
+Use `evalTime.advance(amount, unit)` inside an eval to move the shifted wall clock forward between steps. It accepts Dayjs `add(...)` units:
 
 ```ts
 execute: ({ setOutput }) => {
@@ -521,9 +428,7 @@ execute: ({ setOutput }) => {
 };
 ```
 
-`evalTime.advance(...)` is only available for shifted eval clocks; evals with
-`startTime: 'now'` use the real current clock unless
-`freezeTime: true` is also set.
+`evalTime.advance(...)` is only available for shifted eval clocks; evals with `startTime: 'now'` use the real current clock unless `freezeTime: true` is also set.
 
 ### Execute and tracing
 
@@ -543,10 +448,7 @@ execute: async ({ input, setOutput }) => {
 };
 ```
 
-Use `captureEvalSpanError(error)` for recoverable errors that should be visible
-on the active span without aborting the case. Pass multiple errors either as
-additional arguments or as an array; the span is marked `error`, and the detail
-panel shows a dedicated captured-errors block with timing relative to the span:
+Use `captureEvalSpanError(error)` for recoverable errors that should be visible on the active span without aborting the case. Pass multiple errors either as additional arguments or as an array; the span is marked `error`, and the detail panel shows a dedicated captured-errors block with timing relative to the span:
 
 ```ts
 await evalTracer.span(
@@ -562,15 +464,13 @@ await evalTracer.span(
 );
 ```
 
-Pass `'warning'` (or `{ level: 'warning' }`) as the final argument when the
-diagnostic should be visible but should not mark the span as errored:
+Pass `'warning'` (or `{ level: 'warning' }`) as the final argument when the diagnostic should be visible but should not mark the span as errored:
 
 ```ts
 captureEvalSpanError(new Error('Optional signal is stale'), 'warning');
 ```
 
-If a span callback throws, Agent Evals automatically marks that span as `error`,
-attaches the thrown error to it, and rethrows so the case errors:
+If a span callback throws, Agent Evals automatically marks that span as `error`, attaches the thrown error to it, and rethrows so the case errors:
 
 ```ts
 await evalTracer.span({ kind: 'tool', name: 'submit-refund' }, async () => {
@@ -582,10 +482,7 @@ await evalTracer.span({ kind: 'tool', name: 'submit-refund' }, async () => {
 });
 ```
 
-Fire-and-forget spans started during `execute` are awaited before outputs,
-`deriveFromTracing`, scores, and trace data are finalized. This makes started
-background spans safe to launch without awaiting when the span result itself is
-not needed:
+Fire-and-forget spans started during `execute` are awaited before outputs, `deriveFromTracing`, scores, and trace data are finalized. This makes started background spans safe to launch without awaiting when the span result itself is not needed:
 
 ```ts
 execute: () => {
@@ -598,35 +495,19 @@ execute: () => {
 };
 ```
 
-For non-span work, register the promise explicitly. The runner only waits for
-settlement; any rejection behavior remains normal for the promise or the spans
-inside it:
+For non-span work, register the promise explicitly. The runner only waits for settlement; any rejection behavior remains normal for the promise or the spans inside it:
 
 ```ts
 startEvalBackgroundJob(refreshSearchIndex());
 ```
 
-Set `waitForBackgroundJob: false` on a span when it should not delay case
-finalization, or `waitForBackgroundJobs: false` on an eval when none of its
-registered background work should delay finalization.
+Set `waitForBackgroundJob: false` on a span when it should not delay case finalization, or `waitForBackgroundJobs: false` on an eval when none of its registered background work should delay finalization.
 
-Span `kind` values are open-ended strings. The UI assigns colors
-automatically to every kind used during the app session, so external tracing
-adapters can preserve native categories like `mastra.workflow.step` instead of
-collapsing everything into the built-in `agent`, `llm`, `tool`, `retrieval`,
-`scorer`, `checkpoint`, or `custom` kinds.
+Span `kind` values are open-ended strings. The UI assigns colors automatically to every kind used during the app session, so external tracing adapters can preserve native categories like `mastra.workflow.step` instead of collapsing everything into the built-in `agent`, `llm`, `tool`, `retrieval`, `scorer`, `checkpoint`, or `custom` kinds.
 
-The Trace tab can switch between the recorded parent hierarchy and timeline
-nesting. Timeline nesting is UI-only: it visually nests spans by start/end
-containment for flat exported traces without changing saved trace JSON or the
-parent ids available to `deriveFromTracing`. It can also filter spans by one or
-more `kind` values, either showing only selected kinds or hiding selected kinds,
-and compose that with span-name wildcards such as `POST* OR GET*`. Filtered
-spans can be removed from the timeline or faded for context.
+The Trace tab can switch between the recorded parent hierarchy and timeline nesting. Timeline nesting is UI-only: it visually nests spans by start/end containment for flat exported traces without changing saved trace JSON or the parent ids available to `deriveFromTracing`. It can also filter spans by one or more `kind` values, either showing only selected kinds or hiding selected kinds, and compose that with span-name wildcards such as `POST* OR GET*`. Filtered spans can be removed from the timeline or faded for context.
 
-For observability systems that already emit span lifecycle events, use the
-external span API. This lets an adapter translate start/update/end events into
-the same eval trace tree without wrapping work in a callback:
+For observability systems that already emit span lifecycle events, use the external span API. This lets an adapter translate start/update/end events into the same eval trace tree without wrapping work in a callback:
 
 ```ts
 const span = evalTracer.startSpan({
@@ -649,12 +530,9 @@ span.end({
 });
 ```
 
-Use `evalTracer.recordSpan(...)` when the upstream system only exposes completed
-spans.
+Use `evalTracer.recordSpan(...)` when the upstream system only exposes completed spans.
 
-By default, the UI automatically promotes only the `input` and `output` span
-attributes. Use `traceDisplay` to promote any other span attributes in the trace
-tree and detail pane:
+By default, the UI automatically promotes only the `input` and `output` span attributes. Use `traceDisplay` to promote any other span attributes in the trace tree and detail pane:
 
 ```ts
 traceDisplay: {
@@ -782,20 +660,11 @@ llmCalls: {
 }
 ```
 
-`derivedAttributes` can be an object-returning callback, as shown above, or a
-keyed map for one-off fields (`{ 'usage.billableTokens': ({ get }) => ... }`).
-Derived attribute keys are dot-paths under `span.attributes`; return
-`undefined` to skip writing a value for one span or one returned key. Custom
-metrics support `'string' | 'number' | 'duration' | 'json' | 'boolean'`
-formats. Use `tooltip` to add a hover description for compact labels. The tab
-is hidden automatically for cases with no matching spans.
+`derivedAttributes` can be an object-returning callback, as shown above, or a keyed map for one-off fields (`{ 'usage.billableTokens': ({ get }) => ... }`). Derived attribute keys are dot-paths under `span.attributes`; return `undefined` to skip writing a value for one span or one returned key. Custom metrics support `'string' | 'number' | 'duration' | 'json' | 'boolean'` formats. Use `tooltip` to add a hover description for compact labels. The tab is hidden automatically for cases with no matching spans.
 
 ### Default usage outputs
 
-The runner also derives eval-level usage outputs from the same resolved
-`llmCalls` and `apiCalls` configs used by the drawer. When a case trace has
-matching spans, missing outputs are filled before `outputsSchema` and scores
-run:
+The runner also derives eval-level usage outputs from the same resolved `llmCalls` and `apiCalls` configs used by the drawer. When a case trace has matching spans, missing outputs are filled before `outputsSchema` and scores run:
 
 - `apiCalls`
 - `costUsd`
@@ -808,21 +677,7 @@ run:
 - `reasoningTokens`
 - `llmDurationMs`
 
-Authored outputs with the same key are never overwritten. Authored `columns`,
-`stats`, and `charts` also remain authoritative; default columns use compact
-token formatting, dollar formatting for `costUsd`, and duration formatting for
-`llmDurationMs`, while default stats and LLM usage charts are appended after
-authored config. Default usage columns, stats, and charts use
-`hideIfNoValue: true`, so the UI stays quiet until matching LLM/API span data
-exists. Default LLM usage charts render cost, input tokens, and output tokens
-separately and use `dedupeConsecutiveValues: true` to skip repeated adjacent
-points such as cached reruns with unchanged chart values.
-`apiCalls` is counted from spans matched by `apiCalls.kinds`. Cost defaults use
-`llmCalls.pricing`, exactly like the LLM calls tab. `totalTokens` is always
-input + output tokens. `llmTurns` is the maximum per-call turn count in the case
-run, using configured steps when available and otherwise one turn per matched
-LLM call span. `llmDurationMs` sums the elapsed durations of matched LLM call
-spans; it is not time-to-first-token latency.
+Authored outputs with the same key are never overwritten. Authored `columns`, `stats`, and `charts` also remain authoritative; default columns use compact token formatting, dollar formatting for `costUsd`, and duration formatting for `llmDurationMs`, while default stats and LLM usage charts are appended after authored config. Default usage columns, stats, and charts use `hideIfNoValue: true`, so the UI stays quiet until matching LLM/API span data exists. Default LLM usage charts render cost, input tokens, and output tokens separately and use `dedupeConsecutiveValues: true` to skip repeated adjacent points such as cached reruns with unchanged chart values. `apiCalls` is counted from spans matched by `apiCalls.kinds`. Cost defaults use `llmCalls.pricing`, exactly like the LLM calls tab. `totalTokens` is always input + output tokens. `llmTurns` is the maximum per-call turn count in the case run, using configured steps when available and otherwise one turn per matched LLM call span. `llmDurationMs` sums the elapsed durations of matched LLM call spans; it is not time-to-first-token latency.
 
 Remove all defaults globally:
 
@@ -852,16 +707,7 @@ defineEval({
 
 ### API calls tab
 
-The case-run drawer also surfaces an **API calls** tab whenever a case trace
-contains matching API/HTTP spans. By default, spans with `kind: 'api'`,
-`'http'`, `'http.client'`, or `'fetch'` are treated as API calls. The tab reads
-`method`, `url`, `statusCode`, `request`, `response`, `requestBody`,
-`responseBody`, `headers`, `durationMs`, and `error` from span attributes. Each
-row is collapsed by default; clicking expands it to show captured request and
-response payloads, headers, error payloads, warnings, and custom metrics. The
-tab can be searched with wildcard patterns against call names, endpoints, and
-URLs, and the end of the tab includes a compact chart of the most frequently
-called endpoints for the selected case run.
+The case-run drawer also surfaces an **API calls** tab whenever a case trace contains matching API/HTTP spans. By default, spans with `kind: 'api'`, `'http'`, `'http.client'`, or `'fetch'` are treated as API calls. The tab reads `method`, `url`, `routeAlias`, `statusCode`, `request`, `response`, `requestBody`, `responseBody`, `headers`, `durationMs`, and `error` from span attributes. Each row is collapsed by default; clicking expands it to show captured request and response payloads, headers, error payloads, warnings, and custom metrics. The tab can be searched with wildcard patterns against call names, endpoints, and URLs, and the end of the tab includes a compact chart of the most frequently called endpoints for the selected case run. Chart rows can be clicked to filter the visible API call rows to that route.
 
 Emit API calls as normal trace spans:
 
@@ -872,6 +718,7 @@ evalTracer.recordSpan({
   attributes: {
     method: 'GET',
     url: 'https://support-config.local/queues/gold',
+    routeAlias: '/queues/:tier',
     statusCode: 200,
     durationMs: 12,
     request: { customerTier: 'gold' },
@@ -889,6 +736,7 @@ apiCalls: {
   kinds: ['api', 'http.client', 'undici.request'],
   // Read structured fields from non-default attribute paths.
   attributes: {
+    routeAlias: 'http.route',
     statusCode: 'http.status_code',
     durationMs: 'timing.totalMs',
   },
@@ -917,14 +765,9 @@ apiCalls: {
 }
 ```
 
-For saved runs, the case drawer's more menu can recalculate configured
-LLM/API-call derived attributes for that case and persist the updated trace
-artifacts without re-running the eval.
+For saved runs, the case drawer's more menu can recalculate configured LLM/API-call derived attributes for that case and persist the updated trace artifacts without re-running the eval.
 
-API-call `derivedAttributes` follow the same rules as LLM-call derived
-attributes. Custom metrics support the same `'string' | 'number' | 'duration' |
-`'json' | 'boolean'`formats and`['header' | 'body']` placements as LLM-call
-metrics. The tab is hidden automatically for cases with no matching API spans.
+API-call `derivedAttributes` follow the same rules as LLM-call derived attributes. Custom metrics support the same `'string' | 'number' | 'duration' | `'json' | 'boolean'`formats and`['header' | 'body']`placements as LLM-call metrics. The tab is hidden automatically for cases with no matching API spans. Set`routeAlias`on individual API span attributes to group dynamic IDs in row labels and the endpoint chart, such as`/v3/tabs/:id`. Expanded row details still show the original captured URL.
 
 ### Scorers
 
@@ -946,19 +789,11 @@ scores: {
 }
 ```
 
-Every score is a first-class column in the run table, rendered per case and as
-the per-run average. Scores are **not** combined into a single average — each
-column stands on its own.
+Every score is a first-class column in the run table, rendered per case and as the per-run average. Scores are **not** combined into a single average — each column stands on its own.
 
-Pass/fail is per-score: a case fails if any score that declares a
-`passThreshold` falls below that threshold (or if an assertion failed, or the
-case errored). A run fails if any of its cases fail. Scores without
-`passThreshold` are purely informational and never gate pass/fail. Hover a
-score column in the UI to see its threshold.
+Pass/fail is per-score: a case fails if any score that declares a `passThreshold` falls below that threshold (or if an assertion failed, or the case errored). A run fails if any of its cases fail. Scores without `passThreshold` are purely informational and never gate pass/fail. Hover a score column in the UI to see its threshold.
 
-Scores can choose a numeric visualization with `format`. In addition to the
-standard numeric formats, score columns support `format: 'passFail'` and
-`format: 'stars'`:
+Scores can choose a numeric visualization with `format`. In addition to the standard numeric formats, score columns support `format: 'passFail'` and `format: 'stars'`:
 
 ```ts
 scores: {
@@ -971,10 +806,7 @@ scores: {
 }
 ```
 
-Score functions run in their own trace scope, separate from the execution
-trace used by `deriveFromTracing`. That means LLM-as-judge scorers can use
-`evalTracer.span(...)` and cached spans without adding judge activity to agent
-trajectory metrics:
+Score functions run in their own trace scope, separate from the execution trace used by `deriveFromTracing`. That means LLM-as-judge scorers can use `evalTracer.span(...)` and cached spans without adding judge activity to agent trajectory metrics:
 
 ```ts
 scores: {
@@ -1012,15 +844,9 @@ scores: {
 }
 ```
 
-The case detail UI shows execution spans on the **Trace** tab and score spans
-on a separate **Scoring** tab. Outputs recorded inside a scorer scope stay
-private to that score.
+The case detail UI shows execution spans on the **Trace** tab and score spans on a separate **Scoring** tab. Outputs recorded inside a scorer scope stay private to that score.
 
-Manual scores are separate from computed `scores`. They are created as pending
-score columns during a run, then filled directly in the web UI. Values are
-stored as normalized `0..1` numbers. While the latest run for an eval has any
-pending manual scores, the eval is shown as `unscored`; older runs do not affect
-that state.
+Manual scores are separate from computed `scores`. They are created as pending score columns during a run, then filled directly in the web UI. Values are stored as normalized `0..1` numbers. While the latest run for an eval has any pending manual scores, the eval is shown as `unscored`; older runs do not affect that state.
 
 ```ts
 manualScores: {
@@ -1049,20 +875,11 @@ columns: {
 }
 ```
 
-Populate values in `deriveFromTracing(...)` and/or from runtime outputs.
-Long custom column text is truncated in the runs table and reveals the full value on hover.
-Use `hideInTable: true` for rich outputs that should stay in the case detail view
-without taking up space in the runs table.
-Use `hideIfNoValue: true` to hide a column from the runs table when every
-rendered row is missing the value, `null`, or an empty string; `0` and `false`
-still count as values. The column remains available in case details and raw
-outputs.
+Populate values in `deriveFromTracing(...)` and/or from runtime outputs. Long custom column text is truncated in the runs table and reveals the full value on hover. Use `hideInTable: true` for rich outputs that should stay in the case detail view without taking up space in the runs table. Use `hideIfNoValue: true` to hide a column from the runs table when every rendered row is missing the value, `null`, or an empty string; `0` and `false` still count as values. The column remains available in case details and raw outputs.
 
 ### Trace-derived outputs
 
-Use `deriveFromTracing` to derive outputs after execution spans are complete.
-The recommended keyed form is concise and works both globally in
-`agent-evals.config.ts` and locally on one `defineEval(...)`:
+Use `deriveFromTracing` to derive outputs after execution spans are complete. The recommended keyed form is concise and works both globally in `agent-evals.config.ts` and locally on one `defineEval(...)`:
 
 ```ts
 deriveFromTracing: {
@@ -1078,18 +895,11 @@ deriveFromTracing: ({ trace }) => ({
 });
 ```
 
-Global derivations run before eval-level derivations. Neither form overwrites
-outputs already recorded during execution, and eval-level derivations only fill
-keys still missing after global derivations. In keyed form, return `undefined`
-to omit that output for one case. Do not call `evalAssert(...)` or
-`evalExpect(...)` from `deriveFromTracing`; use `tracingAssertions` for
-trace-derived pass/fail checks.
+Global derivations run before eval-level derivations. Neither form overwrites outputs already recorded during execution, and eval-level derivations only fill keys still missing after global derivations. In keyed form, return `undefined` to omit that output for one case. Do not call `evalAssert(...)` or `evalExpect(...)` from `deriveFromTracing`; use `tracingAssertions` for trace-derived pass/fail checks.
 
 ### Trace-derived assertions
 
-Use `tracingAssertions` as a single callback when a trace invariant should pass
-or fail the case without creating a fake numeric score column. It runs after
-`deriveFromTracing` with the same `{ trace, input, case }` context:
+Use `tracingAssertions` as a single callback when a trace invariant should pass or fail the case without creating a fake numeric score column. It runs after `deriveFromTracing` with the same `{ trace, input, case }` context:
 
 ```ts
 import { defineEval, evalAssert } from '@ls-stack/agent-eval';
@@ -1108,28 +918,11 @@ defineEval({
 });
 ```
 
-The trace tree includes helpers for common span checks: `findSpan(name)`,
-`findSpans(name)`, `hasSpan(name)`, `findSpansByKind(kind)`,
-`findToolCallSpans()`, `listToolCallSpanNames()`, `hasToolCallSpan(name)`,
-`getToolCallSpans(name)`, `getToolCallSpanCount(toolName)`,
-`hasToolCallSpanCount(toolName, expectedCalls)`, `listSpanNames(kind?)`,
-`listSpanNamesDfs(kind?)`, and `flattenDfs()`.
-The tool-call helpers match both authored `kind: 'tool'` spans and imported
-execution spans recorded as `kind: 'tool_call'`. Tool-name checks and counts
-match the span `name` as well as GenAI/Mastra identity attributes such as
-`genAI["gen_ai.tool.name"]` and `mastra.entityName`; list helpers prefer those
-tool identity attributes when present. `getToolCallSpans(name)` returns one
-normalized object per matching call, including parsed `arguments`, parsed
-`result`, `description`, `toolType`, `attributes`, and the original `span`.
+The trace tree includes helpers for common span checks: `findSpan(name)`, `findSpans(name)`, `hasSpan(name)`, `findSpansByKind(kind)`, `findToolCallSpans()`, `listToolCallSpanNames()`, `hasToolCallSpan(name)`, `getToolCallSpans(name)`, `getToolCallSpanCount(toolName)`, `hasToolCallSpanCount(toolName, expectedCalls)`, `listSpanNames(kind?)`, `listSpanNamesDfs(kind?)`, and `flattenDfs()`. The tool-call helpers match both authored `kind: 'tool'` spans and imported execution spans recorded as `kind: 'tool_call'`. Tool-name checks and counts match the span `name` as well as GenAI/Mastra identity attributes such as `genAI["gen_ai.tool.name"]` and `mastra.entityName`; list helpers prefer those tool identity attributes when present. `getToolCallSpans(name)` returns one normalized object per matching call, including parsed `arguments`, parsed `result`, `description`, `toolType`, `attributes`, and the original `span`.
 
 ### Stats row
 
-The eval page can show a stats row at the top of each eval card. Set `stats` to
-declare authored stats, including score and numeric output columns. Usage
-defaults are appended automatically unless removed with
-`removeDefaultConfig`. Global `stats` from `agent-evals.config.ts` render before
-eval-level stats. Set `defaultStatAggregate` globally or on an eval to choose
-the initial aggregate mode for all duration and column stats on that eval card:
+The eval page can show a stats row at the top of each eval card. Set `stats` to declare authored stats, including score and numeric output columns. Usage defaults are appended automatically unless removed with `removeDefaultConfig`. Global `stats` from `agent-evals.config.ts` render before eval-level stats. Set `defaultStatAggregate` globally or on an eval to choose the initial aggregate mode for all duration and column stats on that eval card:
 
 ```ts
 defaultStatAggregate: 'avg',
@@ -1160,32 +953,14 @@ Supported kinds:
 
 - `cases` — declared case count.
 - `passRate` — latest run's `passed/total`. Set `accent: true` to tint the value.
-- `duration` — aggregate latest run case durations. Uses the same aggregate
-  modes and click-to-cycle behavior as column stats.
-- `cacheHits` — latest run's Agent Eval operation-level cache hits over total
-  cache operations, shown as `hits/total` using the same span and
-  `evalTracer.cache(...)` refs that feed the Cache tab. This is separate from
-  LLM provider prompt-cache read tokens such as `cachedInputTokens`. It has its
-  own aggregate control and defaults to `sum`; `avg` shows average per-case hit
-  rate, while `min`/`max`/`best`/`worst` select cases by hit rate.
-- `column` — aggregate a score or numeric output column across the latest
-  run's cases. `key` matches a score key or output column key. `aggregate` is
-  `avg | min | max | sum | best | worst`. `best` uses the highest finite value
-  and `worst` uses the lowest finite value. `label`, `format`, and `numberFormat`
-  default to the matching column definition. Only finite numeric values
-  participate; if none exist the stat renders an em dash. In the UI, clicking a
-  duration or column stat's aggregate label cycles all numeric stats on the
-  card through the supported aggregate modes, and hovering a duration or column
-  stat value shows the other aggregate values.
-- `hideIfNoValue` — hide the stat instead of rendering an em dash when the
-  current run has no value.
+- `duration` — aggregate latest run case durations. Uses the same aggregate modes and click-to-cycle behavior as column stats.
+- `cacheHits` — latest run's Agent Eval operation-level cache hits over total cache operations, shown as `hits/total` using the same span and `evalTracer.cache(...)` refs that feed the Cache tab. This is separate from LLM provider prompt-cache read tokens such as `cachedInputTokens`. It has its own aggregate control and defaults to `sum`; `avg` shows average per-case hit rate, while `min`/`max`/`best`/`worst` select cases by hit rate.
+- `column` — aggregate a score or numeric output column across the latest run's cases. `key` matches a score key or output column key. `aggregate` is `avg | min | max | sum | best | worst`. `best` uses the highest finite value and `worst` uses the lowest finite value. `label`, `format`, and `numberFormat` default to the matching column definition. Only finite numeric values participate; if none exist the stat renders an em dash. In the UI, clicking a duration or column stat's aggregate label cycles all numeric stats on the card through the supported aggregate modes, and hovering a duration or column stat value shows the other aggregate values.
+- `hideIfNoValue` — hide the stat instead of rendering an em dash when the current run has no value.
 
 ### History charts
 
-The eval page can render one or more history charts at the top of each eval
-card that trend across the last 20 completed runs. Set `charts` to declare
-authored charts. LLM usage default charts are appended automatically unless
-removed with `removeDefaultConfig`.
+The eval page can render one or more history charts at the top of each eval card that trend across the last 20 completed runs. Set `charts` to declare authored charts. LLM usage default charts are appended automatically unless removed with `removeDefaultConfig`.
 
 ```ts
 charts: [
@@ -1226,17 +1001,10 @@ charts: [
 Each chart declares:
 
 - `type` — `area`, `line`, or `bar`.
-- `metrics` — one or more plotted series. `builtin` metrics (`passRate`,
-  `cost`, `durationMs`) come from the per-run summary. `column` metrics
-  aggregate a score or numeric `setEvalOutput` column across the run using an
-  `aggregate` reducer: `avg | sum | min | max | latest | passThresholdRate`.
-  `passThresholdRate` requires a score column with `passThreshold` — it
-  reports the fraction of cases whose value met the threshold.
+- `metrics` — one or more plotted series. `builtin` metrics (`passRate`, `cost`, `durationMs`) come from the per-run summary. `column` metrics aggregate a score or numeric `setEvalOutput` column across the run using an `aggregate` reducer: `avg | sum | min | max | latest | passThresholdRate`. `passThresholdRate` requires a score column with `passThreshold` — it reports the fraction of cases whose value met the threshold.
 - `heading` (optional) — label shown above the chart.
-- `hideIfNoValue` — hide the chart when none of its plotted series or tooltip
-  extras has a numeric value in the rendered history window.
-- `dedupeConsecutiveValues` — skip consecutive history points when all plotted
-  series and tooltip extras match the previous kept point.
+- `hideIfNoValue` — hide the chart when none of its plotted series or tooltip extras has a numeric value in the rendered history window.
+- `dedupeConsecutiveValues` — skip consecutive history points when all plotted series and tooltip extras match the previous kept point.
 - `axis` (`'left' | 'right'`) per metric enables a dual-axis chart.
 - `yDomain` — per-axis `{ min, max }`. Omit for automatic scaling.
 - `color` — semantic token: `accent | accentDim | success | error | warning | cost | textMuted`.
@@ -1244,12 +1012,7 @@ Each chart declares:
 
 ## Caching costly operations
 
-Wrap a costly span (LLM call, remote tool, etc.) with
-`cache: { namespace, key }` to skip execution on subsequent runs. The cache
-records every observable effect inside
-the span — sub-spans, checkpoints, output helper calls, final attributes — and
-replays them verbatim on hits, so traces and outputs look identical to a fresh
-run.
+Wrap a costly span (LLM call, remote tool, etc.) with `cache: { namespace, key }` to skip execution on subsequent runs. The cache records every observable effect inside the span — sub-spans, checkpoints, output helper calls, final attributes — and replays them verbatim on hits, so traces and outputs look identical to a fresh run.
 
 ```ts
 await evalTracer.span(
@@ -1274,12 +1037,9 @@ await evalTracer.span(
 );
 ```
 
-Cached spans get `cache.status` in their attributes (`hit`, `miss`, `refresh`,
-or `bypass`) plus `cache.key`, `cache.storedAt`, and `cache.age` (on hit).
-These show as coloured badges in the trace tree.
+Cached spans get `cache.status` in their attributes (`hit`, `miss`, `refresh`, or `bypass`) plus `cache.key`, `cache.storedAt`, and `cache.age` (on hit). These show as coloured badges in the trace tree.
 
-Use `evalTracer.cache(...)` when you want the same cache behavior without
-creating a wrapper span:
+Use `evalTracer.cache(...)` when you want the same cache behavior without creating a wrapper span:
 
 ```ts
 const receiptContext = await evalTracer.cache(
@@ -1295,37 +1055,9 @@ const receiptContext = await evalTracer.cache(
 );
 ```
 
-If `evalTracer.cache(...)` runs inside an active span, that span receives a
-`cache.refs` array entry like `{ type: 'value', name, namespace, key, status }`
-with `storedAt` and `age` on hits. When `evalTracer.cache(...)` is called
-directly from the case body (no surrounding `traceSpan`), the same ref is
-recorded on the case detail's `cacheRefs` array instead — so spanless value
-caches still surface in the UI. The cache call itself does not create a trace
-span. SDK-mediated effects inside the callback still replay on hits, including
-nested spans, checkpoints, output helper calls, and active span attributes
-changed by the callback.
+If `evalTracer.cache(...)` runs inside an active span, that span receives a `cache.refs` array entry like `{ type: 'value', name, namespace, key, status }` with `storedAt` and `age` on hits. When `evalTracer.cache(...)` is called directly from the case body (no surrounding `traceSpan`), the same ref is recorded on the case detail's `cacheRefs` array instead — so spanless value caches still surface in the UI. The cache call itself does not create a trace span. SDK-mediated effects inside the callback still replay on hits, including nested spans, checkpoints, output helper calls, and active span attributes changed by the callback.
 
-The case-run drawer adds a **Cache** tab whenever a case run or scoring phase
-produced cache hits, wrote new cache entries, or executed cached operations
-with storage disabled. Use the selector to show execute-phase cache activity
-(the default), all cache activity, only hits, only new entries added by
-misses/refreshes, scoring hits, or scoring new entries. It lists every span- and
-value-cache entry (including spanless ones tagged "case root", and scoring
-entries tagged with their score label) with
-namespace, status, age when available, stored-at timestamp when known, and
-truncated key. Each row expands to fetch the persisted entry from
-`GET /api/cache/:namespace/:key` and render its cached `returnValue` (and any
-replayed span attributes) inline. When raw-key debug metadata is available, the
-expanded row also shows the authored cache key. Stored rows can compare that
-raw key against another saved run/case/cache entry from the same eval; the app
-defaults to the previous run, matching case, and same Cache-tab index, then
-renders a stable, sorted JSON diff for quick inspection. The modal shows the
-current run and includes diff-style, line-diff, overflow, and copy controls,
-defaulting to split diff with horizontal scrolling. Use the row's delete action
-to remove that single persisted cache entry. Bypasses remain visible inline as
-per-span badges in the **Trace** tab because they do not write cache entries;
-non-stored misses/refreshes are shown as cache activity without fetch/delete
-actions.
+The case-run drawer adds a **Cache** tab whenever a case run or scoring phase produced cache hits, wrote new cache entries, or executed cached operations with storage disabled. Use the selector to show execute-phase cache activity (the default), all cache activity, only hits, only new entries added by misses/refreshes, scoring hits, or scoring new entries. It lists every span- and value-cache entry (including spanless ones tagged "case root", and scoring entries tagged with their score label) with namespace, status, age when available, stored-at timestamp when known, and truncated key. Each row expands to fetch the persisted entry from `GET /api/cache/:namespace/:key` and render its cached `returnValue` (and any replayed span attributes) inline. When raw-key debug metadata is available, the expanded row also shows the authored cache key. Stored rows can compare that raw key against another saved run/case/cache entry from the same eval; the app defaults to the previous run, matching case, and same Cache-tab index, then renders a stable, sorted JSON diff for quick inspection. The modal shows the current run and includes diff-style, line-diff, overflow, and copy controls, defaulting to split diff with horizontal scrolling. Use the row's delete action to remove that single persisted cache entry. Bypasses remain visible inline as per-span badges in the **Trace** tab because they do not write cache entries; non-stored misses/refreshes are shown as cache activity without fetch/delete actions.
 
 ### Cache controls
 
@@ -1340,18 +1072,9 @@ CLI:
 - `pnpm eval cache clear --all` — drop every entry.
 - `pnpm eval cache repair` — remove unindexed/orphaned cache, debug, and blob files.
 
-UI: every `EvalCard` has a split button next to **Run** with a chevron menu
-containing the cache run modes and, for single evals, a case picker. The single
-eval page's more menu includes a danger-toned "Clear cache for this eval" that
-deletes the cache namespace/key pairs recorded by saved runs for that eval, plus
-a "Clear non-successful runs" action for failed, errored, and cancelled saved
-runs.
-While a run is active, eval cards, folder headers, and the run drawer show
-**Stop** to cancel the whole in-flight run by terminating its isolated run
-process.
+UI: every `EvalCard` has a split button next to **Run** with a chevron menu containing the cache run modes and, for single evals, a case picker. The single eval page's more menu includes a danger-toned "Clear cache for this eval" that deletes the cache namespace/key pairs recorded by saved runs for that eval, plus a "Clear non-successful runs" action for failed, errored, and cancelled saved runs. While a run is active, eval cards, folder headers, and the run drawer show **Stop** to cancel the whole in-flight run by terminating its isolated run process.
 
-Per eval, use `cache.read` and `cache.store` to control whether authored cached
-operations may read or persist entries:
+Per eval, use `cache.read` and `cache.store` to control whether authored cached operations may read or persist entries:
 
 ```ts
 defineEval({
@@ -1361,82 +1084,32 @@ defineEval({
 });
 ```
 
-Both default to `true`. `read: false` skips lookups for that eval. `store: false`
-lets the eval reuse hits when reads are enabled, but misses and refreshes
-execute without writing cache or raw-key debug files. Run-level controls still
-take precedence: `--no-cache` skips reads and writes, and `--refresh-cache`
-skips reads but only writes when `store !== false`.
+Both default to `true`. `read: false` skips lookups for that eval. `store: false` lets the eval reuse hits when reads are enabled, but misses and refreshes execute without writing cache or raw-key debug files. Run-level controls still take precedence: `--no-cache` skips reads and writes, and `--refresh-cache` skips reads but only writes when `store !== false`.
 
 Server API (`/api/cache`):
 
 - `GET /api/cache` — list entries.
-- `GET /api/cache/:namespace/:key` — return one cache entry, plus optional
-  raw-key debug metadata when available.
+- `GET /api/cache/:namespace/:key` — return one cache entry, plus optional raw-key debug metadata when available.
 - `DELETE /api/cache` — clear everything.
-- `DELETE /api/cache/actions/eval?evalKey=<key>` — drop cached entries recorded
-  by saved runs for one exact eval identity.
+- `DELETE /api/cache/actions/eval?evalKey=<key>` — drop cached entries recorded by saved runs for one exact eval identity.
 - `DELETE /api/cache/:namespace` — clear one namespace.
 - `DELETE /api/cache/:namespace/:key` — drop a single entry.
 
 ### How it works
 
-- Cached spans require an explicit `cache.namespace`. Spanless value caches
-  default to `${evalId}.${name}` and can be overridden with `namespace`.
-- Cache identity is the namespace plus the authored key. Eval source
-  fingerprints are tracked for run freshness separately, but do not participate
-  in cache-key hashing.
-- Entries live as one Brotli-compressed JSON file per key at
-  `<workspaceRoot>/.agent-evals/cache/<sanitizedNamespace>/<keyHash>.json.br`.
-- Cache retention metadata lives in small namespace index sidecars next to entries at
-  `<workspaceRoot>/.agent-evals/cache/<sanitizedNamespace>/.index-<namespaceHash>.json`;
-  cache listing and retention use these indexes without opening cached payloads.
-  Index rows intentionally stay minimal: stored time, last access time, and
-  external JSON blob refs.
-- Nested cached JSON values at or above roughly 10K JSON characters are stored as content-addressed
-  Brotli blobs under `<workspaceRoot>/.agent-evals/cache/cache-blobs/` and referenced
-  from cache entries by sha256. Identical large payloads share the same blob.
-- Authored raw cache keys are stored for debugging in
-  `<workspaceRoot>/.agent-evals/cache-debug/<sanitizedNamespace>/<keyHash>.json`.
-  These debug files also mirror the serialized cache entry for easier
-  inspection. This folder may contain prompts, user inputs, cached payloads, or
-  other sensitive data, is not needed for cache reuse, and should be gitignored.
-  Normal cache files remain hash-only.
-- Each namespace keeps at most `cache.maxEntries` entries, or `100` entries
-  when no cache retention cap is configured,
-  pruning the least recently accessed indexed entries after a run finishes and
-  the runner stays idle for `cache.pruneIdleDelayMs ?? 5000` milliseconds. Cache
-  writes initialize `lastAccessedAt` to the entry's `storedAt`, and hits update
-  `lastAccessedAt` in the namespace index at most once every
-  `cache.lastAccessedAtUpdateIntervalMs ?? 14_400_000` milliseconds (four
-  hours). Legacy index rows may still have `lastAccessedAt: null`. Use the
-  object form of `cache.maxEntries` for exact namespace overrides.
-- Unindexed legacy cache files are ignored by normal lookup, listing, and
-  retention. Run `pnpm eval cache repair` when you want to remove unindexed
-  cache files, stale index rows, debug sidecars, and unreferenced blob files.
-- Cache keys should be deterministic primitives, arrays, and plain objects.
-  `Buffer`, `ArrayBuffer`, and typed-array values are serialized by a sha256 of
-  their bytes. Native `Blob`/`File` keys use stable metadata by default
-  (`type`, `size`, plus `name`/`lastModified` for `File`) and do not read file
-  bytes. Add `serializeFileBytes: true` to a cached span or
-  `evalTracer.cache(...)` call when byte-level cache invalidation is required.
-- Modes: `bypass` never reads or writes; `refresh` skips the read and always
-  writes unless the eval has `cache.store: false`; `use` reads on hit and
-  writes on miss unless disabled by the eval's `cache.read` or `cache.store`.
-- Multi-trial runs isolate cache writes per trial attempt and only flush the
-  winning trial's writes into the shared cache, so later trials in the same run
-  never reuse cache entries produced by earlier sibling trials.
-- Only SDK-mediated side effects replay (`evalTracer.span`,
-  `evalTracer.checkpoint`, output helper calls, span attributes). External side
-  effects (network, DB writes) do _not_ replay on cache hits — use caching only
-  for pure functions of their key.
-- Cached payloads use JSON-safe tagged serialization, so return values and
-  recorded SDK effects preserve richer built-ins such as `Date`, `Map`, `Set`,
-  typed arrays, `URL`, `Headers`, `Blob`, and `File` on cache hits. Undefined
-  values are omitted by default instead of being written to cache files; callers
-  using `serializeCacheValue(...)` or
-  `serializeCacheRecording(...)` directly can pass
-  `{ preserveUndefined: true }` to retain explicit undefined wrappers. Cache
-  keys still use the deterministic key-hashing rules above.
+- Cached spans require an explicit `cache.namespace`. Spanless value caches default to `${evalId}.${name}` and can be overridden with `namespace`.
+- Cache identity is the namespace plus the authored key. Eval source fingerprints are tracked for run freshness separately, but do not participate in cache-key hashing.
+- Entries live as one Brotli-compressed JSON file per key at `<workspaceRoot>/.agent-evals/cache/<sanitizedNamespace>/<keyHash>.json.br`.
+- Cache retention metadata lives in small namespace index sidecars next to entries at `<workspaceRoot>/.agent-evals/cache/<sanitizedNamespace>/.index-<namespaceHash>.json`; cache listing and retention use these indexes without opening cached payloads. Index rows intentionally stay minimal: stored time, last access time, and external JSON blob refs.
+- Nested cached JSON values at or above roughly 10K JSON characters are stored as content-addressed Brotli blobs under `<workspaceRoot>/.agent-evals/cache/cache-blobs/` and referenced from cache entries by sha256. Identical large payloads share the same blob.
+- Authored raw cache keys are stored for debugging in `<workspaceRoot>/.agent-evals/cache-debug/<sanitizedNamespace>/<keyHash>.json`. These debug files also mirror the serialized cache entry for easier inspection. This folder may contain prompts, user inputs, cached payloads, or other sensitive data, is not needed for cache reuse, and should be gitignored. Normal cache files remain hash-only.
+- Each namespace keeps at most `cache.maxEntries` entries, or `100` entries when no cache retention cap is configured, pruning the least recently accessed indexed entries after a run finishes and the runner stays idle for `cache.pruneIdleDelayMs ?? 5000` milliseconds. Cache writes initialize `lastAccessedAt` to the entry's `storedAt`, and hits update `lastAccessedAt` in the namespace index at most once every `cache.lastAccessedAtUpdateIntervalMs ?? 14_400_000` milliseconds (four hours). Legacy index rows may still have `lastAccessedAt: null`. Use the object form of `cache.maxEntries` for exact namespace overrides.
+- Unindexed legacy cache files are ignored by normal lookup, listing, and retention. Run `pnpm eval cache repair` when you want to remove unindexed cache files, stale index rows, debug sidecars, and unreferenced blob files.
+- Cache keys should be deterministic primitives, arrays, and plain objects. `Buffer`, `ArrayBuffer`, and typed-array values are serialized by a sha256 of their bytes. Native `Blob`/`File` keys use stable metadata by default (`type`, `size`, plus `name`/`lastModified` for `File`) and do not read file bytes. Add `serializeFileBytes: true` to a cached span or `evalTracer.cache(...)` call when byte-level cache invalidation is required.
+- Modes: `bypass` never reads or writes; `refresh` skips the read and always writes unless the eval has `cache.store: false`; `use` reads on hit and writes on miss unless disabled by the eval's `cache.read` or `cache.store`.
+- Multi-trial runs isolate cache writes per trial attempt and only flush the winning trial's writes into the shared cache, so later trials in the same run never reuse cache entries produced by earlier sibling trials.
+- Only SDK-mediated side effects replay (`evalTracer.span`, `evalTracer.checkpoint`, output helper calls, span attributes). External side effects (network, DB writes) do _not_ replay on cache hits — use caching only for pure functions of their key.
+- Cached payloads use JSON-safe tagged serialization, so return values and recorded SDK effects preserve richer built-ins such as `Date`, `Map`, `Set`, typed arrays, `URL`, `Headers`, `Blob`, and `File` on cache hits. Undefined values are omitted by default instead of being written to cache files; callers using `serializeCacheValue(...)` or `serializeCacheRecording(...)` directly can pass `{ preserveUndefined: true }` to retain explicit undefined wrappers. Cache keys still use the deterministic key-hashing rules above.
 
 Disable caching globally from `agent-evals.config.ts`:
 
@@ -1447,8 +1120,7 @@ export const config: AgentEvalsConfig = {
 };
 ```
 
-You can also tune cache retention globally per namespace or for specific
-namespaces:
+You can also tune cache retention globally per namespace or for specific namespaces:
 
 ```ts
 export const config: AgentEvalsConfig = {
@@ -1466,47 +1138,13 @@ export const config: AgentEvalsConfig = {
 
 ## Output formatting
 
-Store output values with the `setOutput(...)` helper passed to `execute` as
-plain data: strings, numbers, booleans, `null`, objects/arrays, explicit file
-refs, or native `Blob`/`File` values. Stored output values are not coerced by
-column formats; `columns.format` only controls visualization in the CLI/UI.
-For one-off output display, pass a format string or column override directly as
-the third argument: `setOutput('response', markdown, 'markdown')` or
-`setOutput('receipt', file, { label: 'Receipt', format: 'image' })`. Authored
-global/eval `columns` for the same key take precedence over the runtime
-`setOutput` display hint.
-Values that are not plain JSON, such as `Date`, `Map`, `Set`, `BigInt`, typed
-arrays, or class instances, are persisted through the tagged value serializer
-instead of a string fallback. Native `Blob`/`File` values are copied to run
-artifacts because saved run files are JSON. When the eval has a typed outputs
-generic, `setOutput(...)` keys and values are typed from that output map. Use
-the global `setEvalOutput(...)` from shared workflow code that does not receive
-the execute context. Use `incrementEvalOutput(...)` for numeric totals,
-`appendToEvalOutput(...)` for arrays that preserve existing scalar values, and
-`mergeEvalOutput(...)` for shallow object updates.
+Store output values with the `setOutput(...)` helper passed to `execute` as plain data: strings, numbers, booleans, `null`, objects/arrays, explicit file refs, or native `Blob`/`File` values. Stored output values are not coerced by column formats; `columns.format` only controls visualization in the CLI/UI. For one-off output display, pass a format string or column override directly as the third argument: `setOutput('response', markdown, 'markdown')` or `setOutput('receipt', file, { label: 'Receipt', format: 'image' })`. Authored global/eval `columns` for the same key take precedence over the runtime `setOutput` display hint. Values that are not plain JSON, such as `Date`, `Map`, `Set`, `BigInt`, typed arrays, or class instances, are persisted through the tagged value serializer instead of a string fallback. Native `Blob`/`File` values are copied to run artifacts because saved run files are JSON. When the eval has a typed outputs generic, `setOutput(...)` keys and values are typed from that output map. Use the global `setEvalOutput(...)` from shared workflow code that does not receive the execute context. Use `incrementEvalOutput(...)` for numeric totals, `appendToEvalOutput(...)` for arrays that preserve existing scalar values, and `mergeEvalOutput(...)` for shallow object updates.
 
-Add `outputsSchema` when you want runtime validation and typed scorer inputs.
-The runner validates configured output fields after `execute` and
-`deriveFromTracing`, before computed scores. For Zod object schemas, only
-declared keys are passed to the schema; parsed schema fields are merged back
-into the raw output map, so Zod defaults/transforms apply to configured fields
-while unconfigured outputs are kept and displayed as before. Validation failures
-mark the case as failed and skip computed scores. When you pass a narrowed
-output type as the second generic, `outputsSchema` is required:
-`defineEval<Input, z.infer<typeof outputsSchema>>({ outputsSchema, ... })`.
+Add `outputsSchema` when you want runtime validation and typed scorer inputs. The runner validates configured output fields after `execute` and `deriveFromTracing`, before computed scores. For Zod object schemas, only declared keys are passed to the schema; parsed schema fields are merged back into the raw output map, so Zod defaults/transforms apply to configured fields while unconfigured outputs are kept and displayed as before. Validation failures mark the case as failed and skip computed scores. When you pass a narrowed output type as the second generic, `outputsSchema` is required: `defineEval<Input, z.infer<typeof outputsSchema>>({ outputsSchema, ... })`.
 
-Use the eval `columns` option to control labels, authored column order,
-alignment, visibility, and rendering format. Supported `columns.format` values
-include `boolean`, `markdown`, `json`, `image`, `html`, `pdf`, `audio`,
-`video`, `file`, `percent`, `duration`, `number`, `passFail`, and `stars`.
-Image, HTML, PDF, and generic file references render as artifact cards in the
-case detail view. HTML and PDF cards open a preview modal; generic file cards
-download the artifact. Cards show file sizes when the output reference includes
-one, including `Blob` and `File` outputs persisted by the runner.
+Use the eval `columns` option to control labels, authored column order, alignment, visibility, and rendering format. Supported `columns.format` values include `boolean`, `markdown`, `json`, `image`, `html`, `pdf`, `audio`, `video`, `file`, `percent`, `duration`, `number`, `passFail`, and `stars`. Image, HTML, PDF, and generic file references render as artifact cards in the case detail view. HTML and PDF cards open a preview modal; generic file cards download the artifact. Cards show file sizes when the output reference includes one, including `Blob` and `File` outputs persisted by the runner.
 
-In the case detail Output tab, string outputs that look like Markdown are
-rendered as Markdown even without `format: 'markdown'`. Markdown-rendered
-outputs include a small Preview/Raw toggle so you can inspect the original text.
+In the case detail Output tab, string outputs that look like Markdown are rendered as Markdown even without `format: 'markdown'`. Markdown-rendered outputs include a small Preview/Raw toggle so you can inspect the original text.
 
 For `format: 'number'`, use `numberFormat` to customize the display:
 
@@ -1518,9 +1156,7 @@ price: {
 }
 ```
 
-Use `maxDecimalPlaces` to cap decimals and `minDecimalPlaces` to pad trailing
-zeroes. When `maxDecimalPlaces` is omitted, numeric displays use up to 3
-decimal places.
+Use `maxDecimalPlaces` to cap decimals and `minDecimalPlaces` to pad trailing zeroes. When `maxDecimalPlaces` is omitted, numeric displays use up to 3 decimal places.
 
 `numberFormat.notation` also supports compact rendering for shorter displays:
 
@@ -1560,8 +1196,7 @@ defineEval({
 });
 ```
 
-A full working example lives in
-[`examples/basic-agent/evals/support/playground/format-gallery.eval.ts`](./examples/basic-agent/evals/support/playground/format-gallery.eval.ts).
+A full working example lives in [`examples/basic-agent/evals/support/playground/format-gallery.eval.ts`](./examples/basic-agent/evals/support/playground/format-gallery.eval.ts).
 
 ## CLI
 
@@ -1597,18 +1232,9 @@ Flags:
   --help, -h                 Show global or command-specific help
 ```
 
-The CLI automatically loads `.env` from the current workspace before running a
-command. Variables already set in the shell take precedence over `.env` values;
-use `--no-env` to disable this loading for a single invocation. `agent-evals app`
-also watches the workspace `.env` file and reloads it while idle, so later
-app-triggered runs pick up changed or removed `.env` values without restarting.
+The CLI automatically loads `.env` from the current workspace before running a command. Variables already set in the shell take precedence over `.env` values; use `--no-env` to disable this loading for a single invocation. `agent-evals app` also watches the workspace `.env` file and reloads it while idle, so later app-triggered runs pick up changed or removed `.env` values without restarting.
 
-`run` requires `--eval`, `--file`, `--case`, or `--tags-filter` unless
-`allowCliRunAll: true` is set in `agent-evals.config.ts`. It exits non-zero if
-any case fails or errors, making it CI-friendly.
-Use `agent-evals <command> --help` to inspect command-specific flags without
-starting work. Unknown help targets exit non-zero instead of falling back to
-global help.
+`run` requires `--eval`, `--file`, `--case`, or `--tags-filter` unless `allowCliRunAll: true` is set in `agent-evals.config.ts`. It exits non-zero if any case fails or errors, making it CI-friendly. Use `agent-evals <command> --help` to inspect command-specific flags without starting work. Unknown help targets exit non-zero instead of falling back to global help.
 
 ## Status
 

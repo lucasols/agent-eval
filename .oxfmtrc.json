@@ -14,5 +14,6 @@
     ".git",
     "pnpm-lock.yaml"
   ],
-  "objectWrap": "collapse"
+  "objectWrap": "collapse",
+  "overrides": [{ "files": ["*.md"], "options": { "proseWrap": "never" } }]
 }

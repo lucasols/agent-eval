@@ -300,9 +300,9 @@ function renderStatusCode(statusCode: number | null) {
  * Render one API-call card inside the case-drawer API calls tab.
  *
  * Collapsed by default. The header shows the call name, eval span status,
- * method, URL, HTTP status code, duration, and any user-defined metric whose
- * `placements` includes `'header'`. Expanding the row reveals metrics and the
- * request/response payloads captured on the span.
+ * method, route or URL, HTTP status code, duration, and any user-defined
+ * metric whose `placements` includes `'header'`. Expanding the row reveals the
+ * original URL, metrics, and request/response payloads captured on the span.
  */
 export function ApiCallRow({ entry }: { entry: ApiCallEntry }) {
   const [expanded, setExpanded] = useState(false);
@@ -317,6 +317,8 @@ export function ApiCallRow({ entry }: { entry: ApiCallEntry }) {
     entry.durationMs === null ? null : formatDuration(entry.durationMs);
   const methodLabel = entry.method === null ? null : entry.method.toUpperCase();
   const urlLabel = entry.url === null ? null : summarizeUrl(entry.url);
+  const routeLabel = entry.routeAlias ?? urlLabel;
+  const routeTooltip = entry.url ?? entry.routeAlias ?? undefined;
 
   return (
     <Card>
@@ -332,9 +334,9 @@ export function ApiCallRow({ entry }: { entry: ApiCallEntry }) {
         <HeaderMeta>
           <StatusBadge status={entry.status} />
           {methodLabel !== null ? <MethodChip>{methodLabel}</MethodChip> : null}
-          {urlLabel !== null ? (
-            <Tooltip content={entry.url ?? undefined}>
-              <UrlText>{urlLabel}</UrlText>
+          {routeLabel !== null ? (
+            <Tooltip content={routeTooltip}>
+              <UrlText>{routeLabel}</UrlText>
             </Tooltip>
           ) : null}
           {renderStatusCode(entry.statusCode)}
@@ -355,7 +357,8 @@ export function ApiCallRow({ entry }: { entry: ApiCallEntry }) {
 
       {expanded ? (
         <Body>
-          {entry.url !== null ||
+          {entry.routeAlias !== null ||
+          entry.url !== null ||
           methodLabel !== null ||
           entry.statusCode !== null ||
           durationLabel !== null ? (
@@ -364,6 +367,12 @@ export function ApiCallRow({ entry }: { entry: ApiCallEntry }) {
                 <DetailRow>
                   <DetailRowLabel>Method</DetailRowLabel>
                   <DetailRowValue>{methodLabel}</DetailRowValue>
+                </DetailRow>
+              ) : null}
+              {entry.routeAlias !== null ? (
+                <DetailRow>
+                  <DetailRowLabel>Route</DetailRowLabel>
+                  <DetailRowValue>{entry.routeAlias}</DetailRowValue>
                 </DetailRow>
               ) : null}
               {entry.url !== null ? (

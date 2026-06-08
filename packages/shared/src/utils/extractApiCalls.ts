@@ -29,6 +29,11 @@ export type ApiCallEntry = {
   status: EvalTraceSpan['status'];
   method: string | null;
   url: string | null;
+  /**
+   * Dynamic route alias read from the API span, such as `/v3/tabs/:id`.
+   * The original `url` stays available for request details.
+   */
+  routeAlias: string | null;
   statusCode: number | null;
   /** Elapsed API call duration in milliseconds. */
   durationMs: number | null;
@@ -79,6 +84,23 @@ function pickError(span: EvalTraceSpan): EvalTraceSpanError | null {
   return null;
 }
 
+function stripSearchAndHash(value: string): string {
+  const queryIndex = value.indexOf('?');
+  const hashIndex = value.indexOf('#');
+  const endIndex = [queryIndex, hashIndex]
+    .filter((index) => index !== -1)
+    .toSorted((a, b) => a - b)[0];
+  return endIndex === undefined ? value : value.slice(0, endIndex);
+}
+
+function normalizeRouteAlias(routeAlias: string | null): string | null {
+  if (routeAlias === null) return null;
+  const trimmed = routeAlias.trim();
+  if (trimmed.length === 0) return null;
+  const withoutSearch = stripSearchAndHash(trimmed);
+  return withoutSearch.startsWith('/') ? withoutSearch : `/${withoutSearch}`;
+}
+
 /**
  * Filter `spans` down to API calls and project each one to the structured
  * shape consumed by the API calls tab.
@@ -116,13 +138,19 @@ export function extractApiCalls(
       });
     }
 
+    const url = readString(attrs, config.attributes.url);
+    const routeAlias = normalizeRouteAlias(
+      readString(attrs, config.attributes.routeAlias),
+    );
+
     result.push({
       id: span.id,
       name: span.name,
       kind: span.kind,
       status: span.status,
       method: readString(attrs, config.attributes.method),
-      url: readString(attrs, config.attributes.url),
+      url,
+      routeAlias,
       statusCode: readNumber(attrs, config.attributes.statusCode),
       durationMs:
         readNumber(attrs, config.attributes.durationMs) ??

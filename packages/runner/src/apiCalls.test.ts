@@ -19,10 +19,11 @@ test('resolveApiCallsConfig fills defaults for empty input', () => {
 test('resolveApiCallsConfig overrides kinds and merges attributes', () => {
   const resolved = resolveApiCallsConfig({
     kinds: ['undici.request'],
-    attributes: { statusCode: 'http.status_code' },
+    attributes: { routeAlias: 'http.route', statusCode: 'http.status_code' },
   });
 
   expect(resolved.kinds).toEqual(['undici.request']);
+  expect(resolved.attributes.routeAlias).toBe('http.route');
   expect(resolved.attributes.statusCode).toBe('http.status_code');
   expect(resolved.attributes.method).toBe(
     DEFAULT_API_CALLS_CONFIG.attributes.method,
@@ -103,6 +104,7 @@ test('extractApiCalls filters by configured kinds and projects defaults', () => 
     status: 'ok',
     method: 'GET',
     url: 'https://api.example.test/accounts/123?expand=plan',
+    routeAlias: null,
     statusCode: 200,
     durationMs: 37,
     request: { headers: { accept: 'application/json' } },
@@ -114,6 +116,66 @@ test('extractApiCalls filters by configured kinds and projects defaults', () => 
     error: null,
     warnings: [],
   });
+});
+
+test('extractApiCalls reads route aliases from span attributes', () => {
+  const calls = extractApiCalls(
+    [
+      apiSpan({
+        id: 'account-123',
+        attributes: {
+          method: 'GET',
+          routeAlias: 'accounts/:accountId',
+          url: 'https://api.example.test/accounts/123?expand=plan',
+        },
+      }),
+      apiSpan({
+        id: 'account-456',
+        attributes: {
+          method: 'GET',
+          routeAlias: '/accounts/:accountId',
+          url: 'https://api.example.test/accounts/456',
+        },
+      }),
+      apiSpan({
+        id: 'account-events',
+        attributes: {
+          method: 'GET',
+          routeAlias: '/accounts/:accountId/events?ignored=true',
+          url: 'https://api.example.test/accounts/456/events',
+        },
+      }),
+    ],
+    DEFAULT_API_CALLS_CONFIG,
+  );
+
+  expect(calls.map((call) => [call.id, call.routeAlias])).toEqual([
+    ['account-123', '/accounts/:accountId'],
+    ['account-456', '/accounts/:accountId'],
+    ['account-events', '/accounts/:accountId/events'],
+  ]);
+});
+
+test('extractApiCalls reads route alias from a custom attribute path', () => {
+  const config = resolveApiCallsConfig({
+    attributes: { routeAlias: 'http.route' },
+  });
+
+  const [call] = extractApiCalls(
+    [
+      apiSpan({
+        id: 'account-123',
+        attributes: {
+          http: { route: '/accounts/:accountId' },
+          method: 'GET',
+          url: 'https://api.example.test/accounts/123?expand=plan',
+        },
+      }),
+    ],
+    config,
+  );
+
+  expect(call?.routeAlias).toBe('/accounts/:accountId');
 });
 
 test('extractApiCalls reads custom attributes and metrics', () => {
