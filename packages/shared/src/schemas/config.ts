@@ -22,7 +22,12 @@ export const trialSelectionModeSchema = z.enum(['lowestScore', 'median']);
 /** Strategy used to collapse repeated trials into one stored case result. */
 export type TrialSelectionMode = z.infer<typeof trialSelectionModeSchema>;
 
-/** Built-in eval-level output/column keys. */
+/**
+ * Built-in eval-level output/column keys.
+ *
+ * `costUsd` controls the default LLM cost family: actual billed cost plus the
+ * normalized `costUsdWithoutCache` and `costUsdWarmedCache` chart outputs.
+ */
 export const defaultConfigKeySchema = z.enum([
   'apiCalls',
   'costUsd',
@@ -968,7 +973,9 @@ export type AgentEvalsConfig = {
    * Defaults are derived from trace spans using the resolved `llmCalls` and
    * `apiCalls` extraction configs. Set to `true` to remove all defaults, or
    * pass specific keys such as `['costUsd', 'apiCalls']` to remove only those
-   * defaults globally. Per-eval removal is additive.
+   * defaults globally. Removing `costUsd` removes the whole default cost
+   * family, including normalized no-cache and warmed-cache outputs. Per-eval
+   * removal is additive.
    */
   removeDefaultConfig?: RemoveDefaultConfig;
   /**

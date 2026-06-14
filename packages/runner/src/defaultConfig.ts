@@ -7,6 +7,7 @@ import type {
 import {
   extractApiCalls,
   extractLlmCalls,
+  simulateLlmCallCost,
   type DefaultConfigKey,
   type EvalChartsConfig,
   type EvalStatAggregate,
@@ -45,6 +46,32 @@ const costNumberFormat = {
   maxDecimalPlaces: 4,
 } satisfies NonNullable<EvalColumnOverride['numberFormat']>;
 
+const DEFAULT_COST_COLUMNS = {
+  costUsd: {
+    label: 'Cost',
+    format: 'number',
+    numberFormat: costNumberFormat,
+    align: 'right',
+    hideIfNoValue: true,
+  },
+  costUsdWithoutCache: {
+    label: 'Cost Without Cache',
+    format: 'number',
+    numberFormat: costNumberFormat,
+    align: 'right',
+    hideInTable: true,
+    hideIfNoValue: true,
+  },
+  costUsdWarmedCache: {
+    label: 'Cost Warmed Cache',
+    format: 'number',
+    numberFormat: costNumberFormat,
+    align: 'right',
+    hideInTable: true,
+    hideIfNoValue: true,
+  },
+} satisfies EvalColumns;
+
 export const DEFAULT_COLUMNS: Record<DefaultConfigKey, EvalColumnOverride> = {
   apiCalls: {
     label: 'API Calls',
@@ -53,13 +80,7 @@ export const DEFAULT_COLUMNS: Record<DefaultConfigKey, EvalColumnOverride> = {
     align: 'right',
     hideIfNoValue: true,
   },
-  costUsd: {
-    label: 'Cost',
-    format: 'number',
-    numberFormat: costNumberFormat,
-    align: 'right',
-    hideIfNoValue: true,
-  },
+  costUsd: { ...DEFAULT_COST_COLUMNS.costUsd },
   llmTurns: {
     label: 'LLM Turns',
     format: 'number',
@@ -147,9 +168,14 @@ export function mergeDefaultColumns(params: {
     return Object.keys(merged).length > 0 ? merged : undefined;
   }
 
-  const defaults = Object.fromEntries(
-    activeKeys.map((key) => [key, DEFAULT_COLUMNS[key]]),
-  ) satisfies EvalColumns;
+  const defaults: EvalColumns = {};
+  for (const key of activeKeys) {
+    defaults[key] = DEFAULT_COLUMNS[key];
+    if (key === 'costUsd') {
+      defaults.costUsdWithoutCache = DEFAULT_COST_COLUMNS.costUsdWithoutCache;
+      defaults.costUsdWarmedCache = DEFAULT_COST_COLUMNS.costUsdWarmedCache;
+    }
+  }
   return { ...defaults, ...params.globalColumns, ...params.columns };
 }
 
@@ -230,8 +256,22 @@ export function appendDefaultCharts(params: {
           source: 'column',
           key: 'costUsd',
           aggregate: 'avg',
-          label: 'Cost',
+          label: 'Actual',
           color: 'warning',
+        },
+        {
+          source: 'column',
+          key: 'costUsdWithoutCache',
+          aggregate: 'avg',
+          label: 'Without Cache',
+          color: 'error',
+        },
+        {
+          source: 'column',
+          key: 'costUsdWarmedCache',
+          aggregate: 'avg',
+          label: 'Warmed Cache',
+          color: 'success',
         },
       ],
     });
@@ -363,9 +403,38 @@ function assignIfMissing(params: {
   activeKeys: Set<DefaultConfigKey>;
 }): void {
   if (!params.activeKeys.has(params.key)) return;
+  assignOutputIfMissing({
+    outputs: params.outputs,
+    key: params.key,
+    value: params.value,
+  });
+}
+
+function assignOutputIfMissing(params: {
+  outputs: Record<string, unknown>;
+  key: string;
+  value: number | undefined;
+}): void {
   if (params.key in params.outputs) return;
   if (params.value === undefined) return;
   params.outputs[params.key] = params.value;
+}
+
+function sumSimulatedCost(params: {
+  calls: ReturnType<typeof extractLlmCalls>;
+  llmCallsConfig: ResolvedLlmCallsConfig;
+  scenario: 'noCache' | 'withBaseCaching';
+}): number | undefined {
+  return sumNullable(
+    params.calls.map(
+      (call) =>
+        simulateLlmCallCost({
+          entry: call,
+          pricing: params.llmCallsConfig.pricing,
+          scenario: params.scenario,
+        }).totalCostUsd,
+    ),
+  );
 }
 
 export function addDefaultOutputs(params: {
@@ -403,6 +472,26 @@ export function addDefaultOutputs(params: {
     value: sumNullable(calls.map((call) => call.costUsd)),
     activeKeys,
   });
+  if (activeKeys.has('costUsd')) {
+    assignOutputIfMissing({
+      outputs: params.outputs,
+      key: 'costUsdWithoutCache',
+      value: sumSimulatedCost({
+        calls,
+        llmCallsConfig: params.llmCallsConfig,
+        scenario: 'noCache',
+      }),
+    });
+    assignOutputIfMissing({
+      outputs: params.outputs,
+      key: 'costUsdWarmedCache',
+      value: sumSimulatedCost({
+        calls,
+        llmCallsConfig: params.llmCallsConfig,
+        scenario: 'withBaseCaching',
+      }),
+    });
+  }
   assignIfMissing({
     outputs: params.outputs,
     key: 'inputTokens',

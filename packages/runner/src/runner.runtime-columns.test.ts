@@ -76,6 +76,8 @@ defineEval({
       ).toEqual([
         'apiCalls',
         'costUsd',
+        'costUsdWithoutCache',
+        'costUsdWarmedCache',
         'llmTurns',
         'inputTokens',
         'outputTokens',

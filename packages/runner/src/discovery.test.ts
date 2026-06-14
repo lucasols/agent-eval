@@ -510,6 +510,8 @@ defineEval({
       expect(summary?.columnDefs.map((def) => def.key)).toEqual([
         'apiCalls',
         'costUsd',
+        'costUsdWithoutCache',
+        'costUsdWarmedCache',
         'llmTurns',
         'inputTokens',
         'outputTokens',
@@ -526,6 +528,16 @@ defineEval({
           minDecimalPlaces: 2,
           maxDecimalPlaces: 2,
         },
+      });
+      expect(summary?.columnDefs[2]).toMatchObject({
+        key: 'costUsdWithoutCache',
+        label: 'Cost Without Cache',
+        hideInTable: true,
+      });
+      expect(summary?.columnDefs[3]).toMatchObject({
+        key: 'costUsdWarmedCache',
+        label: 'Cost Warmed Cache',
+        hideInTable: true,
       });
       expect(summary?.columnDefs[0]).toMatchObject({
         key: 'apiCalls',
@@ -582,8 +594,22 @@ defineEval({
               source: 'column',
               key: 'costUsd',
               aggregate: 'avg',
-              label: 'Cost',
+              label: 'Actual',
               color: 'warning',
+            },
+            {
+              source: 'column',
+              key: 'costUsdWithoutCache',
+              aggregate: 'avg',
+              label: 'Without Cache',
+              color: 'error',
+            },
+            {
+              source: 'column',
+              key: 'costUsdWarmedCache',
+              aggregate: 'avg',
+              label: 'Warmed Cache',
+              color: 'success',
             },
           ],
           tooltipExtras: undefined,

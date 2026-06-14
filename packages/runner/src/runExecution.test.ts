@@ -341,6 +341,12 @@ test('runCase supports global and per-eval removal of default usage', async () =
   });
   expect(partiallyRemoved.caseDetail.columns.apiCalls).toBeUndefined();
   expect(partiallyRemoved.caseDetail.columns.costUsd).toBeUndefined();
+  expect(
+    partiallyRemoved.caseDetail.columns.costUsdWithoutCache,
+  ).toBeUndefined();
+  expect(
+    partiallyRemoved.caseDetail.columns.costUsdWarmedCache,
+  ).toBeUndefined();
   expect(partiallyRemoved.caseDetail.columns.llmTurns).toBe(1);
 });
 
@@ -374,6 +380,8 @@ test('runCase validates typed outputs schema after default outputs are added', a
   expect(result.caseDetail.assertionFailures).toEqual([]);
   expect(result.caseDetail.columns.apiCalls).toBe(1);
   expect(result.caseDetail.columns.costUsd).toBeCloseTo(0.0006);
+  expect(result.caseDetail.columns.costUsdWithoutCache).toBeCloseTo(0.0007);
+  expect(result.caseDetail.columns.costUsdWarmedCache).toBeCloseTo(0.000646);
   expect(result.caseDetail.columns.llmTurns).toBe(1);
 });
 

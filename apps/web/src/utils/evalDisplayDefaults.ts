@@ -88,8 +88,22 @@ const COST_CHART: EvalChartConfig = {
       source: 'column',
       key: 'costUsd',
       aggregate: 'avg',
-      label: 'Cost',
+      label: 'Actual',
       color: 'warning',
+    },
+    {
+      source: 'column',
+      key: 'costUsdWithoutCache',
+      aggregate: 'avg',
+      label: 'Without Cache',
+      color: 'error',
+    },
+    {
+      source: 'column',
+      key: 'costUsdWarmedCache',
+      aggregate: 'avg',
+      label: 'Warmed Cache',
+      color: 'success',
     },
   ],
 };
@@ -141,7 +155,10 @@ const OUTPUT_TOKEN_CHART: EvalChartConfig = {
 };
 
 const USAGE_CHART_CONFIGS = [
-  { keys: ['costUsd'], chart: COST_CHART },
+  {
+    keys: ['costUsd', 'costUsdWithoutCache', 'costUsdWarmedCache'],
+    chart: COST_CHART,
+  },
   {
     keys: ['inputTokens', 'cachedInputTokens', 'cacheCreationInputTokens'],
     chart: INPUT_TOKEN_CHART,
