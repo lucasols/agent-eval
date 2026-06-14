@@ -41,6 +41,30 @@ describe('getSimplifiedLlmMessages', () => {
     expect(getSimplifiedLlmMessages({ messages: 'hi' })).toEqual([]);
   });
 
+  test('appends assistant message from output text', () => {
+    const messages = getSimplifiedLlmMessages(
+      {
+        messages: [
+          { role: 'system', content: 'You are helpful.' },
+          { role: 'user', content: [{ type: 'text', text: 'hi' }] },
+        ],
+      },
+      {
+        files: [],
+        reasoning: [],
+        sources: [],
+        text: 'Hi! What would you like to build today?',
+        warnings: [],
+      },
+    );
+
+    expect(messages).toEqual([
+      { role: 'system', text: 'You are helpful.' },
+      { role: 'user', text: 'hi' },
+      { role: 'assistant', text: 'Hi! What would you like to build today?' },
+    ]);
+  });
+
   test('uses compact placeholders for non-text content parts', () => {
     expect(
       getSimplifiedLlmMessages({

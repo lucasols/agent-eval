@@ -41,33 +41,65 @@ function simplifyMessageContent(content: unknown): string | null {
   return stringifyFallback(content);
 }
 
+function readMessageRole(message: Record<string, unknown>): string {
+  const rawRole = message.role;
+  return typeof rawRole === 'string' && rawRole.length > 0
+    ? rawRole
+    : 'message';
+}
+
+function simplifyAssistantOutput(output: unknown): SimplifiedLlmMessage | null {
+  if (typeof output === 'string') return { role: 'assistant', text: output };
+  if (!isRecord(output)) return null;
+
+  const text = simplifyMessageContent(output.text);
+  if (text !== null) return { role: 'assistant', text };
+
+  const content = simplifyMessageContent(output.content);
+  if (content !== null) return { role: 'assistant', text: content };
+
+  const message = output.message;
+  if (!isRecord(message)) return null;
+
+  const messageText =
+    simplifyMessageContent(message.content) ??
+    simplifyMessageContent(message.text);
+  if (messageText === null) return null;
+
+  return { role: readMessageRole(message), text: messageText };
+}
+
 /**
- * Extracts human-readable chat messages from an LLM call input payload.
+ * Extracts human-readable chat messages from an LLM call payload.
  *
  * The common provider shape stores prompts under `input.messages`, with each
  * message content either as a string or as an array of typed content parts.
- * Text parts are preserved verbatim so prompt indentation and line breaks stay
- * readable in the LLM calls drawer.
+ * Final model responses commonly live under `output.text`. Text parts are
+ * preserved verbatim so prompt indentation and line breaks stay readable in the
+ * LLM calls drawer.
  */
 export function getSimplifiedLlmMessages(
   input: unknown,
+  output: unknown = undefined,
 ): SimplifiedLlmMessage[] {
-  if (!isRecord(input)) return [];
-  const rawMessages = input.messages;
-  if (!Array.isArray(rawMessages)) return [];
-
   const messages: SimplifiedLlmMessage[] = [];
-  for (const rawMessage of rawMessages) {
-    if (!isRecord(rawMessage)) continue;
 
-    const rawRole = rawMessage.role;
-    const role =
-      typeof rawRole === 'string' && rawRole.length > 0 ? rawRole : 'message';
-    const text = simplifyMessageContent(rawMessage.content);
-    if (text === null) continue;
+  if (isRecord(input)) {
+    const rawMessages = input.messages;
+    if (Array.isArray(rawMessages)) {
+      for (const rawMessage of rawMessages) {
+        if (!isRecord(rawMessage)) continue;
 
-    messages.push({ role, text });
+        const text = simplifyMessageContent(rawMessage.content);
+        if (text === null) continue;
+
+        messages.push({ role: readMessageRole(rawMessage), text });
+      }
+    }
   }
+
+  const assistantOutput = simplifyAssistantOutput(output);
+  if (assistantOutput !== null) messages.push(assistantOutput);
 
   return messages;
 }

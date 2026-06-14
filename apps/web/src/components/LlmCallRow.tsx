@@ -322,8 +322,14 @@ function RawSection({ label, data }: { label: string; data: unknown }) {
   );
 }
 
-function MessagesSection({ input }: { input: unknown }) {
-  const messages = getSimplifiedLlmMessages(input);
+function MessagesSection({
+  input,
+  output,
+}: {
+  input: unknown;
+  output: unknown;
+}) {
+  const messages = getSimplifiedLlmMessages(input, output);
   if (messages.length === 0) return null;
 
   return (
@@ -735,8 +741,11 @@ export function LlmCallRow({
             </ErrorContainer>
           ) : null}
 
-          {entry.input !== undefined ? (
-            <MessagesSection input={entry.input} />
+          {entry.input !== undefined || entry.output !== undefined ? (
+            <MessagesSection
+              input={entry.input}
+              output={entry.output}
+            />
           ) : null}
 
           <TraceActionRow>

@@ -164,6 +164,7 @@ export async function runVoiceReturnFollowUpWorkflow(
               detectedLocale,
               finalText,
               followUpChannel: input.preferredChannel,
+              text: finalText,
             },
           });
 
