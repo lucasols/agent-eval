@@ -74,6 +74,10 @@ import {
   buildEvalRunCliCommand,
 } from '#src/utils/cliCommand';
 import { copyTextToClipboard } from '#src/utils/clipboard';
+import {
+  buildDisplayCharts,
+  buildDisplayStats,
+} from '#src/utils/evalDisplayDefaults';
 import { buildEvalScopedRunRows } from '#src/utils/evalRuns';
 import {
   CACHE_HIT_AGGREGATE_MODES,
@@ -87,6 +91,7 @@ import {
   readScoreHistoryCollapsed,
   writeScoreHistoryCollapsed,
 } from '#src/utils/scoreHistoryCollapsed';
+import { mergeRunRuntimeColumnDefs } from '#src/utils/runtimeColumnDefs';
 import { shouldShowStatDisplay } from '#src/utils/statVisibility';
 
 type EvalCardProps = { evalSummary: EvalSummary; mode: 'single' | 'stacked' };
@@ -331,11 +336,9 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   }));
   const searchParams = useSearchParams();
 
-  const charts = evalSummary.charts ?? [];
   const {
     allRunRows,
     visibleRunRows,
-    perChartData,
     completedRunCount,
     latestSummary,
     latestCases,
@@ -356,18 +359,6 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
 
     const rows = buildEvalScopedRunRows(merged, evalSummary.key);
 
-    const perChart =
-      isSingle && charts.length > 0
-        ? charts.map((config) =>
-            buildChartPoints({
-              rows,
-              config,
-              columnDefs: evalSummary.columnDefs,
-              limit: 20,
-            }),
-          )
-        : [];
-
     const completed = rows.filter(
       (r) => r.manifest.status === 'completed' && r.summary.totalCases > 0,
     );
@@ -375,7 +366,6 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     return {
       allRunRows: rows,
       visibleRunRows: isStacked ? rows.slice(0, 1) : rows,
-      perChartData: perChart,
       completedRunCount: Math.min(completed.length, 20),
       latestSummary: rows[0]?.summary ?? null,
       latestCases: rows[0]?.cases ?? [],
@@ -387,10 +377,46 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     evalSummary.columnDefs,
     isSingle,
     isStacked,
-    charts,
   ]);
 
-  const stats = evalSummary.stats ?? [];
+  const displayColumnDefs = useMemo(
+    () => mergeRunRuntimeColumnDefs(evalSummary.columnDefs, allRunRows),
+    [evalSummary.columnDefs, allRunRows],
+  );
+  const charts = useMemo(
+    () =>
+      isSingle
+        ? buildDisplayCharts({
+            charts: evalSummary.charts,
+            columnDefs: displayColumnDefs,
+          })
+        : (evalSummary.charts ?? []),
+    [displayColumnDefs, evalSummary.charts, isSingle],
+  );
+  const perChartData = useMemo(
+    () =>
+      isSingle && charts.length > 0
+        ? charts.map((config) =>
+            buildChartPoints({
+              rows: allRunRows,
+              config,
+              columnDefs: displayColumnDefs,
+              limit: 20,
+            }),
+          )
+        : [],
+    [allRunRows, charts, displayColumnDefs, isSingle],
+  );
+  const stats = useMemo(
+    () =>
+      isSingle
+        ? buildDisplayStats({
+            stats: evalSummary.stats,
+            columnDefs: displayColumnDefs,
+          })
+        : (evalSummary.stats ?? []),
+    [displayColumnDefs, evalSummary.stats, isSingle],
+  );
   const aggregateModeOverride =
     aggregateModeSelection?.evalKey === evalSummary.key
       ? aggregateModeSelection.value
@@ -403,7 +429,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     .map((stat) => ({
       stat,
       display: computeStatDisplay(stat, {
-        evalSummary,
+        evalSummary: { ...evalSummary, columnDefs: displayColumnDefs },
         latestSummary,
         latestCases,
         aggregateModeOverride,
@@ -447,7 +473,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   );
   const primaryRunIsTemporary = visibleRunRows[0]?.manifest.temporary === true;
   const hasScoreHistory =
-    isSingle && visibleCharts.length > 0 && completedRunCount > 1;
+    isSingle && visibleCharts.length > 0 && completedRunCount > 0;
   const displayStatus = getEvalDisplayStatus({
     freshnessStatus: evalSummary.freshnessStatus,
     stale: evalSummary.stale,
@@ -947,7 +973,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
               chartLabels={chartLabels}
               completedRunCount={completedRunCount}
               visibleCharts={visibleCharts}
-              columnDefs={evalSummary.columnDefs}
+              columnDefs={displayColumnDefs}
               onToggle={() => setScoreHistoryCollapsed((v) => !v)}
             />
           ) : null}
@@ -956,7 +982,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
             <EvalRunsSection
               key={visibleRunRows.map((run) => run.manifest.id).join(':')}
               runs={visibleRunRows}
-              columnDefs={evalSummary.columnDefs}
+              columnDefs={displayColumnDefs}
               evalKey={evalSummary.key}
               isLoadingRuns={runHistoryResult.isLoading && runs.length === 0}
             />

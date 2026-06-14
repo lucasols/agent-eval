@@ -21,8 +21,9 @@ import {
 } from 'recharts';
 import { styled } from 'vindur';
 import { colors } from '#src/style/colors';
-import { kicker, monoFont } from '#src/style/helpers';
+import { centerContent, kicker, monoFont, stack } from '#src/style/helpers';
 import { metricId, type ChartPoint } from '#src/utils/chartData';
+import { chartHasNumericValue } from '#src/utils/chartVisibility';
 import {
   formatDuration,
   formatNumericCellValue,
@@ -43,6 +44,25 @@ const ChartFrame = styled.div`
   border: 1px solid ${colors.border.var};
   border-radius: var(--radius-lg);
   background: ${colors.bg.var};
+`;
+
+const ChartUnavailable = styled.div`
+  ${centerContent};
+  ${stack({ align: 'center', justify: 'center', gap: 6 })};
+  height: 100%;
+  text-align: center;
+`;
+
+const ChartUnavailableTitle = styled.div`
+  ${kicker};
+  color: ${colors.error.var};
+`;
+
+const ChartUnavailableMessage = styled.div`
+  max-width: 320px;
+  color: ${colors.textMuted.var};
+  font-size: 12px;
+  line-height: 1.4;
 `;
 
 const ChartTitle = styled.div`
@@ -391,6 +411,12 @@ export function EvalRunsChart({
 }: EvalRunsChartProps) {
   const columnsByKey = new Map(columnDefs.map((def) => [def.key, def]));
   const hasRightAxis = config.metrics.some((m) => m.axis === 'right');
+  const chartUnavailableMessage =
+    data.length === 0
+      ? 'No completed runs are available for this chart.'
+      : !chartHasNumericValue(config, data)
+        ? 'No numeric values were found for this chart in the completed runs.'
+        : null;
 
   const chartChildren = (
     <>
@@ -447,33 +473,42 @@ export function EvalRunsChart({
         <ChartTitle>{config.heading}</ChartTitle>
       )}
       <ChartFrame>
-        <ResponsiveContainer
-          width="100%"
-          height="100%"
-        >
-          {config.type === 'area' ? (
-            <AreaChart
-              data={data}
-              margin={chartMargin}
-            >
-              {chartChildren}
-            </AreaChart>
-          ) : config.type === 'line' ? (
-            <LineChart
-              data={data}
-              margin={chartMargin}
-            >
-              {chartChildren}
-            </LineChart>
-          ) : (
-            <BarChart
-              data={data}
-              margin={chartMargin}
-            >
-              {chartChildren}
-            </BarChart>
-          )}
-        </ResponsiveContainer>
+        {chartUnavailableMessage !== null ? (
+          <ChartUnavailable role="status">
+            <ChartUnavailableTitle>Chart unavailable</ChartUnavailableTitle>
+            <ChartUnavailableMessage>
+              {chartUnavailableMessage}
+            </ChartUnavailableMessage>
+          </ChartUnavailable>
+        ) : (
+          <ResponsiveContainer
+            width="100%"
+            height="100%"
+          >
+            {config.type === 'area' ? (
+              <AreaChart
+                data={data}
+                margin={chartMargin}
+              >
+                {chartChildren}
+              </AreaChart>
+            ) : config.type === 'line' ? (
+              <LineChart
+                data={data}
+                margin={chartMargin}
+              >
+                {chartChildren}
+              </LineChart>
+            ) : (
+              <BarChart
+                data={data}
+                margin={chartMargin}
+              >
+                {chartChildren}
+              </BarChart>
+            )}
+          </ResponsiveContainer>
+        )}
       </ChartFrame>
     </ChartStack>
   );

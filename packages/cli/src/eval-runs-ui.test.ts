@@ -14,6 +14,10 @@ import {
 } from '../../../apps/web/src/utils/cliCommand.ts';
 import { getVisibleRunTableColumns } from '../../../apps/web/src/utils/columnVisibility.ts';
 import {
+  buildDisplayCharts,
+  buildDisplayStats,
+} from '../../../apps/web/src/utils/evalDisplayDefaults.ts';
+import {
   buildEvalScopedRunRows,
   getRunsForEval,
   scopeRunCases,
@@ -470,6 +474,117 @@ describe('eval run rows ui', () => {
     expect(visible.otherCustomColumns).toMatchObject([
       { key: 'configured', label: 'Configured', kind: 'string' },
       { key: 'rawToolEvents', label: 'Raw tool events', kind: 'string' },
+    ]);
+  });
+
+  test('adds baseline stats and history when eval config has no run-health UI', () => {
+    expect(
+      buildDisplayStats({
+        stats: [{ kind: 'cacheHits' }],
+        columnDefs: [],
+      }),
+    ).toEqual([
+      { kind: 'cases' },
+      { kind: 'passRate', accent: true },
+      { kind: 'duration' },
+      { kind: 'cacheHits' },
+    ]);
+    expect(
+      buildDisplayStats({
+        stats: [
+          { kind: 'cases' },
+          { kind: 'passRate', accent: true },
+          { kind: 'duration' },
+        ],
+        columnDefs: [],
+      }),
+    ).toEqual([
+      { kind: 'cases' },
+      { kind: 'passRate', accent: true },
+      { kind: 'duration' },
+    ]);
+
+    const usageChart: EvalChartConfig = {
+      heading: 'LLM Cost',
+      hideIfNoValue: true,
+      type: 'area',
+      metrics: [{ source: 'column', key: 'costUsd', aggregate: 'avg' }],
+    };
+    const charts = buildDisplayCharts({
+      charts: [usageChart],
+      columnDefs: [],
+    });
+    expect(charts).toHaveLength(2);
+    expect(charts[0]).toMatchObject({
+      heading: 'Run History',
+      type: 'line',
+      metrics: [
+        { source: 'builtin', metric: 'passRate' },
+        { source: 'builtin', metric: 'durationMs' },
+      ],
+    });
+    expect(
+      buildDisplayCharts({
+        charts: [
+          {
+            type: 'line',
+            metrics: [{ source: 'builtin', metric: 'passRate' }],
+          },
+        ],
+        columnDefs: [],
+      }),
+    ).toHaveLength(1);
+  });
+
+  test('infers usage stats and charts from runtime columns when eval metadata is missing', () => {
+    const columnDefs = mergeRunRuntimeColumnDefs([], [
+      {
+        cases: [
+          {
+            caseId: 'default',
+            evalId: 'demo',
+            evalKey: 'demo',
+            status: 'pass',
+            durationMs: 21_394,
+            columns: {
+              apiCalls: 12,
+              costUsd: 0.00065775,
+              inputTokens: 23_030,
+              outputTokens: 1_135,
+              totalTokens: 24_165,
+              cachedInputTokens: 7_168,
+              llmTurns: 3,
+              llmDurationMs: 22_882,
+            },
+            trial: 0,
+          },
+        ],
+      },
+    ]);
+
+    expect(
+      buildDisplayStats({ stats: undefined, columnDefs }).map((stat) =>
+        stat.kind === 'column' ? stat.key : stat.kind,
+      ),
+    ).toEqual([
+      'cases',
+      'passRate',
+      'duration',
+      'apiCalls',
+      'costUsd',
+      'totalTokens',
+      'llmTurns',
+    ]);
+
+    expect(
+      buildDisplayCharts({ charts: undefined, columnDefs }).map(
+        (chart) => chart.heading ?? chart.type,
+      ),
+    ).toEqual([
+      'Run History',
+      'LLM Cost',
+      'LLM Input Tokens',
+      'LLM Output Tokens',
     ]);
   });
 

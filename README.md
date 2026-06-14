@@ -677,7 +677,7 @@ The runner also derives eval-level usage outputs from the same resolved `llmCall
 - `reasoningTokens`
 - `llmDurationMs`
 
-Authored outputs with the same key are never overwritten. Authored `columns`, `stats`, and `charts` also remain authoritative; default columns use compact token formatting, dollar formatting for `costUsd`, and duration formatting for `llmDurationMs`, while default stats and LLM usage charts are appended after authored config. Default usage columns, stats, and charts use `hideIfNoValue: true`, so the UI stays quiet until matching LLM/API span data exists. Default LLM usage charts render cost, input tokens, and output tokens separately and use `dedupeConsecutiveValues: true` to skip repeated adjacent points such as cached reruns with unchanged chart values. `apiCalls` is counted from spans matched by `apiCalls.kinds`. Cost defaults use `llmCalls.pricing`, exactly like the LLM calls tab. `totalTokens` is always input + output tokens. `llmTurns` is the maximum per-call turn count in the case run, using configured steps when available and otherwise one turn per matched LLM call span. `llmDurationMs` sums the elapsed durations of matched LLM call spans; it is not time-to-first-token latency.
+Authored outputs with the same key are never overwritten. Authored `columns`, `stats`, and `charts` also remain authoritative; default columns use compact token formatting, dollar formatting for `costUsd`, and duration formatting for `llmDurationMs`, while default stats and LLM usage charts are appended after authored config. The web UI also fills in baseline run-health stats (`cases`, `passRate`, `duration`) and a pass-rate/duration history chart when an eval has not already authored equivalent run-health UI, so eval pages still summarize normal runs without LLM/API usage values. If discovery metadata is missing but saved runs contain runtime columns such as `costUsd`, `inputTokens`, or `apiCalls`, the single-eval page can infer the standard usage stats and charts from those saved run values. Default usage columns, stats, and charts use `hideIfNoValue: true`, so the UI stays quiet until matching LLM/API span data exists. Default LLM usage charts render cost, input tokens, and output tokens separately and use `dedupeConsecutiveValues: true` to skip repeated adjacent points such as cached reruns with unchanged chart values. `apiCalls` is counted from spans matched by `apiCalls.kinds`. Cost defaults use `llmCalls.pricing`, exactly like the LLM calls tab. `totalTokens` is always input + output tokens. `llmTurns` is the maximum per-call turn count in the case run, using configured steps when available and otherwise one turn per matched LLM call span. `llmDurationMs` sums the elapsed durations of matched LLM call spans; it is not time-to-first-token latency.
 
 Remove all defaults globally:
 
@@ -922,7 +922,7 @@ The trace tree includes helpers for common span checks: `findSpan(name)`, `findS
 
 ### Stats row
 
-The eval page can show a stats row at the top of each eval card. Set `stats` to declare authored stats, including score and numeric output columns. Usage defaults are appended automatically unless removed with `removeDefaultConfig`. Global `stats` from `agent-evals.config.ts` render before eval-level stats. Set `defaultStatAggregate` globally or on an eval to choose the initial aggregate mode for all duration and column stats on that eval card:
+The eval page shows a stats row at the top of each eval card. Cases, pass rate, and duration are filled in automatically unless you already declare that stat kind. Set `stats` to declare authored stats, including score and numeric output columns. Usage defaults are appended automatically unless removed with `removeDefaultConfig`. Global `stats` from `agent-evals.config.ts` render before eval-level stats. Set `defaultStatAggregate` globally or on an eval to choose the initial aggregate mode for all duration and column stats on that eval card:
 
 ```ts
 defaultStatAggregate: 'avg',
@@ -960,7 +960,7 @@ Supported kinds:
 
 ### History charts
 
-The eval page can render one or more history charts at the top of each eval card that trend across the last 20 completed runs. Set `charts` to declare authored charts. LLM usage default charts are appended automatically unless removed with `removeDefaultConfig`.
+The eval page renders history charts at the top of each eval card when there is at least one completed run, including a single-run history. A pass-rate/duration chart is filled in automatically unless you already declare a chart that plots one of those built-in metrics. Set `charts` to declare authored charts. LLM usage default charts are appended automatically unless removed with `removeDefaultConfig`.
 
 ```ts
 charts: [
@@ -1001,7 +1001,7 @@ charts: [
 Each chart declares:
 
 - `type` — `area`, `line`, or `bar`.
-- `metrics` — one or more plotted series. `builtin` metrics (`passRate`, `cost`, `durationMs`) come from the per-run summary. `column` metrics aggregate a score or numeric `setEvalOutput` column across the run using an `aggregate` reducer: `avg | sum | min | max | latest | passThresholdRate`. `passThresholdRate` requires a score column with `passThreshold` — it reports the fraction of cases whose value met the threshold.
+- `metrics` — one or more plotted series. `builtin` metrics (`passRate`, `durationMs`) come from the per-run summary. `column` metrics aggregate a score or numeric `setEvalOutput` column across the run using an `aggregate` reducer: `avg | sum | min | max | latest | passThresholdRate`. `passThresholdRate` requires a score column with `passThreshold` — it reports the fraction of cases whose value met the threshold.
 - `heading` (optional) — label shown above the chart.
 - `hideIfNoValue` — hide the chart when none of its plotted series or tooltip extras has a numeric value in the rendered history window.
 - `dedupeConsecutiveValues` — skip consecutive history points when all plotted series and tooltip extras match the previous kept point.
