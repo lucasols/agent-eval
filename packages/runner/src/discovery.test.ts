@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
+import { parseEvalMetas } from './discovery.ts';
 import { createRunner } from './runner.ts';
 
 const createdWorkspaces: string[] = [];
@@ -16,6 +17,46 @@ afterEach(async () => {
 });
 
 describe('discovery metadata', () => {
+  test('does not use nested object titles as eval titles', () => {
+    expect(
+      parseEvalMetas(
+        'evals/kanban.eval.ts',
+        `import { defineEval } from '@agent-evals/sdk';
+
+defineEval({
+  id: 'reuse-existing-stage-field',
+  cases: [{ id: 'default', input: {} }],
+  execute: () => {
+    setOrgHtmlVisualization({
+      title: 'Org before full kanban creation',
+    });
+  },
+});
+
+defineEval({
+  id: 'top-level-title',
+  execute: () => {
+    setOrgHtmlVisualization({
+      title: 'Nested output title',
+    });
+  },
+  title: 'Authored Eval Title',
+});
+`,
+      ),
+    ).toEqual([
+      {
+        filePath: 'evals/kanban.eval.ts',
+        id: 'reuse-existing-stage-field',
+      },
+      {
+        filePath: 'evals/kanban.eval.ts',
+        id: 'top-level-title',
+        title: 'Authored Eval Title',
+      },
+    ]);
+  });
+
   test('allows the same eval id in different files', async () => {
     const workspacePath = await mkdtemp(
       join(tmpdir(), 'agent-evals-runner-duplicate-files-'),
