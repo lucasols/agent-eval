@@ -400,7 +400,9 @@ async function commandRun(args: CliArgs): Promise<void> {
   }
 
   if (args.clearCache) {
-    await runner.clearCache();
+    await runner.clearCache({
+      reason: 'CLI run requested --clear-cache before starting',
+    });
     if (!args.json) {
       console.info('Cleared cache before run.');
       console.info('');
@@ -636,6 +638,7 @@ async function commandCache(args: CliArgs): Promise<void> {
           await runner.clearCache({
             namespace: entry.namespace,
             key: entry.key,
+            reason: `CLI cache clear requested for eval ${evalId}`,
           });
         }
       }
@@ -643,7 +646,9 @@ async function commandCache(args: CliArgs): Promise<void> {
       return;
     }
     if (args.all) {
-      await runner.clearCache();
+      await runner.clearCache({
+        reason: 'CLI cache clear requested with --all',
+      });
       console.info('Cleared all cache entries.');
       return;
     }

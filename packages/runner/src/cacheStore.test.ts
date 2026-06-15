@@ -21,7 +21,7 @@ import {
   type CacheDebugKeyEntry,
   type CacheEntry,
 } from '@agent-evals/shared';
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { z } from 'zod';
 import { createBufferedCacheStore, createFsCacheStore } from './cacheStore.ts';
 
@@ -50,6 +50,7 @@ afterEach(async () => {
     ),
   );
   workspaces.length = 0;
+  vi.restoreAllMocks();
 });
 
 async function createWorkspace(): Promise<string> {
@@ -379,9 +380,23 @@ describe('filesystem cache store raw-key debug storage', () => {
       maxBytesPerNamespace: maxBytes,
       workspaceRoot: workspacePath,
     });
+    const errorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
     await pruningStore.pruneRetention();
 
     expect(await readCacheKeys(workspacePath)).toEqual(['first', 'third']);
+    const cleanupLogs = errorSpy.mock.calls.map((call) => String(call[0]));
+    expect(
+      cleanupLogs.some(
+        (message) =>
+          message.includes(
+            'Cache cleanup dropped cache entry namespace="debug-eval.expensive-op" key="second"',
+          ) &&
+          message.includes('retention limit exceeded') &&
+          message.includes('cacheBytes='),
+      ),
+    ).toBe(true);
     await expect(pruningStore.list()).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ key: 'first' }),
@@ -903,6 +918,9 @@ describe('filesystem cache store raw-key debug storage', () => {
         operationName: 'expensive-op',
       },
     );
+    const errorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
     await store.write(
       cacheEntry({ key: 'hashed-key', storedAt: '2026-04-29T00:00:01.000Z' }),
       {
@@ -918,6 +936,16 @@ describe('filesystem cache store raw-key debug storage', () => {
     await expect(
       store.lookupWithDebug(defaultNamespace, 'hashed-key'),
     ).resolves.not.toHaveProperty('debugKey');
+    expect(
+      errorSpy.mock.calls
+        .map((call) => String(call[0]))
+        .some(
+          (message) =>
+            message.includes('dropped cache debug sidecar') &&
+            message.includes('hashed-key.json') &&
+            message.includes('could not be serialized'),
+        ),
+    ).toBe(true);
   });
 
   test('clear removes matching normal and raw-key debug entries', async () => {
@@ -941,12 +969,44 @@ describe('filesystem cache store raw-key debug storage', () => {
       },
     );
 
-    await store.clear({ namespace: defaultNamespace, key: 'first' });
+    const errorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    await store.clear({
+      namespace: defaultNamespace,
+      key: 'first',
+      reason: 'unit test requested first-key cleanup',
+    });
+
+    const firstCleanupLogs = errorSpy.mock.calls.map((call) => String(call[0]));
+    expect(firstCleanupLogs).toContain(
+      '[agent-evals] Cache cleanup dropped cache entry namespace="debug-eval.expensive-op" key="first" because unit test requested first-key cleanup.',
+    );
+    expect(
+      firstCleanupLogs.some(
+        (message) =>
+          message.includes('dropped cache debug sidecar') &&
+          message.includes('first.json') &&
+          message.includes('unit test requested first-key cleanup'),
+      ),
+    ).toBe(true);
+    expect(
+      firstCleanupLogs.some((message) => message.includes('key="second"')),
+    ).toBe(false);
 
     expect(await readCacheKeys(workspacePath)).toEqual(['second']);
     expect(await readDebugKeys(workspacePath)).toEqual(['second']);
 
-    await store.clear({ namespace: defaultNamespace });
+    errorSpy.mockClear();
+    await store.clear({
+      namespace: defaultNamespace,
+      reason: 'unit test requested namespace cleanup',
+    });
+
+    expect(errorSpy.mock.calls.map((call) => String(call[0]))).toContain(
+      '[agent-evals] Cache cleanup dropped cache entry namespace="debug-eval.expensive-op" key="second" because unit test requested namespace cleanup.',
+    );
 
     expect(
       existsSync(
@@ -1056,6 +1116,9 @@ describe('filesystem cache store raw-key debug storage', () => {
       JSON.stringify({ orphan: true }),
     );
 
+    const errorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
     const repairSummary = await store.repair();
 
     expect(repairSummary).toEqual({
@@ -1065,6 +1128,34 @@ describe('filesystem cache store raw-key debug storage', () => {
       removedIndexRows: 1,
       rewrittenIndexes: 1,
     });
+    const cleanupLogs = errorSpy.mock.calls.map((call) => String(call[0]));
+    expect(cleanupLogs).toContain(
+      '[agent-evals] Cache cleanup dropped cache index row namespace="debug-eval.expensive-op" key="stale-key" because manual cache repair: index row pointed at a missing cache entry file.',
+    );
+    expect(
+      cleanupLogs.some(
+        (message) =>
+          message.includes('dropped unindexed cache file') &&
+          message.includes('legacy-key.json.br') &&
+          message.includes('file was not referenced by any cache index'),
+      ),
+    ).toBe(true);
+    expect(
+      cleanupLogs.some(
+        (message) =>
+          message.includes('dropped cache debug sidecar') &&
+          message.includes('legacy-key.json') &&
+          message.includes('debug sidecar was not referenced'),
+      ),
+    ).toBe(true);
+    expect(
+      cleanupLogs.some(
+        (message) =>
+          message.includes('dropped external JSON blob') &&
+          message.includes(orphanBlob.path) &&
+          message.includes('external JSON blob was not referenced'),
+      ),
+    ).toBe(true);
     expect(await readCacheKeys(workspacePath)).toEqual(['indexed-key']);
     expect(await readDebugKeys(workspacePath)).toEqual([]);
     expect(existsSync(resolve(store.blobDir(), orphanBlob.path))).toBe(false);

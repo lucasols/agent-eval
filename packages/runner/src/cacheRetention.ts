@@ -28,6 +28,11 @@ type CacheRetentionSortEntry = Pick<
   'key' | 'lastAccessedAt' | 'namespace' | 'storedAt'
 >;
 
+export type CacheRetentionRemovedEntry = CacheRetentionEntry & {
+  maxBytes: number;
+  namespaceTotalBytes: number;
+};
+
 export function normalizeMaxBytes(
   value: number | undefined,
   fallback = defaultMaxBytesPerNamespace,
@@ -56,7 +61,9 @@ export async function pruneCacheEntriesByMaxBytes(params: {
   debugEntryBytes: (namespace: string, key: string) => Promise<number>;
   externalJsonBlobBytes: (blobRef: string) => Promise<number>;
   removeEntries: (namespace: string, keys: Set<string>) => Promise<void>;
-}): Promise<void> {
+}): Promise<CacheRetentionRemovedEntry[]> {
+  const removedEntries: CacheRetentionRemovedEntry[] = [];
+
   for (const index of params.indexes) {
     const retentionState = await getCacheRetentionState({ ...params, index });
     const maxBytes = params.maxBytesForNamespace(index.namespace);
@@ -69,6 +76,11 @@ export async function pruneCacheEntriesByMaxBytes(params: {
       if (totalBytes <= maxBytes) break;
 
       removedKeys.add(entry.key);
+      removedEntries.push({
+        ...entry,
+        maxBytes,
+        namespaceTotalBytes: retentionState.totalBytes,
+      });
 
       totalBytes -= entry.cacheBytes + entry.debugBytes;
       for (const blobRef of new Set(entry.blobRefs)) {
@@ -85,6 +97,8 @@ export async function pruneCacheEntriesByMaxBytes(params: {
 
     await params.removeEntries(index.namespace, removedKeys);
   }
+
+  return removedEntries;
 }
 
 async function getCacheRetentionState(params: {

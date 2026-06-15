@@ -103,10 +103,12 @@ describe('cache routes', () => {
     expect(mockRunner.clearCache).toHaveBeenCalledWith({
       namespace: 'manual-span-namespace',
       key: 'span-key',
+      reason: `web/API cache clear requested for eval ${evalKey}`,
     });
     expect(mockRunner.clearCache).toHaveBeenCalledWith({
       namespace: 'manual-value-namespace',
       key: 'value-key',
+      reason: `web/API cache clear requested for eval ${evalKey}`,
     });
   });
 
@@ -250,6 +252,8 @@ describe('cache routes', () => {
     expect(mockRunner.clearCache).not.toHaveBeenCalledWith({
       namespace: 'new-run-namespace',
       key: 'new-run-key',
+      reason:
+        'web/API cache clear requested for run history through selected-run',
     });
   });
 

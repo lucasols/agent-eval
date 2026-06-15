@@ -39,7 +39,9 @@ export const cacheRoutes = new Hono()
   })
   .delete('/', async (c) => {
     const runner = getRunnerInstance();
-    await runner.clearCache();
+    await runner.clearCache({
+      reason: 'web/API cache clear requested for all entries',
+    });
     return c.json({ ok: true }, 200);
   })
   .delete('/actions/eval', async (c) => {
@@ -53,7 +55,11 @@ export const cacheRoutes = new Hono()
 
     await Promise.all(
       entries.map((entry) =>
-        runner.clearCache({ namespace: entry.namespace, key: entry.key }),
+        runner.clearCache({
+          namespace: entry.namespace,
+          key: entry.key,
+          reason: `web/API cache clear requested for eval ${evalKey}`,
+        }),
       ),
     );
 
@@ -69,7 +75,11 @@ export const cacheRoutes = new Hono()
 
     await Promise.all(
       entries.map((entry) =>
-        runner.clearCache({ namespace: entry.namespace, key: entry.key }),
+        runner.clearCache({
+          namespace: entry.namespace,
+          key: entry.key,
+          reason: `web/API cache clear requested for run history through ${runId}`,
+        }),
       ),
     );
 
@@ -78,14 +88,21 @@ export const cacheRoutes = new Hono()
   .delete('/:namespace', async (c) => {
     const namespace = c.req.param('namespace');
     const runner = getRunnerInstance();
-    await runner.clearCache({ namespace });
+    await runner.clearCache({
+      namespace,
+      reason: `web/API cache clear requested for namespace ${namespace}`,
+    });
     return c.json({ ok: true }, 200);
   })
   .delete('/:namespace/:key', async (c) => {
     const namespace = c.req.param('namespace');
     const key = c.req.param('key');
     const runner = getRunnerInstance();
-    await runner.clearCache({ namespace, key });
+    await runner.clearCache({
+      namespace,
+      key,
+      reason: `web/API cache clear requested for namespace ${namespace} and key ${key}`,
+    });
     return c.json({ ok: true }, 200);
   });
 

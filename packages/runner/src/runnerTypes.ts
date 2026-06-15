@@ -94,7 +94,7 @@ export type EvalRunner = {
   ): Promise<CacheEntryWithDebugKey | null>;
   /**
    * Remove cache entries matching `filter`, or all entries when no filter is
-   * supplied.
+   * supplied. Pass `filter.reason` to explain the cleanup in terminal logs.
    */
   clearCache(filter?: CacheClearFilter): Promise<void>;
   /** Remove cache/debug/blob files that are not referenced by cache indexes. */

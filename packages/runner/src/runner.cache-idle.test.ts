@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, expect, test } from 'vitest';
+import { afterEach, expect, test, vi } from 'vitest';
 import { createRunner } from './runner.ts';
 
 const createdWorkspaces: string[] = [];
@@ -13,6 +13,7 @@ afterEach(async () => {
     ),
   );
   createdWorkspaces.length = 0;
+  vi.restoreAllMocks();
 });
 
 async function waitForRunStatus(
@@ -70,6 +71,9 @@ defineEval({
   try {
     const runner = createRunner({ watchForChanges: false });
     await runner.init();
+    const errorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
 
     const firstRun = await runner.startRun({
       target: { mode: 'caseIds', evalIds: ['idle-cache'], caseIds: ['first'] },
@@ -90,6 +94,15 @@ defineEval({
     await expect
       .poll(() => runner.listCache(), { timeout: 2_000 })
       .toHaveLength(0);
+    const cleanupLogs = errorSpy.mock.calls.map((call) => String(call[0]));
+    expect(
+      cleanupLogs.some(
+        (message) =>
+          message.includes(
+            'Cache cleanup dropped cache entry namespace="idle-cache.work"',
+          ) && message.includes('retention limit exceeded'),
+      ),
+    ).toBe(true);
 
     await runner.close();
   } finally {
