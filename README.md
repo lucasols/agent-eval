@@ -204,7 +204,7 @@ Use `pnpm publish:pkg` from the repo root to publish through `pkg-manager`. The 
 | `apiCalls` | `ApiCallsConfig?` | API calls tab config for the case-run drawer (kinds, attribute paths, custom metrics) |
 | `runLogs` | `{ captureConsole?: boolean }?` | Case log capture config; set `captureConsole: false` to stop persisting console calls |
 
-Each run executes in a separate child process. Within that run, every case and trial gets its own module-isolation scope while still respecting `concurrency`, so module-level state used by mocks is not shared across parallel cases.
+Each run executes in a separate child process. Within that run, every case and trial gets its own module-isolation scope while still respecting `concurrency`, so module-level state used by mocks is not shared across parallel cases. Targeted evals are queued round-robin by parent folder, with file/id order preserved inside each folder, so folder-local caches have a chance to warm before later evals from the same folder run.
 
 When `trials > 1`, the runner executes the case repeatedly but persists a single winning result per case. `lowestScore` is the default. `median` uses the lower median when the number of trials is even.
 

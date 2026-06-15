@@ -15,6 +15,7 @@ This skill covers the mental model and conventions. For exhaustive field lists (
 - CLI surface: `agent-evals --help` and `agent-evals <command> --help`. Unknown help targets exit non-zero instead of falling back to global help.
 - The CLI automatically loads `.env` from the current workspace. Shell-provided environment variables win; pass `--no-env` to disable `.env` loading once.
 - Unfiltered `agent-evals run` is disabled by default; use `--eval` or `--case` for targeted CLI runs, or `--tags-filter <expr>` to run cases matching tags. Set `allowCliRunAll: true` in `agent-evals.config.ts` to opt into run-all CLI behavior.
+- Targeted evals are queued round-robin by parent folder, preserving file/id order inside each folder. This lets one eval from each folder warm folder-local caches before later evals from the same folder run.
 - `agent-evals run --temporary` persists a run like normal history, but deletes it before the next run starts. Temporary runs appear in `show-runs` while present; normal runs are never deleted by temporary-run cleanup. In the app, the run drawer can promote a temporary run to durable history.
 - `agent-evals app` watches `agent-evals.config.ts` and the workspace `.env` and reloads them in place when the runner is idle. If config or `.env` changes during an active run, the reload applies after the current run reaches a terminal state.
 - App-triggered runs log the queued target evals, resolved case concurrency, each case start for evals that are actually running, and the terminal run summary in the server terminal.

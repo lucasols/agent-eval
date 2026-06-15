@@ -1,3 +1,4 @@
+import { dirname } from 'node:path/posix';
 import type { CreateRunRequest } from '@agent-evals/shared';
 import type { EvalMeta } from './runOrchestration.ts';
 
@@ -56,17 +57,54 @@ function matchesEvalKeys(
   return evalKeys.includes(evalMeta.key);
 }
 
+function compareEvalMetas(left: EvalMeta, right: EvalMeta): number {
+  return (
+    left.filePath.localeCompare(right.filePath) || left.id.localeCompare(right.id)
+  );
+}
+
+function orderEvalsByFolderRoundRobin(evals: EvalMeta[]): EvalMeta[] {
+  const sortedEvals = evals.toSorted(compareEvalMetas);
+  const evalsByFolder = new Map<string, EvalMeta[]>();
+
+  for (const evalMeta of sortedEvals) {
+    const folder = dirname(evalMeta.filePath);
+    const folderEvals = evalsByFolder.get(folder);
+    if (folderEvals === undefined) {
+      evalsByFolder.set(folder, [evalMeta]);
+    } else {
+      folderEvals.push(evalMeta);
+    }
+  }
+
+  const ordered: EvalMeta[] = [];
+  let folderIndex = 0;
+  while (ordered.length < sortedEvals.length) {
+    let addedEval = false;
+    for (const folderEvals of evalsByFolder.values()) {
+      const evalMeta = folderEvals[folderIndex];
+      if (evalMeta === undefined) continue;
+      ordered.push(evalMeta);
+      addedEval = true;
+    }
+    if (!addedEval) break;
+    folderIndex++;
+  }
+
+  return ordered;
+}
+
 /** Return the discovered evals selected by a run target. */
 export function getTargetEvals(params: {
   evals: Iterable<EvalMeta>;
   request: CreateRunRequest;
 }): EvalMeta[] {
   const { target } = params.request;
-  return [...params.evals]
+  const selectedEvals = [...params.evals]
     .filter((evalMeta) => matchesEvalKeys(evalMeta, target.evalKeys))
     .filter((evalMeta) => matchesEvalIds(evalMeta, target.evalIds))
-    .filter((evalMeta) => matchesFiles(evalMeta, target.files))
-    .toSorted((a, b) => a.filePath.localeCompare(b.filePath));
+    .filter((evalMeta) => matchesFiles(evalMeta, target.files));
+  return orderEvalsByFolderRoundRobin(selectedEvals);
 }
 
 /** Resolve which exact eval keys a run request can affect. */
