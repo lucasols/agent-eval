@@ -282,7 +282,7 @@ export function appendDefaultCharts(params: {
       heading: 'LLM Turns',
       hideIfNoValue: true,
       dedupeConsecutiveValues: true,
-      type: 'bar',
+      type: 'line',
       metrics: [
         {
           source: 'column',
