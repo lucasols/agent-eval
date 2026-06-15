@@ -151,7 +151,7 @@ test('runCase derives default usage outputs from trace spans', async () => {
   });
   const llmSpan = result.caseDetail.trace.find((span) => span.kind === 'llm');
   expect(llmSpan?.attributes?.latencyMs).toBe(42);
-  expect(result.caseDetail.columns.costUsd).toBeCloseTo(0.000692);
+  expect(result.caseDetail.columns.costUsd).toBeCloseTo(0.000592);
   expect(typeof result.caseDetail.columns.llmDurationMs).toBe('number');
 });
 

@@ -148,7 +148,7 @@ function buildUsdCostTooltip(
     return `${formatExactTokens(tokens)} tokens — no pricing configured for this model`;
   }
   if (cost === 0) {
-    return `${formatExactTokens(tokens)} tokens · billed at $0/1M in this scenario`;
+    return `${formatExactTokens(tokens)} tokens · no extra cost in this scenario`;
   }
   const ratePerMillion = (cost / tokens) * 1_000_000;
   return `${formatExactTokens(tokens)} × ${formatNumber(
@@ -460,6 +460,8 @@ export function buildLlmCallBreakdownItems({
     {
       key: 'reasoning',
       label: 'Reasoning',
+      tooltip:
+        'Reasoning output tokens. When these are included in Output, their cost is counted there and not billed again.',
       tokens: entry.reasoningTokens,
       cost: simulated.reasoningCostUsd,
     },

@@ -101,6 +101,30 @@ test('simulateLlmCallCost noCache bills every input token at base rate', () => {
   expect(sim.totalCostUsd).toBeCloseTo(0.0045);
 });
 
+test('simulateLlmCallCost does not require reasoning pricing when output tokens include reasoning', () => {
+  const config = resolveLlmCallsConfig({ pricing: fullPricing });
+  const spans: EvalTraceSpan[] = [
+    llmSpan({
+      attributes: {
+        model: 'gpt-4o-mini',
+        usage: { inputTokens: 1_000, outputTokens: 200, reasoningTokens: 80 },
+      },
+    }),
+  ];
+  const entry = extractLlmCalls(spans, config)[0];
+  if (!entry) throw new Error('expected entry');
+
+  const sim = simulateLlmCallCost({
+    entry,
+    pricing: config.pricing,
+    scenario: 'noCache',
+  });
+
+  expect(sim.outputCostUsd).toBeCloseTo(0.002);
+  expect(sim.reasoningCostUsd).toBe(0);
+  expect(sim.totalCostUsd).toBeCloseTo(0.0045);
+});
+
 test('simulateLlmCallCost withBaseCaching treats every cacheable token as a cache read when caching is in use', () => {
   const config = resolveLlmCallsConfig({ pricing: fullPricing });
   const spans: EvalTraceSpan[] = [

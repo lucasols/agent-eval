@@ -414,7 +414,10 @@ export const llmCallPricingRateSchema = z.object({
   cacheCreationInputUsdPerMillion: z.number().nonnegative().optional(),
   /** USD per one million one-hour prompt-cache write tokens. */
   cacheCreationInput1hUsdPerMillion: z.number().nonnegative().optional(),
-  /** USD per one million reasoning tokens when reported separately. */
+  /**
+   * USD per one million reasoning tokens when reported outside `outputTokens`.
+   * If `outputTokens` already includes reasoning, reasoning is not billed again.
+   */
   reasoningUsdPerMillion: z.number().nonnegative().optional(),
 });
 
@@ -641,6 +644,10 @@ export type ResolvedLlmCallPricing = {
   cachedInputUsdPerMillion?: number;
   cacheCreationInputUsdPerMillion?: number;
   cacheCreationInput1hUsdPerMillion?: number;
+  /**
+   * USD per one million reasoning tokens when reported outside `outputTokens`.
+   * If `outputTokens` already includes reasoning, reasoning is not billed again.
+   */
   reasoningUsdPerMillion?: number;
 };
 

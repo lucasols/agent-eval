@@ -268,8 +268,35 @@ test('extractLlmCalls derives costs from pricing registry when span costs are mi
   expect(call?.outputCostUsd).toBeCloseTo(0.003);
   expect(call?.cachedInputCostUsd).toBeCloseTo(0.000015);
   expect(call?.cacheCreationInputCostUsd).toBeCloseTo(0.000345);
-  expect(call?.reasoningCostUsd).toBeCloseTo(0.0006);
-  expect(call?.costUsd).toBeCloseTo(0.00402);
+  expect(call?.reasoningCostUsd).toBe(0);
+  expect(call?.costUsd).toBeCloseTo(0.00342);
+});
+
+test('extractLlmCalls does not require reasoning pricing when output tokens include reasoning', () => {
+  const config = resolveLlmCallsConfig({
+    pricing: { 'gpt-5.5': { inputUsdPerMillion: 5, outputUsdPerMillion: 30 } },
+  });
+
+  const spans: EvalTraceSpan[] = [
+    llmSpan({
+      attributes: {
+        model: 'gpt-5.5',
+        usage: {
+          inputTokens: 13_975,
+          outputTokens: 111,
+          cachedInputTokens: 0,
+          reasoningTokens: 42,
+        },
+      },
+    }),
+  ];
+
+  const call = extractLlmCalls(spans, config)[0];
+
+  expect(call?.inputCostUsd).toBeCloseTo(0.069875);
+  expect(call?.outputCostUsd).toBeCloseTo(0.00333);
+  expect(call?.reasoningCostUsd).toBe(0);
+  expect(call?.costUsd).toBeCloseTo(0.073205);
 });
 
 test('extractLlmCalls ignores explicit span costs when pricing is configured', () => {
@@ -781,10 +808,7 @@ test('extractLlmCalls falls back to child model step spans', () => {
         startedAt: '2026-04-21T12:00:00.030Z',
         endedAt: '2026-04-21T12:00:00.040Z',
         status: 'ok',
-        attributes: {
-          input: { query: 'policy' },
-          output: { results: 2 },
-        },
+        attributes: { input: { query: 'policy' }, output: { results: 2 } },
       },
     ],
     DEFAULT_LLM_CALLS_CONFIG,

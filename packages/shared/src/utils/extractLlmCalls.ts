@@ -1,3 +1,4 @@
+import { resultify } from 't-result';
 import type {
   LlmCallMetricFormat,
   LlmCallMetricPlacement,
@@ -10,7 +11,6 @@ import type {
   EvalTraceSpanError,
   EvalTraceSpanWarning,
 } from '../schemas/trace.ts';
-import { resultify } from 't-result';
 import { getNestedAttribute } from './getNestedAttribute.ts';
 
 /** Resolved value for one user-defined metric on an LLM call row. */
@@ -118,6 +118,21 @@ function computeCacheCreationInputCost({
   const oneHourCost = computeTokenCost(oneHourTokens, oneHourUsdPerMillion);
   if (shortLivedCost === null || oneHourCost === null) return null;
   return shortLivedCost + oneHourCost;
+}
+
+function computeReasoningCost({
+  reasoningTokens,
+  outputTokens,
+  usdPerMillion,
+}: {
+  reasoningTokens: number | null;
+  outputTokens: number | null;
+  usdPerMillion: number | undefined;
+}): number | null {
+  if (reasoningTokens === null) return null;
+  if (reasoningTokens === 0) return 0;
+  if (outputTokens !== null && outputTokens >= reasoningTokens) return 0;
+  return computeTokenCost(reasoningTokens, usdPerMillion);
 }
 
 function computeBaseInputTokens({
@@ -289,10 +304,12 @@ export function simulateLlmCallCost({
     entry.outputTokens,
     pricingEntry?.outputUsdPerMillion,
   );
-  const reasoningCostUsd = computeTokenCost(
-    entry.reasoningTokens,
-    pricingEntry?.reasoningUsdPerMillion,
-  );
+  const reasoningCostUsd = computeReasoningCost({
+    reasoningTokens: entry.reasoningTokens,
+    outputTokens: entry.outputTokens,
+    usdPerMillion:
+      pricingEntry?.reasoningUsdPerMillion ?? pricingEntry?.outputUsdPerMillion,
+  });
 
   const simulatedTokens = simulateTokenAllocation({ entry, scenario });
   const writeRate =
@@ -571,8 +588,9 @@ function appendToolCallsFromStep({
 
   if (!isTraceSpan(step)) return;
   const childToolSpans =
-    childrenByParent.get(step.id)?.filter((child) => child.kind === 'tool_call') ??
-    [];
+    childrenByParent
+      .get(step.id)
+      ?.filter((child) => child.kind === 'tool_call') ?? [];
   if (childToolSpans.length === 0) return;
   out.push(...childToolSpans.map((child) => toolCallSpanToEntry(child)));
 }
@@ -625,13 +643,15 @@ function pickError(span: EvalTraceSpan): EvalTraceSpanError | null {
  * as `durationMs`. `tokensPerSecond` is output tokens divided by that full
  * elapsed duration. Built-in USD costs are derived only from configured model
  * pricing and token counts. `totalTokens` is always derived from input +
- * output tokens. Cached input and cache creation tokens are reported
- * separately because they are subsets of input/output usage. The main cache
- * creation token field is treated as the total write count; optional one-hour
- * cache creation tokens only split that total for cost calculation. Base input
- * cost uses input minus cache read/write tokens so cached tokens are not
- * charged twice. Cache read/write costs still contribute to the total USD cost
- * at their configured rates. The `steps` attribute path may resolve to an array
+ * output tokens. Cached input, cache creation, and reasoning tokens are
+ * reported separately because they are subsets of input/output usage. The main
+ * cache creation token field is treated as the total write count; optional
+ * one-hour cache creation tokens only split that total for cost calculation.
+ * Base input cost uses input minus cache read/write tokens so cached tokens are
+ * not charged twice. Reasoning tokens are not charged again when they are
+ * already included in `outputTokens`. Cache read/write costs still contribute
+ * to the total USD cost at their configured rates. The `steps` attribute path
+ * may resolve to an array
  * of per-step detail objects, with `stepCount` derived from the array length.
  * When a matching LLM span does not expose that array, direct child spans with
  * `kind: 'model_step'` are used as the step details instead. This preserves
@@ -705,10 +725,12 @@ export function extractLlmCalls(
       usdPerMillion: pricing?.cacheCreationInputUsdPerMillion,
       oneHourUsdPerMillion: pricing?.cacheCreationInput1hUsdPerMillion,
     });
-    const reasoningCostUsd = computeTokenCost(
+    const reasoningCostUsd = computeReasoningCost({
       reasoningTokens,
-      pricing?.reasoningUsdPerMillion,
-    );
+      outputTokens,
+      usdPerMillion:
+        pricing?.reasoningUsdPerMillion ?? pricing?.outputUsdPerMillion,
+    });
     const costUsd = computeTotalCost({
       inputTokens,
       inputCostUsd,
