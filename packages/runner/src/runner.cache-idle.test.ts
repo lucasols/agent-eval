@@ -36,7 +36,7 @@ test('prunes cache retention only after the runner stays idle', async () => {
     join(workspacePath, 'agent-evals.config.ts'),
     `export default {
   include: ['evals/**/*.eval.ts'],
-  cache: { maxEntries: 1, pruneIdleDelayMs: 500 },
+  cache: { maxBytes: 1, pruneIdleDelayMs: 500 },
 };
 `,
   );
@@ -89,7 +89,7 @@ defineEval({
     expect(await runner.listCache()).toHaveLength(2);
     await expect
       .poll(() => runner.listCache(), { timeout: 2_000 })
-      .toHaveLength(1);
+      .toHaveLength(0);
 
     await runner.close();
   } finally {

@@ -805,8 +805,8 @@ export function createRunner({
     cacheStore = createFsCacheStore({
       workspaceRoot,
       dir: config.cache?.dir,
-      maxEntriesPerNamespace: cacheRetentionOptions.maxEntriesPerNamespace,
-      maxEntriesByNamespace: cacheRetentionOptions.maxEntriesByNamespace,
+      maxBytesPerNamespace: cacheRetentionOptions.maxBytesPerNamespace,
+      maxBytesByNamespace: cacheRetentionOptions.maxBytesByNamespace,
       lastAccessedAtUpdateIntervalMs:
         config.cache?.lastAccessedAtUpdateIntervalMs,
     });

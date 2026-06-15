@@ -491,68 +491,64 @@ describe('CLI operation caching', () => {
     });
   }, 15_000);
 
-  test(
-    'cache list shows entries and cache clear removes them',
-    async () => {
-      await withIsolatedExampleWorkspace(async (workspacePath) => {
-        const primed = await runExampleCli(workspacePath, [
-          'run',
-          '--eval',
-          'refund-workflow',
-          '--case',
-          'simple-text',
-        ]);
-        expect(primed.exitCode).toBe(0);
+  test('cache list shows entries and cache clear removes them', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const primed = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'refund-workflow',
+        '--case',
+        'simple-text',
+      ]);
+      expect(primed.exitCode).toBe(0);
 
-        const listResult = await runExampleCli(workspacePath, [
-          'cache',
-          'list',
-          '--json',
-        ]);
-        expect(listResult.exitCode).toBe(0);
-        const listedRaw: unknown = JSON.parse(listResult.stdout);
-        const listed = cacheListSchema.parse(listedRaw);
-        expect(listed).toHaveLength(1);
-        const first = requireDefined(listed[0], 'first listed entry');
-        expect(first.namespace).toBe('refund-workflow.plan-refund');
-        expect(first.lastAccessedAt).toBe(first.storedAt);
+      const listResult = await runExampleCli(workspacePath, [
+        'cache',
+        'list',
+        '--json',
+      ]);
+      expect(listResult.exitCode).toBe(0);
+      const listedRaw: unknown = JSON.parse(listResult.stdout);
+      const listed = cacheListSchema.parse(listedRaw);
+      expect(listed).toHaveLength(1);
+      const first = requireDefined(listed[0], 'first listed entry');
+      expect(first.namespace).toBe('refund-workflow.plan-refund');
+      expect(first.lastAccessedAt).toBe(first.storedAt);
 
-        const listText = await runExampleCli(workspacePath, ['cache', 'list']);
-        expect(listText.exitCode).toBe(0);
-        expect(listText.stdout).toContain(`last accessed: ${first.storedAt}`);
+      const listText = await runExampleCli(workspacePath, ['cache', 'list']);
+      expect(listText.exitCode).toBe(0);
+      expect(listText.stdout).toContain(`last accessed: ${first.storedAt}`);
 
-        const clearResult = await runExampleCli(workspacePath, [
-          'cache',
-          'clear',
-          '--all',
-        ]);
-        expect(clearResult.exitCode).toBe(0);
-        expect(clearResult.stdout).toContain('Cleared all cache entries');
+      const clearResult = await runExampleCli(workspacePath, [
+        'cache',
+        'clear',
+        '--all',
+      ]);
+      expect(clearResult.exitCode).toBe(0);
+      expect(clearResult.stdout).toContain('Cleared all cache entries');
 
-        const afterCache = await readCacheDir(workspacePath);
-        expect(afterCache).toEqual([]);
-        const afterDebugCache = await readCacheDebugDir(workspacePath);
-        expect(afterDebugCache).toEqual([]);
+      const afterCache = await readCacheDir(workspacePath);
+      expect(afterCache).toEqual([]);
+      const afterDebugCache = await readCacheDebugDir(workspacePath);
+      expect(afterDebugCache).toEqual([]);
 
-        await resetRunsDirectory(workspacePath);
-        const secondRun = await runExampleCli(workspacePath, [
-          'run',
-          '--eval',
-          'refund-workflow',
-          '--case',
-          'simple-text',
-        ]);
-        expect(secondRun.exitCode).toBe(0);
-        const artifacts = await readSingleRunArtifacts(workspacePath);
-        const planSpan = findLlmSpan(
-          artifacts.traces['simple-text.json'] ?? [],
-          'plan-refund',
-        );
-        expect(getCacheStatus(planSpan)).toBe('miss');
-      });
-    },
-    15_000,
-  );
+      await resetRunsDirectory(workspacePath);
+      const secondRun = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'refund-workflow',
+        '--case',
+        'simple-text',
+      ]);
+      expect(secondRun.exitCode).toBe(0);
+      const artifacts = await readSingleRunArtifacts(workspacePath);
+      const planSpan = findLlmSpan(
+        artifacts.traces['simple-text.json'] ?? [],
+        'plan-refund',
+      );
+      expect(getCacheStatus(planSpan)).toBe('miss');
+    });
+  }, 15_000);
 
   test('cache list shows indexed value cache entries', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
@@ -781,13 +777,13 @@ describe('CLI operation caching', () => {
     });
   });
 
-  test('one-off CLI runs leave retention pruning to a persistent idle runner', async () => {
+  test('one-off CLI runs leave byte retention pruning to a persistent idle runner', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const configPath = resolve(workspacePath, 'agent-evals.config.ts');
       const configSource = await readFile(configPath, 'utf8');
       await writeFile(
         configPath,
-        configSource.replace('\n};\n', '\n  cache: { maxEntries: 2 },\n};\n'),
+        configSource.replace('\n};\n', '\n  cache: { maxBytes: 1 },\n};\n'),
       );
 
       const run = await runExampleCli(workspacePath, [
@@ -819,16 +815,13 @@ describe('CLI operation caching', () => {
     });
   });
 
-  test('one-off CLI runs also defer namespace-specific retention', async () => {
+  test('one-off CLI runs also defer namespace byte retention', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const configPath = resolve(workspacePath, 'agent-evals.config.ts');
       const configSource = await readFile(configPath, 'utf8');
       await writeFile(
         configPath,
-        configSource.replace(
-          '\n};\n',
-          "\n  cache: { maxEntries: { namespaces: { 'receipt-audit.receipt-audit-context': 1 } } },\n};\n",
-        ),
+        configSource.replace('\n};\n', '\n  cache: { maxBytes: 1 },\n};\n'),
       );
 
       const run = await runExampleCli(workspacePath, [

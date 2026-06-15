@@ -118,6 +118,24 @@ async function readCacheKeys(
     .sort();
 }
 
+async function cacheEntryFileSize(
+  workspacePath: string,
+  key: string,
+  namespace = defaultNamespace,
+): Promise<number> {
+  return (await readFile(cacheEntryPath(workspacePath, namespace, key)))
+    .byteLength;
+}
+
+async function debugEntryFileSize(
+  workspacePath: string,
+  key: string,
+  namespace = defaultNamespace,
+): Promise<number> {
+  return (await readFile(debugEntryPath(workspacePath, namespace, key)))
+    .byteLength;
+}
+
 async function readCacheIndex(
   workspacePath: string,
   namespace = defaultNamespace,
@@ -337,12 +355,9 @@ describe('filesystem cache store raw-key debug storage', () => {
     ).resolves.toBeNull();
   });
 
-  test('prunes by last access time instead of stored time', async () => {
+  test('prunes by byte budget using last access time', async () => {
     const workspacePath = await createWorkspace();
-    const store = createFsCacheStore({
-      maxEntriesPerNamespace: 2,
-      workspaceRoot: workspacePath,
-    });
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
 
     await store.write(
       cacheEntry({ key: 'first', storedAt: '2026-04-29T00:00:00.000Z' }),
@@ -356,15 +371,155 @@ describe('filesystem cache store raw-key debug storage', () => {
     await store.write(
       cacheEntry({ key: 'third', storedAt: '2026-04-29T00:00:02.000Z' }),
     );
-    await store.pruneRetention();
+
+    const maxBytes =
+      (await cacheEntryFileSize(workspacePath, 'first')) +
+      (await cacheEntryFileSize(workspacePath, 'third'));
+    const pruningStore = createFsCacheStore({
+      maxBytesPerNamespace: maxBytes,
+      workspaceRoot: workspacePath,
+    });
+    await pruningStore.pruneRetention();
 
     expect(await readCacheKeys(workspacePath)).toEqual(['first', 'third']);
-    await expect(store.list()).resolves.toEqual(
+    await expect(pruningStore.list()).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ key: 'first' }),
         expect.objectContaining({ key: 'third' }),
       ]),
     );
+  });
+
+  test('counts raw-key debug sidecars toward the byte budget', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
+
+    await store.write(
+      cacheEntry({ key: 'first', storedAt: '2026-04-29T00:00:00.000Z' }),
+      {
+        rawKey: { prompt: 'first'.repeat(1000) },
+        operationType: 'span',
+        operationName: 'expensive-op',
+      },
+    );
+    await store.write(
+      cacheEntry({ key: 'second', storedAt: '2026-04-29T00:00:01.000Z' }),
+      {
+        rawKey: { prompt: 'second' },
+        operationType: 'span',
+        operationName: 'expensive-op',
+      },
+    );
+
+    const firstCacheBytes = await cacheEntryFileSize(workspacePath, 'first');
+    const secondCacheBytes = await cacheEntryFileSize(workspacePath, 'second');
+    const secondDebugBytes = await debugEntryFileSize(workspacePath, 'second');
+    const maxBytes = Math.max(
+      firstCacheBytes + secondCacheBytes,
+      secondCacheBytes + secondDebugBytes,
+    );
+    const pruningStore = createFsCacheStore({
+      maxBytesPerNamespace: maxBytes,
+      workspaceRoot: workspacePath,
+    });
+    await pruningStore.pruneRetention();
+
+    expect(await readCacheKeys(workspacePath)).toEqual(['second']);
+    expect(await readDebugKeys(workspacePath)).toEqual(['second']);
+  });
+
+  test('counts external JSON blobs toward the byte budget', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
+    const rows = Array.from({ length: 160 }, (_, index) => ({
+      index,
+      message: 'repeatable nested tree payload',
+      status: index % 2 === 0 ? 'pass' : 'fail',
+    }));
+    const firstEntry = cacheEntry({
+      key: 'first',
+      storedAt: '2026-04-29T00:00:00.000Z',
+    });
+    firstEntry.recording = await serializeCacheRecording(
+      { returnValue: { payload: { rows } }, finalAttributes: {}, ops: [] },
+      { externalJsonStore: store.externalJsonStore },
+    );
+
+    await store.write(firstEntry);
+    await store.write(
+      cacheEntry({ key: 'second', storedAt: '2026-04-29T00:00:01.000Z' }),
+    );
+
+    const cacheFile = await readCacheEntry(workspacePath, 'first');
+    const blobRef = getNestedExternalJsonRef(cacheFile.recording.returnValue);
+    const blobPath = getStringProperty(blobRef, 'path');
+    const maxBytes =
+      (await cacheEntryFileSize(workspacePath, 'first')) +
+      (await cacheEntryFileSize(workspacePath, 'second'));
+    const pruningStore = createFsCacheStore({
+      maxBytesPerNamespace: maxBytes,
+      workspaceRoot: workspacePath,
+    });
+    await pruningStore.pruneRetention();
+
+    expect(await readCacheKeys(workspacePath)).toEqual(['second']);
+    expect(existsSync(resolve(store.blobDir(), blobPath))).toBe(false);
+  });
+
+  test('uses namespace-specific byte budget overrides', async () => {
+    const workspacePath = await createWorkspace();
+    const overrideNamespace = 'debug-eval.override-op';
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
+
+    await store.write(
+      cacheEntry({
+        key: 'default-first',
+        storedAt: '2026-04-29T00:00:00.000Z',
+      }),
+    );
+    await store.write(
+      cacheEntry({
+        key: 'default-second',
+        storedAt: '2026-04-29T00:00:01.000Z',
+      }),
+    );
+    await store.write(
+      cacheEntry({
+        key: 'override-first',
+        namespace: overrideNamespace,
+        storedAt: '2026-04-29T00:00:00.000Z',
+      }),
+    );
+    await store.write(
+      cacheEntry({
+        key: 'override-second',
+        namespace: overrideNamespace,
+        storedAt: '2026-04-29T00:00:01.000Z',
+      }),
+    );
+
+    const defaultBudget =
+      (await cacheEntryFileSize(workspacePath, 'default-first')) +
+      (await cacheEntryFileSize(workspacePath, 'default-second'));
+    const overrideBudget = await cacheEntryFileSize(
+      workspacePath,
+      'override-second',
+      overrideNamespace,
+    );
+    const pruningStore = createFsCacheStore({
+      maxBytesPerNamespace: defaultBudget,
+      maxBytesByNamespace: { [overrideNamespace]: overrideBudget },
+      workspaceRoot: workspacePath,
+    });
+    await pruningStore.pruneRetention();
+
+    expect(await readCacheKeys(workspacePath)).toEqual([
+      'default-first',
+      'default-second',
+    ]);
+    expect(await readCacheKeys(workspacePath, overrideNamespace)).toEqual([
+      'override-second',
+    ]);
   });
 
   test('cache hits update last access time from the real host clock', async () => {
@@ -836,10 +991,7 @@ describe('filesystem cache store raw-key debug storage', () => {
 
   test('ignores unindexed single-entry cache files until manual repair removes them', async () => {
     const workspacePath = await createWorkspace();
-    const store = createFsCacheStore({
-      maxEntriesPerNamespace: 1,
-      workspaceRoot: workspacePath,
-    });
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
     await mkdir(
       resolve(
         workspacePath,

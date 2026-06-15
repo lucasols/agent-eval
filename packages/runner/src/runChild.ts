@@ -207,8 +207,8 @@ async function main(): Promise<void> {
   const cacheStore = createFsCacheStore({
     workspaceRoot: context.workspaceRoot,
     dir: config.cache?.dir,
-    maxEntriesPerNamespace: cacheRetentionOptions.maxEntriesPerNamespace,
-    maxEntriesByNamespace: cacheRetentionOptions.maxEntriesByNamespace,
+    maxBytesPerNamespace: cacheRetentionOptions.maxBytesPerNamespace,
+    maxBytesByNamespace: cacheRetentionOptions.maxBytesByNamespace,
     lastAccessedAtUpdateIntervalMs:
       config.cache?.lastAccessedAtUpdateIntervalMs,
   });

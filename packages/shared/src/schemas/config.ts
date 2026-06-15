@@ -1030,23 +1030,23 @@ export type AgentEvalsConfig = {
     /** Override the directory used to persist cache entries. */
     dir?: string;
     /**
-     * Maximum entries retained per cache namespace.
+     * Maximum indexed cache bytes retained per cache namespace.
      *
-     * Pass a number to set the default cap for every namespace. Pass an object
-     * to set a default cap plus exact namespace-specific caps. Non-positive or
-     * non-finite values fall back to the default.
+     * Pass a number to set the default byte cap for every namespace. Pass an
+     * object to set a default byte cap plus exact namespace-specific caps.
+     * Non-positive or non-finite values fall back to the default 3 MiB cap.
      *
      * @example
      * ```ts
      * cache: {
-     *   maxEntries: {
-     *     default: 50,
-     *     namespaces: { 'receipt-audit.receipt-audit-context': 200 },
+     *   maxBytes: {
+     *     default: 10 * 1024 * 1024,
+     *     namespaces: { 'receipt-audit.receipt-audit-context': 50 * 1024 * 1024 },
      *   },
      * }
      * ```
      */
-    maxEntries?:
+    maxBytes?:
       | number
       | { default?: number; namespaces?: Record<string, number> };
     /**
@@ -1063,7 +1063,7 @@ export type AgentEvalsConfig = {
   };
 };
 
-const cacheMaxEntriesSchema = z
+const cacheMaxBytesSchema = z
   .union([
     z.number(),
     z.object({
@@ -1097,9 +1097,7 @@ export const agentEvalsConfigSchema = z.object({
     .object({
       enabled: z.boolean().optional(),
       dir: z.string().optional(),
-      maxEntries: cacheMaxEntriesSchema,
-      maxEntriesPerNamespace: z.number().optional(),
-      maxEntriesByNamespace: z.record(z.string(), z.number()).optional(),
+      maxBytes: cacheMaxBytesSchema,
       pruneIdleDelayMs: z.preprocess(
         (value) =>
           typeof value === 'number' && Number.isFinite(value)
@@ -1114,32 +1112,6 @@ export const agentEvalsConfigSchema = z.object({
             : undefined,
         z.number().optional(),
       ),
-      maxEntriesPerEval: z.number().optional(),
     })
-    .transform(
-      ({
-        maxEntries,
-        maxEntriesByNamespace,
-        maxEntriesPerEval,
-        maxEntriesPerNamespace,
-        ...cache
-      }) => {
-        const defaultMaxEntries = maxEntriesPerNamespace ?? maxEntriesPerEval;
-        if (maxEntries !== undefined) return { ...cache, maxEntries };
-        if (
-          defaultMaxEntries !== undefined ||
-          maxEntriesByNamespace !== undefined
-        ) {
-          return {
-            ...cache,
-            maxEntries: {
-              default: defaultMaxEntries,
-              namespaces: maxEntriesByNamespace,
-            },
-          };
-        }
-        return cache;
-      },
-    )
     .optional(),
 });
