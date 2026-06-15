@@ -479,10 +479,7 @@ describe('eval run rows ui', () => {
 
   test('adds baseline stats and history when eval config has no run-health UI', () => {
     expect(
-      buildDisplayStats({
-        stats: [{ kind: 'cacheHits' }],
-        columnDefs: [],
-      }),
+      buildDisplayStats({ stats: [{ kind: 'cacheHits' }], columnDefs: [] }),
     ).toEqual([
       { kind: 'cases' },
       { kind: 'passRate', accent: true },
@@ -510,10 +507,7 @@ describe('eval run rows ui', () => {
       type: 'area',
       metrics: [{ source: 'column', key: 'costUsd', aggregate: 'avg' }],
     };
-    const charts = buildDisplayCharts({
-      charts: [usageChart],
-      columnDefs: [],
-    });
+    const charts = buildDisplayCharts({ charts: [usageChart], columnDefs: [] });
     expect(charts).toHaveLength(2);
     expect(charts[0]).toMatchObject({
       heading: 'Run History',
@@ -537,30 +531,33 @@ describe('eval run rows ui', () => {
   });
 
   test('infers usage stats and charts from runtime columns when eval metadata is missing', () => {
-    const columnDefs = mergeRunRuntimeColumnDefs([], [
-      {
-        cases: [
-          {
-            caseId: 'default',
-            evalId: 'demo',
-            evalKey: 'demo',
-            status: 'pass',
-            durationMs: 21_394,
-            columns: {
-              apiCalls: 12,
-              costUsd: 0.00065775,
-              inputTokens: 23_030,
-              outputTokens: 1_135,
-              totalTokens: 24_165,
-              cachedInputTokens: 7_168,
-              llmTurns: 3,
-              llmDurationMs: 22_882,
+    const columnDefs = mergeRunRuntimeColumnDefs(
+      [],
+      [
+        {
+          cases: [
+            {
+              caseId: 'default',
+              evalId: 'demo',
+              evalKey: 'demo',
+              status: 'pass',
+              durationMs: 21_394,
+              columns: {
+                apiCalls: 12,
+                costUsd: 0.00065775,
+                inputTokens: 23_030,
+                outputTokens: 1_135,
+                totalTokens: 24_165,
+                cachedInputTokens: 7_168,
+                llmTurns: 3,
+                llmDurationMs: 22_882,
+              },
+              trial: 0,
             },
-            trial: 0,
-          },
-        ],
-      },
-    ]);
+          ],
+        },
+      ],
+    );
 
     expect(
       buildDisplayStats({ stats: undefined, columnDefs }).map((stat) =>
@@ -583,6 +580,7 @@ describe('eval run rows ui', () => {
     ).toEqual([
       'Run History',
       'LLM Cost',
+      'LLM Turns',
       'LLM Input Tokens',
       'LLM Output Tokens',
     ]);

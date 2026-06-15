@@ -615,6 +615,22 @@ defineEval({
           tooltipExtras: undefined,
         },
         {
+          heading: 'LLM Turns',
+          hideIfNoValue: true,
+          dedupeConsecutiveValues: true,
+          type: 'bar',
+          metrics: [
+            {
+              source: 'column',
+              key: 'llmTurns',
+              aggregate: 'avg',
+              label: 'Turns',
+              color: 'accentDim',
+            },
+          ],
+          tooltipExtras: undefined,
+        },
+        {
           heading: 'LLM Input Tokens',
           hideIfNoValue: true,
           dedupeConsecutiveValues: true,

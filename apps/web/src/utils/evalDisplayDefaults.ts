@@ -154,11 +154,28 @@ const OUTPUT_TOKEN_CHART: EvalChartConfig = {
   ],
 };
 
+const LLM_TURNS_CHART: EvalChartConfig = {
+  heading: 'LLM Turns',
+  hideIfNoValue: true,
+  dedupeConsecutiveValues: true,
+  type: 'bar',
+  metrics: [
+    {
+      source: 'column',
+      key: 'llmTurns',
+      aggregate: 'avg',
+      label: 'Turns',
+      color: 'accentDim',
+    },
+  ],
+};
+
 const USAGE_CHART_CONFIGS = [
   {
     keys: ['costUsd', 'costUsdWithoutCache', 'costUsdWarmedCache'],
     chart: COST_CHART,
   },
+  { keys: ['llmTurns'], chart: LLM_TURNS_CHART },
   {
     keys: ['inputTokens', 'cachedInputTokens', 'cacheCreationInputTokens'],
     chart: INPUT_TOKEN_CHART,

@@ -277,6 +277,24 @@ export function appendDefaultCharts(params: {
     });
   }
 
+  if (activeKeys.has('llmTurns')) {
+    defaults.push({
+      heading: 'LLM Turns',
+      hideIfNoValue: true,
+      dedupeConsecutiveValues: true,
+      type: 'bar',
+      metrics: [
+        {
+          source: 'column',
+          key: 'llmTurns',
+          aggregate: 'avg',
+          label: 'Turns',
+          color: 'accentDim',
+        },
+      ],
+    });
+  }
+
   const inputTokenMetrics = [
     activeKeys.has('inputTokens')
       ? {
