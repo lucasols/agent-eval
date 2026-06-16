@@ -167,9 +167,8 @@ export const cacheRecordingOpSchema = z.discriminatedUnion('kind', [
 /** Single effect captured by a cache recording. */
 export type CacheRecordingOp = z.infer<typeof cacheRecordingOpSchema>;
 
-/** Captured observable effects + return value of a cached span body. */
-export const cacheRecordingSchema = z.object({
-  returnValue: z.unknown(),
+const cacheRecordingBaseSchema = z.object({
+  returnValue: z.unknown().optional(),
   finalAttributes: z.record(z.string(), z.unknown()),
   finalStatus: z.enum(['running', 'ok', 'error', 'cancelled']).optional(),
   finalError: traceSpanErrorSchema.optional(),
@@ -178,8 +177,18 @@ export const cacheRecordingSchema = z.object({
   finalWarnings: z.array(traceSpanWarningSchema).optional(),
   ops: z.array(cacheRecordingOpSchema),
 });
+
+/**
+ * Captured observable effects + return value of a cached span body.
+ *
+ * Persisted JSON omits object properties whose value is `undefined`; parsing
+ * normalizes an omitted `returnValue` back to an explicit undefined return.
+ */
+export const cacheRecordingSchema = cacheRecordingBaseSchema.transform(
+  (recording) => ({ ...recording, returnValue: recording.returnValue }),
+);
 /** Captured observable effects + return value of a cached span body. */
-export type CacheRecording = z.infer<typeof cacheRecordingSchema>;
+export type CacheRecording = z.output<typeof cacheRecordingSchema>;
 
 /** Persisted cache file containing metadata and a recording. */
 export const cacheEntrySchema = z.object({

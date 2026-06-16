@@ -475,15 +475,15 @@ export function addDefaultOutputs(params: {
     value: apiCalls.length > 0 ? apiCalls.length : undefined,
     activeKeys,
   });
-
-  if (calls.length === 0) return;
-
   assignIfMissing({
     outputs: params.outputs,
     key: 'llmTurns',
-    value: getMaxLlmTurns(calls),
+    value: calls.length === 0 ? 0 : getMaxLlmTurns(calls),
     activeKeys,
   });
+
+  if (calls.length === 0) return;
+
   assignIfMissing({
     outputs: params.outputs,
     key: 'costUsd',

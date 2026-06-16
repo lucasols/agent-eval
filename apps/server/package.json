@@ -10,9 +10,9 @@
     "eslint": "eslint ."
   },
   "dependencies": {
+    "@agent-evals/shared": "workspace:*",
     "@hono/node-server": "^1.14.3",
     "@hono/zod-validator": "^0.7.3",
-    "@agent-evals/shared": "workspace:*",
     "@ls-stack/agent-eval": "workspace:*",
     "hono": "^4.9.9",
     "launch-editor": "^2.13.2",
@@ -20,8 +20,8 @@
     "zod": "^4.1.11"
   },
   "devDependencies": {
-    "@types/node": "^24.7.2",
-    "typescript": "^5.9.2",
-    "vitest": "^3.2.4"
+    "@types/node": "^25.9.3",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.8"
   }
 }

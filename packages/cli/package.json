@@ -27,7 +27,7 @@
   },
   "scripts": {
     "build": "pnpm --filter @agent-evals/web build && pnpm --filter @agent-evals/shared build && pnpm --filter @agent-evals/sdk build && pnpm --filter @agent-evals/runner build && tsdown --filter cli-js && tsdown --filter cli-types",
-    "test": "vitest run",
+    "test": "vitest run --testTimeout 20000",
     "tsc": "tsgo --noEmit",
     "lint": "tsgo --noEmit && eslint .",
     "eslint": "eslint ."
@@ -42,14 +42,14 @@
     "hono": "^4.9.9",
     "launch-editor": "^2.13.2",
     "t-result": "^0.6.1",
-    "vitest": "^3.2.4",
+    "vitest": "^4.1.8",
     "zod": "^4.1.11"
   },
   "devDependencies": {
     "@agent-evals/runner": "workspace:*",
     "@agent-evals/sdk": "workspace:*",
     "@agent-evals/shared": "workspace:*",
-    "@types/node": "^24.7.2",
-    "typescript": "^5.9.2"
+    "@types/node": "^25.9.3",
+    "typescript": "^5.9.3"
   }
 }

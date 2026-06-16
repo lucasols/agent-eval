@@ -5,3 +5,5 @@ packages:
 allowBuilds:
   esbuild: true
   simple-git-hooks: true
+minimumReleaseAgeExclude:
+  - '@ls-stack/extended-lint@0.89.6'

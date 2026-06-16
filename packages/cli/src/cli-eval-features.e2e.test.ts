@@ -301,11 +301,11 @@ describe('CLI eval features', () => {
           status: 'pass',
         },
         {
-          message: 'high value refunds should inspect the receipt',
+          message: 'high value refunds should inspect the receipt once',
           status: 'pass',
         },
         {
-          message: 'high value refunds should open a finance escalation',
+          message: 'high value refunds should open one finance escalation',
           status: 'pass',
         },
       ]);
@@ -344,11 +344,11 @@ describe('CLI eval features', () => {
               "status": "pass",
             },
             {
-              "message": "high value refunds should inspect the receipt",
+              "message": "high value refunds should inspect the receipt once",
               "status": "pass",
             },
             {
-              "message": "high value refunds should open a finance escalation",
+              "message": "high value refunds should open one finance escalation",
               "status": "pass",
             },
           ],

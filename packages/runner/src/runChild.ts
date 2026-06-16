@@ -93,6 +93,11 @@ async function flushMessageSends(): Promise<void> {
   }
 }
 
+function disconnectFromParent(): void {
+  if (process.disconnect === undefined) return;
+  process.disconnect();
+}
+
 function installFatalRunChildErrorHandlers(): void {
   process.once('uncaughtException', (error) => {
     void reportFatalRunChildErrorAndExit(error);
@@ -325,4 +330,4 @@ await main().catch(async (error: unknown) => {
 });
 await flushMessageSends();
 disconnectExpected = true;
-process.disconnect();
+disconnectFromParent();

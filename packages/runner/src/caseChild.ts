@@ -55,6 +55,11 @@ async function flushMessageSends(): Promise<void> {
   }
 }
 
+function disconnectFromParent(): void {
+  if (process.disconnect === undefined) return;
+  process.disconnect();
+}
+
 function installFatalCaseChildErrorHandlers(): void {
   process.once('uncaughtException', (error) => {
     void reportFatalCaseChildErrorAndExit(error);
@@ -222,11 +227,11 @@ process.on('message', (message: unknown) => {
       sendMessage({ type: 'done', result });
       await flushMessageSends();
       disconnectExpected = true;
-      process.disconnect();
+      disconnectFromParent();
     })
     .catch(async (error: unknown) => {
       await handleFatalCaseChildError(error);
       disconnectExpected = true;
-      process.disconnect();
+      disconnectFromParent();
     });
 });

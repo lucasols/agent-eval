@@ -70,7 +70,7 @@ function matchesObjectSubset(
     if (!(key in received)) return false;
     const receivedValue = received[key];
 
-    if (isRecordLike(expectedValue) && !Array.isArray(expectedValue)) {
+    if (isRecordLike(expectedValue)) {
       if (!matchesObjectSubset(receivedValue, expectedValue)) return false;
       continue;
     }

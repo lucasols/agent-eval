@@ -42,7 +42,7 @@ const htmlReport = `<!doctype html>
   </body>
 </html>`;
 
-function createRefundSummaryPdf(): Uint8Array {
+function createRefundSummaryPdf(): Uint8Array<ArrayBuffer> {
   const stream = [
     'BT',
     '/F1 18 Tf',
@@ -75,7 +75,7 @@ function createRefundSummaryPdf(): Uint8Array {
   pdf += `xref\n0 ${String(objects.length + 1)}\n0000000000 65535 f \n${entries}\ntrailer\n<< /Size ${String(
     objects.length + 1,
   )} /Root 1 0 R >>\nstartxref\n${String(xrefStart)}\n%%EOF\n`;
-  return new TextEncoder().encode(pdf);
+  return new Uint8Array(new TextEncoder().encode(pdf));
 }
 
 defineEval({
