@@ -21,7 +21,10 @@ import {
 import { formatCostScenarioLabel } from '#src/components/LlmCostScenarioToolbar';
 import { StatusBadge } from '#src/components/StatusBadge';
 import { Tooltip } from '#src/components/Tooltip';
-import { openTextViewModal } from '#src/stores/modalStore';
+import {
+  openJsonFullscreenModal,
+  openTextViewModal,
+} from '#src/stores/modalStore';
 import { colors } from '#src/style/colors';
 import { inline, kicker, monoFont, stack } from '#src/style/helpers';
 import { formatDuration, formatNumber } from '#src/utils/formatters';
@@ -255,6 +258,72 @@ const StepPreviewLabel = styled.div`
   font-size: 9px;
 `;
 
+const RawStepDisclosure = styled.div`
+  border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-sm);
+  background: ${colors.bg.var};
+  overflow: hidden;
+`;
+
+const RawStepHeaderRow = styled.div`
+  ${inline({ justify: 'space-between', align: 'center', gap: 4 })}
+  min-height: 30px;
+`;
+
+const RawStepToggle = styled.button`
+  ${inline({ gap: 6, align: 'center' })}
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  border: none;
+  background: transparent;
+  color: ${colors.textMuted.var};
+  padding: 5px 8px;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: ${colors.surface.var};
+    color: ${colors.text.var};
+  }
+`;
+
+const RawStepCaret = styled.span`
+  ${inline({ align: 'center' })}
+  flex-shrink: 0;
+  color: ${colors.textDim.var};
+
+  & svg {
+    width: 13px;
+    height: 13px;
+  }
+`;
+
+const RawStepLabel = styled.span`
+  ${kicker};
+  color: inherit;
+  font-size: 9px;
+`;
+
+const RawStepActions = styled.div`
+  flex-shrink: 0;
+  padding-right: 5px;
+
+  & button {
+    width: 22px;
+    height: 22px;
+  }
+
+  & svg {
+    width: 12px;
+    height: 12px;
+  }
+`;
+
+const RawStepBody = styled.div`
+  padding: 0 8px 8px;
+`;
+
 const ErrorContainer = styled.div`
   color: ${colors.error.var};
 `;
@@ -372,41 +441,6 @@ function getStepPreviewItems(step: unknown): StepPreviewItem[] {
   return candidates.filter((item) => hasPreviewValue(item.value));
 }
 
-function setPreviewValue(
-  target: Record<string, unknown>,
-  key: string,
-  value: unknown,
-) {
-  if (!hasPreviewValue(value)) return;
-  target[key] = value;
-}
-
-function getStepPayloadPreview(step: unknown): unknown {
-  if (!isRecord(step)) return step;
-
-  const preview: Record<string, unknown> = {};
-  for (const key of [
-    'id',
-    'name',
-    'kind',
-    'status',
-    'parentId',
-    'startedAt',
-    'endedAt',
-  ]) {
-    setPreviewValue(preview, key, step[key]);
-  }
-
-  setPreviewValue(preview, 'payloadKeys', Object.keys(step));
-
-  const attributes = readPath(step, ['attributes']);
-  if (isRecord(attributes)) {
-    setPreviewValue(preview, 'attributeKeys', Object.keys(attributes));
-  }
-
-  return preview;
-}
-
 function readStepTitle(step: unknown, index: number): string {
   const name = readPath(step, ['name']);
   if (typeof name === 'string' && name.length > 0) {
@@ -512,6 +546,57 @@ function MessagesSection({
   );
 }
 
+function RawStepSection({ step }: { step: unknown }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <RawStepDisclosure>
+      <RawStepHeaderRow>
+        <RawStepToggle
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => {
+            setExpanded((value) => !value);
+          }}
+        >
+          <RawStepCaret>
+            {expanded ? <ChevronDown /> : <ChevronRight />}
+          </RawStepCaret>
+          <RawStepLabel>Raw step</RawStepLabel>
+        </RawStepToggle>
+        <RawStepActions>
+          <Tooltip content="View raw step fullscreen">
+            <IconButton
+              aria-label="View raw step fullscreen"
+              onClick={() => {
+                openJsonFullscreenModal({
+                  value: step,
+                  collapsed: 4,
+                  collapseStringsAfterLength: 120,
+                  enableClipboard: true,
+                });
+              }}
+            >
+              <Maximize2 />
+            </IconButton>
+          </Tooltip>
+        </RawStepActions>
+      </RawStepHeaderRow>
+      {expanded ? (
+        <RawStepBody>
+          <JsonViewer
+            value={step}
+            compact
+            maxHeight="raw"
+            collapsed={4}
+            fullscreen={false}
+          />
+        </RawStepBody>
+      ) : null}
+    </RawStepDisclosure>
+  );
+}
+
 function StepsSection({ steps }: { steps: unknown[] }) {
   if (steps.length === 0) return null;
   return (
@@ -538,16 +623,7 @@ function StepsSection({ steps }: { steps: unknown[] }) {
                   ))}
                 </StepPreviewWrapper>
               ) : null}
-              <StepPreviewField>
-                <StepPreviewLabel>Raw step</StepPreviewLabel>
-                <JsonViewer
-                  value={step}
-                  collapsedPreviewValue={getStepPayloadPreview(step)}
-                  compact
-                  maxHeight="raw"
-                  collapsed={4}
-                />
-              </StepPreviewField>
+              <RawStepSection step={step} />
             </StepCard>
           );
         })}

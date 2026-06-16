@@ -147,7 +147,6 @@ const ToggleButton = styled.button`
 
 type JsonViewerProps = {
   value: unknown;
-  collapsedPreviewValue?: unknown;
   compact?: boolean;
   maxHeight?: 'detail' | 'raw';
   collapsed?: JsonViewProps<object>['collapsed'];
@@ -308,7 +307,6 @@ function JsonContent({
  */
 export function JsonViewer({
   value,
-  collapsedPreviewValue,
   compact = false,
   maxHeight,
   collapsed = false,
@@ -324,15 +322,6 @@ export function JsonViewer({
     () => deserializeSerializedValue(value),
     [value],
   );
-  const previewValue = useMemo(
-    () =>
-      collapsedPreviewValue === undefined
-        ? undefined
-        : deserializeSerializedValue(collapsedPreviewValue),
-    [collapsedPreviewValue],
-  );
-  const inlineValue =
-    previewValue !== undefined && !expanded ? previewValue : displayValue;
   const rootStringValue =
     typeof displayValue === 'string'
       ? formatRootStringValue(displayValue)
@@ -351,15 +340,13 @@ export function JsonViewer({
     const observer = new ResizeObserver(measure);
     observer.observe(element);
     return () => observer.disconnect();
-  }, [maxHeight, expanded, inlineValue]);
+  }, [maxHeight, expanded, displayValue]);
 
   useEffect(() => {
     if (!maxHeight) setExpanded(false);
   }, [maxHeight]);
 
-  const showToggle =
-    maxHeight !== undefined &&
-    (overflowing || expanded || previewValue !== undefined);
+  const showToggle = maxHeight !== undefined && (overflowing || expanded);
 
   return (
     <ViewerWrapper>
@@ -408,7 +395,7 @@ export function JsonViewer({
         expanded={expanded}
       >
         <JsonContent
-          value={inlineValue}
+          value={displayValue}
           collapsed={collapsed}
           collapseStringsAfterLength={collapseStringsAfterLength}
           enableClipboard={enableClipboard}
