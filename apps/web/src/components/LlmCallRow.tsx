@@ -8,6 +8,7 @@ import {
 } from '@agent-evals/shared';
 import { ChevronDown, ChevronRight, GitFork, Maximize2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
+import { resultify } from 't-result';
 import { styled } from 'vindur';
 import { Button } from '#src/components/Button';
 import { ErrorStackTrace } from '#src/components/ErrorStackTrace';
@@ -240,6 +241,20 @@ const StepHeader = styled.div`
   font-size: 9.5px;
 `;
 
+const StepPreviewWrapper = styled.div`
+  ${stack({ gap: 8 })}
+`;
+
+const StepPreviewField = styled.div`
+  ${stack({ gap: 5 })}
+`;
+
+const StepPreviewLabel = styled.div`
+  ${kicker};
+  color: ${colors.accentDim.var};
+  font-size: 9px;
+`;
+
 const ErrorContainer = styled.div`
   color: ${colors.error.var};
 `;
@@ -266,6 +281,138 @@ function safeStringify(value: unknown): string {
   if (value === null) return 'null';
   if (value === undefined) return LLM_CALL_EM_DASH;
   return JSON.stringify(value);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function readPath(value: unknown, path: string[]): unknown {
+  let current = value;
+  for (const part of path) {
+    if (!isRecord(current)) return undefined;
+    current = current[part];
+  }
+  return current;
+}
+
+function parseJsonRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== 'string') return null;
+
+  const parsed = resultify((): unknown => JSON.parse(value));
+  if (parsed.error || !isRecord(parsed.value)) return null;
+  return parsed.value;
+}
+
+function getFirstDefined(values: unknown[]): unknown {
+  for (const value of values) {
+    if (value !== undefined) return value;
+  }
+  return undefined;
+}
+
+function hasPreviewValue(value: unknown): boolean {
+  if (value === undefined || value === null) return false;
+  if (typeof value === 'string') return value.length > 0;
+  if (Array.isArray(value)) return value.length > 0;
+  if (isRecord(value)) return Object.keys(value).length > 0;
+  return true;
+}
+
+function readStepMastraOutput(step: unknown): Record<string, unknown> | null {
+  const serialized =
+    getFirstDefined([
+      readPath(step, ['attributes', 'genAI', 'mastra.model_step.output']),
+      readPath(step, ['genAI', 'mastra.model_step.output']),
+    ]) ?? null;
+  return parseJsonRecord(serialized);
+}
+
+function isStepOutputRecord(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) return false;
+  return 'text' in value || 'content' in value || 'toolCalls' in value;
+}
+
+function getStepOutput(
+  step: unknown,
+  mastraOutput: Record<string, unknown> | null,
+): unknown {
+  const output = getFirstDefined([
+    readPath(step, ['output']),
+    readPath(step, ['attributes', 'output']),
+  ]);
+  if (output !== undefined) return output;
+  if (isStepOutputRecord(step)) return step;
+  return mastraOutput ?? undefined;
+}
+
+type StepPreviewItem = { label: string; value: unknown };
+
+function getStepPreviewItems(step: unknown): StepPreviewItem[] {
+  const mastraOutput = readStepMastraOutput(step);
+  const output = getStepOutput(step, mastraOutput);
+  const reasoning = getFirstDefined([
+    readPath(step, ['reasoning']),
+    readPath(step, ['attributes', 'reasoning']),
+    readPath(output, ['reasoning']),
+    mastraOutput === null ? undefined : mastraOutput.reasoning,
+  ]);
+  const candidates: StepPreviewItem[] = [
+    {
+      label: 'Input',
+      value: getFirstDefined([
+        readPath(step, ['input']),
+        readPath(step, ['attributes', 'input']),
+      ]),
+    },
+    { label: 'Output', value: output },
+    { label: 'Reasoning', value: reasoning },
+  ];
+
+  return candidates.filter((item) => hasPreviewValue(item.value));
+}
+
+function setPreviewValue(
+  target: Record<string, unknown>,
+  key: string,
+  value: unknown,
+) {
+  if (!hasPreviewValue(value)) return;
+  target[key] = value;
+}
+
+function getStepPayloadPreview(step: unknown): unknown {
+  if (!isRecord(step)) return step;
+
+  const preview: Record<string, unknown> = {};
+  for (const key of [
+    'id',
+    'name',
+    'kind',
+    'status',
+    'parentId',
+    'startedAt',
+    'endedAt',
+  ]) {
+    setPreviewValue(preview, key, step[key]);
+  }
+
+  setPreviewValue(preview, 'payloadKeys', Object.keys(step));
+
+  const attributes = readPath(step, ['attributes']);
+  if (isRecord(attributes)) {
+    setPreviewValue(preview, 'attributeKeys', Object.keys(attributes));
+  }
+
+  return preview;
+}
+
+function readStepTitle(step: unknown, index: number): string {
+  const name = readPath(step, ['name']);
+  if (typeof name === 'string' && name.length > 0) {
+    return `Step ${index + 1} · ${name}`;
+  }
+  return `Step ${index + 1}`;
 }
 
 function formatMetricValue(metric: LlmCallMetricValue): ReactNode {
@@ -371,17 +518,39 @@ function StepsSection({ steps }: { steps: unknown[] }) {
     <RawSectionWrapper>
       <RawLabel>Steps</RawLabel>
       <StepsWrapper>
-        {steps.map((step, index) => (
-          <StepCard key={String(index)}>
-            <StepHeader>Step {index + 1}</StepHeader>
-            <JsonViewer
-              value={step}
-              compact
-              maxHeight="raw"
-              collapsed={4}
-            />
-          </StepCard>
-        ))}
+        {steps.map((step, index) => {
+          const previewItems = getStepPreviewItems(step);
+          return (
+            <StepCard key={String(index)}>
+              <StepHeader>{readStepTitle(step, index)}</StepHeader>
+              {previewItems.length > 0 ? (
+                <StepPreviewWrapper>
+                  {previewItems.map((item) => (
+                    <StepPreviewField key={item.label}>
+                      <StepPreviewLabel>{item.label}</StepPreviewLabel>
+                      <JsonViewer
+                        value={item.value}
+                        compact
+                        maxHeight="detail"
+                        collapsed={3}
+                      />
+                    </StepPreviewField>
+                  ))}
+                </StepPreviewWrapper>
+              ) : null}
+              <StepPreviewField>
+                <StepPreviewLabel>Raw step</StepPreviewLabel>
+                <JsonViewer
+                  value={step}
+                  collapsedPreviewValue={getStepPayloadPreview(step)}
+                  compact
+                  maxHeight="raw"
+                  collapsed={4}
+                />
+              </StepPreviewField>
+            </StepCard>
+          );
+        })}
       </StepsWrapper>
     </RawSectionWrapper>
   );
