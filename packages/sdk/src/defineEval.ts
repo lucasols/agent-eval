@@ -7,8 +7,13 @@ import type { EvalDefinition, EvalOutputs } from './types.ts';
  * Consumers usually access these entries through `getEvalRegistry()`.
  */
 export type EvalRegistryEntry = {
+  /** Stable eval identifier authored in `defineEval(...)`. */
   id: string;
+  /** Optional human-readable eval name. */
   title?: string;
+  /** Optional short summary describing what the eval covers. */
+  description?: string;
+  /** Read the registered definition without erasing its input/output generics. */
   use: <R>(
     fn: <TInput, TOutputs extends EvalOutputs>(
       def: EvalDefinition<TInput, TOutputs>,
@@ -54,6 +59,7 @@ export function defineEval<
   getEvalRegistry().set(definition.id, {
     id: definition.id,
     title: definition.title,
+    description: definition.description,
     use: (fn) => fn(definition),
   });
 }

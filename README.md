@@ -47,6 +47,7 @@ pnpm add -D @ls-stack/agent-eval zod
    defineEval({
      id: 'my-agent',
      title: 'My Agent',
+     description: 'Checks the agent responds appropriately to common messages.',
      cases: [
        { id: 'greeting', input: { message: 'hello' } },
        { id: 'farewell', input: { message: 'bye' } },
@@ -89,7 +90,7 @@ pnpm add -D @ls-stack/agent-eval zod
 
    Use `agent-evals show-runs` to print saved run directories and stable artifact file paths. Run ids can be full timestamp ids, short ids such as `r0`, or `latest`.
 
-   Run artifacts are persisted under `.agent-evals/runs/<run-id>/` with `run.json`, `summary.json`, per-case `cases.jsonl`, case detail JSON files, and trace JSON files for the executed cases. In `run.json`, targeted evals are recorded by exact `evalKeys` (`filePath + evalId`) rather than authored eval ids, so duplicate eval ids stay unambiguous. Temporary runs are persisted and visible while present, then deleted before the next run starts unless promoted to durable history from the app run drawer.
+   Run artifacts are persisted under `.agent-evals/runs/<run-id>/` with `run.json`, `summary.json`, per-case `cases.jsonl`, case detail JSON files, and trace JSON files for the executed cases. In `run.json`, the current git `commitSha` and `branchName` are captured when available, and targeted evals are recorded by exact `evalKeys` (`filePath + evalId`) rather than authored eval ids, so duplicate eval ids stay unambiguous. Temporary runs are persisted and visible while present, then deleted before the next run starts unless promoted to durable history from the app run drawer.
 
 A complete working example lives at [`examples/basic-agent`](./examples/basic-agent).
 
@@ -233,6 +234,7 @@ export const config: AgentEvalsConfig = {
 | --- | --- | --- |
 | `id` | yes | Eval id, unique within one eval file |
 | `title` |  | Display title (defaults to a humanized version of `id`) |
+| `description` |  | Short summary shown in eval discovery surfaces and eval cards |
 | `tags` |  | Eval tags inherited by every case |
 | `removeTags` |  | Workspace tags this eval should not inherit |
 | `cache` |  | Per-eval cache controls: `{ read?: boolean; store?: boolean }` |

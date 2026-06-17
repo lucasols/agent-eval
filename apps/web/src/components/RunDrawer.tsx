@@ -809,6 +809,8 @@ export function RunDrawer() {
           <MetaList>
             <MetaKey>Run id</MetaKey>
             <MetaValue>{manifest.id}</MetaValue>
+            <MetaKey>Branch</MetaKey>
+            <MetaValue>{manifest.branchName ?? '\u2014'}</MetaValue>
             <MetaKey>Run folder</MetaKey>
             <CopyableMetaValue>
               <Tooltip content={runFolderPath}>

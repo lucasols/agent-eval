@@ -140,6 +140,9 @@ type RefundOutputs = z.infer<typeof outputsSchema>;
 
 defineEval<RefundInput, RefundOutputs>({
   id: 'refund-workflow',
+  title: 'Refund Workflow',
+  description:
+    'Checks the refund agent against representative support requests.',
   cases: [
     { id: 'simple-text', input: { message: 'I want a refund for order #123' } },
   ],
@@ -161,7 +164,7 @@ defineEval<RefundInput, RefundOutputs>({
 
 `execute` usually just calls the product code. Push any placeholder `evalTracer.span(...)` wrappers out of the eval and into the product module they describe so production runs get the same trajectory. Only keep tracing inside `execute` when the behavior being measured is eval-specific (e.g. a judge-only sub-step with no production analogue).
 
-Case `id` values anchor historical runs, caches, and manual scores — keep them stable. See `EvalDefinition` / `EvalCase` in the types for every supported field.
+Case `id` values anchor historical runs, caches, and manual scores — keep them stable. Use eval `title` for the display name and `description` for a short discovery/card summary. See `EvalDefinition` / `EvalCase` in the types for every supported field.
 
 ### Manual input
 
@@ -278,7 +281,7 @@ Mental model:
 
 ## Artifacts
 
-Run output lives under `.agent-evals/runs/<run-id>/`. Cache payloads live under `.agent-evals/cache/<sanitizedNamespace>/<keyHash>.json.br` with namespace index sidecars next to them. Do not rely on a specific cache filename when authoring evals; configure cache namespaces manually in eval code, then use `agent-evals cache list` to inspect persisted namespace/key entries or `agent-evals cache repair` to clean orphaned cache artifacts. Files in a run directory include run metadata, a run summary, per-case results, and per-case trace JSON. Inspect run files when debugging persisted output, costs, columns, traces, or failures; inspect cache entries when debugging replayed span/value-cache results. Targeted evals in `run.json` are recorded by exact `evalKeys` (`filePath + evalId`) rather than authored eval ids, so duplicate eval ids stay unambiguous in saved history. Temporary runs use the same directory layout, but are removed before the next run of any kind starts. When a saved case needs to be handed to another agent, the app can copy the saved case detail path or the saved run folder path directly.
+Run output lives under `.agent-evals/runs/<run-id>/`. Cache payloads live under `.agent-evals/cache/<sanitizedNamespace>/<keyHash>.json.br` with namespace index sidecars next to them. Do not rely on a specific cache filename when authoring evals; configure cache namespaces manually in eval code, then use `agent-evals cache list` to inspect persisted namespace/key entries or `agent-evals cache repair` to clean orphaned cache artifacts. Files in a run directory include run metadata, a run summary, per-case results, and per-case trace JSON. Inspect run files when debugging persisted output, costs, columns, traces, or failures; inspect cache entries when debugging replayed span/value-cache results. `run.json` captures the current git `commitSha` and `branchName` when available; detached HEAD, non-git workspaces, and legacy runs use `null`. Targeted evals in `run.json` are recorded by exact `evalKeys` (`filePath + evalId`) rather than authored eval ids, so duplicate eval ids stay unambiguous in saved history. Temporary runs use the same directory layout, but are removed before the next run of any kind starts. When a saved case needs to be handed to another agent, the app can copy the saved case detail path or the saved run folder path directly.
 
 Use `agent-evals show-runs` when you need stable file paths before reading saved output:
 

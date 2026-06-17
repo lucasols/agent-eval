@@ -99,6 +99,8 @@ export const evalSummarySchema = z.object({
   key: z.string().default(''),
   id: z.string(),
   title: z.string().optional(),
+  /** Short authored summary describing what this eval covers. */
+  description: z.string().optional(),
   /** Eval file path relative to the active workspace root. */
   filePath: z.string(),
   /** Effective eval-level tags inherited by every case in this eval. */

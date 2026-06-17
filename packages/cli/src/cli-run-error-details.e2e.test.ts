@@ -61,12 +61,12 @@ describe('CLI run error details', () => {
             at async readFile (node:internal/fs/promises:1279:14)
             at async loadRefundPolicyDataset (file://<workspace>/evals/support/playground/run-error-details.eval.ts?v=<source-fingerprint>&agent-evals-isolate=<run-id>:5:10)
             at async Object.cases (file://<workspace>/evals/support/playground/run-error-details.eval.ts?v=<source-fingerprint>&agent-evals-isolate=<run-id>:18:33)
-            at async runWithEvalClock.freezeTime (file://<repo>/packages/runner/src/runOrchestration.ts:565:29)
+            at async runWithEvalClock.freezeTime (file://<repo>/packages/runner/src/runOrchestration.ts:566:29)
             at async runWithEvalClock (file://<repo>/packages/sdk/src/runtime.ts:415:10)
-            at async file://<repo>/packages/runner/src/runOrchestration.ts:561:21
-            at async file://<repo>/packages/runner/src/runOrchestration.ts:489:13
+            at async file://<repo>/packages/runner/src/runOrchestration.ts:562:21
+            at async file://<repo>/packages/runner/src/runOrchestration.ts:490:13
             at async runInEvalRuntimeScope (file://<repo>/packages/sdk/src/runtime.ts:849:12)
-            at async file://<repo>/packages/runner/src/runOrchestration.ts:488:11",
+            at async file://<repo>/packages/runner/src/runOrchestration.ts:489:11",
           "summary": {
             "cancelledCases": 0,
             "errorCases": 0,
@@ -75,12 +75,12 @@ describe('CLI run error details', () => {
             at async readFile (node:internal/fs/promises:1279:14)
             at async loadRefundPolicyDataset (file://<workspace>/evals/support/playground/run-error-details.eval.ts?v=<source-fingerprint>&agent-evals-isolate=<run-id>:5:10)
             at async Object.cases (file://<workspace>/evals/support/playground/run-error-details.eval.ts?v=<source-fingerprint>&agent-evals-isolate=<run-id>:18:33)
-            at async runWithEvalClock.freezeTime (file://<repo>/packages/runner/src/runOrchestration.ts:565:29)
+            at async runWithEvalClock.freezeTime (file://<repo>/packages/runner/src/runOrchestration.ts:566:29)
             at async runWithEvalClock (file://<repo>/packages/sdk/src/runtime.ts:415:10)
-            at async file://<repo>/packages/runner/src/runOrchestration.ts:561:21
-            at async file://<repo>/packages/runner/src/runOrchestration.ts:489:13
+            at async file://<repo>/packages/runner/src/runOrchestration.ts:562:21
+            at async file://<repo>/packages/runner/src/runOrchestration.ts:490:13
             at async runInEvalRuntimeScope (file://<repo>/packages/sdk/src/runtime.ts:849:12)
-            at async file://<repo>/packages/runner/src/runOrchestration.ts:488:11",
+            at async file://<repo>/packages/runner/src/runOrchestration.ts:489:11",
             "failedCases": 0,
             "passedCases": 0,
             "runId": "<run-id>",

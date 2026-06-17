@@ -25,6 +25,11 @@ export const runManifestSchema = z.object({
    */
   commitSha: z.string().nullable().optional().default(null),
   /**
+   * Git branch name for the workspace when the run started. Detached HEAD,
+   * non-git workspaces, and older persisted runs use null.
+   */
+  branchName: z.string().nullable().optional().default(null),
+  /**
    * Eval-file fingerprints captured for this run, keyed by exact eval key.
    * Older persisted runs may use authored eval ids or omit this field.
    */

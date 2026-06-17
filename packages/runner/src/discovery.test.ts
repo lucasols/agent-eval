@@ -38,21 +38,21 @@ defineEval({
   execute: () => {
     setOrgHtmlVisualization({
       title: 'Nested output title',
+      description: 'Nested output description',
     });
   },
   title: 'Authored Eval Title',
+  description: 'Authored eval description',
 });
 `,
       ),
     ).toEqual([
-      {
-        filePath: 'evals/kanban.eval.ts',
-        id: 'reuse-existing-stage-field',
-      },
+      { filePath: 'evals/kanban.eval.ts', id: 'reuse-existing-stage-field' },
       {
         filePath: 'evals/kanban.eval.ts',
         id: 'top-level-title',
         title: 'Authored Eval Title',
+        description: 'Authored eval description',
       },
     ]);
   });
@@ -193,6 +193,7 @@ defineEval({ id: 'duplicate-eval', execute: () => {} });
 defineEval({
   id: 'created-eval',
   title: 'Created Eval',
+  description: 'Covers eval discovery refresh metadata',
   execute: () => {},
 });
 `,
@@ -203,6 +204,9 @@ defineEval({
         'evals/nested/created.eval.ts',
       );
       expect(runner.getEval('created-eval')?.title).toBe('Created Eval');
+      expect(runner.getEval('created-eval')?.description).toBe(
+        'Covers eval discovery refresh metadata',
+      );
     } finally {
       await runner.close();
       process.chdir(previousCwd);

@@ -23,6 +23,7 @@ function manifest(id: string, startedAt: string): RunManifest {
     startedAt,
     endedAt: startedAt,
     commitSha: null,
+    branchName: null,
     evalSourceFingerprints: {},
     target: { mode: 'all' },
     trials: 1,

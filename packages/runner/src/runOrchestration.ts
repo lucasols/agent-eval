@@ -55,6 +55,7 @@ export type EvalMeta = {
   key: string;
   id: string;
   title?: string;
+  description?: string;
   filePath: string;
   tags: string[];
   sourceFilePath: string;

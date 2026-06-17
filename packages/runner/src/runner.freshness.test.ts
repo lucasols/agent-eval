@@ -457,6 +457,67 @@ defineEval({
     }
   });
 
+  test('records the current git branch on created runs', async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), 'agent-evals-runner-branch-name-'),
+    );
+    createdWorkspaces.push(workspacePath);
+
+    await mkdir(join(workspacePath, 'evals'), { recursive: true });
+    await writeFile(
+      join(workspacePath, 'agent-evals.config.ts'),
+      `export default {
+  include: ['evals/**/*.eval.ts'],
+};
+`,
+    );
+    await writeFile(
+      join(workspacePath, 'evals', 'branch.eval.ts'),
+      `import { defineEval } from '@agent-evals/sdk';
+
+defineEval({
+  id: 'branch-eval',
+  title: 'Branch Eval',
+  cases: [{ id: 'case-1', input: {} }],
+  execute: async () => {},
+});
+`,
+    );
+    runGit(workspacePath, ['init']);
+    runGit(workspacePath, ['config', 'user.email', 'ci@example.com']);
+    runGit(workspacePath, ['config', 'user.name', 'CI']);
+    runGit(workspacePath, ['add', '.']);
+    runGit(workspacePath, ['commit', '-m', 'initial']);
+    runGit(workspacePath, ['checkout', '-b', 'feature/branch-recording']);
+
+    const previousCwd = process.cwd();
+    process.chdir(workspacePath);
+    let runner: ReturnType<typeof createRunner> | undefined;
+
+    try {
+      const activeRunner = createRunner({ watchForChanges: false });
+      runner = activeRunner;
+      await activeRunner.init();
+
+      const run = await activeRunner.startRun({
+        target: { mode: 'evalIds', evalIds: ['branch-eval'] },
+        trials: 1,
+      });
+      await expect
+        .poll(() => activeRunner.getRun(run.manifest.id)?.manifest.status, {
+          timeout: 10_000,
+        })
+        .toBe('completed');
+
+      expect(activeRunner.getRun(run.manifest.id)?.manifest).toMatchObject({
+        branchName: 'feature/branch-recording',
+      });
+    } finally {
+      await runner?.close();
+      process.chdir(previousCwd);
+    }
+  }, 10_000);
+
   test('marks an eval outdated when its latest run is old and from another commit', async () => {
     const evalKey = 'evals%2Foutdated.eval.ts#outdated-eval';
     const workspacePath = await mkdtemp(

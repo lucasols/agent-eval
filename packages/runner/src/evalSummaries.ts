@@ -13,6 +13,7 @@ type EvalSummaryMeta = Pick<
   | 'key'
   | 'id'
   | 'title'
+  | 'description'
   | 'filePath'
   | 'tags'
   | 'columnDefs'

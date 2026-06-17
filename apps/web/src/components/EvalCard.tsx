@@ -87,11 +87,11 @@ import {
 } from '#src/utils/evalStats';
 import { getFreshnessTooltip } from '#src/utils/freshness';
 import { runTargetsEval as runTargetsEvalLocal } from '#src/utils/runTargeting';
+import { mergeRunRuntimeColumnDefs } from '#src/utils/runtimeColumnDefs';
 import {
   readScoreHistoryCollapsed,
   writeScoreHistoryCollapsed,
 } from '#src/utils/scoreHistoryCollapsed';
-import { mergeRunRuntimeColumnDefs } from '#src/utils/runtimeColumnDefs';
 import { shouldShowStatDisplay } from '#src/utils/statVisibility';
 
 type EvalCardProps = { evalSummary: EvalSummary; mode: 'single' | 'stacked' };
@@ -184,6 +184,14 @@ const FilePath = styled.div`
   ${ellipsis};
   font-size: 11.5px;
   color: ${colors.textMuted.var};
+`;
+
+const Description = styled.p`
+  color: ${colors.textMuted.var};
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0;
+  max-width: 820px;
 `;
 
 const HeaderRight = styled.div`
@@ -908,6 +916,9 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
                   <FilePath>{evalSummary.filePath}</FilePath>
                 </Tooltip>
               )}
+              {evalSummary.description ? (
+                <Description>{evalSummary.description}</Description>
+              ) : null}
               <TagChips tags={evalSummary.tags ?? []} />
             </TitleBlock>
           </HeaderLeft>

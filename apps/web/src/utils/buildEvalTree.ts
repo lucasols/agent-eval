@@ -308,8 +308,8 @@ export function getTagBreakdown(
 
 /**
  * Filter evals by a free-text query using fuzzy matching. Matches against the
- * eval id, the resolved title, and the file path so folder/file names are
- * searchable too. Returns the input unchanged when the query is empty.
+ * eval id, the resolved title, description, and the file path so folder/file
+ * names are searchable too. Returns the input unchanged when the query is empty.
  */
 export function filterEvalsBySearchQuery(
   evals: EvalSummary[],
@@ -320,7 +320,8 @@ export function filterEvalsBySearchQuery(
     items: evals,
     searchQuery: query,
     uFuzzy: fuzzySearchInstance,
-    getStringToMatch: (ev) => `${getEvalTitle(ev)} ${ev.id} ${ev.filePath}`,
+    getStringToMatch: (ev) =>
+      `${getEvalTitle(ev)} ${ev.description ?? ''} ${ev.id} ${ev.filePath}`,
   });
 }
 

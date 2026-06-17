@@ -8,6 +8,7 @@ import {
 defineEval<WorkflowInput, RefundWorkflowOutputs>({
   id: 'refund-workflow',
   title: 'Refund Workflow',
+  description: 'Exercises text, image, and voice refund requests end to end.',
   tags: ['refunds'],
   cases: [
     {

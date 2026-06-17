@@ -3,7 +3,10 @@ import { spawnSync } from 'node:child_process';
 type GitCommandResult = { status: number | null; stdout: string };
 
 /** Snapshot of the current workspace git state used for eval freshness. */
-export type GitWorktreeState = { commitSha: string | null };
+export type GitWorktreeState = {
+  commitSha: string | null;
+  branchName: string | null;
+};
 
 function runGitCommand(
   workspaceRoot: string,
@@ -25,11 +28,19 @@ export function readGitWorktreeState(workspaceRoot: string): GitWorktreeState {
     '--is-inside-work-tree',
   ]);
   if (insideWorktree.status !== 0 || insideWorktree.stdout !== 'true') {
-    return { commitSha: null };
+    return { commitSha: null, branchName: null };
   }
 
   const commitResult = runGitCommand(workspaceRoot, ['rev-parse', 'HEAD']);
   const commitSha = commitResult.status === 0 ? commitResult.stdout : null;
+  const branchResult = runGitCommand(workspaceRoot, [
+    'branch',
+    '--show-current',
+  ]);
+  const branchName =
+    branchResult.status === 0 && branchResult.stdout.length > 0
+      ? branchResult.stdout
+      : null;
 
-  return { commitSha };
+  return { commitSha, branchName };
 }

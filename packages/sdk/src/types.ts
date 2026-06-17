@@ -384,6 +384,12 @@ type EvalDefinitionBase<
    */
   title?: string;
   /**
+   * Optional short summary shown in discovery surfaces such as the CLI list and
+   * eval cards. Use it to explain the behavior, workflow, or risk area this
+   * eval covers.
+   */
+  description?: string;
+  /**
    * Tags applied to every case in this eval, in addition to workspace-wide
    * tags from `agent-evals.config.ts`.
    */

@@ -1,4 +1,9 @@
-import type { CellValue, ColumnDef, FileRef } from '@agent-evals/shared';
+import type {
+  CellValue,
+  ColumnDef,
+  ColumnFormat,
+  FileRef,
+} from '@agent-evals/shared';
 import { Code2, Download, Eye, FileCode2, FileText } from 'lucide-react';
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -360,6 +365,10 @@ export function FormattedCellValue({
     );
   }
 
+  const fileRef = isFileRef(value) ? value : undefined;
+  const fileFormat =
+    fileRef === undefined ? undefined : getEffectiveFileRefFormat(def, fileRef);
+
   if (
     typeof value === 'string' &&
     shouldRenderAsMarkdown({ def, value, inferMarkdown })
@@ -372,52 +381,55 @@ export function FormattedCellValue({
     );
   }
 
-  if (def.format === 'image' && isFileRef(value)) {
+  if (fileFormat === 'image' && fileRef !== undefined) {
     return (
       <ImageCell
-        src={getFileUrl(value)}
+        src={getFileUrl(fileRef)}
         alt={def.label}
       />
     );
   }
 
-  if ((def.format === 'html' || def.format === 'pdf') && isFileRef(value)) {
+  if (
+    (fileFormat === 'html' || fileFormat === 'pdf') &&
+    fileRef !== undefined
+  ) {
     return (
       <ArtifactPreviewCell
-        kind={def.format}
-        src={getFileUrl(value)}
+        kind={fileFormat}
+        src={getFileUrl(fileRef)}
         title={def.label}
-        fileName={getFileLabel(value)}
-        sizeBytes={value.sizeBytes}
+        fileName={getFileLabel(fileRef)}
+        sizeBytes={fileRef.sizeBytes}
       />
     );
   }
 
-  if (def.format === 'audio' && isFileRef(value)) {
+  if (fileFormat === 'audio' && fileRef !== undefined) {
     return (
       <AudioValue
         controls
-        src={getFileUrl(value)}
+        src={getFileUrl(fileRef)}
       />
     );
   }
 
-  if (def.format === 'video' && isFileRef(value)) {
+  if (fileFormat === 'video' && fileRef !== undefined) {
     return (
       <VideoValue
         controls
-        src={getFileUrl(value)}
+        src={getFileUrl(fileRef)}
       />
     );
   }
 
-  if (def.format === 'file' && isFileRef(value)) {
+  if (fileFormat === 'file' && fileRef !== undefined) {
     return (
       <ArtifactDownloadCell
-        src={getFileUrl(value)}
+        src={getFileUrl(fileRef)}
         title={def.label}
-        fileName={getFileLabel(value)}
-        sizeBytes={value.sizeBytes}
+        fileName={getFileLabel(fileRef)}
+        sizeBytes={fileRef.sizeBytes}
       />
     );
   }
@@ -682,6 +694,30 @@ function formatArtifactSubtitleText({
   fileName: string;
 }): string {
   return `${actionLabel} - ${fileName}`;
+}
+
+export function getEffectiveFileRefFormat(
+  def: Pick<ColumnDef, 'format'>,
+  ref: FileRef,
+): ColumnFormat {
+  if (def.format !== undefined) return def.format;
+  return inferFileRefFormat(ref.mimeType);
+}
+
+function inferFileRefFormat(mimeType: string | undefined): ColumnFormat {
+  const normalized = normalizeMimeType(mimeType);
+  if (normalized === 'application/pdf') return 'pdf';
+  if (normalized === 'text/html' || normalized === 'application/xhtml+xml') {
+    return 'html';
+  }
+  if (normalized.startsWith('image/')) return 'image';
+  if (normalized.startsWith('audio/')) return 'audio';
+  if (normalized.startsWith('video/')) return 'video';
+  return 'file';
+}
+
+function normalizeMimeType(mimeType: string | undefined): string {
+  return mimeType?.split(';')[0]?.trim().toLowerCase() ?? '';
 }
 
 function formatBytes(sizeBytes: number | undefined): string | undefined {

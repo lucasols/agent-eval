@@ -471,6 +471,7 @@ export function createRunner({
           for (const meta of discoveredMetas) {
             const discoveredEntry = loadedRegistry?.get(meta.id);
             const title = meta.title;
+            const description = meta.description;
             let columnDefs = buildDeclaredColumnDefs(
               undefined,
               undefined,
@@ -546,6 +547,7 @@ export function createRunner({
               key,
               id: meta.id,
               title,
+              description,
               filePath: relativeFilePath,
               tags,
               sourceFilePath: meta.filePath,
@@ -595,6 +597,7 @@ export function createRunner({
         startedAt: now,
         endedAt: null,
         commitSha: gitState.commitSha,
+        branchName: gitState.branchName,
         evalSourceFingerprints: {},
         target: buildPersistedRunTarget({
           target: request.target,

@@ -103,6 +103,7 @@ test('persists child stderr when the run child exits before sending a terminal e
       startedAt: new Date().toISOString(),
       endedAt: null,
       commitSha: null,
+      branchName: null,
       evalSourceFingerprints: {},
       target: { mode: 'all' },
       trials: 1,

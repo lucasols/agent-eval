@@ -367,6 +367,9 @@ async function commandList(args: CliArgs): Promise<void> {
     });
     const title = getEvalTitle(ev);
     console.info(`  ${title}`);
+    if (ev.description !== undefined) {
+      console.info(`    description: ${ev.description}`);
+    }
     console.info(`    id: ${ev.id}`);
     console.info(`    file: ${ev.filePath}`);
     if (displayStatus !== 'pending') {

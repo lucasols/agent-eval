@@ -18,6 +18,7 @@ describe('CLI discovery', () => {
       expect(result.stderr).toBe('');
       expect(result.stdout).toContain('Alpha Eval');
       expect(result.stdout).toContain('alpha-eval');
+      expect(result.stdout).toContain('Covers the happy-path alpha workflow');
       expect(result.stdout).toContain('Beta Eval');
       expect(result.stdout).toContain('beta-eval');
       expect(normalizeTextSnapshot(workspacePath, result.stdout))
@@ -25,6 +26,7 @@ describe('CLI discovery', () => {
         "Discovered evals:
 
           Alpha Eval
+            description: Covers the happy-path alpha workflow
             id: alpha-eval
             file: evals/alpha.eval.ts
 
@@ -183,6 +185,7 @@ async function createDiscoveryFixture(workspacePath: string): Promise<void> {
 defineEval({
   id: 'alpha-eval',
   title: 'Alpha Eval',
+  description: 'Covers the happy-path alpha workflow',
   cases: [{ id: 'alpha-case', input: {} }],
 });
 `,

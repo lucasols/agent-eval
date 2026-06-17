@@ -198,6 +198,18 @@ const RunIdBadge = styled.span`
   line-height: 1;
 `;
 
+const BranchBadge = styled.span`
+  ${monoFont};
+  ${ellipsis};
+  max-width: 180px;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  background: ${colors.surface.var};
+  color: ${colors.textMuted.var};
+  font-size: 10.5px;
+  line-height: 1;
+`;
+
 const CasesChip = styled.span`
   ${kicker};
   padding: 3px 6px;
@@ -568,6 +580,11 @@ function RunGroup({
             <RunTime latest={isLatest}>
               {formatTimestamp(manifest.startedAt)}
             </RunTime>
+            {manifest.branchName !== null ? (
+              <Tooltip content={`Branch ${manifest.branchName}`}>
+                <BranchBadge>{manifest.branchName}</BranchBadge>
+              </Tooltip>
+            ) : null}
             {manifest.temporary ? <TemporaryBadge>TEMP</TemporaryBadge> : null}
             {cases.length > 1 && <CasesChip>{cases.length} cases</CasesChip>}
           </RunCaseCell>

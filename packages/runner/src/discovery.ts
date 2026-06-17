@@ -1,6 +1,11 @@
 import type { DiscoveryIssue } from '@agent-evals/shared';
 
-type EvalDiscoveryMeta = { filePath: string; id: string; title?: string };
+type EvalDiscoveryMeta = {
+  filePath: string;
+  id: string;
+  title?: string;
+  description?: string;
+};
 export type EvalDiscoveryResult = {
   metas: EvalDiscoveryMeta[];
   issues: DiscoveryIssue[];
@@ -38,12 +43,17 @@ export function parseEvalDiscovery(
     if (id !== undefined) {
       const result: EvalDiscoveryMeta = { filePath, id };
 
-      const title = findTopLevelStringProperty(
-        extracted.objectText,
-        'title',
-      );
+      const title = findTopLevelStringProperty(extracted.objectText, 'title');
       if (title !== undefined) {
         result.title = title;
+      }
+
+      const description = findTopLevelStringProperty(
+        extracted.objectText,
+        'description',
+      );
+      if (description !== undefined) {
+        result.description = description;
       }
 
       metas.push(result);
