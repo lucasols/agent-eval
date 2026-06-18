@@ -529,6 +529,8 @@ defineEval({
   id: 'llm-defaults',
   title: 'LLM Defaults',
   columns: {
+    finalPdf: { label: 'Final PDF', format: 'pdf' },
+    pdfSizeBytes: { label: 'PDF bytes', format: 'number' },
     costUsd: {
       label: 'Custom Cost',
       format: 'number',
@@ -553,8 +555,10 @@ defineEval({
 
       const summary = runner.getEval('llm-defaults');
       expect(summary?.columnDefs.map((def) => def.key)).toEqual([
-        'apiCalls',
+        'finalPdf',
+        'pdfSizeBytes',
         'costUsd',
+        'apiCalls',
         'costUsdWithoutCache',
         'costUsdWarmedCache',
         'llmTurns',
@@ -565,26 +569,38 @@ defineEval({
         'cacheCreationInputTokens',
         'llmDurationMs',
       ]);
+      expect(summary?.columnDefs[0]).toMatchObject({
+        key: 'finalPdf',
+        label: 'Final PDF',
+        format: 'pdf',
+      });
       expect(summary?.columnDefs[1]).toMatchObject({
+        key: 'pdfSizeBytes',
+        label: 'PDF bytes',
+        format: 'number',
+      });
+      expect(summary?.columnDefs[2]).toMatchObject({
         key: 'costUsd',
         label: 'Custom Cost',
+        format: 'number',
         numberFormat: {
           prefix: 'USD ',
           minDecimalPlaces: 2,
           maxDecimalPlaces: 2,
         },
+        hideIfNoValue: true,
       });
-      expect(summary?.columnDefs[2]).toMatchObject({
+      expect(summary?.columnDefs[4]).toMatchObject({
         key: 'costUsdWithoutCache',
         label: 'Cost Without Cache',
         hideInTable: true,
       });
-      expect(summary?.columnDefs[3]).toMatchObject({
+      expect(summary?.columnDefs[5]).toMatchObject({
         key: 'costUsdWarmedCache',
         label: 'Cost Warmed Cache',
         hideInTable: true,
       });
-      expect(summary?.columnDefs[0]).toMatchObject({
+      expect(summary?.columnDefs[3]).toMatchObject({
         key: 'apiCalls',
         hideIfNoValue: true,
       });

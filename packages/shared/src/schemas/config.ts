@@ -901,8 +901,9 @@ export type AgentEvalsConfig = {
   /**
    * Workspace-wide output columns applied to every eval.
    *
-   * Eval-level `columns` with the same key take precedence. Built-in default
-   * columns are still added first unless removed with `removeDefaultConfig`.
+   * Eval-level `columns` with the same key take precedence. Authored columns
+   * are ordered before built-in default columns unless defaults are removed
+   * with `removeDefaultConfig`.
    */
   columns?: EvalColumns;
   /**

@@ -168,6 +168,27 @@ export function mergeDefaultColumns(params: {
     return Object.keys(merged).length > 0 ? merged : undefined;
   }
 
+  const defaults = buildDefaultColumns(activeKeys);
+  const authored = { ...params.globalColumns, ...params.columns };
+  const merged: EvalColumns = {};
+
+  for (const [key, override] of Object.entries(authored)) {
+    const defaultColumn = defaults[key];
+    merged[key] =
+      defaultColumn === undefined
+        ? override
+        : mergeColumnOverride(defaultColumn, override);
+  }
+
+  for (const [key, defaultColumn] of Object.entries(defaults)) {
+    if (merged[key] !== undefined) continue;
+    merged[key] = defaultColumn;
+  }
+
+  return Object.keys(merged).length > 0 ? merged : undefined;
+}
+
+function buildDefaultColumns(activeKeys: readonly DefaultConfigKey[]) {
   const defaults: EvalColumns = {};
   for (const key of activeKeys) {
     defaults[key] = DEFAULT_COLUMNS[key];
@@ -176,7 +197,22 @@ export function mergeDefaultColumns(params: {
       defaults.costUsdWarmedCache = DEFAULT_COST_COLUMNS.costUsdWarmedCache;
     }
   }
-  return { ...defaults, ...params.globalColumns, ...params.columns };
+  return defaults;
+}
+
+function mergeColumnOverride(
+  base: EvalColumnOverride,
+  override: EvalColumnOverride,
+): EvalColumnOverride {
+  return {
+    label: override.label ?? base.label,
+    format: override.format ?? base.format,
+    numberFormat: override.numberFormat ?? base.numberFormat,
+    hideInTable: override.hideInTable ?? base.hideInTable,
+    hideIfNoValue: override.hideIfNoValue ?? base.hideIfNoValue,
+    align: override.align ?? base.align,
+    maxStars: override.maxStars ?? base.maxStars,
+  };
 }
 
 export function appendDefaultStats(params: {

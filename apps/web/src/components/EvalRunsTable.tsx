@@ -2,15 +2,17 @@ import type {
   CaseRow,
   CellValue,
   ColumnDef,
+  ColumnFormat,
   FileRef,
   RunManifest,
   ScopedCaseSummary,
 } from '@agent-evals/shared';
 import { ChevronDown, ChevronRight, Eye } from 'lucide-react';
-import { type MouseEvent } from 'react';
+import { useState, type MouseEvent } from 'react';
 import { styled } from 'vindur';
 import { summarizeCellValue } from '#src/components/FormattedCellValue';
 import { LoadingLine } from '#src/components/LoadingState';
+import { Modal } from '#src/components/Modal';
 import { ManualScoreCell, ScoreCell } from '#src/components/ScoreCell';
 import { StatusBadge } from '#src/components/StatusBadge';
 import { Tooltip } from '#src/components/Tooltip';
@@ -337,6 +339,42 @@ const FilePreviewLabel = styled.span`
   min-width: 0;
 `;
 
+const FilePreviewFrameWrap = styled.div`
+  width: min(100%, 1120px);
+  height: min(74vh, 820px);
+  border: 1px solid ${colors.border.var};
+  border-radius: var(--radius-md);
+  background: ${colors.white.var};
+  overflow: hidden;
+`;
+
+const FilePreviewFrame = styled.iframe`
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: ${colors.white.var};
+`;
+
+const FilePreviewImage = styled.img`
+  display: block;
+  max-width: 100%;
+  max-height: min(74vh, 820px);
+  margin: 0 auto;
+  border-radius: var(--radius-md);
+`;
+
+const FilePreviewAudio = styled.audio`
+  width: min(720px, 100%);
+`;
+
+const FilePreviewVideo = styled.video`
+  display: block;
+  width: min(100%, 960px);
+  max-height: min(74vh, 820px);
+  border-radius: var(--radius-md);
+`;
+
 const Dim = styled.span`
   color: ${colors.textDim.var};
 `;
@@ -395,14 +433,6 @@ export function isPreviewableFileRef(
   return isPreviewableFileRefFormat(format);
 }
 
-function openFileRefPreview(
-  event: MouseEvent<HTMLButtonElement>,
-  ref: FileRef,
-) {
-  event.stopPropagation();
-  window.open(getFileUrl(ref), '_blank', 'noopener,noreferrer');
-}
-
 function formatCellValue(c: ColumnDef, value: CellValue | undefined): string {
   if (value === null || value === undefined) return EM_DASH;
   const simpleJsonPreview = getSimpleJsonPreview(c, value);
@@ -442,6 +472,7 @@ function TableColumnValue({
   display: string;
   tooltipContent: string | undefined;
 }) {
+  const [previewRef, setPreviewRef] = useState<FileRef | null>(null);
   const showTooltip =
     tooltipContent !== undefined &&
     (tooltipContent !== display || tooltipContent.length > 48);
@@ -449,16 +480,26 @@ function TableColumnValue({
   if (isPreviewableFileRef(column, value)) {
     const label = getFileLabel(value);
     return (
-      <Tooltip content={formatFilePreviewTooltip(label, tooltipContent)}>
-        <FilePreviewButton
-          type="button"
-          aria-label={`Open ${label}`}
-          onClick={(event) => openFileRefPreview(event, value)}
-        >
-          <Eye />
-          <FilePreviewLabel>{display}</FilePreviewLabel>
-        </FilePreviewButton>
-      </Tooltip>
+      <>
+        <Tooltip content={formatFilePreviewTooltip(label, tooltipContent)}>
+          <FilePreviewButton
+            type="button"
+            aria-label={`Open ${label}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              setPreviewRef(value);
+            }}
+          >
+            <Eye />
+            <FilePreviewLabel>{display}</FilePreviewLabel>
+          </FilePreviewButton>
+        </Tooltip>
+        <TableFilePreviewModal
+          column={column}
+          refValue={previewRef}
+          onClose={() => setPreviewRef(null)}
+        />
+      </>
     );
   }
 
@@ -466,6 +507,82 @@ function TableColumnValue({
     <Tooltip content={showTooltip ? tooltipContent : undefined}>
       <ColumnText>{display}</ColumnText>
     </Tooltip>
+  );
+}
+
+function TableFilePreviewModal({
+  column,
+  refValue,
+  onClose,
+}: {
+  column: ColumnDef;
+  refValue: FileRef | null;
+  onClose: () => void;
+}) {
+  if (refValue === null) return null;
+  const fileName = getFileLabel(refValue);
+  const format = getEffectiveFileRefFormat(column, refValue);
+
+  return (
+    <Modal
+      isOpen
+      title={column.label}
+      subtitle={fileName}
+      onClose={onClose}
+      wide
+      topLayer
+    >
+      <TableFilePreviewContent
+        format={format}
+        src={getFileUrl(refValue)}
+        title={column.label}
+      />
+    </Modal>
+  );
+}
+
+function TableFilePreviewContent({
+  format,
+  src,
+  title,
+}: {
+  format: ColumnFormat;
+  src: string;
+  title: string;
+}) {
+  if (format === 'image') {
+    return (
+      <FilePreviewImage
+        src={src}
+        alt={title}
+      />
+    );
+  }
+  if (format === 'audio') {
+    return (
+      <FilePreviewAudio
+        controls
+        src={src}
+      />
+    );
+  }
+  if (format === 'video') {
+    return (
+      <FilePreviewVideo
+        controls
+        src={src}
+      />
+    );
+  }
+
+  return (
+    <FilePreviewFrameWrap>
+      <FilePreviewFrame
+        title={`${title} preview`}
+        src={src}
+        sandbox={format === 'html' ? '' : undefined}
+      />
+    </FilePreviewFrameWrap>
   );
 }
 
