@@ -1,4 +1,10 @@
-import type { CaseRow, CellValue, ColumnDef } from '@agent-evals/shared';
+import type {
+  CaseRow,
+  CellValue,
+  ColumnDef,
+  ColumnFormat,
+  FileRef,
+} from '@agent-evals/shared';
 import { convertToSentenceCase } from '@ls-stack/utils/stringUtils';
 
 type RunRowsWithCases = Array<{ cases: CaseRow[] }>;
@@ -10,11 +16,38 @@ function inferRuntimeColumnKind(value: CellValue): ColumnDef['kind'] {
 }
 
 function createRuntimeColumnDef(key: string, value: CellValue): ColumnDef {
-  return {
+  const def: ColumnDef = {
     key,
     label: convertToSentenceCase(key),
     kind: inferRuntimeColumnKind(value),
   };
+  const inferredFormat = inferRuntimeColumnFormat(value);
+  if (inferredFormat !== undefined) def.format = inferredFormat;
+  return def;
+}
+
+function inferRuntimeColumnFormat(value: CellValue): ColumnFormat | undefined {
+  if (!isFileRef(value)) return undefined;
+  const mimeType = normalizeMimeType(value.mimeType);
+  if (mimeType === 'application/pdf') return 'pdf';
+  if (mimeType === 'text/html' || mimeType === 'application/xhtml+xml') {
+    return 'html';
+  }
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('audio/')) return 'audio';
+  if (mimeType.startsWith('video/')) return 'video';
+  return 'file';
+}
+
+function isFileRef(value: CellValue): value is FileRef {
+  if (typeof value !== 'object' || value === null || !('source' in value)) {
+    return false;
+  }
+  return value.source === 'repo' || value.source === 'run';
+}
+
+function normalizeMimeType(mimeType: string | undefined): string {
+  return mimeType?.split(';')[0]?.trim().toLowerCase() ?? '';
 }
 
 export function getDisplayColumnLabel(def: ColumnDef): string {

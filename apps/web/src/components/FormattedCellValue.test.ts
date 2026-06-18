@@ -1,6 +1,6 @@
 import type { ColumnDef, FileRef } from '@agent-evals/shared';
 import { describe, expect, test } from 'vitest';
-import { getEffectiveFileRefFormat } from '#src/components/FormattedCellValue';
+import { getEffectiveFileRefFormat } from '#src/utils/fileRefDisplay';
 
 const baseColumnDef: ColumnDef = {
   key: 'artifact',

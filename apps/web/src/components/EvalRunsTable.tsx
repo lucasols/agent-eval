@@ -2,10 +2,11 @@ import type {
   CaseRow,
   CellValue,
   ColumnDef,
+  FileRef,
   RunManifest,
   ScopedCaseSummary,
 } from '@agent-evals/shared';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Eye } from 'lucide-react';
 import { type MouseEvent } from 'react';
 import { styled } from 'vindur';
 import { summarizeCellValue } from '#src/components/FormattedCellValue';
@@ -25,6 +26,12 @@ import {
   transition,
 } from '#src/style/helpers';
 import { getVisibleRunTableColumns } from '#src/utils/columnVisibility';
+import {
+  getEffectiveFileRefFormat,
+  getFileLabel,
+  getFileUrl,
+  isPreviewableFileRefFormat,
+} from '#src/utils/fileRefDisplay';
 import {
   formatDuration,
   formatNumericCellValue,
@@ -297,6 +304,39 @@ const ColumnText = styled.span`
   max-width: 320px;
 `;
 
+const FilePreviewButton = styled.button`
+  ${inline({ align: 'center', gap: 6 })}
+  ${ellipsis};
+  max-width: 320px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: ${colors.accentDim.var};
+  font: inherit;
+  cursor: pointer;
+
+  &:hover {
+    color: ${colors.accent.var};
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${colors.accent.var};
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  & svg {
+    width: 13px;
+    height: 13px;
+    flex: 0 0 auto;
+  }
+`;
+
+const FilePreviewLabel = styled.span`
+  ${ellipsis};
+  min-width: 0;
+`;
+
 const Dim = styled.span`
   color: ${colors.textDim.var};
 `;
@@ -339,6 +379,30 @@ function isFileRefLike(value: object): boolean {
   return value.source === 'repo' || value.source === 'run';
 }
 
+function isFileRef(value: CellValue | undefined): value is FileRef {
+  if (typeof value !== 'object' || value === null || !('source' in value)) {
+    return false;
+  }
+  return value.source === 'repo' || value.source === 'run';
+}
+
+export function isPreviewableFileRef(
+  def: ColumnDef,
+  value: CellValue | undefined,
+): value is FileRef {
+  if (!isFileRef(value)) return false;
+  const format = getEffectiveFileRefFormat(def, value);
+  return isPreviewableFileRefFormat(format);
+}
+
+function openFileRefPreview(
+  event: MouseEvent<HTMLButtonElement>,
+  ref: FileRef,
+) {
+  event.stopPropagation();
+  window.open(getFileUrl(ref), '_blank', 'noopener,noreferrer');
+}
+
 function formatCellValue(c: ColumnDef, value: CellValue | undefined): string {
   if (value === null || value === undefined) return EM_DASH;
   const simpleJsonPreview = getSimpleJsonPreview(c, value);
@@ -366,6 +430,54 @@ function getCellTooltipContent(
   }
   return String(value);
 }
+
+function TableColumnValue({
+  column,
+  value,
+  display,
+  tooltipContent,
+}: {
+  column: ColumnDef;
+  value: CellValue | undefined;
+  display: string;
+  tooltipContent: string | undefined;
+}) {
+  const showTooltip =
+    tooltipContent !== undefined &&
+    (tooltipContent !== display || tooltipContent.length > 48);
+
+  if (isPreviewableFileRef(column, value)) {
+    const label = getFileLabel(value);
+    return (
+      <Tooltip content={formatFilePreviewTooltip(label, tooltipContent)}>
+        <FilePreviewButton
+          type="button"
+          aria-label={`Open ${label}`}
+          onClick={(event) => openFileRefPreview(event, value)}
+        >
+          <Eye />
+          <FilePreviewLabel>{display}</FilePreviewLabel>
+        </FilePreviewButton>
+      </Tooltip>
+    );
+  }
+
+  return (
+    <Tooltip content={showTooltip ? tooltipContent : undefined}>
+      <ColumnText>{display}</ColumnText>
+    </Tooltip>
+  );
+}
+
+function formatFilePreviewTooltip(
+  label: string,
+  context: string | undefined,
+): string {
+  const action = `Open ${label}`;
+  if (context === undefined || context === label) return action;
+  return `${action}\n${context}`;
+}
+
 function averageNumericColumn(cases: CaseRow[], key: string): number | null {
   let sum = 0;
   let count = 0;
@@ -672,6 +784,7 @@ function RunGroup({
               </RunHeaderTd>
             );
           }
+          const tooltipContent = getCellTooltipContent(bestValue);
           const allCasesTooltip =
             cases.length > 1
               ? cases
@@ -687,9 +800,12 @@ function RunGroup({
               rightAlign={c.align === 'right'}
               mono={true}
             >
-              <Tooltip content={allCasesTooltip}>
-                <ColumnText>{display}</ColumnText>
-              </Tooltip>
+              <TableColumnValue
+                column={c}
+                value={bestValue}
+                display={display}
+                tooltipContent={allCasesTooltip ?? tooltipContent}
+              />
             </RunHeaderTd>
           );
         })}
@@ -768,9 +884,6 @@ function RunGroup({
                 const v = row.columns[c.key];
                 const display = formatCellValue(c, v);
                 const tooltipContent = getCellTooltipContent(v);
-                const showTooltip =
-                  tooltipContent !== undefined &&
-                  (tooltipContent !== display || tooltipContent.length > 48);
                 return (
                   <CaseTd
                     key={c.key}
@@ -781,11 +894,12 @@ function RunGroup({
                     {display === EM_DASH ? (
                       <Dim>{display}</Dim>
                     ) : (
-                      <Tooltip
-                        content={showTooltip ? tooltipContent : undefined}
-                      >
-                        <ColumnText>{display}</ColumnText>
-                      </Tooltip>
+                      <TableColumnValue
+                        column={c}
+                        value={v}
+                        display={display}
+                        tooltipContent={tooltipContent}
+                      />
                     )}
                   </CaseTd>
                 );

@@ -1,9 +1,4 @@
-import type {
-  CellValue,
-  ColumnDef,
-  ColumnFormat,
-  FileRef,
-} from '@agent-evals/shared';
+import type { CellValue, ColumnDef, FileRef } from '@agent-evals/shared';
 import { Code2, Download, Eye, FileCode2, FileText } from 'lucide-react';
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -14,7 +9,11 @@ import { Modal } from '#src/components/Modal';
 import { useImageLightbox } from '#src/components/useImageLightbox';
 import { colors } from '#src/style/colors';
 import { inline, monoFont, stack, transition } from '#src/style/helpers';
-import { apiUrl } from '#src/utils/apiUrl';
+import {
+  getEffectiveFileRefFormat,
+  getFileLabel,
+  getFileUrl,
+} from '#src/utils/fileRefDisplay';
 import {
   formatDuration,
   formatNumber,
@@ -696,30 +695,6 @@ function formatArtifactSubtitleText({
   return `${actionLabel} - ${fileName}`;
 }
 
-export function getEffectiveFileRefFormat(
-  def: Pick<ColumnDef, 'format'>,
-  ref: FileRef,
-): ColumnFormat {
-  if (def.format !== undefined) return def.format;
-  return inferFileRefFormat(ref.mimeType);
-}
-
-function inferFileRefFormat(mimeType: string | undefined): ColumnFormat {
-  const normalized = normalizeMimeType(mimeType);
-  if (normalized === 'application/pdf') return 'pdf';
-  if (normalized === 'text/html' || normalized === 'application/xhtml+xml') {
-    return 'html';
-  }
-  if (normalized.startsWith('image/')) return 'image';
-  if (normalized.startsWith('audio/')) return 'audio';
-  if (normalized.startsWith('video/')) return 'video';
-  return 'file';
-}
-
-function normalizeMimeType(mimeType: string | undefined): string {
-  return mimeType?.split(';')[0]?.trim().toLowerCase() ?? '';
-}
-
 function formatBytes(sizeBytes: number | undefined): string | undefined {
   if (sizeBytes === undefined) return undefined;
   if (!Number.isFinite(sizeBytes)) return undefined;
@@ -775,26 +750,4 @@ function isFileRef(value: CellValue): value is FileRef {
     return false;
   }
   return value.source === 'repo' || value.source === 'run';
-}
-
-function getFileUrl(ref: FileRef): string {
-  if (ref.source === 'repo') {
-    const params = new URLSearchParams({ path: ref.path });
-    if (ref.mimeType) {
-      params.set('mimeType', ref.mimeType);
-    }
-    return apiUrl(`/api/repo-file?${params.toString()}`);
-  }
-  const params = new URLSearchParams({ mimeType: ref.mimeType });
-  if (ref.fileName) {
-    params.set('fileName', ref.fileName);
-  }
-  return apiUrl(`/api/artifacts/${ref.artifactId}?${params.toString()}`);
-}
-
-function getFileLabel(ref: FileRef): string {
-  if (ref.source === 'repo') {
-    return ref.path.split('/').at(-1) ?? ref.path;
-  }
-  return ref.fileName ?? ref.artifactId;
 }
