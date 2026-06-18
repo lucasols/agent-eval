@@ -147,6 +147,7 @@ export function Modal({
     <Overlay
       topLayer={topLayer}
       onClick={(event) => {
+        event.stopPropagation();
         if (event.target === event.currentTarget) onClose();
       }}
     >
