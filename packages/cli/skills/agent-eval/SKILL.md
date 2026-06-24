@@ -164,7 +164,7 @@ defineEval<RefundInput, RefundOutputs>({
 
 `execute` usually just calls the product code. Push any placeholder `evalTracer.span(...)` wrappers out of the eval and into the product module they describe so production runs get the same trajectory. Only keep tracing inside `execute` when the behavior being measured is eval-specific (e.g. a judge-only sub-step with no production analogue).
 
-Case `id` values anchor historical runs, caches, and manual scores — keep them stable. Use eval `title` for the display name and `description` for a short discovery/card summary. See `EvalDefinition` / `EvalCase` in the types for every supported field.
+Case `id` values anchor historical runs, caches, and manual scores — keep them stable. Use eval `title` for the display name. Always set a short `description` that explains what behavior, workflow, or risk area the eval is testing; it is the primary summary shown in discovery surfaces and eval cards. For evals that require manual validation — `manualScores` columns or any output a human must review — make the `description` explain what the reviewer needs to validate. See `EvalDefinition` / `EvalCase` in the types for every supported field.
 
 ### Manual input
 
@@ -202,7 +202,7 @@ Every score returns a normalized `0..1` value. Pass/fail is per-score: a case fa
 
 Score functions run in their own trace scope, separate from the execution trace, so LLM-as-judge scorers can use `evalTracer.span(...)` and cached spans without polluting the agent trajectory. Outputs set inside a scorer stay private to that score. Spanless `evalTracer.cache(...)` calls made directly inside a scorer are stored on that score trace's `cacheRefs` payload.
 
-`manualScores` declares score columns that reviewers fill in after a run. Pending values keep the eval in an `unscored` state instead of failing.
+`manualScores` declares score columns that reviewers fill in after a run. Pending values keep the eval in an `unscored` state instead of failing. Because these evals depend on human judgment, give the eval a `description` that spells out exactly what the reviewer must validate for each manual score.
 
 See `EvalScoreDef` / `EvalManualScoreDef` in the types for the full shape (format, threshold, column overrides).
 
@@ -323,10 +323,11 @@ defineEval({
 When adding or changing evals:
 
 1. Put the tracing + ambient SDK calls in the product code that runs in both production and evals. Keep eval files thin.
-2. Use realistic cases drawn from real product flows; avoid placeholder inputs.
-3. `evalAssert` for hard invariants and truthy type narrowing. It records pass/fail entries in case-detail `assertions`; failed entries are also kept in `assertionFailures` and fail the case. Use `evalExpect` for non-trivial comparisons, `tracingAssertions` for invariants derived from the finished trace, `scores` for graded signals, and `passThreshold` only on scores that should gate pass/fail.
-4. Surface reviewable values through execute-context `setOutput` or ambient `setEvalOutput` in shared workflow code, and shape them with `columns` formats from the `ColumnFormat` type.
-5. Promote high-signal span attributes with `traceDisplay`.
-6. Cache costly pure spans with `cache: { namespace, key }` and pure spanless values with `evalTracer.cache(...)`; never cache operations whose external side effects you depend on.
-7. Sanity-check after changes: `agent-evals list`, then `agent-evals run --eval <id>`; use `--file <path|glob>` to target one file when multiple files use the same eval id.
-8. Locate saved artifacts with `agent-evals show-runs latest --json`, then read the relevant `summary.json`, `cases.jsonl`, `case-details/<case-id>.json`, or `traces/<case-id>.json` file directly.
+2. Give every eval a short `description` that explains what it is testing. For evals that require manual validation (`manualScores` or human-reviewed output), make the `description` explain what the reviewer must validate.
+3. Use realistic cases drawn from real product flows; avoid placeholder inputs.
+4. `evalAssert` for hard invariants and truthy type narrowing. It records pass/fail entries in case-detail `assertions`; failed entries are also kept in `assertionFailures` and fail the case. Use `evalExpect` for non-trivial comparisons, `tracingAssertions` for invariants derived from the finished trace, `scores` for graded signals, and `passThreshold` only on scores that should gate pass/fail.
+5. Surface reviewable values through execute-context `setOutput` or ambient `setEvalOutput` in shared workflow code, and shape them with `columns` formats from the `ColumnFormat` type.
+6. Promote high-signal span attributes with `traceDisplay`.
+7. Cache costly pure spans with `cache: { namespace, key }` and pure spanless values with `evalTracer.cache(...)`; never cache operations whose external side effects you depend on.
+8. Sanity-check after changes: `agent-evals list`, then `agent-evals run --eval <id>`; use `--file <path|glob>` to target one file when multiple files use the same eval id.
+9. Locate saved artifacts with `agent-evals show-runs latest --json`, then read the relevant `summary.json`, `cases.jsonl`, `case-details/<case-id>.json`, or `traces/<case-id>.json` file directly.
