@@ -18,6 +18,7 @@ import type {
 import {
   buildEvalKey,
   deriveScopedSummaryFromCases,
+  extractCacheEntries,
   getCaseRowCaseKey,
   resolveApiCallsConfig,
   resolveLlmCallsConfig,
@@ -28,6 +29,7 @@ import {
   getCacheRetentionOptions,
   getCacheStoreOptions,
 } from './cacheConfig.ts';
+import type { CacheRetentionRunReference } from './cacheRetention.ts';
 import { createFsCacheStore, type FsCacheStore } from './cacheStore.ts';
 import {
   resolveCaseDetailLookup,
@@ -228,6 +230,72 @@ export function createRunner({
     const caseRow = resolveCaseRowForCaseDetailLookup(run, caseId);
     if (caseRow === undefined) return undefined;
     return hydrateCaseDetailForRow(run, caseRow);
+  }
+
+  function getStoredCacheEntriesForCase(caseDetail: CaseDetail) {
+    const entries = extractCacheEntries(caseDetail.trace, caseDetail.cacheRefs);
+
+    for (const scoreTrace of Object.values(caseDetail.scoringTraces ?? {})) {
+      entries.push(
+        ...extractCacheEntries(scoreTrace.trace, scoreTrace.cacheRefs),
+      );
+    }
+
+    return entries.filter((entry) => entry.stored);
+  }
+
+  function getCacheRetentionRunReferences(): {
+    durable: CacheRetentionRunReference[];
+    temporary: CacheRetentionRunReference[];
+  } {
+    const knownEvalKeys = new Set(evals.keys());
+    const latestRunIdsByEval = new Map<string, string>();
+    for (const evalKey of knownEvalKeys) {
+      const latestRun = getLatestRunForEval(evalKey);
+      if (latestRun !== undefined) {
+        latestRunIdsByEval.set(evalKey, latestRun.manifest.id);
+      }
+    }
+
+    const references: {
+      durable: CacheRetentionRunReference[];
+      temporary: CacheRetentionRunReference[];
+    } = { durable: [], temporary: [] };
+    const seen = new Set<string>();
+
+    for (const run of runs.values()) {
+      for (const caseRow of run.cases) {
+        if (caseRow.evalKey === undefined) continue;
+
+        const caseDetail = hydrateCaseDetailForRow(run, caseRow);
+        if (caseDetail === undefined) continue;
+
+        for (const entry of getStoredCacheEntriesForCase(caseDetail)) {
+          const storage = entry.storage ?? 'durable';
+          const referenceId = [
+            storage,
+            entry.namespace,
+            entry.key,
+            caseRow.evalKey,
+            run.manifest.id,
+          ].join('\u0000');
+          if (seen.has(referenceId)) continue;
+          seen.add(referenceId);
+
+          const reference = {
+            namespace: entry.namespace,
+            key: entry.key,
+            evalExists: knownEvalKeys.has(caseRow.evalKey),
+            latestRunForEval:
+              latestRunIdsByEval.get(caseRow.evalKey) === run.manifest.id,
+            runStartedAt: run.manifest.startedAt,
+          };
+          references[storage].push(reference);
+        }
+      }
+    }
+
+    return references;
   }
 
   function getDiscoveryModuleIsolationKey(filePath: string): string {
@@ -1041,9 +1109,12 @@ export function createRunner({
 
   async function pruneCacheRetentionIfIdle(): Promise<void> {
     if (getActiveRunCount() > 0) return;
+    const runReferences = getCacheRetentionRunReferences();
     await Promise.all([
-      cacheStore.pruneRetention(),
-      temporaryCacheStore.pruneRetention(),
+      cacheStore.pruneRetention({ runReferences: runReferences.durable }),
+      temporaryCacheStore.pruneRetention({
+        runReferences: runReferences.temporary,
+      }),
     ]);
   }
 

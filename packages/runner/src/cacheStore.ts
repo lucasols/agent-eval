@@ -77,6 +77,7 @@ import {
   maxBytesForNamespace,
   normalizeMaxBytes,
   pruneCacheEntriesByMaxBytes,
+  type CacheRetentionRunReference,
 } from './cacheRetention.ts';
 
 /** Filter accepted by `FsCacheStore.clear` to narrow the set of entries removed. */
@@ -112,7 +113,9 @@ export type FsCacheStore = CacheAdapter & {
   blobDir(): string;
   pruneExternalJsonBlobs(): Promise<void>;
   /** Apply configured entry retention to indexed namespaces. */
-  pruneRetention(): Promise<void>;
+  pruneRetention(options?: {
+    runReferences?: readonly CacheRetentionRunReference[];
+  }): Promise<void>;
   /** Remove files and index rows that are no longer part of the indexed cache. */
   repair(): Promise<CacheRepairSummary>;
 };
@@ -402,9 +405,10 @@ export function createFsCacheStore(options: {
       logRemovedExternalJsonBlobs(removedBlobFiles, reason);
     },
 
-    async pruneRetention() {
+    async pruneRetention(pruneOptions = {}) {
       const removedEntries = await pruneCacheEntriesByMaxBytes({
         indexes: await listCacheIndexes(cacheDir),
+        runReferences: pruneOptions.runReferences,
         maxBytesForNamespace: (namespace) =>
           maxBytesForNamespace(
             namespace,

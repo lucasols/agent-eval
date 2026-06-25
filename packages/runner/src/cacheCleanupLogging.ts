@@ -45,6 +45,10 @@ export function cacheClearReason(
 export function cacheRetentionReason(
   entry: CacheRetentionRemovedEntry,
 ): string {
+  if (entry.reason === 'nonExistingEval') {
+    return 'cache entry was only referenced by saved runs for evals that no longer exist';
+  }
+
   return `retention limit exceeded for namespace ${quoteLogValue(
     entry.namespace,
   )} (${String(entry.namespaceTotalBytes)} bytes > ${String(
