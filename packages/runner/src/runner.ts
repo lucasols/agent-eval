@@ -353,7 +353,11 @@ export function createRunner({
         return { updated: false, reason: 'Eval not found' };
       }
       const columnDef = evalMeta.columnDefs.find((def) => def.key === scoreKey);
-      if (columnDef?.isManualScore !== true) {
+      const currentScoreValue = caseRow.columns[scoreKey];
+      const canFillPendingScore =
+        currentScoreValue === null &&
+        (columnDef === undefined || columnDef.isScore === true);
+      if (columnDef?.isManualScore !== true && !canFillPendingScore) {
         return { updated: false, reason: 'Manual score not found' };
       }
 
