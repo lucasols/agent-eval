@@ -6,7 +6,7 @@ import type {
   RunManifest,
 } from '@agent-evals/shared';
 import { ChevronDown, ChevronRight, Eye } from 'lucide-react';
-import { useState, type MouseEvent } from 'react';
+import { useState, type MouseEvent, type ReactNode } from 'react';
 import { styled } from 'vindur';
 import {
   getEffectiveMediaPreviewItems,
@@ -17,6 +17,7 @@ import {
   type MediaPreviewItem,
 } from '#src/components/FormattedCellValue';
 import { LoadingLine } from '#src/components/LoadingState';
+import { PendingManualScoringPanel } from '#src/components/PendingManualScoringPanel';
 import { ManualScoreCell, ScoreCell } from '#src/components/ScoreCell';
 import { StatusBadge } from '#src/components/StatusBadge';
 import { Tooltip } from '#src/components/Tooltip';
@@ -448,12 +449,14 @@ function TableColumnValue({
   display,
   tooltipContent,
   mediaPreviewItems = [],
+  previewFooter,
 }: {
   column: ColumnDef;
   value: CellValue | undefined;
   display: string;
   tooltipContent: string | undefined;
   mediaPreviewItems?: MediaPreviewItem[];
+  previewFooter?: ReactNode;
 }) {
   const [activePreviewId, setActivePreviewId] = useState<string | null>(null);
   const showTooltip =
@@ -494,7 +497,7 @@ function TableColumnValue({
           isOpen={activePreviewId !== null}
           items={effectivePreviewItems}
           activeItemId={activePreviewId ?? previewItem.id}
-          footer={undefined}
+          footer={previewFooter}
           onChange={setActivePreviewId}
           onClose={() => setActivePreviewId(null)}
         />
@@ -552,6 +555,27 @@ function pickBestScoringCase(
     if (best === null || mean > best.mean) best = { row, mean };
   }
   return best?.row ?? null;
+}
+
+function getManualScoringPreviewFooter({
+  runId,
+  caseRow,
+  scoreColumns,
+}: {
+  runId: string;
+  caseRow: CaseRow | undefined;
+  scoreColumns: ColumnDef[];
+}): ReactNode | undefined {
+  if (caseRow === undefined) return undefined;
+  return (
+    <PendingManualScoringPanel
+      runId={runId}
+      caseId={caseRow.caseKey ?? caseRow.caseId}
+      scoreColumns={scoreColumns}
+      columns={caseRow.columns}
+      compact
+    />
+  );
 }
 
 export function EvalRunsTable({
@@ -706,6 +730,11 @@ function RunGroup({
           otherCustomColumns,
           bestPreviewCase.columns,
         );
+  const runHeaderManualScoringFooter = getManualScoringPreviewFooter({
+    runId: manifest.id,
+    caseRow: bestPreviewCase,
+    scoreColumns,
+  });
 
   function handleCaseClick(caseKey: string) {
     void selectCase(manifest.id, caseKey);
@@ -861,6 +890,7 @@ function RunGroup({
                 display={display}
                 tooltipContent={allCasesTooltip ?? tooltipContent}
                 mediaPreviewItems={runHeaderMediaPreviewItems}
+                previewFooter={runHeaderManualScoringFooter}
               />
             </RunHeaderTd>
           );
@@ -879,6 +909,11 @@ function RunGroup({
               otherCustomColumns,
               row.columns,
             );
+            const rowManualScoringFooter = getManualScoringPreviewFooter({
+              runId: manifest.id,
+              caseRow: row,
+              scoreColumns,
+            });
             return (
               <CaseRowEl
                 key={`${row.caseKey ?? row.caseId}-${String(row.trial)}`}
@@ -966,6 +1001,7 @@ function RunGroup({
                           display={display}
                           tooltipContent={tooltipContent}
                           mediaPreviewItems={rowMediaPreviewItems}
+                          previewFooter={rowManualScoringFooter}
                         />
                       )}
                     </CaseTd>
