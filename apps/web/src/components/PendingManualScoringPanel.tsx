@@ -1,6 +1,7 @@
 import type { CellValue, ColumnDef } from '@agent-evals/shared';
 import { styled } from 'vindur';
 import { ManualScoreControls } from '#src/components/ScoreCell';
+import { caseDetailStore, runDetailStore } from '#src/stores/runStore';
 import { colors } from '#src/style/colors';
 import { inline, kicker, stack } from '#src/style/helpers';
 
@@ -73,11 +74,18 @@ export function PendingManualScoringPanel({
   columns: Record<string, CellValue>;
   compact?: boolean;
 }) {
+  const caseDetailResult = caseDetailStore.useItem({ runId, caseId });
+  const runDetailResult = runDetailStore.useItem({ runId });
+  const runCase = runDetailResult.data?.cases.find(
+    (row) => (row.caseKey ?? row.caseId) === caseId,
+  );
+  const currentColumns =
+    caseDetailResult.data?.columns ?? runCase?.columns ?? columns;
   const pendingManualScores = scoreColumns
     .filter((column) => column.isManualScore === true)
     .map((column) => ({
       column,
-      value: getManualScoreValue(columns[column.key]),
+      value: getManualScoreValue(currentColumns[column.key]),
     }))
     .filter((entry) => entry.value === null);
 
