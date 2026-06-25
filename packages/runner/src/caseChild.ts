@@ -113,6 +113,7 @@ async function executeCaseChild(
     dir: cacheStoreOptions.dir,
     maxBytesPerNamespace: cacheRetentionOptions.maxBytesPerNamespace,
     maxBytesByNamespace: cacheRetentionOptions.maxBytesByNamespace,
+    oldRunMaxAgeMs: cacheRetentionOptions.oldRunMaxAgeMs,
     lastAccessedAtUpdateIntervalMs:
       config.cache?.lastAccessedAtUpdateIntervalMs,
   });
@@ -122,6 +123,7 @@ async function executeCaseChild(
     debugDir: cacheStoreOptions.temporaryDebugDir,
     maxBytesPerNamespace: cacheRetentionOptions.maxBytesPerNamespace,
     maxBytesByNamespace: cacheRetentionOptions.maxBytesByNamespace,
+    oldRunMaxAgeMs: cacheRetentionOptions.oldRunMaxAgeMs,
     lastAccessedAtUpdateIntervalMs:
       config.cache?.lastAccessedAtUpdateIntervalMs,
   });

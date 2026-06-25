@@ -1157,6 +1157,12 @@ export type AgentEvalsConfig = {
      */
     pruneIdleDelayMs?: number;
     /**
+     * Maximum age, in milliseconds, for cache entries that are only referenced
+     * by old non-latest saved runs. Defaults to 15 days. Entries referenced by
+     * the latest run for a current eval are protected from this age cleanup.
+     */
+    oldRunMaxAgeMs?: number;
+    /**
      * Minimum milliseconds between `lastAccessedAt` index rewrites for repeated
      * cache hits. Defaults to four hours. Set to `0` to record every hit.
      */
@@ -1201,6 +1207,13 @@ export const agentEvalsConfigSchema = z.object({
       dir: z.string().optional(),
       maxBytes: cacheMaxBytesSchema,
       pruneIdleDelayMs: z.preprocess(
+        (value) =>
+          typeof value === 'number' && Number.isFinite(value)
+            ? value
+            : undefined,
+        z.number().optional(),
+      ),
+      oldRunMaxAgeMs: z.preprocess(
         (value) =>
           typeof value === 'number' && Number.isFinite(value)
             ? value

@@ -1,6 +1,7 @@
 import { cacheAccessSortTime } from './cacheAccessTime.ts';
 
 const defaultMaxBytesPerNamespace = 3 * 1024 * 1024;
+const defaultOldRunMaxAgeMs = 15 * 24 * 60 * 60 * 1000;
 
 export type CacheRetentionIndexEntry = {
   storedAt: string;
@@ -39,7 +40,7 @@ export type CacheRetentionRunReference = {
 export type CacheRetentionRemovedEntry = CacheRetentionEntry & {
   maxBytes: number;
   namespaceTotalBytes: number;
-  reason: 'nonExistingEval' | 'retentionLimit';
+  reason: 'nonExistingEval' | 'oldRun' | 'retentionLimit';
 };
 
 export function normalizeMaxBytes(
@@ -63,9 +64,21 @@ export function maxBytesForNamespace(
     : normalizeMaxBytes(namespaceMaxBytes, defaultMaxBytes);
 }
 
+export function normalizeOldRunMaxAgeMs(
+  value: number | undefined,
+  fallback = defaultOldRunMaxAgeMs,
+): number {
+  if (value === undefined || !Number.isFinite(value) || value <= 0) {
+    return fallback;
+  }
+  return Math.floor(value);
+}
+
 export async function pruneCacheEntriesByMaxBytes(params: {
   indexes: readonly CacheRetentionIndex[];
   runReferences?: readonly CacheRetentionRunReference[];
+  oldRunMaxAgeMs?: number;
+  nowMs?: number;
   maxBytesForNamespace: (namespace: string) => number;
   cacheEntryBytes: (namespace: string, key: string) => Promise<number>;
   debugEntryBytes: (namespace: string, key: string) => Promise<number>;
@@ -76,6 +89,11 @@ export async function pruneCacheEntriesByMaxBytes(params: {
   const runReferencesByEntry = groupRunReferencesByEntry(
     params.runReferences ?? [],
   );
+  const oldRunMaxAgeMs = normalizeOldRunMaxAgeMs(params.oldRunMaxAgeMs);
+  const nowMs =
+    params.nowMs === undefined || !Number.isFinite(params.nowMs)
+      ? Date.now()
+      : params.nowMs;
 
   for (const index of params.indexes) {
     const retentionState = await getCacheRetentionState({ ...params, index });
@@ -115,9 +133,18 @@ export async function pruneCacheEntriesByMaxBytes(params: {
       const references = runReferencesByEntry.get(toEntryId(entry)) ?? [];
       if (references.length === 0) continue;
       if (references.some((reference) => reference.latestRunForEval)) continue;
-      if (references.some((reference) => reference.evalExists)) continue;
+      if (!references.some((reference) => reference.evalExists)) {
+        removeEntry(entry, 'nonExistingEval');
+        continue;
+      }
 
-      removeEntry(entry, 'nonExistingEval');
+      const newestRunTime = newestRunReferenceTime(references);
+      if (
+        newestRunTime !== null &&
+        nowMs - newestRunTime >= oldRunMaxAgeMs
+      ) {
+        removeEntry(entry, 'oldRun');
+      }
     }
 
     if (totalBytes > maxBytes) {

@@ -14,15 +14,21 @@ export function getCacheRetentionOptions(
 ): {
   maxBytesPerNamespace: number | undefined;
   maxBytesByNamespace: Record<string, number> | undefined;
+  oldRunMaxAgeMs: number | undefined;
 } {
   const maxBytes = cacheConfig?.maxBytes;
   if (typeof maxBytes === 'number') {
-    return { maxBytesPerNamespace: maxBytes, maxBytesByNamespace: undefined };
+    return {
+      maxBytesPerNamespace: maxBytes,
+      maxBytesByNamespace: undefined,
+      oldRunMaxAgeMs: cacheConfig?.oldRunMaxAgeMs,
+    };
   }
 
   return {
     maxBytesPerNamespace: maxBytes?.default,
     maxBytesByNamespace: maxBytes?.namespaces,
+    oldRunMaxAgeMs: cacheConfig?.oldRunMaxAgeMs,
   };
 }
 

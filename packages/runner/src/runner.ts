@@ -973,6 +973,7 @@ export function createRunner({
       dir: cacheStoreOptions.dir,
       maxBytesPerNamespace: cacheRetentionOptions.maxBytesPerNamespace,
       maxBytesByNamespace: cacheRetentionOptions.maxBytesByNamespace,
+      oldRunMaxAgeMs: cacheRetentionOptions.oldRunMaxAgeMs,
       lastAccessedAtUpdateIntervalMs:
         config.cache?.lastAccessedAtUpdateIntervalMs,
     });
@@ -982,6 +983,7 @@ export function createRunner({
       debugDir: cacheStoreOptions.temporaryDebugDir,
       maxBytesPerNamespace: cacheRetentionOptions.maxBytesPerNamespace,
       maxBytesByNamespace: cacheRetentionOptions.maxBytesByNamespace,
+      oldRunMaxAgeMs: cacheRetentionOptions.oldRunMaxAgeMs,
       lastAccessedAtUpdateIntervalMs:
         config.cache?.lastAccessedAtUpdateIntervalMs,
     });

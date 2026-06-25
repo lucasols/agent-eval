@@ -6,6 +6,7 @@ describe('cache retention config', () => {
     expect(getCacheRetentionOptions({ maxBytes: 1024 })).toEqual({
       maxBytesPerNamespace: 1024,
       maxBytesByNamespace: undefined,
+      oldRunMaxAgeMs: undefined,
     });
   });
 
@@ -17,6 +18,15 @@ describe('cache retention config', () => {
     ).toEqual({
       maxBytesPerNamespace: 1024,
       maxBytesByNamespace: { 'eval.operation': 2048 },
+      oldRunMaxAgeMs: undefined,
+    });
+  });
+
+  test('passes through old run max age', () => {
+    expect(getCacheRetentionOptions({ oldRunMaxAgeMs: 1234 })).toEqual({
+      maxBytesPerNamespace: undefined,
+      maxBytesByNamespace: undefined,
+      oldRunMaxAgeMs: 1234,
     });
   });
 });

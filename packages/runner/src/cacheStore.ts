@@ -76,6 +76,7 @@ import { toPendingKey } from './cacheKeys.ts';
 import {
   maxBytesForNamespace,
   normalizeMaxBytes,
+  normalizeOldRunMaxAgeMs,
   pruneCacheEntriesByMaxBytes,
   type CacheRetentionRunReference,
 } from './cacheRetention.ts';
@@ -175,6 +176,7 @@ export function createFsCacheStore(options: {
   blobDir?: string;
   maxBytesPerNamespace?: number;
   maxBytesByNamespace?: Record<string, number>;
+  oldRunMaxAgeMs?: number;
   lastAccessedAtUpdateIntervalMs?: number;
 }): FsCacheStore {
   const cacheDir = resolve(
@@ -203,6 +205,7 @@ export function createFsCacheStore(options: {
     primaryDir: blobDir,
   });
   const defaultMaxBytes = normalizeMaxBytes(options.maxBytesPerNamespace);
+  const oldRunMaxAgeMs = normalizeOldRunMaxAgeMs(options.oldRunMaxAgeMs);
   const lastAccessedAtUpdateIntervalMs =
     normalizeLastAccessedAtUpdateIntervalMs(
       options.lastAccessedAtUpdateIntervalMs,
@@ -409,6 +412,7 @@ export function createFsCacheStore(options: {
       const removedEntries = await pruneCacheEntriesByMaxBytes({
         indexes: await listCacheIndexes(cacheDir),
         runReferences: pruneOptions.runReferences,
+        oldRunMaxAgeMs,
         maxBytesForNamespace: (namespace) =>
           maxBytesForNamespace(
             namespace,

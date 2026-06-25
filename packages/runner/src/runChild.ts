@@ -220,6 +220,7 @@ async function main(): Promise<void> {
     dir: cacheStoreOptions.dir,
     maxBytesPerNamespace: cacheRetentionOptions.maxBytesPerNamespace,
     maxBytesByNamespace: cacheRetentionOptions.maxBytesByNamespace,
+    oldRunMaxAgeMs: cacheRetentionOptions.oldRunMaxAgeMs,
     lastAccessedAtUpdateIntervalMs:
       config.cache?.lastAccessedAtUpdateIntervalMs,
   });
@@ -229,6 +230,7 @@ async function main(): Promise<void> {
     debugDir: cacheStoreOptions.temporaryDebugDir,
     maxBytesPerNamespace: cacheRetentionOptions.maxBytesPerNamespace,
     maxBytesByNamespace: cacheRetentionOptions.maxBytesByNamespace,
+    oldRunMaxAgeMs: cacheRetentionOptions.oldRunMaxAgeMs,
     lastAccessedAtUpdateIntervalMs:
       config.cache?.lastAccessedAtUpdateIntervalMs,
   });

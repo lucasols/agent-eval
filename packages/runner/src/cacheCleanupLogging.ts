@@ -48,6 +48,9 @@ export function cacheRetentionReason(
   if (entry.reason === 'nonExistingEval') {
     return 'cache entry was only referenced by saved runs for evals that no longer exist';
   }
+  if (entry.reason === 'oldRun') {
+    return 'cache entry was only referenced by old non-latest saved runs';
+  }
 
   return `retention limit exceeded for namespace ${quoteLogValue(
     entry.namespace,
