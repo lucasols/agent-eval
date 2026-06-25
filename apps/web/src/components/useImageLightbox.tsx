@@ -8,7 +8,7 @@ type LightboxState = { src: string; alt: string };
  * any image fullscreen and a `lightbox` node the caller renders alongside
  * its content. The caller does not need to track `isOpen` itself.
  */
-export function useImageLightbox(): {
+export function useImageLightbox(options: { footer?: ReactNode } = {}): {
   openImage: (src: string, alt?: string) => void;
   lightbox: ReactNode;
 } {
@@ -26,6 +26,7 @@ export function useImageLightbox(): {
       src={state?.src ?? ''}
       alt={state?.alt ?? ''}
       onClose={close}
+      footer={options.footer}
     />
   );
 

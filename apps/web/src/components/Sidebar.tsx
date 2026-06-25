@@ -244,9 +244,9 @@ const StatusFilterChip = styled.button<{
     border-color: ${colors.warning.alpha(0.22)};
   }
   &.unscored:not(.active) {
-    color: ${colors.accentDim.var};
-    background: ${colors.accent.alpha(0.09)};
-    border-color: ${colors.accent.alpha(0.2)};
+    color: ${colors.unscored.var};
+    background: ${colors.unscored.alpha(0.09)};
+    border-color: ${colors.unscored.alpha(0.2)};
   }
   &.pending:not(.active) {
     color: ${colors.textMuted.var};

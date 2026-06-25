@@ -69,8 +69,8 @@ const Badge = styled.span<{
     background: ${colors.warning.alpha(0.14)};
   }
   &.unscored {
-    color: ${colors.accentDim.var};
-    background: ${colors.accent.alpha(0.1)};
+    color: ${colors.unscored.var};
+    background: ${colors.unscored.alpha(0.1)};
   }
 `;
 
@@ -109,7 +109,7 @@ const Dot = styled.span<{
     background: ${colors.warning.var};
   }
   &.unscored {
-    background: ${colors.accent.var};
+    background: ${colors.unscored.var};
   }
 `;
 

@@ -18,6 +18,7 @@ export const colors = createStaticThemeColors({
   success: '#16a34a',
   error: '#dc2626',
   warning: '#ea580c',
+  unscored: '#ca8a04',
   cost: '#a16207',
   white: '#ffffff',
   black: '#000000',

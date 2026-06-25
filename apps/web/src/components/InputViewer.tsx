@@ -1,5 +1,13 @@
+import {
+  fileRefSchema,
+  type CaseInputSection,
+  type CellValue,
+  type FileRef,
+} from '@agent-evals/shared';
 import { Download } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { styled } from 'vindur';
+import { FormattedCellValue } from '#src/components/FormattedCellValue';
 import { JsonViewer } from '#src/components/JsonViewer';
 import { Tooltip } from '#src/components/Tooltip';
 import { useImageLightbox } from '#src/components/useImageLightbox';
@@ -19,6 +27,39 @@ const Layout = styled.div`
 
 const FileGroup = styled.div`
   ${stack({ gap: 10 })}
+`;
+
+const InputSectionList = styled.div`
+  ${stack()}
+`;
+
+const InputSectionBlock = styled.div`
+  ${stack({ gap: 8 })}
+  padding: 14px 0;
+  border-bottom: 1px solid ${colors.border.var};
+
+  &:first-child {
+    padding-top: 0;
+  }
+
+  &:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+`;
+
+const InputSectionLabel = styled.div`
+  ${kicker};
+  color: ${colors.textMuted.var};
+`;
+
+const InputSectionContent = styled.div`
+  font-size: 13px;
+  color: ${colors.text.var};
+`;
+
+const FileRefList = styled.div`
+  ${stack({ gap: 8 })}
 `;
 
 const GroupKicker = styled.span`
@@ -89,7 +130,11 @@ const ImageThumb = styled.img`
   cursor: zoom-in;
 `;
 
-type InputViewerProps = { value: unknown };
+type InputViewerProps = {
+  value: unknown;
+  sections?: CaseInputSection[];
+  previewFooter?: ReactNode;
+};
 
 type FileEntry = { key: string; file: ManualInputFileValue };
 
@@ -114,12 +159,18 @@ function partitionInput(value: unknown): {
   return { files, rest: restHasKeys ? rest : null };
 }
 
-function FilePreview({ entry }: { entry: FileEntry }) {
+function FilePreview({
+  entry,
+  previewFooter,
+}: {
+  entry: FileEntry;
+  previewFooter: ReactNode | undefined;
+}) {
   const { key, file } = entry;
   const isImage = file.mimeType.startsWith('image/');
   const downloadName = file.name || `${key}.bin`;
   const fileUrl = getManualInputFileUrl(file);
-  const { openImage, lightbox } = useImageLightbox();
+  const { openImage, lightbox } = useImageLightbox({ footer: previewFooter });
   return (
     <FileCard>
       <FileHeader>
@@ -153,13 +204,105 @@ function FilePreview({ entry }: { entry: FileEntry }) {
   );
 }
 
+function InputSectionPreview({
+  section,
+  previewFooter,
+}: {
+  section: CaseInputSection;
+  previewFooter: ReactNode | undefined;
+}) {
+  return (
+    <InputSectionBlock>
+      <InputSectionLabel>{section.label}</InputSectionLabel>
+      <InputSectionContent>
+        <InputSectionValue
+          section={section}
+          previewFooter={previewFooter}
+        />
+      </InputSectionContent>
+    </InputSectionBlock>
+  );
+}
+
+function InputSectionValue({
+  section,
+  previewFooter,
+}: {
+  section: CaseInputSection;
+  previewFooter: ReactNode | undefined;
+}) {
+  if (isFileRefArray(section.value)) {
+    return (
+      <FileRefList>
+        {section.value.map((fileRef, index) => (
+          <FormattedCellValue
+            key={getFileRefKey(fileRef, index)}
+            def={section}
+            value={fileRef}
+            inferMarkdown
+            markdownRawToggle
+            previewFooter={previewFooter}
+          />
+        ))}
+      </FileRefList>
+    );
+  }
+
+  return (
+    <FormattedCellValue
+      def={section}
+      value={section.value}
+      inferMarkdown
+      markdownRawToggle
+      previewFooter={previewFooter}
+    />
+  );
+}
+
+function isFileRefArray(value: CellValue): value is FileRef[] {
+  return Array.isArray(value) && value.every(isFileRef);
+}
+
+function isFileRef(value: unknown): value is FileRef {
+  return fileRefSchema.safeParse(value).success;
+}
+
+function getFileRefKey(ref: FileRef, index: number): string {
+  if (ref.source === 'run') return `${ref.artifactId}:${String(index)}`;
+  return `${ref.path}:${String(index)}`;
+}
+
 /**
  * Render a case input. Top-level fields whose value is a manual-input file
  * (`{ name, mimeType, sizeBytes, sha256, path }`) are previewed as images or labelled
  * file cards with a download link; the remaining fields fall back to the
  * standard JSON viewer.
  */
-export function InputViewer({ value }: InputViewerProps) {
+export function InputViewer({
+  value,
+  sections = [],
+  previewFooter,
+}: InputViewerProps) {
+  if (sections.length > 0) {
+    return (
+      <Layout>
+        <InputSectionList>
+          {sections.map((section) => (
+            <InputSectionPreview
+              key={section.key}
+              section={section}
+              previewFooter={previewFooter}
+            />
+          ))}
+        </InputSectionList>
+        <FileGroup>
+          <GroupKicker>Full input</GroupKicker>
+          <JsonViewer value={value} />
+        </FileGroup>
+      </Layout>
+    );
+  }
+
   const { files, rest } = partitionInput(value);
   if (files.length === 0) {
     return <JsonViewer value={value} />;
@@ -172,6 +315,7 @@ export function InputViewer({ value }: InputViewerProps) {
           <FilePreview
             key={entry.key}
             entry={entry}
+            previewFooter={previewFooter}
           />
         ))}
       </FileGroup>

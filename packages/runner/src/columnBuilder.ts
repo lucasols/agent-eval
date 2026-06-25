@@ -48,6 +48,7 @@ function getScoreOverride<TInput, TOutputs extends EvalOutputs = EvalOutputs>(
   if (def === undefined || typeof def === 'function') return undefined;
   return {
     label: def.label,
+    description: def.description,
     format: def.format,
     numberFormat: def.numberFormat,
     hideInTable: def.hideInTable,
@@ -65,6 +66,7 @@ function mergeOverrides(
   if (override === undefined) return base;
   return {
     label: override.label ?? base.label,
+    description: override.description ?? base.description,
     format: override.format ?? base.format,
     numberFormat: override.numberFormat ?? base.numberFormat,
     hideInTable: override.hideInTable ?? base.hideInTable,
@@ -216,6 +218,24 @@ export function buildRuntimeOutputColumnDefs(
     );
 }
 
+/** Build the display definition used for a highlighted input section. */
+export function buildInputSectionDef(params: {
+  key: string;
+  value: CellValue;
+  override: EvalColumnOverride | undefined;
+}): ColumnDef {
+  const { key, value, override } = params;
+  return createColumnDef({
+    key,
+    override,
+    inferredKind:
+      inferKindFromFormat(override?.format) ??
+      (override?.numberFormat === undefined ? inferKind(value) : 'number'),
+    isScore: false,
+    isManualScore: false,
+  });
+}
+
 /** Infer a `ColumnKind` from a runtime value when no override is set. */
 export function inferKind(value: unknown): ColumnKind {
   if (typeof value === 'number') return 'number';
@@ -284,6 +304,8 @@ function createColumnDef<
   } = params;
   const kind = inferredKind ?? (isScore ? 'number' : 'string');
   const def: ColumnDef = { key, label: override?.label ?? key, kind };
+  if (override?.description !== undefined)
+    def.description = override.description;
   if (override?.format !== undefined) def.format = override.format;
   if (override?.numberFormat !== undefined)
     def.numberFormat = override.numberFormat;

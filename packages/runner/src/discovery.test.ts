@@ -273,6 +273,7 @@ defineEval({
   manualScores: {
     review: {
       label: 'Review',
+      description: 'Confirm the reviewed output is acceptable.',
       format: 'passFail',
       passThreshold: 0.5,
     },
@@ -339,6 +340,7 @@ defineEval({
         {
           key: 'review',
           label: 'Review',
+          description: 'Confirm the reviewed output is acceptable.',
           kind: 'number',
           format: 'passFail',
           isScore: true,

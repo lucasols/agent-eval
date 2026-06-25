@@ -283,6 +283,27 @@ export function ManualScoreCell({
   column: ColumnDef;
   value: number | null;
 }) {
+  return (
+    <ManualScoreControls
+      runId={runId}
+      caseId={caseId}
+      column={column}
+      value={value}
+    />
+  );
+}
+
+export function ManualScoreControls({
+  runId,
+  caseId,
+  column,
+  value,
+}: {
+  runId: string;
+  caseId: string;
+  column: ColumnDef;
+  value: number | null;
+}) {
   const updateAction = useActionFn(async (nextValue: number) => {
     await updateManualScore({
       runId,

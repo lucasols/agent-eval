@@ -27,6 +27,13 @@ const ScoreRowLabel = styled.div`
   letter-spacing: -0.005em;
 `;
 
+const ScoreRowDescription = styled.p`
+  margin: -2px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: ${colors.textMuted.var};
+`;
+
 const ScoreRowValue = styled.span`
   ${monoFont};
   font-size: 13px;
@@ -112,6 +119,9 @@ export function CaseScores({
                 {value === null ? '\u2014' : formatNumericCellValue(c, value)}
               </ScoreRowValue>
             </ScoreRowHeader>
+            {c.description !== undefined ? (
+              <ScoreRowDescription>{c.description}</ScoreRowDescription>
+            ) : null}
             {value !== null ? (
               <ScoreBar>
                 <ScoreBarFill

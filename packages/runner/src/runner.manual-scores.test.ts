@@ -1,6 +1,7 @@
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { defineEval, runWithEvalRegistry } from '@agent-evals/sdk';
 import { afterEach, describe, expect, test } from 'vitest';
 import { createRunner } from './runner.ts';
 
@@ -16,6 +17,21 @@ afterEach(async () => {
 });
 
 describe('runner manual scores', () => {
+  test('manual score descriptions are required', async () => {
+    await expect(
+      runWithEvalRegistry(() =>
+        defineEval({
+          id: 'missing-manual-score-description',
+          cases: [],
+          execute: () => {},
+          manualScores: { review: { label: 'Review', description: '   ' } },
+        }),
+      ),
+    ).rejects.toThrow(
+      'Manual score "review" in eval "missing-manual-score-description" must declare a non-empty description',
+    );
+  });
+
   test('manual scores start unscored and update persisted case results', async () => {
     const workspacePath = await mkdtemp(
       join(tmpdir(), 'agent-evals-runner-manual-score-'),
@@ -42,6 +58,7 @@ defineEval({
   manualScores: {
     reviewerDecision: {
       label: 'Reviewer Decision',
+      description: 'Confirm the case is acceptable for release.',
       format: 'passFail',
       passThreshold: 0.5,
     },
@@ -70,6 +87,20 @@ defineEval({
 
       expect(runner.getEval('manual-score-eval')?.lastRunStatus).toBe(
         'unscored',
+      );
+      expect(runner.getEval('manual-score-eval')?.columnDefs).toEqual(
+        expect.arrayContaining([
+          {
+            key: 'reviewerDecision',
+            label: 'Reviewer Decision',
+            description: 'Confirm the case is acceptable for release.',
+            kind: 'number',
+            format: 'passFail',
+            isScore: true,
+            isManualScore: true,
+            passThreshold: 0.5,
+          },
+        ]),
       );
       expect(runner.getRun(startedRun.manifest.id)?.cases).toMatchObject([
         {

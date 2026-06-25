@@ -11,6 +11,10 @@ import {
 const previewCardSvg = readFileSync(
   new URL('../../datasets/assets/status-card.svg', import.meta.url),
 );
+const previewCardUrl = new URL(
+  '../../datasets/assets/status-card.svg',
+  import.meta.url,
+).href;
 const audioBriefWav = readFileSync(
   new URL('../../datasets/assets/chime.wav', import.meta.url),
 );
@@ -90,9 +94,27 @@ defineEval({
         orderId: 'A-1024',
         customerMessage:
           'Please confirm the refund package for my damaged mug.',
+        prompt: {
+          data: {
+            test: 'Please confirm the refund package for my damaged mug.',
+          },
+        },
+        visualReferenceUrls: [previewCardUrl],
       },
     },
   ],
+  inputSections: {
+    customerPrompt: {
+      path: 'prompt.data.test',
+      label: 'Customer prompt',
+      format: 'markdown',
+    },
+    visualReferences: {
+      path: 'visualReferenceUrls',
+      label: 'Visual references',
+    },
+    orderSummary: (input) => `Order ${input.orderId}`,
+  },
   columns: {
     response: { label: 'Response', format: 'markdown' },
     plainTextSummary: { label: 'Plain Text Summary' },
@@ -177,11 +199,15 @@ defineEval({
   manualScores: {
     reviewerDecision: {
       label: 'Reviewer Decision',
+      description:
+        'Confirm the prepared refund package is ready to send and does not need escalation.',
       format: 'passFail',
       passThreshold: 0.5,
     },
     reviewerQuality: {
       label: 'Reviewer Quality',
+      description:
+        'Rate whether the response, attachments, and next-step guidance are complete for a support reviewer.',
       format: 'stars',
       maxStars: 5,
     },

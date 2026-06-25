@@ -11,6 +11,12 @@ import type {
   EvalChartType,
   EvalColumnOverride,
   EvalColumns,
+  EvalInputSectionConfig,
+  EvalInputSectionObjectConfig,
+  EvalInputSections,
+  EvalInputSectionSelectContext,
+  EvalInputSectionSelectFn,
+  EvalInputSectionSelector,
   EvalDeriveConfig,
   EvalDeriveContext,
   EvalDeriveFn,
@@ -41,6 +47,12 @@ export type {
   EvalChartType,
   EvalColumnOverride,
   EvalColumns,
+  EvalInputSectionConfig,
+  EvalInputSectionObjectConfig,
+  EvalInputSections,
+  EvalInputSectionSelectContext,
+  EvalInputSectionSelectFn,
+  EvalInputSectionSelector,
   EvalDeriveConfig,
   EvalDeriveContext,
   EvalDeriveFn,
@@ -109,7 +121,7 @@ export type EvalOutputs = Record<string, unknown>;
  *
  * Pass a format string such as `'markdown'` for the common case, or an
  * `EvalColumnOverride` when the output also needs a label, numeric formatting,
- * table visibility, alignment, or star count.
+ * table visibility, alignment, helper description, or star count.
  */
 export type EvalOutputOptions = ColumnFormat | EvalColumnOverride;
 
@@ -219,7 +231,13 @@ export type EvalScoreDef<TInput, TOutputs extends EvalOutputs = EvalOutputs> =
  * execution. The web UI is responsible for setting their normalized `0..1`
  * values after a run completes.
  */
-export type EvalManualScoreDef = EvalColumnOverride & {
+export type EvalManualScoreDef = Omit<EvalColumnOverride, 'description'> & {
+  /**
+   * Required review instructions shown alongside the manual score column.
+   * Spell out exactly what a human reviewer should inspect before entering
+   * the score.
+   */
+  description: string;
   /**
    * Optional pass/fail gate applied after a value is filled. Pending manual
    * values keep the eval in an `unscored` state instead of failing the case.
@@ -438,6 +456,16 @@ type EvalDefinitionBase<
    * or manual scores.
    */
   columns?: EvalColumns;
+  /**
+   * Highlight important case input values as separate sections in the Input
+   * tab. Use a dot selector (`'prompt.data.test'`), a callback
+   * (`(input) => value`), or an object with `path` / `select` plus label and
+   * format metadata.
+   *
+   * `file://` URL strings selected by an input section are copied into the run
+   * artifacts and rendered as files/media when their extension is supported.
+   */
+  inputSections?: EvalInputSections<TInput>;
   /**
    * Per-eval trace attribute display rules for the UI.
    *

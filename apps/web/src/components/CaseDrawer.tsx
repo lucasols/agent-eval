@@ -18,7 +18,7 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { styled } from 'vindur';
 import { ApiCallsTab } from '#src/components/ApiCallsTab';
 import { Button } from '#src/components/Button';
@@ -40,6 +40,7 @@ import { LlmCallRow } from '#src/components/LlmCallRow';
 import { LlmCostScenarioToolbar } from '#src/components/LlmCostScenarioToolbar';
 import { LoadingLine } from '#src/components/LoadingState';
 import { MenuButton } from '#src/components/MenuButton';
+import { PendingManualScoringPanel } from '#src/components/PendingManualScoringPanel';
 import { ResizeHandle } from '#src/components/ResizeHandle';
 import type { SplitButtonMenuEntry } from '#src/components/SplitButton';
 import { StatusBadge } from '#src/components/StatusBadge';
@@ -687,6 +688,25 @@ export function CaseDrawer() {
   if (assertionResults.length > 0) tabs.push('assertions');
   if (d.error) tabs.push('error');
   const activeTab = resolveActiveTab(searchParams.get('caseTab'), tabs);
+  const manualScoringDock =
+    selectedCaseRunId === null || selectedCaseId === null ? null : (
+      <PendingManualScoringPanel
+        runId={selectedCaseRunId}
+        caseId={selectedCaseId}
+        scoreColumns={scoreColumns}
+        columns={d.columns}
+      />
+    );
+  const manualScoringPreviewFooter =
+    selectedCaseRunId === null || selectedCaseId === null ? null : (
+      <PendingManualScoringPanel
+        runId={selectedCaseRunId}
+        caseId={selectedCaseId}
+        scoreColumns={scoreColumns}
+        columns={d.columns}
+        compact
+      />
+    );
   const menuEntries: SplitButtonMenuEntry[] = [
     {
       id: 'copy-case-path',
@@ -776,7 +796,13 @@ export function CaseDrawer() {
       </TabBar>
 
       <TabContent>
-        {activeTab === 'input' ? <InputViewer value={d.input} /> : null}
+        {activeTab === 'input' ? (
+          <InputViewer
+            value={d.input}
+            sections={d.inputSections}
+            previewFooter={manualScoringPreviewFooter}
+          />
+        ) : null}
 
         {activeTab === 'output' ? (
           hasOutputValue ? (
@@ -786,6 +812,7 @@ export function CaseDrawer() {
                   key={c.key}
                   def={c}
                   value={d.columns[c.key]}
+                  previewFooter={manualScoringPreviewFooter}
                 />
               ))}
             </OutputLayout>
@@ -1021,6 +1048,7 @@ export function CaseDrawer() {
           />
         ) : null}
       </TabContent>
+      {manualScoringDock}
     </DrawerRoot>
   );
 }
@@ -1155,9 +1183,11 @@ function parseCacheFilter(value: string): CacheFilter {
 function ColumnCell({
   def,
   value,
+  previewFooter,
 }: {
   def: ColumnDef;
   value: CellValue | undefined;
+  previewFooter: ReactNode | undefined;
 }) {
   const label = getDisplayColumnLabel(def);
   const diagnosticMatch = findDiagnosticOutputMatch(value, def.key);
@@ -1177,12 +1207,18 @@ function ColumnCell({
           </Tooltip>
         ) : null}
       </OutputLabelRow>
-      <OutputContent>{renderColumnValue(def, value)}</OutputContent>
+      <OutputContent>
+        {renderColumnValue(def, value, previewFooter)}
+      </OutputContent>
     </OutputBlock>
   );
 }
 
-function renderColumnValue(def: ColumnDef, value: CellValue | undefined) {
+function renderColumnValue(
+  def: ColumnDef,
+  value: CellValue | undefined,
+  previewFooter: ReactNode | undefined,
+) {
   if (value === undefined || value === null) {
     return <ScalarValue>{'\u2014'}</ScalarValue>;
   }
@@ -1212,6 +1248,7 @@ function renderColumnValue(def: ColumnDef, value: CellValue | undefined) {
         value={value}
         inferMarkdown
         markdownRawToggle
+        previewFooter={previewFooter}
       />
     );
   }

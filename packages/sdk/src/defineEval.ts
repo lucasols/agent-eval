@@ -56,10 +56,29 @@ export function defineEval<
   TInput = unknown,
   TOutputs extends EvalOutputs = EvalOutputs,
 >(definition: EvalDefinition<TInput, TOutputs>): void {
+  assertManualScoreDescriptions(definition);
   getEvalRegistry().set(definition.id, {
     id: definition.id,
     title: definition.title,
     description: definition.description,
     use: (fn) => fn(definition),
   });
+}
+
+function assertManualScoreDescriptions<
+  TInput,
+  TOutputs extends EvalOutputs = EvalOutputs,
+>(definition: EvalDefinition<TInput, TOutputs>): void {
+  for (const [scoreKey, scoreDef] of Object.entries(
+    definition.manualScores ?? {},
+  )) {
+    const candidate: { description?: unknown } = scoreDef;
+    const description = candidate.description;
+    if (typeof description === 'string' && description.trim() !== '') {
+      continue;
+    }
+    throw new Error(
+      `Manual score "${scoreKey}" in eval "${definition.id}" must declare a non-empty description explaining what reviewers should inspect.`,
+    );
+  }
 }

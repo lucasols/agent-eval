@@ -198,6 +198,14 @@ export const caseRowSchema = z.object({
 /** Flattened per-case row rendered in run tables and streamed updates. */
 export type CaseRow = z.infer<typeof caseRowSchema>;
 
+/** Schema for one highlighted input section in a case detail payload. */
+export const caseInputSectionSchema = columnDefSchema.extend({
+  /** Display-ready value selected from the case input. */
+  value: cellValueSchema,
+});
+/** Highlighted input section shown in the case detail input tab. */
+export type CaseInputSection = z.infer<typeof caseInputSectionSchema>;
+
 const assertionBaseSchema = z.object({
   /**
    * Error class or category label rendered alongside the message (e.g.
@@ -320,6 +328,12 @@ export const caseDetailSchema = z.object({
   tags: z.array(z.string()).optional(),
   status: z.enum(['pending', 'running', 'pass', 'fail', 'error', 'cancelled']),
   input: z.unknown(),
+  /**
+   * Optional highlighted input values selected by `inputSections` config.
+   * These are stored separately from the raw `input` so the UI can render
+   * important prompt, fixture, or file fields as reviewable sections.
+   */
+  inputSections: z.array(caseInputSectionSchema).optional(),
   trace: z.array(traceSpanSchema),
   traceDisplay: traceDisplayConfigSchema,
   /**

@@ -248,6 +248,7 @@ export const config: AgentEvalsConfig = {
 | `deriveFromTracing` |  | Derive output columns from the finished trace tree |
 | `tracingAssertions` |  | Record assertions from the finished trace tree |
 | `scores` |  | Record of scoring functions returning `0..1` |
+| `manualScores` |  | Record of score columns filled by reviewers after a run |
 | `columns` |  | Custom columns shown in the results table |
 | `stats` |  | Opt-in stats row on the eval page (see [Stats row](#stats-row)) |
 | `defaultStatAggregate` |  | Override the global initial aggregate mode for this eval's duration/column stats |
@@ -851,17 +852,21 @@ scores: {
 
 The case detail UI shows execution spans on the **Trace** tab and score spans on a separate **Scoring** tab. Outputs recorded inside a scorer scope stay private to that score.
 
-Manual scores are separate from computed `scores`. They are created as pending score columns during a run, then filled directly in the web UI. Values are stored as normalized `0..1` numbers. While the latest run for an eval has any pending manual scores, the eval is shown as `unscored`; older runs do not affect that state.
+Manual scores are separate from computed `scores`. They are created as pending score columns during a run, then filled directly in the web UI. Values are stored as normalized `0..1` numbers. While the latest run for an eval has any pending manual scores, the eval is shown as `unscored`; older runs do not affect that state. Every manual score requires a non-empty `description` explaining what reviewers need to inspect; it appears as a run-table tooltip and as visible guidance in the case score panel.
 
 ```ts
 manualScores: {
   reviewerDecision: {
     label: 'Reviewer Decision',
+    description:
+      'Confirm the response is safe to send and matches the refund policy.',
     format: 'passFail',
     passThreshold: 0.5,
   },
   reviewerQuality: {
     label: 'Reviewer Quality',
+    description:
+      'Rate the completeness of the response and supporting artifacts.',
     format: 'stars',
     maxStars: 5,
   },
@@ -881,6 +886,26 @@ columns: {
 ```
 
 Populate values in `deriveFromTracing(...)` and/or from runtime outputs. Long custom column text is truncated in the runs table and reveals the full value on hover. Use `hideInTable: true` for rich outputs that should stay in the case detail view without taking up space in the runs table. Use `hideIfNoValue: true` to hide a column from the runs table when every rendered row is missing the value, `null`, or an empty string; `0` and `false` still count as values. The column remains available in case details and raw outputs.
+
+### Input sections
+
+Use `inputSections` globally in `agent-evals.config.ts` or on a single `defineEval(...)` to highlight important case input values in the Input tab. Values can be selected by dot path, by callback, or by an object with display metadata:
+
+```ts
+defineEval({
+  id: 'pdf-builder',
+  inputSections: {
+    prompt: { path: 'prompt.data.test', label: 'Prompt', format: 'markdown' },
+    recordTitle: (input) => input.record.title,
+    visualReferences: {
+      path: 'visual_reference_urls',
+      label: 'Visual references',
+    },
+  },
+});
+```
+
+Selected values use the same rich render formats as outputs (`markdown`, `json`, `image`, `pdf`, `audio`, `video`, `file`, etc.). If a selected value is a `file://` URL string, or an array containing `file://` URL strings, the runner copies those local files into the run artifacts and renders them as file/media previews when the MIME type can be inferred from the extension.
 
 ### Trace-derived outputs
 

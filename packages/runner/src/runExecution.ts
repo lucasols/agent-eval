@@ -21,6 +21,7 @@ import type {
   CaseRow,
   CellValue,
   EvalDeriveConfig,
+  EvalInputSections,
   EvalTracingAssertionsConfig,
   EvalColumns,
   EvalTraceTree,
@@ -44,6 +45,7 @@ import {
   toCellValue,
 } from './columnBuilder.ts';
 import { addDefaultOutputs, mergeDefaultColumns } from './defaultConfig.ts';
+import { resolveInputSections } from './inputSections.ts';
 import { runWithModuleIsolation } from './moduleIsolation.ts';
 import { persistInlineArtifact } from './outputArtifacts.ts';
 import { stripTerminalControlCodes } from './stackFormatting.ts';
@@ -246,6 +248,7 @@ export async function runCase<
   evalCase: { id: string; input: TRunInput; tags?: string[] };
   globalTraceDisplay: TraceDisplayInputConfig | undefined;
   globalColumns?: EvalColumns;
+  globalInputSections?: EvalInputSections<TRunInput>;
   globalDeriveFromTracing?: EvalDeriveConfig<TRunInput>;
   globalTracingAssertions?: EvalTracingAssertionsConfig<TRunInput>;
   llmCallsConfig?: ResolvedLlmCallsConfig;
@@ -269,6 +272,7 @@ export async function runCase<
     evalCase,
     globalTraceDisplay,
     globalColumns,
+    globalInputSections,
     globalDeriveFromTracing,
     globalTracingAssertions,
     llmCallsConfig = resolveLlmCallsConfig(undefined),
@@ -578,6 +582,15 @@ export async function runCase<
       ),
     ),
   );
+  const inputSections = await resolveInputSections({
+    globalInputSections,
+    evalInputSections: evalDef.inputSections,
+    input: evalCase.input,
+    evalCase,
+    artifactDir,
+    runId,
+    trial,
+  });
 
   const errorInfo = nonAssertError
     ? {
@@ -595,6 +608,7 @@ export async function runCase<
     tags: evalCase.tags ?? [],
     status,
     input: evalCase.input,
+    ...(inputSections.length > 0 ? { inputSections } : {}),
     trace: displayTrace,
     traceDisplay,
     columns,

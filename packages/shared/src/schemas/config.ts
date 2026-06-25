@@ -180,6 +180,8 @@ export const evalTracingAssertionsConfigSchema: z.ZodType<EvalTracingAssertionsC
 export type EvalColumnOverride = {
   /** Display label shown for the column in tables and detail views. */
   label?: string;
+  /** Optional helper text explaining what this column represents. */
+  description?: string;
   /**
    * Presentation preset for the value.
    *
@@ -224,6 +226,7 @@ export type EvalColumns = Record<string, EvalColumnOverride>;
 export const evalColumnOverrideSchema: z.ZodType<EvalColumnOverride> = z.object(
   {
     label: z.string().optional(),
+    description: z.string().optional(),
     format: columnFormatSchema.optional(),
     numberFormat: numberDisplayOptionsSchema.optional(),
     hideInTable: z.boolean().optional(),
@@ -237,6 +240,95 @@ export const evalColumnOverrideSchema: z.ZodType<EvalColumnOverride> = z.object(
 export const evalColumnsSchema: z.ZodType<EvalColumns> = z.record(
   z.string(),
   evalColumnOverrideSchema,
+);
+
+/** Context passed to an input-section selector callback. */
+export type EvalInputSectionSelectContext<TInput = unknown> = {
+  /** Active eval case whose input is being prepared for display. */
+  case: EvalCase<TInput>;
+};
+
+/** Function that selects one highlighted input value for case detail display. */
+export type EvalInputSectionSelectFn<TInput = unknown> = (
+  input: TInput,
+  ctx: EvalInputSectionSelectContext<TInput>,
+) => MaybePromise<unknown>;
+
+/**
+ * Input section selector. String values are dot-separated paths into the case
+ * input; function values receive the full input and return the display value.
+ */
+export type EvalInputSectionSelector<TInput = unknown> =
+  | string
+  | EvalInputSectionSelectFn<TInput>;
+
+/**
+ * Rich input-section config with optional label and format metadata.
+ *
+ * Provide either `path` for a dot-separated input selector or `select` for a
+ * callback. `format`, `numberFormat`, and `maxStars` use the same renderer
+ * presets as output columns.
+ */
+export type EvalInputSectionObjectConfig<TInput = unknown> = {
+  /** Label shown above the highlighted input section. Defaults to the key. */
+  label?: string;
+  /** Dot-separated path into the case input. */
+  path?: string;
+  /** Callback that returns the highlighted value from the case input. */
+  select?: EvalInputSectionSelectFn<TInput>;
+  /** Presentation preset for the selected input value. */
+  format?: ColumnFormat;
+  /** Extra options for `format: 'number'`. */
+  numberFormat?: NumberDisplayOptions;
+  /** Maximum number of stars used when `format: 'stars'`. */
+  maxStars?: number;
+};
+
+/**
+ * One highlighted input section config. Use a bare string or callback for the
+ * common case, or an object when the section needs a label or format.
+ */
+export type EvalInputSectionConfig<TInput = unknown> =
+  | EvalInputSectionSelector<TInput>
+  | EvalInputSectionObjectConfig<TInput>;
+
+/** Input section map keyed by stable section id. */
+export type EvalInputSections<TInput = unknown> = Record<
+  string,
+  EvalInputSectionConfig<TInput>
+>;
+
+const evalInputSectionSelectFnSchema = z.custom<EvalInputSectionSelectFn>(
+  (value) => typeof value === 'function',
+  { message: 'Expected an input section selector function' },
+);
+
+const evalInputSectionSelectorSchema: z.ZodType<EvalInputSectionSelector> =
+  z.union([z.string().min(1), evalInputSectionSelectFnSchema]);
+
+const evalInputSectionObjectConfigSchema: z.ZodType<EvalInputSectionObjectConfig> =
+  z
+    .object({
+      label: z.string().optional(),
+      path: z.string().min(1).optional(),
+      select: evalInputSectionSelectFnSchema.optional(),
+      format: columnFormatSchema.optional(),
+      numberFormat: numberDisplayOptionsSchema.optional(),
+      maxStars: z.number().int().min(2).optional(),
+    })
+    .refine(
+      (config) => config.path !== undefined || config.select !== undefined,
+      { message: 'Expected either path or select', path: ['path'] },
+    )
+    .refine(
+      (config) => config.path === undefined || config.select === undefined,
+      { message: 'Use either path or select, not both', path: ['select'] },
+    );
+
+/** Schema for highlighted input sections shown in the case detail input tab. */
+export const evalInputSectionsSchema: z.ZodType<EvalInputSections> = z.record(
+  z.string().min(1),
+  z.union([evalInputSectionSelectorSchema, evalInputSectionObjectConfigSchema]),
 );
 
 /** Render formats supported by an LLM-call metric in the UI. */
@@ -907,6 +999,14 @@ export type AgentEvalsConfig = {
    */
   columns?: EvalColumns;
   /**
+   * Workspace-wide highlighted input sections applied to every eval case.
+   *
+   * Use string values for dot-separated input paths, callback values for custom
+   * selection, or rich objects for labels and formats. Eval-level
+   * `inputSections` with the same key override these entries.
+   */
+  inputSections?: EvalInputSections;
+  /**
    * Workspace-wide trace-derived outputs applied to every eval case.
    *
    * Prefer the keyed map form for shared metrics:
@@ -1086,6 +1186,7 @@ export const agentEvalsConfigSchema = z.object({
   allowCliRunAll: z.boolean().optional(),
   traceDisplay: traceDisplayInputConfigSchema.optional(),
   columns: evalColumnsSchema.optional(),
+  inputSections: evalInputSectionsSchema.optional(),
   deriveFromTracing: evalDeriveConfigSchema.optional(),
   tracingAssertions: evalTracingAssertionsConfigSchema.optional(),
   stats: evalStatsConfigSchema.optional(),

@@ -1,3 +1,7 @@
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   configureEvalRunLogs,
   evalAssert,
@@ -79,6 +83,10 @@ function delay(ms: number): Promise<void> {
   });
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
 test('buildScopedEvalIdPrefix includes the workspace-relative eval file path', () => {
   expect(
     buildScopedEvalIdPrefix({
@@ -97,6 +105,76 @@ test('buildScopedEvalIdPrefix includes the workspace-relative eval file path', (
       workspaceRoot: '/repo',
     }),
   ).toBe('duplicate-id-evals-returns-refund-eval-ts-case-a');
+});
+
+test('runCase stores configured input sections and materializes file urls', async () => {
+  const workspacePath = await mkdtemp(
+    join(tmpdir(), 'agent-evals-input-sections-'),
+  );
+  const fixturePath = join(workspacePath, 'reference.pdf');
+  await writeFile(
+    fixturePath,
+    new TextEncoder().encode('%PDF-1.4\n% input fixture\n'),
+  );
+
+  const fileUrl = pathToFileURL(fixturePath).href;
+  const result = await runDefaultUsageCase({
+    evalDef: {
+      id: 'input-sections-eval',
+      inputSections: {
+        prompt: {
+          path: 'prompt.data.test',
+          label: 'Prompt',
+          format: 'markdown',
+        },
+        referenceFiles: {
+          path: 'visualReferenceUrls',
+          label: 'Reference files',
+        },
+        summary: (input) => {
+          if (!isRecord(input) || typeof input.orderId !== 'string') {
+            return undefined;
+          }
+          return `Order ${input.orderId}`;
+        },
+      },
+      execute: () => {},
+    },
+    evalId: 'input-sections-eval',
+    evalCase: {
+      id: 'case-one',
+      input: {
+        orderId: 'A-1024',
+        prompt: { data: { test: '**Confirm** the refund package.' } },
+        visualReferenceUrls: [fileUrl],
+      },
+    },
+    workspaceRoot: workspacePath,
+    evalFilePath: join(workspacePath, 'evals', 'input-sections.eval.ts'),
+    artifactDir: join(workspacePath, '.agent-evals/runs/run-id/artifacts'),
+  });
+
+  expect(result.caseDetail.inputSections).toMatchObject([
+    {
+      key: 'prompt',
+      label: 'Prompt',
+      format: 'markdown',
+      value: '**Confirm** the refund package.',
+    },
+    {
+      key: 'referenceFiles',
+      label: 'Reference files',
+      value: [
+        {
+          source: 'run',
+          mimeType: 'application/pdf',
+          fileName: 'reference.pdf',
+          sizeBytes: 25,
+        },
+      ],
+    },
+    { key: 'summary', label: 'summary', value: 'Order A-1024' },
+  ]);
 });
 
 test('runCase includes pass and fail assertion records in case details', async () => {

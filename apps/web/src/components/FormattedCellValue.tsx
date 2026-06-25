@@ -1,6 +1,13 @@
 import type { CellValue, ColumnDef, FileRef } from '@agent-evals/shared';
-import { Code2, Download, Eye, FileCode2, FileText } from 'lucide-react';
-import { useState } from 'react';
+import {
+  Code2,
+  Download,
+  ExternalLink,
+  Eye,
+  FileCode2,
+  FileText,
+} from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { styled } from 'vindur';
@@ -340,16 +347,50 @@ const PreviewFrame = styled.iframe`
   background: ${colors.white.var};
 `;
 
+const PreviewHeaderLink = styled.a`
+  ${inline({ align: 'center', gap: 7 })}
+  ${transition({ property: 'background, border-color, color' })}
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid ${colors.borderStrong.var};
+  border-radius: var(--radius-md);
+  background: ${colors.surface.var};
+  color: ${colors.text.var};
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+
+  &:hover {
+    background: ${colors.surfaceHover.var};
+    border-color: ${colors.accent.alpha(0.45)};
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${colors.accent.var};
+    outline-offset: 2px;
+  }
+
+  & svg {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+  }
+`;
+
 export function FormattedCellValue({
   def,
   value,
   inferMarkdown = false,
   markdownRawToggle = false,
+  previewFooter,
 }: {
   def: ColumnDef;
   value: CellValue | undefined;
   inferMarkdown?: boolean;
   markdownRawToggle?: boolean;
+  previewFooter?: ReactNode;
 }) {
   if (value === undefined || value === null) return '\u2014';
 
@@ -385,6 +426,7 @@ export function FormattedCellValue({
       <ImageCell
         src={getFileUrl(fileRef)}
         alt={def.label}
+        previewFooter={previewFooter}
       />
     );
   }
@@ -400,6 +442,7 @@ export function FormattedCellValue({
         title={def.label}
         fileName={getFileLabel(fileRef)}
         sizeBytes={fileRef.sizeBytes}
+        previewFooter={previewFooter}
       />
     );
   }
@@ -539,8 +582,16 @@ const markdownSignals = [
   /!?\[[^\]\n]+\]\([^)]+\)/,
 ];
 
-function ImageCell({ src, alt }: { src: string; alt: string }) {
-  const { openImage, lightbox } = useImageLightbox();
+function ImageCell({
+  src,
+  alt,
+  previewFooter,
+}: {
+  src: string;
+  alt: string;
+  previewFooter: ReactNode | undefined;
+}) {
+  const { openImage, lightbox } = useImageLightbox({ footer: previewFooter });
   return (
     <>
       <ImageValue
@@ -559,12 +610,14 @@ function ArtifactPreviewCell({
   title,
   fileName,
   sizeBytes,
+  previewFooter,
 }: {
   kind: 'html' | 'pdf';
   src: string;
   title: string;
   fileName: string;
   sizeBytes: number | undefined;
+  previewFooter: ReactNode | undefined;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const Icon = kind === 'html' ? FileCode2 : FileText;
@@ -599,6 +652,7 @@ function ArtifactPreviewCell({
         src={src}
         title={title}
         fileName={fileName}
+        footer={previewFooter}
         onClose={() => setIsOpen(false)}
       />
     </>
@@ -656,6 +710,7 @@ function ArtifactPreviewModal({
   src,
   title,
   fileName,
+  footer,
   onClose,
 }: {
   isOpen: boolean;
@@ -663,6 +718,7 @@ function ArtifactPreviewModal({
   src: string;
   title: string;
   fileName: string;
+  footer: ReactNode | undefined;
   onClose: () => void;
 }) {
   return (
@@ -673,6 +729,17 @@ function ArtifactPreviewModal({
       onClose={onClose}
       wide
       topLayer
+      footer={footer}
+      headerActions={
+        <PreviewHeaderLink
+          href={src}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <ExternalLink />
+          Open in new tab
+        </PreviewHeaderLink>
+      }
     >
       <PreviewFrameWrap>
         <PreviewFrame

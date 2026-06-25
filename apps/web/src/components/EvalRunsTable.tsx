@@ -7,7 +7,7 @@ import type {
   RunManifest,
   ScopedCaseSummary,
 } from '@agent-evals/shared';
-import { ChevronDown, ChevronRight, Eye } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, Eye } from 'lucide-react';
 import { useState, type MouseEvent } from 'react';
 import { styled } from 'vindur';
 import { summarizeCellValue } from '#src/components/FormattedCellValue';
@@ -120,6 +120,13 @@ const Th = styled.th<{ rightAlign: boolean; indent: boolean }>`
   &.indent {
     padding-left: 36px;
   }
+`;
+
+const ColumnHeaderLabel = styled.span`
+  ${ellipsis};
+  display: inline-block;
+  max-width: 220px;
+  vertical-align: bottom;
 `;
 
 const RunHeaderRow = styled.tr<{ latest: boolean; active: boolean }>`
@@ -375,6 +382,38 @@ const FilePreviewVideo = styled.video`
   border-radius: var(--radius-md);
 `;
 
+const FilePreviewHeaderLink = styled.a`
+  ${inline({ align: 'center', gap: 7 })}
+  ${transition({ property: 'background, border-color, color' })}
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid ${colors.borderStrong.var};
+  border-radius: var(--radius-md);
+  background: ${colors.surface.var};
+  color: ${colors.text.var};
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+
+  &:hover {
+    background: ${colors.surfaceHover.var};
+    border-color: ${colors.accent.alpha(0.45)};
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${colors.accent.var};
+    outline-offset: 2px;
+  }
+
+  & svg {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+  }
+`;
+
 const Dim = styled.span`
   color: ${colors.textDim.var};
 `;
@@ -461,6 +500,14 @@ function getCellTooltipContent(
   return String(value);
 }
 
+function TableHeaderLabel({ column }: { column: ColumnDef }) {
+  return (
+    <Tooltip content={column.description}>
+      <ColumnHeaderLabel>{column.label}</ColumnHeaderLabel>
+    </Tooltip>
+  );
+}
+
 function TableColumnValue({
   column,
   value,
@@ -522,6 +569,7 @@ function TableFilePreviewModal({
   if (refValue === null) return null;
   const fileName = getFileLabel(refValue);
   const format = getEffectiveFileRefFormat(column, refValue);
+  const src = getFileUrl(refValue);
 
   return (
     <Modal
@@ -531,10 +579,20 @@ function TableFilePreviewModal({
       onClose={onClose}
       wide
       topLayer
+      headerActions={
+        <FilePreviewHeaderLink
+          href={src}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <ExternalLink />
+          Open in new tab
+        </FilePreviewHeaderLink>
+      }
     >
       <TableFilePreviewContent
         format={format}
-        src={getFileUrl(refValue)}
+        src={src}
         title={column.label}
       />
     </Modal>
@@ -689,7 +747,7 @@ export function EvalRunsTable({
                 rightAlign={true}
                 indent={false}
               >
-                {c.label}
+                <TableHeaderLabel column={c} />
               </Th>
             ))}
             <Th
@@ -704,7 +762,7 @@ export function EvalRunsTable({
                 rightAlign={c.align === 'right' || isNumericColumn(c)}
                 indent={false}
               >
-                {c.label}
+                <TableHeaderLabel column={c} />
               </Th>
             ))}
           </tr>

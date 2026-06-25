@@ -1,8 +1,9 @@
-import { X } from 'lucide-react';
-import { useEffect } from 'react';
+import { ExternalLink, X } from 'lucide-react';
+import { useEffect, type ReactNode } from 'react';
 import { styled } from 'vindur';
+import { Tooltip } from '#src/components/Tooltip';
 import { colors } from '#src/style/colors';
-import { centerContent, transition } from '#src/style/helpers';
+import { centerContent, inline, transition } from '#src/style/helpers';
 
 const Overlay = styled.div`
   ${centerContent};
@@ -23,11 +24,15 @@ const FullImage = styled.img`
   cursor: zoom-out;
 `;
 
-const CloseButton = styled.button`
-  ${centerContent};
+const TopActions = styled.div`
+  ${inline({ align: 'center', gap: 8 })}
   position: fixed;
   top: 16px;
   right: 16px;
+`;
+
+const TopActionLink = styled.a`
+  ${centerContent};
   width: 36px;
   height: 36px;
   border: none;
@@ -47,7 +52,9 @@ const CloseButton = styled.button`
   }
 `;
 
-const Caption = styled.div`
+const CloseButton = TopActionLink.withComponent('button');
+
+const Caption = styled.div<{ hasFooter: boolean }>`
   position: fixed;
   bottom: 16px;
   left: 50%;
@@ -63,6 +70,19 @@ const Caption = styled.div`
   text-overflow: ellipsis;
   white-space: nowrap;
   pointer-events: none;
+
+  &.hasFooter {
+    bottom: 96px;
+  }
+`;
+
+const Footer = styled.div`
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  width: min(760px, calc(100vw - 32px));
+  cursor: default;
 `;
 
 type ImageLightboxProps = {
@@ -70,6 +90,7 @@ type ImageLightboxProps = {
   src: string;
   alt: string;
   onClose: () => void;
+  footer?: ReactNode;
 };
 
 /**
@@ -82,6 +103,7 @@ export function ImageLightbox({
   src,
   alt,
   onClose,
+  footer,
 }: ImageLightboxProps) {
   useEffect(() => {
     if (!isOpen) return;
@@ -106,14 +128,31 @@ export function ImageLightbox({
         alt={alt}
         onClick={(event) => event.stopPropagation()}
       />
-      <CloseButton
-        type="button"
-        aria-label="Close"
-        onClick={onClose}
-      >
-        <X size={18} />
-      </CloseButton>
-      {alt ? <Caption>{alt}</Caption> : null}
+      {footer ? (
+        <Footer onClick={(event) => event.stopPropagation()}>{footer}</Footer>
+      ) : null}
+      <TopActions onClick={(event) => event.stopPropagation()}>
+        <Tooltip content="Open in new tab">
+          <TopActionLink
+            href={src}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Open in new tab"
+          >
+            <ExternalLink size={18} />
+          </TopActionLink>
+        </Tooltip>
+        <Tooltip content="Close">
+          <CloseButton
+            type="button"
+            aria-label="Close"
+            onClick={onClose}
+          >
+            <X size={18} />
+          </CloseButton>
+        </Tooltip>
+      </TopActions>
+      {alt ? <Caption hasFooter={footer !== undefined}>{alt}</Caption> : null}
     </Overlay>
   );
 }

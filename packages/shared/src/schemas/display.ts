@@ -113,6 +113,7 @@ export type ColumnFormat = z.infer<typeof columnFormatSchema>;
 export const columnDefSchema = z.object({
   key: z.string(),
   label: z.string(),
+  description: z.string().optional(),
   kind: columnKindSchema,
   format: columnFormatSchema.optional(),
   numberFormat: numberDisplayOptionsSchema.optional(),

@@ -1,6 +1,7 @@
-import { mkdir, writeFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
+import { copyFile, mkdir, stat, writeFile } from 'node:fs/promises';
+import { basename, extname, join } from 'node:path';
 import type { RunArtifactRef } from '@agent-evals/shared';
+import { resultify } from 't-result';
 
 const mimeTypeExtensionMap: Record<string, string> = {
   'application/json': '.json',
@@ -20,6 +21,13 @@ const mimeTypeExtensionMap: Record<string, string> = {
   'video/webm': '.webm',
 };
 
+const extensionMimeTypeMap: Record<string, string> = Object.fromEntries(
+  Object.entries(mimeTypeExtensionMap).map(([mimeType, extension]) => [
+    extension,
+    mimeType,
+  ]),
+);
+
 type PersistInlineArtifactParams = {
   artifactDir: string;
   runId: string;
@@ -27,6 +35,15 @@ type PersistInlineArtifactParams = {
   outputKey: string;
   trial: number;
   value: Blob;
+};
+
+type PersistLocalFileArtifactParams = {
+  artifactDir: string;
+  runId: string;
+  caseId: string;
+  artifactKey: string;
+  trial: number;
+  filePath: string;
 };
 
 /**
@@ -63,6 +80,45 @@ export async function persistInlineArtifact({
     mimeType,
     fileName,
     sizeBytes: bytes.byteLength,
+  };
+}
+
+/**
+ * Copy a local file referenced by eval input into the current run's artifact
+ * directory and return the resulting run artifact reference.
+ */
+export async function persistLocalFileArtifact({
+  artifactDir,
+  runId,
+  caseId,
+  artifactKey,
+  trial,
+  filePath,
+}: PersistLocalFileArtifactParams): Promise<RunArtifactRef | null> {
+  const statsResult = await resultify(() => stat(filePath));
+  if (statsResult.error || !statsResult.value.isFile()) return null;
+
+  await mkdir(artifactDir, { recursive: true });
+
+  const fileName = basename(filePath) || sanitizeSegment(artifactKey);
+  const mimeType = inferMimeTypeFromFileName(fileName);
+  const artifactId = [
+    sanitizeSegment(runId),
+    sanitizeSegment(caseId),
+    `t${String(trial)}`,
+    sanitizeSegment(artifactKey),
+    sanitizeFileName(fileName),
+  ].join('__');
+  const targetPath = join(artifactDir, artifactId);
+  const copyResult = await resultify(() => copyFile(filePath, targetPath));
+  if (copyResult.error) return null;
+
+  return {
+    source: 'run',
+    artifactId,
+    mimeType,
+    fileName,
+    sizeBytes: statsResult.value.size,
   };
 }
 
@@ -105,6 +161,13 @@ function getExtensionForMimeType(mimeType: string): string {
   if (subtype === undefined || subtype.length === 0) return '';
   const withoutSuffix = subtype.split('+')[0] ?? subtype;
   return withoutSuffix.length > 0 ? `.${withoutSuffix}` : '';
+}
+
+function inferMimeTypeFromFileName(fileName: string): string {
+  return (
+    extensionMimeTypeMap[extname(fileName).toLowerCase()] ??
+    'application/octet-stream'
+  );
 }
 
 function sanitizeSegment(value: string): string {
