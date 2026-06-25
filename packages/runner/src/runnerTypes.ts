@@ -27,6 +27,21 @@ export type EvalRunner = {
   getEvals(): EvalSummary[];
   /** Look up one discovered eval by id. */
   getEval(id: string): EvalSummary | undefined;
+  /**
+   * Mark a discovered eval's latest run as matching the current eval source.
+   *
+   * This clears source-fingerprint staleness without re-running the eval. Run
+   * result status and case data are left unchanged.
+   */
+  markEvalNotStale(
+    id: string,
+  ): Promise<
+    | { updated: true; eval: EvalSummary }
+    | {
+        updated: false;
+        reason: 'not-found' | 'no-latest-run' | 'source-fingerprint-missing';
+      }
+  >;
   /** Return discovery errors that should be shown before running evals. */
   getDiscoveryIssues(): DiscoveryIssue[];
   /** Return current config-reload state for the long-running app server. */

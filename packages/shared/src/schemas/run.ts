@@ -71,6 +71,37 @@ export const runSummarySchema = z.object({
   errorCases: z.number(),
   cancelledCases: z.number(),
   totalDurationMs: z.number().nullable(),
+  /**
+   * Sum of Agent Eval operation-level cache hits across this run.
+   *
+   * Older persisted summaries default to zero. This is separate from LLM
+   * provider prompt-cache token reads such as `cachedInputTokens`.
+   */
+  cacheHits: z.number().optional().default(0),
+  /**
+   * Sum of Agent Eval operation-level cache activity entries across this run.
+   *
+   * This is the denominator for `cacheHits`. Older persisted summaries default
+   * to zero.
+   */
+  cacheOperations: z.number().optional().default(0),
+  /**
+   * LLM call spans recorded across this run after applying the configured
+   * `llmCalls.kinds`. Includes calls replayed from Agent Eval operation cache.
+   */
+  llmCalls: z.number().optional().default(0),
+  /**
+   * LLM call spans that actually executed across this run.
+   *
+   * This is `llmCalls - llmCacheHits`; provider prompt-cache reads still count
+   * as executed calls because they reached the provider.
+   */
+  llmCallsMade: z.number().optional().default(0),
+  /**
+   * LLM call spans replayed from Agent Eval operation-cache hits across this
+   * run. This does not count provider prompt-cache token reads.
+   */
+  llmCacheHits: z.number().optional().default(0),
   errorMessage: z.string().nullable().default(null),
 });
 /** Roll-up statistics for one run. */

@@ -354,6 +354,11 @@ async function finalizePreparedCase(params: {
   } else {
     runState.summary.failedCases++;
   }
+  runState.summary.cacheHits += winningTrial.caseRow.cacheHits ?? 0;
+  runState.summary.cacheOperations += winningTrial.caseRow.cacheOperations ?? 0;
+  runState.summary.llmCalls += winningTrial.caseRow.llmCalls ?? 0;
+  runState.summary.llmCallsMade += winningTrial.caseRow.llmCallsMade ?? 0;
+  runState.summary.llmCacheHits += winningTrial.caseRow.llmCacheHits ?? 0;
 
   await writeFile(
     join(runDir, 'traces', `${encodeURIComponent(artifactFileId)}.json`),
@@ -660,6 +665,9 @@ export async function executeRun({
                   durationMs: null,
                   cacheHits: 0,
                   cacheOperations: 0,
+                  llmCalls: 0,
+                  llmCallsMade: 0,
+                  llmCacheHits: 0,
                   columns: {},
                   trial: 0,
                 };

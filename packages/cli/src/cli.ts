@@ -510,6 +510,16 @@ async function commandRun(args: CliArgs): Promise<void> {
     if (summary.totalDurationMs !== null) {
       console.info(`Duration: ${(summary.totalDurationMs / 1000).toFixed(1)}s`);
     }
+    if (summary.llmCalls > 0 || summary.llmCacheHits > 0) {
+      console.info(
+        `LLM calls: ${String(summary.llmCallsMade)} made, ${String(summary.llmCacheHits)} cached`,
+      );
+    }
+    if (summary.cacheOperations > 0) {
+      console.info(
+        `Cache hits: ${String(summary.cacheHits)}/${String(summary.cacheOperations)}`,
+      );
+    }
     if (summary.errorMessage !== null) {
       console.info('');
       console.info(summary.errorMessage);

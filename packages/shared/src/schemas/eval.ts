@@ -185,6 +185,27 @@ export const caseRowSchema = z.object({
    * and should be treated as zero by aggregate readers.
    */
   cacheOperations: z.number().optional(),
+  /**
+   * LLM call spans recorded for this case after applying the workspace
+   * `llmCalls.kinds` configuration. This includes calls replayed from an
+   * Agent Eval operation-cache hit.
+   */
+  llmCalls: z.number().optional(),
+  /**
+   * LLM call spans that actually executed during this case run.
+   *
+   * This is `llmCalls - llmCacheHits`; provider-side prompt-cache reads still
+   * count as executed calls because they reached the provider.
+   */
+  llmCallsMade: z.number().optional(),
+  /**
+   * LLM call spans replayed from an Agent Eval operation-cache hit.
+   *
+   * A call counts as cached when its own span or an ancestor span has
+   * `cache.status: "hit"`. This does not count provider prompt-cache token
+   * reads such as `cachedInputTokens`.
+   */
+  llmCacheHits: z.number().optional(),
   costUsd: z.number().nullable().optional(),
   columns: z.record(z.string(), cellValueSchema),
   /**

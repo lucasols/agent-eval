@@ -17,6 +17,18 @@ export const evalsRoutes = new Hono()
     const evals = runner.getEvals();
     return c.json(evals, 200);
   })
+  .post('/:evalId/mark-not-stale', async (c) => {
+    const runner = getRunnerInstance();
+    const evalId = c.req.param('evalId');
+    const result = await runner.markEvalNotStale(evalId);
+    if (!result.updated) {
+      if (result.reason === 'not-found') {
+        return c.json({ error: 'Eval not found' }, 404);
+      }
+      return c.json({ error: 'Eval cannot be marked not stale' }, 409);
+    }
+    return c.json(result, 200);
+  })
   .get('/discovery-issues', (c) => {
     const runner = getRunnerInstance();
     return c.json(runner.getDiscoveryIssues(), 200);

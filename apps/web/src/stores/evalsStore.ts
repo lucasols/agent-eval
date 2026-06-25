@@ -52,3 +52,14 @@ export async function openEvalInEditor(evalId: string): Promise<void> {
     }),
   );
 }
+
+/** Mark an eval's latest run fingerprint as current and refresh eval summaries. */
+export async function markEvalNotStale(evalId: string): Promise<void> {
+  const result = await getRpcResult(
+    apiClient.api.evals[':evalId']['mark-not-stale'].$post({
+      param: { evalId: encodeURIComponent(evalId) },
+    }),
+  );
+  if (result.error) return;
+  invalidateEvalSummaries();
+}

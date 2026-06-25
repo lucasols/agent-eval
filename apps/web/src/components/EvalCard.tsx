@@ -7,6 +7,7 @@ import {
 } from '@agent-evals/shared';
 import {
   ChevronDown,
+  CheckCheck,
   Play,
   SquareArrowOutUpRight,
   SquareStop,
@@ -39,7 +40,11 @@ import { Tooltip } from '#src/components/Tooltip';
 import { useElapsedRunTime } from '#src/hooks/useElapsedRunTime';
 import { useManualInputRun } from '#src/hooks/useManualInputRun';
 import { useSearchParams } from '#src/hooks/useSearchParams';
-import { evalSummariesStore, openEvalInEditor } from '#src/stores/evalsStore';
+import {
+  evalSummariesStore,
+  markEvalNotStale,
+  openEvalInEditor,
+} from '#src/stores/evalsStore';
 import { getRunsForEval, runHistoryStore } from '#src/stores/historyStore';
 import {
   cleanRunsForEval,
@@ -332,7 +337,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   }, [scoreHistoryCollapsed]);
 
   const [maintenanceAction, setMaintenanceAction] = useState<
-    'recompute' | 'clean' | 'clear-cache' | null
+    'recompute' | 'clean' | 'clear-cache' | 'mark-not-stale' | null
   >(null);
   const isStacked = mode === 'stacked';
   const isSingle = mode === 'single';
@@ -691,6 +696,15 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     }
   }
 
+  async function handleMarkNotStale() {
+    setMaintenanceAction('mark-not-stale');
+    try {
+      await markEvalNotStale(evalSummary.key);
+    } finally {
+      setMaintenanceAction(null);
+    }
+  }
+
   const runFilterOptions = getApplicableRunFilterOptions(allRunRows);
   const runFilter = parseRunFilter(
     searchParams.get(RUN_FILTER_SEARCH_PARAM),
@@ -937,6 +951,20 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
             </TitleBlock>
           </HeaderLeft>
           <HeaderRight onClick={(e) => e.stopPropagation()}>
+            {evalSummary.stale ? (
+              <Tooltip content="Treat the latest saved run as current for this eval">
+                <Button
+                  variant="secondary"
+                  leftIcon={<CheckCheck />}
+                  disabled={maintenanceAction !== null}
+                  onClick={() => {
+                    void handleMarkNotStale();
+                  }}
+                >
+                  Mark fresh
+                </Button>
+              </Tooltip>
+            ) : null}
             {isStacked ? (
               <Tooltip content="Open eval page">
                 <IconButton

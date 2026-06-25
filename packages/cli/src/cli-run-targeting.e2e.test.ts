@@ -378,7 +378,9 @@ defineEval({
         Failed: 0
         Errors: 0
         Pass Rate: 2/2
-        Duration: <duration>",
+        Duration: <duration>
+        LLM calls: 2 made, 0 cached
+        Cache hits: 0/2",
           "persistedCases": [
             {
               "caseId": "simple-text",
@@ -584,7 +586,8 @@ defineEval({
         Failed: 0
         Errors: 0
         Pass Rate: 1/1
-        Duration: <duration>",
+        Duration: <duration>
+        LLM calls: 2 made, 0 cached",
           "persistedCases": [
             {
               "caseId": "tampered-total",
@@ -703,7 +706,8 @@ defineEval({
         Failed: 0
         Errors: 0
         Pass Rate: 1/1
-        Duration: <duration>",
+        Duration: <duration>
+        LLM calls: 2 made, 0 cached",
           "persistedCases": [
             {
               "caseId": "espresso-machine",
@@ -768,10 +772,15 @@ defineEval({
       ).toMatchInlineSnapshot(`
         {
           "jsonSummary": {
+            "cacheHits": 0,
+            "cacheOperations": 1,
             "cancelledCases": 0,
             "errorCases": 0,
             "errorMessage": null,
             "failedCases": 0,
+            "llmCacheHits": 0,
+            "llmCalls": 1,
+            "llmCallsMade": 1,
             "passedCases": 1,
             "runId": "<run-id>",
             "status": "completed",
@@ -834,10 +843,15 @@ defineEval({
       ).toMatchInlineSnapshot(`
         {
           "jsonSummary": {
+            "cacheHits": 0,
+            "cacheOperations": 1,
             "cancelledCases": 0,
             "errorCases": 0,
             "errorMessage": null,
             "failedCases": 0,
+            "llmCacheHits": 0,
+            "llmCalls": 1,
+            "llmCallsMade": 1,
             "passedCases": 1,
             "runId": "<run-id>",
             "status": "completed",

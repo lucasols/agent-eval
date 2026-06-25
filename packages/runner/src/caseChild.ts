@@ -183,6 +183,9 @@ async function executeCaseChild(
       durationMs: caseRowUpdate.durationMs ?? null,
       cacheHits: caseRowUpdate.cacheHits ?? 0,
       cacheOperations: caseRowUpdate.cacheOperations ?? 0,
+      llmCalls: caseRowUpdate.llmCalls ?? 0,
+      llmCallsMade: caseRowUpdate.llmCallsMade ?? 0,
+      llmCacheHits: caseRowUpdate.llmCacheHits ?? 0,
       columns: caseRowUpdate.columns ?? {},
       ...(caseRowUpdate.outputColumnDefs !== undefined
         ? { outputColumnDefs: caseRowUpdate.outputColumnDefs }

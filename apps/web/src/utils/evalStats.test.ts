@@ -25,6 +25,9 @@ function summary(overrides: Partial<ScopedCaseSummary>): ScopedCaseSummary {
     totalDurationMs: 10,
     cacheHits: 0,
     cacheOperations: 0,
+    llmCalls: 0,
+    llmCallsMade: 0,
+    llmCacheHits: 0,
     ...overrides,
   };
 }

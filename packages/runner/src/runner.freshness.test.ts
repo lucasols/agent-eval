@@ -457,6 +457,99 @@ defineEval({
     }
   });
 
+  test('can mark a stale eval as not stale without rerunning', async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), 'agent-evals-runner-mark-not-stale-'),
+    );
+    createdWorkspaces.push(workspacePath);
+
+    await mkdir(join(workspacePath, 'evals'), { recursive: true });
+    await writeFile(
+      join(workspacePath, 'agent-evals.config.ts'),
+      `export default {
+  include: ['evals/**/*.eval.ts'],
+};
+`,
+    );
+    await writeFile(
+      join(workspacePath, 'evals', 'mark-fresh.eval.ts'),
+      `import { defineEval } from '@agent-evals/sdk';
+
+defineEval({
+  id: 'mark-fresh-eval',
+  title: 'Mark Fresh Eval',
+  cases: [{ id: 'case-1', input: {} }],
+  execute: async () => {},
+});
+`,
+    );
+
+    const previousCwd = process.cwd();
+    process.chdir(workspacePath);
+
+    try {
+      const runner = createRunner({ watchForChanges: false });
+      await runner.init();
+
+      const firstRun = await runner.startRun({
+        target: { mode: 'evalIds', evalIds: ['mark-fresh-eval'] },
+        trials: 1,
+      });
+      await expect
+        .poll(() => runner.getRun(firstRun.manifest.id)?.manifest.status, {
+          timeout: 10_000,
+        })
+        .toBe('completed');
+
+      await writeFile(
+        join(workspacePath, 'evals', 'mark-fresh.eval.ts'),
+        `import { defineEval } from '@agent-evals/sdk';
+
+defineEval({
+  id: 'mark-fresh-eval',
+  title: 'Mark Fresh Eval (reviewed)',
+  cases: [{ id: 'case-1', input: {} }],
+  execute: async () => {},
+});
+`,
+      );
+      await runner.refreshDiscovery();
+
+      expect(runner.getEval('mark-fresh-eval')).toMatchObject({
+        stale: true,
+        freshnessStatus: 'stale',
+        lastRunStatus: 'pass',
+      });
+
+      const markResult = await runner.markEvalNotStale('mark-fresh-eval');
+      expect(markResult.updated).toBe(true);
+      if (!markResult.updated) {
+        throw new Error(`Expected mark to update, got ${markResult.reason}`);
+      }
+      expect(markResult.eval).toMatchObject({
+        stale: false,
+        freshnessStatus: 'fresh',
+        lastRunStatus: 'pass',
+      });
+      expect(runner.getEval('mark-fresh-eval')).toMatchObject({
+        stale: false,
+        freshnessStatus: 'fresh',
+        lastRunStatus: 'pass',
+      });
+
+      const secondRunner = createRunner({ watchForChanges: false });
+      await secondRunner.init();
+      expect(secondRunner.getEval('mark-fresh-eval')).toMatchObject({
+        stale: false,
+        freshnessStatus: 'fresh',
+        lastRunStatus: 'pass',
+      });
+      await secondRunner.close();
+    } finally {
+      process.chdir(previousCwd);
+    }
+  });
+
   test('records the current git branch on created runs', async () => {
     const workspacePath = await mkdtemp(
       join(tmpdir(), 'agent-evals-runner-branch-name-'),

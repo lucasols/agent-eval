@@ -85,6 +85,46 @@ function toStableIdSegment(value: string): string {
   return segment.length > 0 ? segment : 'id';
 }
 
+function getLlmCallCounts(
+  spans: CaseDetail['trace'],
+  llmCallsConfig: ResolvedLlmCallsConfig,
+): { llmCalls: number; llmCallsMade: number; llmCacheHits: number } {
+  const llmKinds = new Set(llmCallsConfig.kinds);
+  const spansById = new Map(spans.map((span) => [span.id, span]));
+  let llmCalls = 0;
+  let llmCacheHits = 0;
+
+  for (const span of spans) {
+    if (!llmKinds.has(span.kind)) continue;
+    llmCalls += 1;
+    if (isSpanWithinCacheHit(span, spansById)) {
+      llmCacheHits += 1;
+    }
+  }
+
+  return {
+    llmCalls,
+    llmCallsMade: llmCalls - llmCacheHits,
+    llmCacheHits,
+  };
+}
+
+function isSpanWithinCacheHit(
+  span: CaseDetail['trace'][number],
+  spansById: Map<string, CaseDetail['trace'][number]>,
+): boolean {
+  const seen = new Set<string>();
+  let current: CaseDetail['trace'][number] | undefined = span;
+  while (current !== undefined) {
+    if (seen.has(current.id)) return false;
+    seen.add(current.id);
+    if (current.attributes?.['cache.status'] === 'hit') return true;
+    current =
+      current.parentId === null ? undefined : spansById.get(current.parentId);
+  }
+  return false;
+}
+
 export function buildScopedEvalIdPrefix(params: {
   evalId: string;
   evalFilePath: string;
@@ -645,6 +685,7 @@ export async function runCase<
   const elapsedMs = Date.now() - startTime;
   const cacheEntries = extractCacheEntries(displayTrace, scope.caseCacheRefs);
   const cacheHits = cacheEntries.filter((entry) => entry.status === 'hit');
+  const llmCallCounts = getLlmCallCounts(displayTrace, llmCallsConfig);
 
   const caseRowUpdate: Partial<CaseRow> = {
     tags: evalCase.tags ?? [],
@@ -652,6 +693,7 @@ export async function runCase<
     durationMs: elapsedMs,
     cacheHits: cacheHits.length,
     cacheOperations: cacheEntries.length,
+    ...llmCallCounts,
     columns,
     ...(persistedColumnDefs.length > 0
       ? { outputColumnDefs: persistedColumnDefs }

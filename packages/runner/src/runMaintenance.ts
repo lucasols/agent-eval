@@ -162,6 +162,11 @@ export async function recomputeEvalStatusesInRuns(params: {
     run.summary.failedCases = derivedSummary.failedCases;
     run.summary.errorCases = derivedSummary.errorCases;
     run.summary.cancelledCases = derivedSummary.cancelledCases;
+    run.summary.cacheHits = derivedSummary.cacheHits;
+    run.summary.cacheOperations = derivedSummary.cacheOperations;
+    run.summary.llmCalls = derivedSummary.llmCalls;
+    run.summary.llmCallsMade = derivedSummary.llmCallsMade;
+    run.summary.llmCacheHits = derivedSummary.llmCacheHits;
 
     await persistRunState(run);
     updatedRuns += 1;

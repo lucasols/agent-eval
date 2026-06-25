@@ -83,6 +83,21 @@ function delay(ms: number): Promise<void> {
   });
 }
 
+function createMemoryCacheAdapter(): CacheAdapter {
+  const entries = new Map<string, CacheEntry>();
+  return {
+    lookup(namespace, keyHash) {
+      return Promise.resolve(
+        entries.get(`${namespace}:${keyHash}`) ?? null,
+      );
+    },
+    write(entry) {
+      entries.set(`${entry.namespace}:${entry.key}`, entry);
+      return Promise.resolve();
+    },
+  };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -363,6 +378,56 @@ test('runCase exposes derived call attributes to trace consumers', async () => {
     promptAndCompletionTokens: 140,
   });
   expect(result.caseDetail.columns.observedTotal).toBe(140);
+});
+
+test('runCase counts LLM calls made and replayed from operation cache', async () => {
+  const cacheAdapter = createMemoryCacheAdapter();
+  const evalDef = {
+    id: 'llm-call-cache-eval',
+    execute: async () => {
+      await evalTracer.span({ kind: 'llm', name: 'direct-call' }, () => {
+        evalSpan.setAttributes({
+          model: 'gpt-4o-mini',
+          usage: { inputTokens: 10, outputTokens: 4 },
+        });
+      });
+      await evalTracer.span(
+        {
+          kind: 'tool',
+          name: 'cached-operation',
+          cache: {
+            namespace: 'llm-call-cache-eval.cached-operation',
+            key: { caseId: 'case-one' },
+          },
+        },
+        async () => {
+          await evalTracer.span({ kind: 'llm', name: 'cached-call' }, () => {
+            evalSpan.setAttributes({
+              model: 'gpt-4o-mini',
+              usage: { inputTokens: 20, outputTokens: 8 },
+            });
+          });
+        },
+      );
+    },
+  };
+
+  await runDefaultUsageCase({
+    evalDef,
+    cacheAdapter,
+  });
+  const cached = await runDefaultUsageCase({
+    evalDef,
+    cacheAdapter,
+  });
+
+  expect(cached.caseRowUpdate).toMatchObject({
+    cacheHits: 1,
+    cacheOperations: 1,
+    llmCalls: 2,
+    llmCallsMade: 1,
+    llmCacheHits: 1,
+  });
 });
 
 test('runCase does not overwrite authored outputs with default usage', async () => {

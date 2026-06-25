@@ -44,6 +44,24 @@ export type ScopedCaseSummary = {
    * artifacts count as zero.
    */
   cacheOperations: number;
+  /**
+   * Sum of LLM call spans across the scoped case rows.
+   *
+   * Missing values from older run artifacts count as zero.
+   */
+  llmCalls: number;
+  /**
+   * Sum of LLM call spans that actually executed across the scoped case rows.
+   *
+   * Missing values from older run artifacts count as zero.
+   */
+  llmCallsMade: number;
+  /**
+   * Sum of LLM call spans replayed from Agent Eval operation-cache hits.
+   *
+   * Missing values from older run artifacts count as zero.
+   */
+  llmCacheHits: number;
 };
 
 type RunLifecycleStatus = RunManifest['status'] | null | undefined;
@@ -135,6 +153,9 @@ export function deriveScopedSummaryFromCases(params: {
   let hasDuration = false;
   let cacheHits = 0;
   let cacheOperations = 0;
+  let llmCalls = 0;
+  let llmCallsMade = 0;
+  let llmCacheHits = 0;
 
   for (const caseRow of caseRows) {
     if (caseRow.status === 'pass') passedCases += 1;
@@ -150,6 +171,9 @@ export function deriveScopedSummaryFromCases(params: {
     }
     cacheHits += caseRow.cacheHits ?? 0;
     cacheOperations += caseRow.cacheOperations ?? 0;
+    llmCalls += caseRow.llmCalls ?? 0;
+    llmCallsMade += caseRow.llmCallsMade ?? 0;
+    llmCacheHits += caseRow.llmCacheHits ?? 0;
   }
 
   return {
@@ -167,5 +191,8 @@ export function deriveScopedSummaryFromCases(params: {
     totalDurationMs: hasDuration ? totalDurationMs : null,
     cacheHits,
     cacheOperations,
+    llmCalls,
+    llmCallsMade,
+    llmCacheHits,
   };
 }

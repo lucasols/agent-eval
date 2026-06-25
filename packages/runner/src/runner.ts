@@ -41,6 +41,7 @@ import { resolveEvalDefaultConfig } from './defaultConfig.ts';
 import { parseEvalDiscovery } from './discovery.ts';
 import { loadIsolatedEvalRegistry } from './evalRegistryLoader.ts';
 import { buildEvalSummary, setLatestRunInfoMap } from './evalSummaries.ts';
+import { getRunFreshnessTimestamp } from './freshness.ts';
 import { readGitWorktreeState } from './gitState.ts';
 import { resolveManualInputDiscovery } from './manualInput/discovery.ts';
 import {
@@ -147,6 +148,24 @@ export function createRunner({
 
     const matches = getSortedEvalMetas().filter((ev) => ev.id === evalRef);
     return matches.length === 1 ? matches[0] : undefined;
+  }
+
+  function getLatestRunForEval(evalKey: string): RunnerRunState | undefined {
+    const evalExists = evals.has(evalKey);
+    return [...runs.values()]
+      .filter((run) =>
+        runTouchesEval({
+          target: run.manifest.target,
+          caseRows: run.cases,
+          evalKey,
+          evalExists,
+        }),
+      )
+      .toSorted(
+        (a, b) =>
+          new Date(getRunFreshnessTimestamp(b.manifest)).getTime() -
+          new Date(getRunFreshnessTimestamp(a.manifest)).getTime(),
+      )[0];
   }
 
   function getSourceFingerprint(source: string): string {
@@ -464,6 +483,29 @@ export function createRunner({
         lastRunStatus: lastRunStatusMap.get(meta.key) ?? null,
       });
     },
+    async markEvalNotStale(id) {
+      const meta = resolveEvalMeta(id);
+      if (!meta) return { updated: false, reason: 'not-found' };
+      if (meta.sourceFingerprint === null) {
+        return { updated: false, reason: 'source-fingerprint-missing' };
+      }
+
+      const latestRun = getLatestRunForEval(meta.key);
+      if (latestRun === undefined) {
+        return { updated: false, reason: 'no-latest-run' };
+      }
+
+      latestRun.manifest.evalSourceFingerprints[meta.key] =
+        meta.sourceFingerprint;
+      await persistRunState(latestRun);
+      emitDiscoveryEvent();
+
+      const evalSummary = runner.getEval(meta.key);
+      if (evalSummary === undefined) {
+        return { updated: false, reason: 'not-found' };
+      }
+      return { updated: true, eval: evalSummary };
+    },
     getDiscoveryIssues() {
       return discoveryIssues;
     },
@@ -664,6 +706,11 @@ export function createRunner({
         errorCases: 0,
         cancelledCases: 0,
         totalDurationMs: null,
+        cacheHits: 0,
+        cacheOperations: 0,
+        llmCalls: 0,
+        llmCallsMade: 0,
+        llmCacheHits: 0,
         errorMessage: null,
       };
 

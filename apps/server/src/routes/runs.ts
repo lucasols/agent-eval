@@ -144,12 +144,27 @@ function formatDurationMs(durationMs: number | null): string {
   return ` in ${(durationMs / 1000).toFixed(1)}s`;
 }
 
+function formatRunCallSummary(summary: RunSummary): string {
+  const parts: string[] = [];
+  if (summary.llmCalls > 0 || summary.llmCacheHits > 0) {
+    parts.push(
+      `LLM calls: ${String(summary.llmCallsMade)} made, ${String(summary.llmCacheHits)} cached`,
+    );
+  }
+  if (summary.cacheOperations > 0) {
+    parts.push(
+      `cache: ${String(summary.cacheHits)}/${String(summary.cacheOperations)} hits`,
+    );
+  }
+  return parts.length === 0 ? '' : `; ${parts.join('; ')}`;
+}
+
 function formatRunResultSummary(summary: RunSummary): string {
   const cancelled =
     summary.cancelledCases > 0
       ? `, ${String(summary.cancelledCases)} cancelled`
       : '';
-  return `${summary.status}: ${String(summary.totalCases)} total, ${String(summary.passedCases)} passed, ${String(summary.failedCases)} failed, ${String(summary.errorCases)} errors${cancelled}${formatDurationMs(summary.totalDurationMs)}`;
+  return `${summary.status}: ${String(summary.totalCases)} total, ${String(summary.passedCases)} passed, ${String(summary.failedCases)} failed, ${String(summary.errorCases)} errors${cancelled}${formatRunCallSummary(summary)}${formatDurationMs(summary.totalDurationMs)}`;
 }
 
 function isTerminalRunEvent(eventType: string): boolean {
