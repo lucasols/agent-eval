@@ -602,6 +602,8 @@ const ClearScopeButton = styled.button`
 type TraceTreeProps = {
   spans: EvalTraceSpan[];
   traceDisplay: TraceDisplayConfig;
+  spanSearchParamKey?: string;
+  traceScopeSearchParamKey?: string;
 };
 
 const TIMELINE_COLLAPSED_STORAGE_KEY = 'agent-evals.trace-timeline-collapsed';
@@ -657,7 +659,12 @@ function getSubtreeSpanIds(spans: EvalTraceSpan[], rootSpanId: string) {
   return ids;
 }
 
-export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
+export function TraceTree({
+  spans,
+  traceDisplay,
+  spanSearchParamKey = SPAN_SEARCH_PARAM_KEY,
+  traceScopeSearchParamKey = TRACE_SCOPE_SEARCH_PARAM_KEY,
+}: TraceTreeProps) {
   const searchParams = useSearchParams();
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [timelineCollapsed, setTimelineCollapsed] = useState<boolean>(
@@ -677,8 +684,8 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const detailRef = useRef<HTMLDivElement>(null);
-  const selectedSpanId = searchParams.get(SPAN_SEARCH_PARAM_KEY);
-  const traceScopeSpanId = searchParams.get(TRACE_SCOPE_SEARCH_PARAM_KEY);
+  const selectedSpanId = searchParams.get(spanSearchParamKey);
+  const traceScopeSpanId = searchParams.get(traceScopeSearchParamKey);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -834,8 +841,10 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
     }
     function onClickAway(event: MouseEvent) {
       const detailElement = detailRef.current;
+      const rootElement = rootRef.current;
       const clickedSpanRow =
         event.target instanceof Element &&
+        rootElement?.contains(event.target) === true &&
         event.target.closest('[data-span-row]') !== null;
       if (
         detailElement &&
@@ -1186,14 +1195,14 @@ export function TraceTree({ spans, traceDisplay }: TraceTreeProps) {
 
   function updateSelectedSpanId(id: string | null): void {
     updateSearchParams((nextSearchParams) => {
-      nextSearchParams.delete(SPAN_SEARCH_PARAM_KEY);
-      if (id) nextSearchParams.set(SPAN_SEARCH_PARAM_KEY, id);
+      nextSearchParams.delete(spanSearchParamKey);
+      if (id) nextSearchParams.set(spanSearchParamKey, id);
     });
   }
 
   function clearTraceScope(): void {
     updateSearchParams((nextSearchParams) => {
-      nextSearchParams.delete(TRACE_SCOPE_SEARCH_PARAM_KEY);
+      nextSearchParams.delete(traceScopeSearchParamKey);
     });
   }
 }

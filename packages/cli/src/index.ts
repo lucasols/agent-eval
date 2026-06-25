@@ -152,8 +152,12 @@ export {
   type CacheKeyHashOptions,
   type SerializedCacheValue,
   type TraceActiveSpan,
+  type TraceCache,
+  type TraceCacheGetResult,
   type TraceCacheInfo,
+  type TraceCacheManualInfo,
   type TraceCacheRef,
+  type TraceCacheSetInfo,
   type TraceSpanInfo,
 } from '@agent-evals/sdk';
 export {

@@ -997,6 +997,8 @@ export function CaseDrawer() {
                     <TraceTree
                       spans={scoreTrace.trace}
                       traceDisplay={scoreTrace.traceDisplay}
+                      spanSearchParamKey={`scoringSpan:${scoreKey}`}
+                      traceScopeSearchParamKey={`scoringTraceScope:${scoreKey}`}
                     />
                   </ScoringTraceFrame>
                 </ScoringTraceSection>

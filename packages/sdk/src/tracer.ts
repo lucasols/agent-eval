@@ -40,7 +40,14 @@ export type {
   CaptureEvalSpanErrorLevel,
   CaptureEvalSpanErrorOptions,
 } from './traceDiagnostics.ts';
-export type { TraceCacheInfo, TraceCacheRef } from './valueCache.ts';
+export type {
+  TraceCache,
+  TraceCacheGetResult,
+  TraceCacheInfo,
+  TraceCacheManualInfo,
+  TraceCacheRef,
+  TraceCacheSetInfo,
+} from './valueCache.ts';
 export {
   hashCacheKey,
   hashCacheKeySync,

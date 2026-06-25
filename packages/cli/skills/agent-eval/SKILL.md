@@ -264,16 +264,36 @@ const context = await evalTracer.cache(
 );
 ```
 
+Use `evalTracer.cache.get(...)` and `evalTracer.cache.set(...)` when the eval needs explicit control over what gets cached, such as only storing a successful branch:
+
+```ts
+const cacheInfo = {
+  namespace: 'pdf-worker.generate-pdf',
+  key: { workerUrl, requestBody },
+  storage: 'temporary',
+};
+
+const cached = await evalTracer.cache.get<ArrayBuffer>(cacheInfo);
+if (cached.hit) return Result.ok(cached.value);
+
+const response = await fetchPdf();
+if (response.error) return response;
+
+await evalTracer.cache.set({ ...cacheInfo, value: response.value });
+return response;
+```
+
 Mental model:
 
 - Only SDK-mediated effects replay on a hit: sub-spans, checkpoints, output helper calls, span attributes. External side effects (HTTP, DB writes, file I/O) **do not** replay — cache only pure functions of the key.
+- Manual `evalTracer.cache.get(...)` returns `{ hit: true, value } | { hit: false }` and does not replay SDK-mediated effects. Manual `set` writes only when cache storage is enabled and does not add another cache operation to stats. Use `evalTracer.cache.getOrSet(info, fn)` for simple pure values that only need value reuse.
 - `evalTracer.cache(...)` does not create a span. When it runs inside an active span, that span gets a `cache.refs` entry with the value cache name, key, namespace, and hit/miss status. When called directly from the case body (no surrounding span), the ref is recorded on the case detail's `cacheRefs` array. When called directly from a scorer, the ref is recorded on that scoring trace's `cacheRefs` array.
 - Cache identity is the namespace plus the authored key. Source-file fingerprints are tracked for run freshness separately, but do not participate in cache-key hashing.
 - Cached spans require an explicit `cache.namespace`. Value caches can also set an explicit `namespace`; prefer doing that when the cache is part of a documented workflow. Matching namespaces share entries across operations/evals that use the same authored key.
 - Add `storage: 'temporary'` to a cached span or `evalTracer.cache(...)` call for large or local-only entries. Temporary cache files use `.agent-evals/tmp/cache/` and `.agent-evals/tmp/cache-debug/` instead of the durable `.agent-evals/cache/` and `.agent-evals/cache-debug/` trees.
 - Per eval, `cache: { read?: boolean; store?: boolean }` controls whether authored cached operations may read or persist entries. Both default to `true`. Use `read: false` to always execute instead of replaying hits, and `store: false` to allow reads while preventing misses/refreshes from writing cache or raw-key debug files. Run-level bypass/refresh controls still take precedence.
 - Authored eval ids are unique within one eval file. The exact eval identity is the workspace-relative file path plus eval id, so the same id can be reused in different files. Case ids must be unique within one eval; duplicate case ids are reported as run errors.
-- Cache keys should be deterministic primitives, arrays, and plain objects. `Buffer`, `ArrayBuffer`, and typed arrays hash by bytes. Native `Blob`/`File` keys use stable metadata by default (`type`, `size`, plus `name`/`lastModified` for `File`) and do not read file bytes. Add `serializeFileBytes: true` to a cached span or `evalTracer.cache(...)` call when byte-level cache invalidation is required.
+- Cache keys should be deterministic primitives, arrays, and plain objects. `Buffer`, `ArrayBuffer`, and typed arrays hash by bytes. Native `Blob`/`File` keys use stable metadata by default (`type`, `size`, plus `name`/`lastModified` for `File`) and do not read file bytes. Add `serializeFileBytes: true` to a cached span, `evalTracer.cache(...)`, or manual `evalTracer.cache.get/set` call when byte-level cache invalidation is required.
 - Cache entries are stored as one Brotli-compressed JSON file per key under `.agent-evals/cache/<sanitizedNamespace>/<keyHash>.json.br`, with a small namespace index sidecar at `.agent-evals/cache/<sanitizedNamespace>/.index-<namespaceHash>.json`. Listing and retention use the index without opening cached payloads. Index rows intentionally stay minimal: stored time, last access time, and external JSON blob refs. Each namespace is capped at `cache.maxBytes` indexed bytes, defaulting to `3 * 1024 * 1024` bytes. Retention counts cache payload files, raw-key debug sidecars, and referenced external JSON blobs without double-counting blobs within the namespace. Configure `cache.maxBytes` as a number for the default cap, or as `{ default, namespaces }` for exact namespace-specific caps. The runner prunes least recently accessed indexed entries after a run finishes and the runner stays idle for `cache.pruneIdleDelayMs ?? 5000` milliseconds. Cache cleanup logs each dropped namespace/key or cache file path to the terminal with the reason, including cleanup triggered by the web dev server after runs. Writes initialize the row's last access time to the stored time; later cache hits refresh that timestamp at the configured access-time update interval.
 - Unindexed legacy cache files are ignored by normal lookup/listing. Use `agent-evals cache repair` to remove unindexed cache files, stale index rows, debug sidecars, and unreferenced blob files.
 - Nested cached JSON values at or above roughly 10K JSON characters are stored as content-addressed Brotli blobs under `.agent-evals/cache/cache-blobs/` and referenced from cache JSON by sha256. Identical large payloads share the same blob.

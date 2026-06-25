@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { CacheAdapter } from '@agent-evals/sdk';
+import type { CacheAdapter, TraceCacheManualInfo } from '@agent-evals/sdk';
 import {
   appendToEvalOutput,
   evalSpan,
@@ -577,6 +577,135 @@ test('revives rich cached values with Seroval while using the existing cache key
   if (isRecord(checkpoint)) {
     expectDateValue(checkpoint.generatedAt, '2024-01-02T03:04:05.000Z');
   }
+});
+
+test('manual cache get and set let callers skip error results', async () => {
+  const durableEntries = new Map<string, CacheEntry>();
+  const temporaryEntries = new Map<string, CacheEntry>();
+  const durableAdapter = {
+    lookup(namespace, keyHash) {
+      return Promise.resolve(
+        durableEntries.get(`${namespace}:${keyHash}`) ?? null,
+      );
+    },
+    write(entry) {
+      durableEntries.set(`${entry.namespace}:${entry.key}`, entry);
+      return Promise.resolve();
+    },
+  } satisfies CacheAdapter;
+  const temporaryAdapter = {
+    lookup(namespace, keyHash) {
+      return Promise.resolve(
+        temporaryEntries.get(`${namespace}:${keyHash}`) ?? null,
+      );
+    },
+    write(entry) {
+      temporaryEntries.set(`${entry.namespace}:${entry.key}`, entry);
+      return Promise.resolve();
+    },
+  } satisfies CacheAdapter;
+
+  type PdfResult =
+    | { error: false; value: ArrayBuffer }
+    | { error: true; message: string };
+
+  const cacheInfo = {
+    namespace: 'pdf-worker.generate-pdf',
+    key: {
+      workerUrl: 'https://pdf-worker.example.test/generate',
+      requestBody: { template: 'receipt', receiptId: 'r-123' },
+    },
+    storage: 'temporary',
+  } satisfies TraceCacheManualInfo;
+  let fetchPdfCalls = 0;
+
+  async function runGeneratePdf(shouldFail: boolean): Promise<{
+    result: PdfResult | undefined;
+    spans: EvalTraceSpan[];
+  }> {
+    const run = await runInEvalScope(
+      'case',
+      async () => {
+        return await evalTracer.span(
+          { kind: 'tool', name: 'generate-pdf' },
+          async (): Promise<PdfResult> => {
+            const cached = await evalTracer.cache.get<ArrayBuffer>(cacheInfo);
+            if (cached.hit) return { error: false, value: cached.value };
+
+            fetchPdfCalls++;
+            if (shouldFail) {
+              return { error: true, message: 'pdf worker failed' };
+            }
+
+            const value = new Uint8Array([fetchPdfCalls, 2, 3]).buffer;
+            await evalTracer.cache.set({ ...cacheInfo, value });
+            return { error: false, value };
+          },
+        );
+      },
+      {
+        cacheContext: {
+          adapter: durableAdapter,
+          temporaryAdapter,
+          mode: 'use',
+          evalId: 'manual-pdf-cache-eval',
+        },
+      },
+    );
+
+    expect(run.error).toBeUndefined();
+    return { result: run.result, spans: run.scope.spans };
+  }
+
+  const failed = await runGeneratePdf(true);
+  const firstSuccess = await runGeneratePdf(false);
+  const secondSuccess = await runGeneratePdf(false);
+
+  expect(fetchPdfCalls).toBe(2);
+  expect(durableEntries.size).toBe(0);
+  expect(temporaryEntries.size).toBe(1);
+  expect(failed.result).toEqual({
+    error: true,
+    message: 'pdf worker failed',
+  });
+  expect(firstSuccess.result?.error).toBe(false);
+  expect(secondSuccess.result?.error).toBe(false);
+  if (
+    firstSuccess.result?.error === false &&
+    secondSuccess.result?.error === false
+  ) {
+    expect(Array.from(new Uint8Array(firstSuccess.result.value))).toEqual([
+      2, 2, 3,
+    ]);
+    expect(Array.from(new Uint8Array(secondSuccess.result.value))).toEqual([
+      2, 2, 3,
+    ]);
+  }
+
+  expect(
+    valueCacheRef(findSpan(failed.spans, 'generate-pdf'), cacheInfo.namespace),
+  ).toMatchObject({
+    status: 'miss',
+    storage: 'temporary',
+  });
+  expect(
+    valueCacheRef(
+      findSpan(firstSuccess.spans, 'generate-pdf'),
+      cacheInfo.namespace,
+    ),
+  ).toMatchObject({
+    status: 'miss',
+    storage: 'temporary',
+  });
+  expect(
+    valueCacheRef(
+      findSpan(secondSuccess.spans, 'generate-pdf'),
+      cacheInfo.namespace,
+    ),
+  ).toMatchObject({
+    status: 'hit',
+    storage: 'temporary',
+  });
 });
 
 test('cached spans can use the temporary cache adapter', async () => {

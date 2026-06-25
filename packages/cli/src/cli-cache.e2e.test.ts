@@ -56,6 +56,14 @@ async function readCacheDir(workspacePath: string): Promise<string[]> {
   return collected.sort();
 }
 
+async function readTemporaryCacheDir(workspacePath: string): Promise<string[]> {
+  const cacheRoot = resolve(workspacePath, '.agent-evals/tmp/cache');
+  if (!existsSync(cacheRoot)) return [];
+  const collected: string[] = [];
+  await collectFiles(cacheRoot, '.json.br', cacheRoot, collected);
+  return collected.sort();
+}
+
 async function readCacheDebugDir(workspacePath: string): Promise<string[]> {
   const cacheDebugPath = resolve(workspacePath, '.agent-evals/cache-debug');
   if (!existsSync(cacheDebugPath)) return [];
@@ -677,7 +685,7 @@ describe('CLI operation caching', () => {
     });
   });
 
-  test('large cached return payloads store blobs inside the cache directory', async () => {
+  test('large cached return payloads store blobs inside the temporary cache directory', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const run = await runExampleCli(workspacePath, [
         'run',
@@ -686,7 +694,7 @@ describe('CLI operation caching', () => {
       ]);
       expect(run.exitCode).toBe(0);
 
-      const cacheFiles = await readCacheDir(workspacePath);
+      const cacheFiles = await readTemporaryCacheDir(workspacePath);
       expect(cacheFiles).toEqual(
         expect.arrayContaining([
           expect.stringMatching(largeCacheKeyDiffCacheFileRegex),

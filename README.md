@@ -1105,6 +1105,27 @@ const receiptContext = await evalTracer.cache(
 
 If `evalTracer.cache(...)` runs inside an active span, that span receives a `cache.refs` array entry like `{ type: 'value', name, namespace, key, status }` with `storedAt` and `age` on hits. When `evalTracer.cache(...)` is called directly from the case body (no surrounding `traceSpan`), the same ref is recorded on the case detail's `cacheRefs` array instead — so spanless value caches still surface in the UI. The cache call itself does not create a trace span. SDK-mediated effects inside the callback still replay on hits, including nested spans, checkpoints, output helper calls, and active span attributes changed by the callback.
 
+Use `evalTracer.cache.get(...)` and `evalTracer.cache.set(...)` when you need explicit control over what gets cached, such as caching only the successful branch of a `Result` or avoiding replay of callback side effects:
+
+```ts
+const cacheInfo = {
+  namespace: 'pdf-worker.generate-pdf',
+  key: { workerUrl, requestBody },
+  storage: 'temporary',
+};
+
+const cached = await evalTracer.cache.get<ArrayBuffer>(cacheInfo);
+if (cached.hit) return Result.ok(cached.value);
+
+const response = await fetchPdf();
+if (response.error) return response;
+
+await evalTracer.cache.set({ ...cacheInfo, value: response.value });
+return response;
+```
+
+Manual `get` calls return `{ hit: true, value } | { hit: false }` and record the same value-cache refs as callback value caches. Manual `set` writes only when cache storage is enabled for the current run/eval and does not add a second cache operation to stats. `evalTracer.cache.getOrSet(info, fn)` is available for simple pure values where callback-style control flow is still enough; it does not replay SDK-mediated effects on hits.
+
 The case-run drawer adds a **Cache** tab whenever a case run or scoring phase produced cache hits, wrote new cache entries, or executed cached operations with storage disabled. Use the selector to show execute-phase cache activity (the default), all cache activity, only hits, only new entries added by misses/refreshes, scoring hits, or scoring new entries. It lists every span- and value-cache entry (including spanless ones tagged "case root", and scoring entries tagged with their score label) with namespace, status, age when available, stored-at timestamp when known, and truncated key. Each row expands to fetch the persisted entry from `GET /api/cache/:namespace/:key` and render its cached `returnValue` (and any replayed span attributes) inline. When raw-key debug metadata is available, the expanded row also shows the authored cache key. Stored rows can compare that raw key against another saved run/case/cache entry from the same eval; the app defaults to the previous run, matching case, and same Cache-tab index, then renders a stable, sorted JSON diff for quick inspection. The modal shows the current run and includes diff-style, line-diff, overflow, and copy controls, defaulting to split diff with horizontal scrolling. Use the row's delete action to remove that single persisted cache entry. Bypasses remain visible inline as per-span badges in the **Trace** tab because they do not write cache entries; non-stored misses/refreshes are shown as cache activity without fetch/delete actions.
 
 ### Cache controls
@@ -1155,10 +1176,10 @@ Server API (`/api/cache`):
 - Each namespace keeps at most `cache.maxBytes` indexed bytes, or `3 * 1024 * 1024` bytes when no cache retention cap is configured. Retention counts cache payload files, raw-key debug sidecars, and referenced external JSON blobs without double-counting blobs within the namespace, then prunes the least recently accessed indexed entries in that namespace after a run finishes and the runner stays idle for `cache.pruneIdleDelayMs ?? 5000` milliseconds. Cache writes initialize `lastAccessedAt` to the entry's `storedAt`, and hits update `lastAccessedAt` in the namespace index at most once every `cache.lastAccessedAtUpdateIntervalMs ?? 14_400_000` milliseconds (four hours). Legacy index rows may still have `lastAccessedAt: null`. Use the object form of `cache.maxBytes` for exact namespace overrides.
 - Cache cleanup logs each dropped cache entry, debug sidecar, orphaned cache file, or external JSON blob to the terminal with the namespace/key or path and the reason it was removed. This includes manual CLI/API cleanup, UI-triggered cleanup through the dev server, repair, and automatic retention pruning after runs.
 - Unindexed legacy cache files are ignored by normal lookup, listing, and retention. Run `pnpm eval cache repair` when you want to remove unindexed cache files, stale index rows, debug sidecars, and unreferenced blob files.
-- Cache keys should be deterministic primitives, arrays, and plain objects. `Buffer`, `ArrayBuffer`, and typed-array values are serialized by a sha256 of their bytes. Native `Blob`/`File` keys use stable metadata by default (`type`, `size`, plus `name`/`lastModified` for `File`) and do not read file bytes. Add `serializeFileBytes: true` to a cached span or `evalTracer.cache(...)` call when byte-level cache invalidation is required.
+- Cache keys should be deterministic primitives, arrays, and plain objects. `Buffer`, `ArrayBuffer`, and typed-array values are serialized by a sha256 of their bytes. Native `Blob`/`File` keys use stable metadata by default (`type`, `size`, plus `name`/`lastModified` for `File`) and do not read file bytes. Add `serializeFileBytes: true` to a cached span, `evalTracer.cache(...)`, or manual `evalTracer.cache.get/set` call when byte-level cache invalidation is required.
 - Modes: `bypass` never reads or writes; `refresh` skips the read and always writes unless the eval has `cache.store: false`; `use` reads on hit and writes on miss unless disabled by the eval's `cache.read` or `cache.store`.
 - Multi-trial runs isolate cache writes per trial attempt and only flush the winning trial's writes into the shared cache, so later trials in the same run never reuse cache entries produced by earlier sibling trials.
-- Only SDK-mediated side effects replay (`evalTracer.span`, `evalTracer.checkpoint`, output helper calls, span attributes). External side effects (network, DB writes) do _not_ replay on cache hits — use caching only for pure functions of their key.
+- Callback cache hits replay SDK-mediated side effects (`evalTracer.span`, `evalTracer.checkpoint`, output helper calls, span attributes). External side effects (network, DB writes) do _not_ replay on cache hits — use caching only for pure functions of their key. Manual `evalTracer.cache.get(...)` returns only the cached value and does not replay recorded SDK effects.
 - Cached payloads use JSON-safe tagged serialization, so return values and recorded SDK effects preserve richer built-ins such as `Date`, `Map`, `Set`, typed arrays, `URL`, `Headers`, `Blob`, and `File` on cache hits. File outputs emitted with `setOutput(...)` / `setEvalOutput(...)` inside a cached operation are recorded as `Blob`/`File` values and replayed on hits, then copied into the current run's artifact directory like fresh outputs. Undefined values are omitted by default instead of being written to cache files; callers using `serializeCacheValue(...)` or `serializeCacheRecording(...)` directly can pass `{ preserveUndefined: true }` to retain explicit undefined wrappers. Cache keys still use the deterministic key-hashing rules above.
 
 Disable caching globally from `agent-evals.config.ts`:

@@ -1,4 +1,9 @@
-import { defineEval, evalTracer, setEvalOutput } from '@ls-stack/agent-eval';
+import {
+  defineEval,
+  evalTracer,
+  setEvalOutput,
+  type TraceCacheManualInfo,
+} from '@ls-stack/agent-eval';
 import { z } from 'zod';
 
 type LargeCacheKeyInput = { accountId: string; scenario: string };
@@ -109,15 +114,18 @@ defineEval<LargeCacheKeyInput, LargeCacheKeyOutputs>({
     const runNonce = `${Date.now().toString(36)}-${process.pid.toString(36)}`;
     const largeCacheKey = buildLargeCacheKey(input, runNonce);
 
-    const response = await evalTracer.cache(
-      {
-        name: 'large-raw-key-probe',
-        namespace: 'playground.large-cache-key-diff-demo',
-        key: largeCacheKey,
-        storage: 'temporary',
-      },
-      (): CacheProbeResult => {
-        return {
+    const cacheInfo = {
+      name: 'large-raw-key-probe',
+      namespace: 'playground.large-cache-key-diff-demo',
+      key: largeCacheKey,
+      storage: 'temporary',
+    } satisfies TraceCacheManualInfo;
+
+    const cachedResponse =
+      await evalTracer.cache.get<CacheProbeResult>(cacheInfo);
+    const response = cachedResponse.hit
+      ? cachedResponse.value
+      : {
           response: `Prepared large cache-key comparison payload for ${input.accountId}.`,
           reviewPacket: {
             accountId: input.accountId,
@@ -133,8 +141,10 @@ defineEval<LargeCacheKeyInput, LargeCacheKeyOutputs>({
             ),
           },
         };
-      },
-    );
+
+    if (!cachedResponse.hit) {
+      await evalTracer.cache.set({ ...cacheInfo, value: response });
+    }
 
     setEvalOutput('response', response.response);
     setEvalOutput(
