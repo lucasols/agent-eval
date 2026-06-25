@@ -28,9 +28,18 @@ type CacheRetentionSortEntry = Pick<
   'key' | 'lastAccessedAt' | 'namespace' | 'storedAt'
 >;
 
+export type CacheRetentionRunReference = {
+  namespace: string;
+  key: string;
+  evalExists: boolean;
+  latestRunForEval: boolean;
+  runStartedAt: string;
+};
+
 export type CacheRetentionRemovedEntry = CacheRetentionEntry & {
   maxBytes: number;
   namespaceTotalBytes: number;
+  reason: 'nonExistingEval' | 'retentionLimit';
 };
 
 export function normalizeMaxBytes(
@@ -56,6 +65,7 @@ export function maxBytesForNamespace(
 
 export async function pruneCacheEntriesByMaxBytes(params: {
   indexes: readonly CacheRetentionIndex[];
+  runReferences?: readonly CacheRetentionRunReference[];
   maxBytesForNamespace: (namespace: string) => number;
   cacheEntryBytes: (namespace: string, key: string) => Promise<number>;
   debugEntryBytes: (namespace: string, key: string) => Promise<number>;
@@ -63,23 +73,29 @@ export async function pruneCacheEntriesByMaxBytes(params: {
   removeEntries: (namespace: string, keys: Set<string>) => Promise<void>;
 }): Promise<CacheRetentionRemovedEntry[]> {
   const removedEntries: CacheRetentionRemovedEntry[] = [];
+  const runReferencesByEntry = groupRunReferencesByEntry(
+    params.runReferences ?? [],
+  );
 
   for (const index of params.indexes) {
     const retentionState = await getCacheRetentionState({ ...params, index });
     const maxBytes = params.maxBytesForNamespace(index.namespace);
-    if (retentionState.totalBytes <= maxBytes) continue;
 
     const removedKeys = new Set<string>();
     let totalBytes = retentionState.totalBytes;
 
-    for (const entry of retentionState.entries.toSorted(compareOldestFirst)) {
-      if (totalBytes <= maxBytes) break;
+    const removeEntry = (
+      entry: CacheRetentionEntry,
+      reason: CacheRetentionRemovedEntry['reason'],
+    ) => {
+      if (removedKeys.has(entry.key)) return;
 
       removedKeys.add(entry.key);
       removedEntries.push({
         ...entry,
         maxBytes,
         namespaceTotalBytes: retentionState.totalBytes,
+        reason,
       });
 
       totalBytes -= entry.cacheBytes + entry.debugBytes;
@@ -93,12 +109,104 @@ export async function pruneCacheEntriesByMaxBytes(params: {
           retentionState.remainingBlobRefCounts.set(blobRef, remainingRefs);
         }
       }
+    };
+
+    for (const entry of retentionState.entries) {
+      const references = runReferencesByEntry.get(toEntryId(entry)) ?? [];
+      if (references.length === 0) continue;
+      if (references.some((reference) => reference.latestRunForEval)) continue;
+      if (references.some((reference) => reference.evalExists)) continue;
+
+      removeEntry(entry, 'nonExistingEval');
     }
 
-    await params.removeEntries(index.namespace, removedKeys);
+    if (totalBytes > maxBytes) {
+      for (const entry of retentionState.entries.toSorted((a, b) =>
+        compareRetentionCandidate(
+          {
+            entry: a,
+            references: runReferencesByEntry.get(toEntryId(a)) ?? [],
+          },
+          {
+            entry: b,
+            references: runReferencesByEntry.get(toEntryId(b)) ?? [],
+          },
+        ),
+      )) {
+        if (totalBytes <= maxBytes) break;
+        if (removedKeys.has(entry.key)) continue;
+
+        const references = runReferencesByEntry.get(toEntryId(entry)) ?? [];
+        if (references.some((reference) => reference.latestRunForEval)) {
+          continue;
+        }
+
+        removeEntry(entry, 'retentionLimit');
+      }
+    }
+
+    if (removedKeys.size > 0) {
+      await params.removeEntries(index.namespace, removedKeys);
+    }
   }
 
   return removedEntries;
+}
+
+function groupRunReferencesByEntry(
+  references: readonly CacheRetentionRunReference[],
+): Map<string, CacheRetentionRunReference[]> {
+  const grouped = new Map<string, CacheRetentionRunReference[]>();
+  for (const reference of references) {
+    const key = toEntryId(reference);
+    const existing = grouped.get(key);
+    if (existing === undefined) {
+      grouped.set(key, [reference]);
+    } else {
+      existing.push(reference);
+    }
+  }
+  return grouped;
+}
+
+function compareRetentionCandidate(
+  a: {
+    entry: CacheRetentionEntry;
+    references: readonly CacheRetentionRunReference[];
+  },
+  b: {
+    entry: CacheRetentionEntry;
+    references: readonly CacheRetentionRunReference[];
+  },
+): number {
+  const aNewestRunTime = newestRunReferenceTime(a.references);
+  const bNewestRunTime = newestRunReferenceTime(b.references);
+  if (aNewestRunTime !== null && bNewestRunTime !== null) {
+    if (aNewestRunTime < bNewestRunTime) return -1;
+    if (aNewestRunTime > bNewestRunTime) return 1;
+  } else if (aNewestRunTime !== null) {
+    return -1;
+  } else if (bNewestRunTime !== null) {
+    return 1;
+  }
+
+  return compareOldestFirst(a.entry, b.entry);
+}
+
+function newestRunReferenceTime(
+  references: readonly CacheRetentionRunReference[],
+): number | null {
+  let newest: number | null = null;
+  for (const reference of references) {
+    const time = Date.parse(reference.runStartedAt);
+    if (!Number.isFinite(time)) continue;
+    if (newest === null || time > newest) newest = time;
+  }
+  return newest;
+}
+
+function toEntryId(entry: { namespace: string; key: string }): string {
+  return `${entry.namespace}\u0000${entry.key}`;
 }
 
 async function getCacheRetentionState(params: {
