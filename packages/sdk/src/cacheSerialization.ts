@@ -11,13 +11,14 @@ const packedNumberArrayMinLength = 128;
 const maxPackedNumberArraySizeRatio = 0.8;
 const externalJsonMinChars = 10 * 1024;
 const jsonSafeCacheValueTypes = new Set<string>(
-  'ArrayBuffer BigInt Blob Date Error ExternalJson File Float64Array Headers Map Number Object RegExp Set URL URLSearchParams Undefined'.split(
+  'ArrayBuffer ArrayBufferView BigInt Blob Date Error ExternalJson File Float64Array Headers Map Number Object RegExp Set URL URLSearchParams Undefined'.split(
     ' ',
   ),
 );
 
 type JsonSafeCacheValueType =
   | 'ArrayBuffer'
+  | 'ArrayBufferView'
   | 'BigInt'
   | 'Blob'
   | 'Date'
@@ -279,6 +280,9 @@ async function serializeJsonSafeValue(
       jsonSafeValue('ArrayBuffer', bytesToBase64(new Uint8Array(value))),
     );
   }
+  if (ArrayBuffer.isView(value)) {
+    return serializedResult(serializeArrayBufferView(value));
+  }
   if (value instanceof Error) return serializeError(value, refs, depth, config);
   if (!value || typeof value !== 'object') return serializedResult(value);
 
@@ -455,6 +459,20 @@ function decodeFloat64Array(value: string, length: number): number[] {
   return Array.from({ length }, (_, index) => view.getFloat64(index * 8, true));
 }
 
+function serializeArrayBufferView(
+  value: ArrayBufferView,
+): JsonSafeSerializedCacheValue {
+  const bytes = new Uint8Array(
+    value.buffer,
+    value.byteOffset,
+    value.byteLength,
+  );
+  return jsonSafeValue('ArrayBufferView', {
+    bytes: bytesToBase64(bytes),
+    type: Buffer.isBuffer(value) ? 'Buffer' : value.constructor.name,
+  });
+}
+
 async function externalizeNestedJsonValue(
   result: SerializedJsonSafeValueResult,
   depth: number,
@@ -620,6 +638,8 @@ function deserializeJsonSafeWrapper(
   switch (jsonSafeValueType(value)) {
     case 'ArrayBuffer':
       return deserializeArrayBuffer(value.value);
+    case 'ArrayBufferView':
+      return deserializeArrayBufferView(value.value);
     case 'BigInt':
       return typeof value.value === 'string'
         ? BigInt(value.value)
@@ -676,6 +696,60 @@ function deserializeNumber(value: unknown): unknown {
 function deserializeFloat64Array(value: unknown, length: unknown): unknown {
   if (typeof value !== 'string' || typeof length !== 'number') return value;
   return decodeFloat64Array(value, length);
+}
+
+function deserializeArrayBufferView(value: unknown): unknown {
+  if (!isRecordLike(value)) return value;
+  const bytes = value.bytes;
+  const type = value.type;
+  if (typeof bytes !== 'string' || typeof type !== 'string') return value;
+  const buffer = base64ToArrayBuffer(bytes);
+  switch (type) {
+    case 'BigInt64Array':
+      return buffer.byteLength % BigInt64Array.BYTES_PER_ELEMENT === 0
+        ? new BigInt64Array(buffer)
+        : value;
+    case 'BigUint64Array':
+      return buffer.byteLength % BigUint64Array.BYTES_PER_ELEMENT === 0
+        ? new BigUint64Array(buffer)
+        : value;
+    case 'Buffer':
+      return Buffer.from(buffer);
+    case 'DataView':
+      return new DataView(buffer);
+    case 'Float32Array':
+      return buffer.byteLength % Float32Array.BYTES_PER_ELEMENT === 0
+        ? new Float32Array(buffer)
+        : value;
+    case 'Float64Array':
+      return buffer.byteLength % Float64Array.BYTES_PER_ELEMENT === 0
+        ? new Float64Array(buffer)
+        : value;
+    case 'Int8Array':
+      return new Int8Array(buffer);
+    case 'Int16Array':
+      return buffer.byteLength % Int16Array.BYTES_PER_ELEMENT === 0
+        ? new Int16Array(buffer)
+        : value;
+    case 'Int32Array':
+      return buffer.byteLength % Int32Array.BYTES_PER_ELEMENT === 0
+        ? new Int32Array(buffer)
+        : value;
+    case 'Uint8Array':
+      return new Uint8Array(buffer);
+    case 'Uint8ClampedArray':
+      return new Uint8ClampedArray(buffer);
+    case 'Uint16Array':
+      return buffer.byteLength % Uint16Array.BYTES_PER_ELEMENT === 0
+        ? new Uint16Array(buffer)
+        : value;
+    case 'Uint32Array':
+      return buffer.byteLength % Uint32Array.BYTES_PER_ELEMENT === 0
+        ? new Uint32Array(buffer)
+        : value;
+    default:
+      return value;
+  }
 }
 
 function deserializePairArray(value: unknown): [unknown, unknown][] {

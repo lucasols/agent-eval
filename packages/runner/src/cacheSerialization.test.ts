@@ -36,6 +36,20 @@ test('keeps root arrays plain while packing nested number arrays', async () => {
   expect(nestedVector?.length).toBe(1536);
 });
 
+test('serializes typed array values without expanding numeric properties', async () => {
+  const bytes = Uint8Array.from({ length: 4096 }, (_, index) => index % 256);
+  const value = { imageBytes: bytes };
+
+  const serialized = await serializeCacheValue(value);
+  const rawJson = JSON.stringify(serialized);
+
+  expect(deserializeCacheValue(serialized)).toEqual(value);
+  expect(rawJson).toContain('"v1:ArrayBufferView"');
+  expect(rawJson).toContain('"type":"Uint8Array"');
+  expect(rawJson.length).toBeLessThan(JSON.stringify(value).length * 0.5);
+  expect(rawJson).not.toContain('"0":0');
+});
+
 test('externalizes large nested strings without externalizing root strings', async () => {
   const store = createMemoryExternalJsonStore();
   const text = 'nested prompt context '.repeat(2000);

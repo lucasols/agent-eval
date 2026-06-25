@@ -61,6 +61,7 @@ export {
   buildTraceTree,
   hashCacheKey,
   hashCacheKeySync,
+  serializeCacheKeyDebugValue,
   type CacheKeyHashInput,
   type CacheKeyHashOptions,
   type CaptureEvalSpanErrorLevel,

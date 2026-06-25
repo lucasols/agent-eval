@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import {
   defineEval,
   evalTracer,
@@ -9,6 +10,7 @@ import { z } from 'zod';
 type LargeCacheKeyInput = { accountId: string; scenario: string };
 
 type LargeCacheKeyOutputs = {
+  binaryReferenceBytes: number;
   response: string;
   keySectionCount: number;
   runNonce: string;
@@ -33,6 +35,10 @@ type CacheProbeResult = {
     }>;
   };
 };
+
+const visualReferenceBytes = readFileSync(
+  new URL('../../datasets/assets/status-card.svg', import.meta.url),
+);
 
 function buildLargeStableSections(): CacheKeySection[] {
   return Array.from({ length: 48 }, (_section, sectionIndex) => {
@@ -83,6 +89,11 @@ function buildLargeCacheKey(input: LargeCacheKeyInput, runNonce: string) {
       generatedBy: 'examples/basic-agent',
       sections: buildLargeStableSections(),
     },
+    visualEvidence: {
+      fileName: 'status-card.svg',
+      mimeType: 'image/svg+xml',
+      bytes: visualReferenceBytes,
+    },
     runSpecificProbe: { runNonce, generatedAt: new Date().toISOString() },
   };
 }
@@ -101,11 +112,13 @@ defineEval<LargeCacheKeyInput, LargeCacheKeyOutputs>({
     },
   ],
   outputsSchema: z.object({
+    binaryReferenceBytes: z.number(),
     response: z.string(),
     keySectionCount: z.number(),
     runNonce: z.string(),
   }),
   columns: {
+    binaryReferenceBytes: { label: 'Binary Ref Bytes' },
     response: { label: 'Response', format: 'markdown' },
     keySectionCount: { label: 'Key Sections' },
     runNonce: { label: 'Run Nonce' },
@@ -147,6 +160,7 @@ defineEval<LargeCacheKeyInput, LargeCacheKeyOutputs>({
     }
 
     setEvalOutput('response', response.response);
+    setEvalOutput('binaryReferenceBytes', visualReferenceBytes.byteLength);
     setEvalOutput(
       'keySectionCount',
       largeCacheKey.retrievalSnapshot.sections.length,

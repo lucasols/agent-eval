@@ -33,6 +33,13 @@ const largeCacheKeyDiffCacheFileRegex =
   /^playground\.large-cache-key-diff-demo\/[a-f0-9]+\.json\.br$/;
 const externalCacheBlobFileRegex =
   /^cache-blobs\/sha256\/[a-f0-9]{2}\/[a-f0-9]+\.json\.br$/;
+const sha256CacheDebugRegex = /^sha256:[a-f0-9]{64}$/;
+const cacheKeyBinaryDebugSchema = z.object({
+  __agentEvalsCacheKeyBinary: z.literal('v1'),
+  byteLength: z.number().int().positive(),
+  sha256: z.string().regex(sha256CacheDebugRegex),
+  type: z.string(),
+});
 
 function requireDefined<T>(value: T | undefined, label: string): T {
   if (value === undefined) {
@@ -66,6 +73,16 @@ async function readTemporaryCacheDir(workspacePath: string): Promise<string[]> {
 
 async function readCacheDebugDir(workspacePath: string): Promise<string[]> {
   const cacheDebugPath = resolve(workspacePath, '.agent-evals/cache-debug');
+  if (!existsSync(cacheDebugPath)) return [];
+  const collected: string[] = [];
+  await collectFiles(cacheDebugPath, '.json', cacheDebugPath, collected);
+  return collected.sort();
+}
+
+async function readTemporaryCacheDebugDir(
+  workspacePath: string,
+): Promise<string[]> {
+  const cacheDebugPath = resolve(workspacePath, '.agent-evals/tmp/cache-debug');
   if (!existsSync(cacheDebugPath)) return [];
   const collected: string[] = [];
   await collectFiles(cacheDebugPath, '.json', cacheDebugPath, collected);
@@ -137,6 +154,18 @@ function cachePath(workspacePath: string, entryPath: string): string {
 
 function debugPath(workspacePath: string, entryPath: string): string {
   return resolve(workspacePath, '.agent-evals/cache-debug', entryPath);
+}
+
+function temporaryDebugPath(workspacePath: string, entryPath: string): string {
+  return resolve(workspacePath, '.agent-evals/tmp/cache-debug', entryPath);
+}
+
+function getRecordProperty(value: unknown, key: string): unknown {
+  return isRecordLike(value) ? value[key] : undefined;
+}
+
+function isRecordLike(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function findLlmSpan(spans: EvalTraceSpan[], name: string): EvalTraceSpan {
@@ -701,6 +730,23 @@ describe('CLI operation caching', () => {
           expect.stringMatching(externalCacheBlobFileRegex),
         ]),
       );
+      const debugFiles = await readTemporaryCacheDebugDir(workspacePath);
+      expect(debugFiles).toHaveLength(1);
+      const debugEntry = await readSingleDebugEntry(
+        temporaryDebugPath(
+          workspacePath,
+          requireDefined(debugFiles[0], 'large cache debug file'),
+        ),
+      );
+      const visualEvidence = getRecordProperty(
+        debugEntry.rawKey,
+        'visualEvidence',
+      );
+      const binaryDebug = cacheKeyBinaryDebugSchema.parse(
+        getRecordProperty(visualEvidence, 'bytes'),
+      );
+      expect(binaryDebug).toMatchObject({ type: 'Buffer' });
+      expect(JSON.stringify(debugEntry.rawKey)).not.toContain('"0":');
 
       const listJson = await runExampleCli(workspacePath, [
         'cache',

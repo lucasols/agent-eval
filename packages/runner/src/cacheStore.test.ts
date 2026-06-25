@@ -27,6 +27,7 @@ import { createBufferedCacheStore, createFsCacheStore } from './cacheStore.ts';
 
 const workspaces: string[] = [];
 const externalJsonBlobPathRegex = /^sha256\/[a-f0-9]{2}\/[a-f0-9]+\.json\.br$/;
+const sha256CacheDebugRegex = /^sha256:[a-f0-9]{64}$/;
 const defaultNamespace = 'debug-eval.expensive-op';
 const cacheIndexSchema = z.object({
   version: z.literal(1),
@@ -251,6 +252,10 @@ function getRecordProperty(value: unknown, key: string): unknown {
 
 function isRecordLike(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isUnknownArray(value: unknown): value is unknown[] {
+  return Array.isArray(value);
 }
 
 describe('filesystem cache store raw-key debug storage', () => {
@@ -635,6 +640,43 @@ describe('filesystem cache store raw-key debug storage', () => {
     expect(rawDebugFile).toContain('\n  "entry": {');
   });
 
+  test('stores binary raw-key values as compact digest metadata', async () => {
+    const workspacePath = await createWorkspace();
+    const store = createFsCacheStore({ workspaceRoot: workspacePath });
+    const bytes = Uint8Array.from({ length: 8192 }, (_, index) => index % 256);
+
+    await store.write(cacheEntry({ key: 'hashed-key' }), {
+      rawKey: {
+        prompt: [
+          { type: 'text', text: 'compare these files' },
+          { type: 'file', data: bytes },
+        ],
+      },
+      operationType: 'span',
+      operationName: 'expensive-op',
+    });
+
+    const rawDebugFile = await readFile(
+      debugEntryPath(workspacePath, defaultNamespace, 'hashed-key'),
+      'utf8',
+    );
+    const debugFile = await readDebugKeyEntry(workspacePath, 'hashed-key');
+    const prompt = getRecordProperty(debugFile.rawKey, 'prompt');
+    if (!isUnknownArray(prompt)) throw new Error('Expected prompt array');
+    const filePart = prompt[1];
+    const data = getRecordProperty(filePart, 'data');
+
+    expect(rawDebugFile.length).toBeLessThan(5000);
+    expect(rawDebugFile).toContain('"__agentEvalsCacheKeyBinary": "v1"');
+    expect(rawDebugFile).not.toContain('"0": 0');
+    expect(data).toMatchObject({
+      __agentEvalsCacheKeyBinary: 'v1',
+      byteLength: bytes.byteLength,
+      type: 'Uint8Array',
+    });
+    expect(getStringProperty(data, 'sha256')).toMatch(sha256CacheDebugRegex);
+  });
+
   test('stores external JSON blobs under the cache directory by default', async () => {
     const workspacePath = await createWorkspace();
     const store = createFsCacheStore({ workspaceRoot: workspacePath });
@@ -921,10 +963,12 @@ describe('filesystem cache store raw-key debug storage', () => {
     const errorSpy = vi
       .spyOn(console, 'error')
       .mockImplementation(() => undefined);
+    const circularRawKey: Record<string, unknown> = { prompt: 'circular' };
+    circularRawKey.self = circularRawKey;
     await store.write(
       cacheEntry({ key: 'hashed-key', storedAt: '2026-04-29T00:00:01.000Z' }),
       {
-        rawKey: { unsupported: 1n },
+        rawKey: circularRawKey,
         operationType: 'span',
         operationName: 'expensive-op',
       },

@@ -11,7 +11,11 @@ import {
 } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { brotliCompressSync, brotliDecompressSync } from 'node:zlib';
-import { deserializeCacheRecording, getRealDateNowMs } from '@agent-evals/sdk';
+import {
+  deserializeCacheRecording,
+  getRealDateNowMs,
+  serializeCacheKeyDebugValue,
+} from '@agent-evals/sdk';
 import type {
   CacheAdapter,
   CacheDebugKeyWrite,
@@ -711,7 +715,7 @@ async function writeDebugKeyEntry(params: {
     operationType: debugKey.operationType,
     operationName: debugKey.operationName,
     storedAt: entry.storedAt,
-    rawKey: debugKey.rawKey,
+    rawKey: serializeCacheKeyDebugValue(debugKey.rawKey),
     entry,
   };
 

@@ -51,6 +51,7 @@ export type {
 export {
   hashCacheKey,
   hashCacheKeySync,
+  serializeCacheKeyDebugValue,
   type CacheKeyHashInput,
   type CacheKeyHashOptions,
 } from './cacheKey.ts';

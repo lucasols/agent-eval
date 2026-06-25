@@ -19,6 +19,21 @@ export type CacheKeyHashOptions = {
   serializeFileBytes?: boolean;
 };
 
+type CacheKeyDebugBinaryValue = {
+  __agentEvalsCacheKeyBinary: 'v1';
+  byteLength: number;
+  sha256: `sha256:${string}`;
+  type: string;
+};
+
+type CacheKeyDebugBlobValue = {
+  __agentEvalsCacheKeyBlob: 'v1';
+  lastModified?: number;
+  name?: string;
+  size: number;
+  type: string;
+};
+
 class SerializedCacheKeyValue {
   readonly value: string;
 
@@ -52,6 +67,16 @@ export async function hashCacheKey(
  */
 export function hashCacheKeySync(input: CacheKeyHashInput): string {
   return hashCacheKeySyncMaterialized(input);
+}
+
+/**
+ * Convert an authored cache key into JSON-safe debug data.
+ *
+ * Binary values are represented by type, byte length, and SHA-256 digest so
+ * raw-key debug sidecars stay inspectable without embedding large byte arrays.
+ */
+export function serializeCacheKeyDebugValue(value: unknown): unknown {
+  return serializeCacheKeyDebugValue_(value, new WeakSet());
 }
 
 function hashCacheKeySyncMaterialized(input: unknown): string {
@@ -93,6 +118,98 @@ function stringifyCacheKeyValue(value: unknown): string | undefined {
     return `$blob:${getCompositeKey({ size: value.size, type: value.type })}`;
   }
   return undefined;
+}
+
+function serializeCacheKeyDebugValue_(
+  value: unknown,
+  refs: WeakSet<object>,
+): unknown {
+  if (value === null) return null;
+  if (typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'bigint') {
+    return {
+      __agentEvalsUnsupportedJsonValue: 'bigint',
+      value: value.toString(),
+    };
+  }
+  if (typeof value === 'undefined') return undefined;
+  if (typeof value === 'symbol') {
+    return {
+      __agentEvalsUnsupportedJsonValue: 'symbol',
+      value: value.description ?? null,
+    };
+  }
+  if (typeof value === 'function') {
+    return {
+      __agentEvalsUnsupportedJsonValue: 'function',
+      value: value.name.length > 0 ? value.name : null,
+    };
+  }
+  if (Buffer.isBuffer(value)) {
+    return cacheKeyDebugBinaryValue('Buffer', value);
+  }
+  if (isArrayBuffer(value)) {
+    return cacheKeyDebugBinaryValue('ArrayBuffer', new Uint8Array(value));
+  }
+  if (isSharedArrayBuffer(value)) {
+    return cacheKeyDebugBinaryValue('SharedArrayBuffer', new Uint8Array(value));
+  }
+  if (isArrayBufferView(value)) {
+    const bytes = new Uint8Array(
+      value.buffer,
+      value.byteOffset,
+      value.byteLength,
+    );
+    return cacheKeyDebugBinaryValue(value.constructor.name, bytes);
+  }
+  if (value instanceof Date) return value.toJSON();
+  if (value instanceof URL) return value.toString();
+  if (value instanceof URLSearchParams) return value.toString();
+  if (isFile(value)) {
+    return {
+      __agentEvalsCacheKeyBlob: 'v1',
+      lastModified: value.lastModified,
+      name: value.name,
+      size: value.size,
+      type: value.type,
+    } satisfies CacheKeyDebugBlobValue;
+  }
+  if (isBlob(value)) {
+    return {
+      __agentEvalsCacheKeyBlob: 'v1',
+      size: value.size,
+      type: value.type,
+    } satisfies CacheKeyDebugBlobValue;
+  }
+
+  if (refs.has(value)) throw new Error('Circular reference detected');
+  refs.add(value);
+  if (Array.isArray(value)) {
+    const items = value.map((item) => serializeCacheKeyDebugValue_(item, refs));
+    refs.delete(value);
+    return items;
+  }
+
+  const entries: [string, unknown][] = [];
+  for (const [key, entryValue] of Object.entries(value)) {
+    const serialized = serializeCacheKeyDebugValue_(entryValue, refs);
+    if (serialized !== undefined) entries.push([key, serialized]);
+  }
+  refs.delete(value);
+  return Object.fromEntries(entries);
+}
+
+function cacheKeyDebugBinaryValue(
+  type: string,
+  bytes: NodeJS.ArrayBufferView,
+): CacheKeyDebugBinaryValue {
+  return {
+    __agentEvalsCacheKeyBinary: 'v1',
+    byteLength: bytes.byteLength,
+    sha256: `sha256:${hashBytes(bytes)}`,
+    type,
+  };
 }
 
 async function materializeAsyncCacheKeyValue(
