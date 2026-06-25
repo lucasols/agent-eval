@@ -20,6 +20,7 @@ import type {
   CaseDetail,
   CaseRow,
   CellValue,
+  ColumnDef,
   EvalDeriveConfig,
   EvalInputSections,
   EvalTracingAssertionsConfig,
@@ -40,6 +41,7 @@ import {
 } from '@agent-evals/shared';
 import { z } from 'zod';
 import {
+  buildDeclaredColumnDefs,
   buildRuntimeOutputColumnDefs,
   normalizeScoreDef,
   toCellValue,
@@ -576,19 +578,25 @@ export async function runCase<
   for (const key of Object.keys(evalDef.manualScores ?? {})) {
     columns[key] = null;
   }
+  const configuredColumns =
+    mergeDefaultColumns({
+      globalColumns,
+      columns: evalDef.columns,
+      globalRemove: globalRemoveDefaultConfig,
+      evalRemove: evalDef.removeDefaultConfig,
+    }) ?? {};
   const outputColumnDefs = buildRuntimeOutputColumnDefs(
     columns,
     scope.outputColumnOverrides,
-    new Set(
-      Object.keys(
-        mergeDefaultColumns({
-          globalColumns,
-          columns: evalDef.columns,
-          globalRemove: globalRemoveDefaultConfig,
-          evalRemove: evalDef.removeDefaultConfig,
-        }) ?? {},
-      ),
-    ),
+    new Set(Object.keys(configuredColumns)),
+  );
+  const persistedColumnDefs = mergePersistedColumnDefs(
+    buildDeclaredColumnDefs(
+      configuredColumns,
+      evalDef.scores,
+      evalDef.manualScores,
+    ).filter((columnDef) => columnDef.isScore === true),
+    outputColumnDefs,
   );
   const inputSections = await resolveInputSections({
     globalInputSections,
@@ -620,7 +628,9 @@ export async function runCase<
     trace: displayTrace,
     traceDisplay,
     columns,
-    ...(outputColumnDefs.length > 0 ? { outputColumnDefs } : {}),
+    ...(persistedColumnDefs.length > 0
+      ? { outputColumnDefs: persistedColumnDefs }
+      : {}),
     assertions: scope.assertions,
     assertionFailures: scope.assertionFailures,
     logs: scope.logs,
@@ -643,10 +653,26 @@ export async function runCase<
     cacheHits: cacheHits.length,
     cacheOperations: cacheEntries.length,
     columns,
-    ...(outputColumnDefs.length > 0 ? { outputColumnDefs } : {}),
+    ...(persistedColumnDefs.length > 0
+      ? { outputColumnDefs: persistedColumnDefs }
+      : {}),
   };
 
   return { caseDetail, caseRowUpdate };
+}
+
+function mergePersistedColumnDefs(
+  declaredColumnDefs: ColumnDef[],
+  outputColumnDefs: ColumnDef[],
+): ColumnDef[] {
+  const merged = new Map<string, ColumnDef>();
+  for (const columnDef of declaredColumnDefs) {
+    merged.set(columnDef.key, columnDef);
+  }
+  for (const columnDef of outputColumnDefs) {
+    merged.set(columnDef.key, columnDef);
+  }
+  return [...merged.values()];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

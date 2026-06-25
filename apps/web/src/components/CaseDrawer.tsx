@@ -75,6 +75,10 @@ import {
   type ScopedCacheActivityEntry,
 } from '#src/utils/cacheActivity';
 import { copyTextToClipboard } from '#src/utils/clipboard';
+import {
+  getManualScoreAwareCaseDisplayStatus,
+  getManualScoreAwareColumnDefs,
+} from '#src/utils/evalRuns';
 import { formatNumericCellValue } from '#src/utils/formatters';
 import {
   findDiagnosticOutputMatch,
@@ -636,11 +640,14 @@ export function CaseDrawer() {
   }
 
   const evalSummary = evals.find((e) => e.key === (d.evalKey ?? d.evalId));
-  const columnDefs = mergeRuntimeColumnDefs(
-    evalSummary?.columnDefs ?? [],
-    d.columns,
-    d.outputColumnDefs,
-  );
+  const columnDefs = getManualScoreAwareColumnDefs({
+    columnDefs: mergeRuntimeColumnDefs(
+      evalSummary?.columnDefs ?? [],
+      d.columns,
+      d.outputColumnDefs,
+    ),
+    columns: d.columns,
+  });
   const outputColumnDefs = orderOutputColumnDefs(columnDefs, d.columns);
   const mediaPreviewItems = getMediaPreviewItemsForColumns(
     outputColumnDefs,
@@ -775,7 +782,12 @@ export function CaseDrawer() {
         <HeaderTitleRow>
           <HeaderLeft>
             <CaseId>{d.caseId}</CaseId>
-            <StatusBadge status={d.status} />
+            <StatusBadge
+              status={getManualScoreAwareCaseDisplayStatus({
+                caseRow: d,
+                columnDefs,
+              })}
+            />
           </HeaderLeft>
           <MenuButton
             menu={menuEntries}

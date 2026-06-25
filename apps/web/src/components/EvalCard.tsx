@@ -78,7 +78,10 @@ import {
   buildDisplayCharts,
   buildDisplayStats,
 } from '#src/utils/evalDisplayDefaults';
-import { buildEvalScopedRunRows } from '#src/utils/evalRuns';
+import {
+  buildEvalScopedRunRows,
+  getManualScoreAwareColumnDefsForRuns,
+} from '#src/utils/evalRuns';
 import {
   CACHE_HIT_AGGREGATE_MODES,
   computeStatDisplay,
@@ -365,7 +368,11 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
       merged.unshift(liveRun);
     }
 
-    const rows = buildEvalScopedRunRows(merged, evalSummary.key);
+    const rows = buildEvalScopedRunRows(
+      merged,
+      evalSummary.key,
+      evalSummary.columnDefs,
+    );
 
     const completed = rows.filter(
       (r) => r.manifest.status === 'completed' && r.summary.totalCases > 0,
@@ -388,7 +395,14 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   ]);
 
   const displayColumnDefs = useMemo(
-    () => mergeRunRuntimeColumnDefs(evalSummary.columnDefs, allRunRows),
+    () =>
+      getManualScoreAwareColumnDefsForRuns({
+        columnDefs: mergeRunRuntimeColumnDefs(
+          evalSummary.columnDefs,
+          allRunRows,
+        ),
+        runs: allRunRows,
+      }),
     [evalSummary.columnDefs, allRunRows],
   );
   const charts = useMemo(

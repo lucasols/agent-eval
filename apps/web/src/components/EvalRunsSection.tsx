@@ -20,6 +20,7 @@ export type RunFilter =
   | 'all'
   | 'successful'
   | 'unsuccessful'
+  | 'unscored'
   | 'failed'
   | 'errored'
   | 'cancelled'
@@ -32,6 +33,7 @@ const RUN_FILTER_OPTIONS: Array<{ value: RunFilter; label: string }> = [
   { value: 'last24h', label: 'Last 24h' },
   { value: 'successful', label: 'Successful' },
   { value: 'unsuccessful', label: 'Unsuccessful' },
+  { value: 'unscored', label: 'Unscored' },
   { value: 'failed', label: 'Failed' },
   { value: 'errored', label: 'Errored' },
   { value: 'cancelled', label: 'Cancelled' },
@@ -99,6 +101,7 @@ export function runMatchesFilter(
   if (filter === 'all') return true;
   if (filter === 'last24h') return runStartedWithinLast24h(run);
   if (filter === 'successful') return run.summary.status === 'pass';
+  if (filter === 'unscored') return run.summary.status === 'unscored';
   if (filter === 'unsuccessful') {
     return (
       run.summary.status === 'fail' ||

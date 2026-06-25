@@ -1,14 +1,22 @@
 import {
   deriveScopedSummaryFromCases,
   type CaseRow,
+  type CellValue,
+  type ColumnDef,
   type EvalSummary,
   type RunManifest,
   type ScopedCaseSummary,
 } from '@agent-evals/shared';
+import { convertToSentenceCase } from '@ls-stack/utils/stringUtils';
+
+export type ScopedRunDisplayStatus = ScopedCaseSummary['status'] | 'unscored';
+export type DisplayScopedCaseSummary = Omit<ScopedCaseSummary, 'status'> & {
+  status: ScopedRunDisplayStatus;
+};
 
 export type ScopedRunRow = {
   manifest: RunManifest;
-  summary: ScopedCaseSummary;
+  summary: DisplayScopedCaseSummary;
   cases: CaseRow[];
 };
 
@@ -44,18 +52,158 @@ function getCommonPrefixLength(allDirs: string[][]): number {
 export function buildEvalScopedRunRows(
   runs: RunWithCases[],
   evalKey: string,
+  columnDefs: ColumnDef[] = [],
 ): ScopedRunRow[] {
   return runs.map((run) => {
     const cases = run.cases.filter((caseRow) => caseRow.evalKey === evalKey);
+    const baseSummary = deriveScopedSummaryFromCases({
+      caseRows: cases,
+      lifecycleStatus: run.manifest.status,
+    });
     return {
       manifest: run.manifest,
-      summary: deriveScopedSummaryFromCases({
-        caseRows: cases,
-        lifecycleStatus: run.manifest.status,
+      summary: deriveManualScoreAwareSummary({
+        summary: baseSummary,
+        cases,
+        getColumnDefsForCase: (caseRow) =>
+          getManualScoreAwareColumnDefs({
+            columnDefs,
+            columns: caseRow.columns,
+          }),
       }),
       cases,
     };
   });
+}
+
+export function getManualScoreColumns(
+  columnDefs: readonly ColumnDef[],
+): ColumnDef[] {
+  return columnDefs.filter((column) => column.isManualScore === true);
+}
+
+function isMissingManualScoreCandidate(value: CellValue | undefined): boolean {
+  return value === null;
+}
+
+function toFallbackManualScoreColumnDef(column: ColumnDef): ColumnDef {
+  return { ...column, kind: 'number', isScore: true, isManualScore: true };
+}
+
+function createFallbackManualScoreColumnDef(key: string): ColumnDef {
+  return {
+    key,
+    label: convertToSentenceCase(key),
+    kind: 'number',
+    isScore: true,
+    isManualScore: true,
+  };
+}
+
+export function getManualScoreAwareColumnDefs(params: {
+  columnDefs: readonly ColumnDef[];
+  columns: Record<string, CellValue>;
+}): ColumnDef[] {
+  if (getManualScoreColumns(params.columnDefs).length > 0) {
+    return [...params.columnDefs];
+  }
+
+  const missingKeys = new Set(
+    Object.entries(params.columns)
+      .filter(([, value]) => isMissingManualScoreCandidate(value))
+      .map(([key]) => key),
+  );
+  if (missingKeys.size === 0) return [...params.columnDefs];
+
+  const seenKeys = new Set<string>();
+  const nextColumnDefs = params.columnDefs.map((column) => {
+    seenKeys.add(column.key);
+    if (!missingKeys.has(column.key)) return column;
+    return toFallbackManualScoreColumnDef(column);
+  });
+
+  for (const key of missingKeys) {
+    if (seenKeys.has(key)) continue;
+    nextColumnDefs.push(createFallbackManualScoreColumnDef(key));
+  }
+
+  return nextColumnDefs;
+}
+
+export function getManualScoreAwareColumnDefsForRuns(params: {
+  columnDefs: readonly ColumnDef[];
+  runs: Array<{ cases: CaseRow[] }>;
+}): ColumnDef[] {
+  let columnDefs = [...params.columnDefs];
+  for (const run of params.runs) {
+    for (const caseRow of run.cases) {
+      columnDefs = getManualScoreAwareColumnDefs({
+        columnDefs,
+        columns: caseRow.columns,
+      });
+    }
+  }
+  return columnDefs;
+}
+
+function hasPendingManualScore(
+  caseRow: Pick<CaseRow, 'columns'>,
+  columnDefs: readonly ColumnDef[],
+): boolean {
+  return getManualScoreColumns(columnDefs).some((column) => {
+    const value = caseRow.columns[column.key];
+    return typeof value !== 'number' || !Number.isFinite(value);
+  });
+}
+
+function isUnscoredPassCase(
+  caseRow: Pick<CaseRow, 'status' | 'columns'>,
+  columnDefs: readonly ColumnDef[],
+): boolean {
+  return (
+    caseRow.status === 'pass' && hasPendingManualScore(caseRow, columnDefs)
+  );
+}
+
+export function getManualScoreAwareCaseDisplayStatus(params: {
+  caseRow: Pick<CaseRow, 'status' | 'columns'>;
+  columnDefs: readonly ColumnDef[];
+}): CaseRow['status'] | 'enqueued' | 'unscored' {
+  if (params.caseRow.status === 'pending') return 'enqueued';
+  if (isUnscoredPassCase(params.caseRow, params.columnDefs)) return 'unscored';
+  return params.caseRow.status;
+}
+
+export function deriveManualScoreAwareSummary(params: {
+  summary: ScopedCaseSummary;
+  cases: readonly CaseRow[];
+  getColumnDefsForCase: (caseRow: CaseRow) => readonly ColumnDef[];
+}): DisplayScopedCaseSummary {
+  let unscoredPassCases = 0;
+  for (const caseRow of params.cases) {
+    if (isUnscoredPassCase(caseRow, params.getColumnDefsForCase(caseRow))) {
+      unscoredPassCases += 1;
+    }
+  }
+
+  if (unscoredPassCases === 0) return params.summary;
+
+  return {
+    ...params.summary,
+    status:
+      params.summary.status === 'pass' ? 'unscored' : params.summary.status,
+    passedCases: params.summary.passedCases - unscoredPassCases,
+    pendingCases: params.summary.pendingCases + unscoredPassCases,
+  };
+}
+
+export function getCaseColumnDefsFromEvalSummaries(params: {
+  caseRow: CaseRow;
+  evals: Array<Pick<EvalSummary, 'key' | 'columnDefs'>>;
+}): readonly ColumnDef[] {
+  const evalKey = params.caseRow.evalKey;
+  if (evalKey === undefined) return [];
+  return params.evals.find((ev) => ev.key === evalKey)?.columnDefs ?? [];
 }
 
 export function runTargetsEval(

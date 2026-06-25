@@ -4,7 +4,6 @@ import type {
   EvalStatAggregate,
   EvalStatItem,
   EvalSummary,
-  ScopedCaseSummary,
 } from '@agent-evals/shared';
 import {
   formatDuration,
@@ -16,7 +15,12 @@ const EM_DASH = '\u2014';
 
 export type EvalStatContext = {
   evalSummary: Pick<EvalSummary, 'caseCount' | 'columnDefs'>;
-  latestSummary: ScopedCaseSummary | null;
+  latestSummary: {
+    totalCases: number;
+    passedCases: number;
+    cacheHits: number;
+    cacheOperations: number;
+  } | null;
   latestCases: CaseRow[];
   aggregateModeOverride: EvalStatAggregate | undefined;
   cacheAggregateModeOverride: EvalStatAggregate | undefined;

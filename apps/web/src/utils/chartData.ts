@@ -11,9 +11,13 @@ import type {
 
 const RUN_SHORT_ID_PREFIX = /^r/;
 
+type ChartScopedCaseSummary = Omit<ScopedCaseSummary, 'status'> & {
+  status: ScopedCaseSummary['status'] | 'unscored';
+};
+
 type ChartRunRow = {
   manifest: RunManifest;
-  summary: ScopedCaseSummary;
+  summary: ChartScopedCaseSummary;
   cases: CaseRow[];
 };
 

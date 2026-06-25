@@ -4,7 +4,6 @@ import type {
   ColumnDef,
   FileRef,
   RunManifest,
-  ScopedCaseSummary,
 } from '@agent-evals/shared';
 import { ChevronDown, ChevronRight, Eye } from 'lucide-react';
 import { useState, type MouseEvent } from 'react';
@@ -34,6 +33,10 @@ import {
 } from '#src/style/helpers';
 import { getVisibleRunTableColumns } from '#src/utils/columnVisibility';
 import {
+  getManualScoreAwareCaseDisplayStatus,
+  type DisplayScopedCaseSummary,
+} from '#src/utils/evalRuns';
+import {
   getEffectiveFileRefFormat,
   getFileLabel,
   isPreviewableFileRefFormat,
@@ -47,7 +50,7 @@ import { mergeRunRuntimeColumnDefs } from '#src/utils/runtimeColumnDefs';
 
 export type RunRow = {
   manifest: RunManifest;
-  summary: ScopedCaseSummary;
+  summary: DisplayScopedCaseSummary;
   cases: CaseRow[];
 };
 
@@ -84,11 +87,6 @@ function getActiveRunDisplayStatus(run: RunRow): ActiveRunDisplayStatus {
     return 'enqueued';
   }
   return 'running';
-}
-
-function getCaseDisplayStatus(status: CaseRow['status']): string {
-  if (status === 'pending') return 'enqueued';
-  return status;
 }
 
 const TableWrap = styled.div`
@@ -585,6 +583,9 @@ export function EvalRunsTable({
   }
 
   const effectiveColumnDefs = mergeRunRuntimeColumnDefs(columnDefs, runs);
+  const manualScoreColumns = effectiveColumnDefs.filter(
+    (column) => column.isManualScore === true,
+  );
   const { scoreColumns, otherCustomColumns } = getVisibleRunTableColumns({
     columnDefs: effectiveColumnDefs,
     runs,
@@ -643,6 +644,7 @@ export function EvalRunsTable({
               expanded={expandedRunIds.has(run.manifest.id)}
               onToggle={onToggleExpandedRun}
               scoreColumns={scoreColumns}
+              manualScoreColumns={manualScoreColumns}
               otherCustomColumns={otherCustomColumns}
               totalCols={totalCols}
               runScope={runScope}
@@ -663,6 +665,7 @@ function RunGroup({
   expanded,
   onToggle,
   scoreColumns,
+  manualScoreColumns,
   otherCustomColumns,
   totalCols,
   runScope,
@@ -675,6 +678,7 @@ function RunGroup({
   expanded: boolean;
   onToggle: (id: string) => void;
   scoreColumns: ColumnDef[];
+  manualScoreColumns: ColumnDef[];
   otherCustomColumns: ColumnDef[];
   totalCols: number;
   runScope: RunScope | null;
@@ -896,7 +900,12 @@ function RunGroup({
                   mono={false}
                   indent={false}
                 >
-                  <StatusBadge status={getCaseDisplayStatus(row.status)} />
+                  <StatusBadge
+                    status={getManualScoreAwareCaseDisplayStatus({
+                      caseRow: row,
+                      columnDefs: manualScoreColumns,
+                    })}
+                  />
                 </CaseTd>
                 {scoreColumns.map((c) => {
                   const v = row.columns[c.key];

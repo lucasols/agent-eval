@@ -177,6 +177,46 @@ test('runCase stores configured input sections and materializes file urls', asyn
   ]);
 });
 
+test('runCase persists manual score column definitions in case artifacts', async () => {
+  const result = await runDefaultUsageCase({
+    evalDef: {
+      id: 'manual-score-artifact-eval',
+      execute: () => {},
+      manualScores: {
+        review: {
+          label: 'Review',
+          description: 'Confirm the output is ready.',
+          format: 'passFail',
+          passThreshold: 0.5,
+        },
+      },
+    },
+    evalId: 'manual-score-artifact-eval',
+  });
+
+  expect(result.caseDetail.columns.review).toBeNull();
+  expect(result.caseDetail.outputColumnDefs).toContainEqual({
+    key: 'review',
+    label: 'Review',
+    description: 'Confirm the output is ready.',
+    kind: 'number',
+    format: 'passFail',
+    isScore: true,
+    isManualScore: true,
+    passThreshold: 0.5,
+  });
+  expect(result.caseRowUpdate.outputColumnDefs).toContainEqual({
+    key: 'review',
+    label: 'Review',
+    description: 'Confirm the output is ready.',
+    kind: 'number',
+    format: 'passFail',
+    isScore: true,
+    isManualScore: true,
+    passThreshold: 0.5,
+  });
+});
+
 test('runCase includes pass and fail assertion records in case details', async () => {
   const passResult = await runDefaultUsageCase({
     evalDef: {

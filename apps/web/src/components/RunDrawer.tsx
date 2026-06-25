@@ -1,6 +1,5 @@
 import {
   deriveScopedSummaryFromCases,
-  deriveStatusFromCaseRows,
   type CaseRow,
 } from '@agent-evals/shared';
 import { useActionFn } from '@ls-stack/react-utils/useActionFn';
@@ -48,7 +47,14 @@ import {
   transition,
 } from '#src/style/helpers';
 import { copyTextToClipboard } from '#src/utils/clipboard';
-import { getEvalIdsForFolderPath, scopeRunCases } from '#src/utils/evalRuns';
+import {
+  deriveManualScoreAwareSummary,
+  getCaseColumnDefsFromEvalSummaries,
+  getManualScoreAwareColumnDefs,
+  getManualScoreAwareCaseDisplayStatus,
+  getEvalIdsForFolderPath,
+  scopeRunCases,
+} from '#src/utils/evalRuns';
 import { formatDuration, formatTimestamp } from '#src/utils/formatters';
 import {
   formatRunFolderDisplayPath,
@@ -66,11 +72,6 @@ function getActiveScopedRunStatus(caseRows: CaseRow[]): 'running' | 'enqueued' {
     return 'enqueued';
   }
   return 'running';
-}
-
-function getCaseDisplayStatus(status: CaseRow['status']): string {
-  if (status === 'pending') return 'enqueued';
-  return status;
 }
 
 const DrawerLoading = styled.div`
@@ -579,20 +580,23 @@ export function RunDrawer() {
     selectedEvalKey: scopedEvalId,
     selectedFolderPath: scopedFolderPath,
   });
-  const scopedSummary =
-    scopedRunCases.label === null
-      ? summary
-      : deriveScopedSummaryFromCases({
-          caseRows: scopedRunCases.cases,
-          lifecycleStatus: manifest.status,
-        });
+  const baseScopedSummary = deriveScopedSummaryFromCases({
+    caseRows: scopedRunCases.cases,
+    lifecycleStatus: manifest.status,
+  });
+  const scopedSummary = deriveManualScoreAwareSummary({
+    summary: baseScopedSummary,
+    cases: scopedRunCases.cases,
+    getColumnDefsForCase: (caseRow) =>
+      getManualScoreAwareColumnDefs({
+        columnDefs: getCaseColumnDefsFromEvalSummaries({ caseRow, evals }),
+        columns: caseRow.columns,
+      }),
+  });
   const displayStatus =
     manifest.status === 'running'
       ? getActiveScopedRunStatus(scopedRunCases.cases)
-      : deriveStatusFromCaseRows({
-          caseRows: scopedRunCases.cases,
-          lifecycleStatus: manifest.status,
-        });
+      : scopedSummary.status;
   const failed = scopedSummary.failedCases + scopedSummary.errorCases;
   const scopedErrorMessage =
     summary.status === 'error'
@@ -779,7 +783,18 @@ export function RunDrawer() {
                     )
                   }
                 >
-                  <StatusBadge status={getCaseDisplayStatus(caseRow.status)} />
+                  <StatusBadge
+                    status={getManualScoreAwareCaseDisplayStatus({
+                      caseRow,
+                      columnDefs: getManualScoreAwareColumnDefs({
+                        columnDefs: getCaseColumnDefsFromEvalSummaries({
+                          caseRow,
+                          evals,
+                        }),
+                        columns: caseRow.columns,
+                      }),
+                    })}
+                  />
                   <CaseMain>
                     <CaseId>{caseRow.caseId}</CaseId>
                     {showEvalIdInCase ? (
