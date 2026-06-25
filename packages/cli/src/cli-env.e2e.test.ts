@@ -52,7 +52,7 @@ describe('CLI env loading', () => {
           "stderr": "",
           "stdout": "Run started: <run-id>
       Trials: 1
-      
+
       --- Run Summary ---
       Status: completed
       Total: 1
@@ -62,10 +62,15 @@ describe('CLI env loading', () => {
       Pass Rate: 1/1
       Duration: <duration>",
           "summary": {
+            "cacheHits": 0,
+            "cacheOperations": 0,
             "cancelledCases": 0,
             "errorCases": 0,
             "errorMessage": null,
             "failedCases": 0,
+            "llmCacheHits": 0,
+            "llmCalls": 0,
+            "llmCallsMade": 0,
             "passedCases": 1,
             "runId": "<run-id>",
             "status": "completed",
@@ -97,7 +102,7 @@ describe('CLI env loading', () => {
           "stderr": "",
           "stdout": "Run started: <run-id>
       Trials: 1
-      
+
       --- Run Summary ---
       Status: completed
       Total: 1
@@ -107,10 +112,15 @@ describe('CLI env loading', () => {
       Pass Rate: 1/1
       Duration: <duration>",
           "summary": {
+            "cacheHits": 0,
+            "cacheOperations": 0,
             "cancelledCases": 0,
             "errorCases": 0,
             "errorMessage": null,
             "failedCases": 0,
+            "llmCacheHits": 0,
+            "llmCalls": 0,
+            "llmCallsMade": 0,
             "passedCases": 1,
             "runId": "<run-id>",
             "status": "completed",
@@ -142,7 +152,7 @@ describe('CLI env loading', () => {
           "stderr": "",
           "stdout": "Run started: <run-id>
       Trials: 1
-      
+
       --- Run Summary ---
       Status: completed
       Total: 1
@@ -152,10 +162,15 @@ describe('CLI env loading', () => {
       Pass Rate: 1/1
       Duration: <duration>",
           "summary": {
+            "cacheHits": 0,
+            "cacheOperations": 0,
             "cancelledCases": 0,
             "errorCases": 0,
             "errorMessage": null,
             "failedCases": 0,
+            "llmCacheHits": 0,
+            "llmCalls": 0,
+            "llmCallsMade": 0,
             "passedCases": 1,
             "runId": "<run-id>",
             "status": "completed",

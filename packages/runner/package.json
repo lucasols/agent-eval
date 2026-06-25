@@ -28,7 +28,7 @@
     "platform": "node"
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "NODE_OPTIONS=--max-old-space-size=8192 tsdown",
     "tsc": "tsgo --noEmit",
     "lint": "tsgo --noEmit && eslint .",
     "eslint": "eslint ."

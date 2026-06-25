@@ -135,56 +135,8 @@ describe('CLI saved run file index', () => {
 
       expect(normalizeSnapshotValue(workspacePath, { latest, list: indexes }))
         .toMatchInlineSnapshot(`
-        {
-          "latest": {
-            "cases": [
-              {
-                "caseId": "simple-text",
-                "evalId": "refund-workflow",
-                "files": {
-                  "caseDetail": "<workspace>/.agent-evals/runs/<run-id>/case-details/simple-text.json",
-                  "trace": "<workspace>/.agent-evals/runs/<run-id>/traces/simple-text.json",
-                },
-                "status": "pass",
-              },
-            ],
-            "endedAt": "<timestamp>",
-            "files": {
-              "caseDetailsDir": "<workspace>/.agent-evals/runs/<run-id>/case-details",
-              "cases": "<workspace>/.agent-evals/runs/<run-id>/cases.jsonl",
-              "dir": "<workspace>/.agent-evals/runs/<run-id>",
-              "run": "<workspace>/.agent-evals/runs/<run-id>/run.json",
-              "summary": "<workspace>/.agent-evals/runs/<run-id>/summary.json",
-              "tracesDir": "<workspace>/.agent-evals/runs/<run-id>/traces",
-            },
-            "id": "<run-id>",
-            "shortId": "r0",
-            "startedAt": "<timestamp>",
-            "status": "completed",
-            "summary": {
-              "cancelledCases": 0,
-              "errorCases": 0,
-              "errorMessage": null,
-              "failedCases": 0,
-              "passedCases": 1,
-              "runId": "<run-id>",
-              "status": "completed",
-              "totalCases": 1,
-              "totalDurationMs": "<totalDurationMs>",
-            },
-            "target": {
-              "caseIds": [
-                "simple-text",
-              ],
-              "evalKeys": [
-                "evals%2Frefund-workflow.eval.ts#refund-workflow",
-              ],
-              "mode": "caseIds",
-            },
-            "temporary": false,
-          },
-          "list": [
-            {
+          {
+            "latest": {
               "cases": [
                 {
                   "caseId": "simple-text",
@@ -210,10 +162,15 @@ describe('CLI saved run file index', () => {
               "startedAt": "<timestamp>",
               "status": "completed",
               "summary": {
+                "cacheHits": 0,
+                "cacheOperations": 1,
                 "cancelledCases": 0,
                 "errorCases": 0,
                 "errorMessage": null,
                 "failedCases": 0,
+                "llmCacheHits": 0,
+                "llmCalls": 1,
+                "llmCallsMade": 1,
                 "passedCases": 1,
                 "runId": "<run-id>",
                 "status": "completed",
@@ -231,9 +188,62 @@ describe('CLI saved run file index', () => {
               },
               "temporary": false,
             },
-          ],
-        }
-      `);
+            "list": [
+              {
+                "cases": [
+                  {
+                    "caseId": "simple-text",
+                    "evalId": "refund-workflow",
+                    "files": {
+                      "caseDetail": "<workspace>/.agent-evals/runs/<run-id>/case-details/simple-text.json",
+                      "trace": "<workspace>/.agent-evals/runs/<run-id>/traces/simple-text.json",
+                    },
+                    "status": "pass",
+                  },
+                ],
+                "endedAt": "<timestamp>",
+                "files": {
+                  "caseDetailsDir": "<workspace>/.agent-evals/runs/<run-id>/case-details",
+                  "cases": "<workspace>/.agent-evals/runs/<run-id>/cases.jsonl",
+                  "dir": "<workspace>/.agent-evals/runs/<run-id>",
+                  "run": "<workspace>/.agent-evals/runs/<run-id>/run.json",
+                  "summary": "<workspace>/.agent-evals/runs/<run-id>/summary.json",
+                  "tracesDir": "<workspace>/.agent-evals/runs/<run-id>/traces",
+                },
+                "id": "<run-id>",
+                "shortId": "r0",
+                "startedAt": "<timestamp>",
+                "status": "completed",
+                "summary": {
+                  "cacheHits": 0,
+                  "cacheOperations": 1,
+                  "cancelledCases": 0,
+                  "errorCases": 0,
+                  "errorMessage": null,
+                  "failedCases": 0,
+                  "llmCacheHits": 0,
+                  "llmCalls": 1,
+                  "llmCallsMade": 1,
+                  "passedCases": 1,
+                  "runId": "<run-id>",
+                  "status": "completed",
+                  "totalCases": 1,
+                  "totalDurationMs": "<totalDurationMs>",
+                },
+                "target": {
+                  "caseIds": [
+                    "simple-text",
+                  ],
+                  "evalKeys": [
+                    "evals%2Frefund-workflow.eval.ts#refund-workflow",
+                  ],
+                  "mode": "caseIds",
+                },
+                "temporary": false,
+              },
+            ],
+          }
+        `);
     });
   }, 10_000);
 

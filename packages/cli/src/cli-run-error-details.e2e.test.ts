@@ -61,13 +61,15 @@ describe('CLI run error details', () => {
             at async readFile (node:internal/fs/promises:1279:14)
             at async loadRefundPolicyDataset (file://<workspace>/evals/support/playground/run-error-details.eval.ts?v=<source-fingerprint>&agent-evals-isolate=<run-id>:5:10)
             at async Object.cases (file://<workspace>/evals/support/playground/run-error-details.eval.ts?v=<source-fingerprint>&agent-evals-isolate=<run-id>:18:33)
-            at async runWithEvalClock.freezeTime (file://<repo>/packages/runner/src/runOrchestration.ts:566:29)
-            at async runWithEvalClock (file://<repo>/packages/sdk/src/runtime.ts:415:10)
-            at async file://<repo>/packages/runner/src/runOrchestration.ts:562:21
-            at async file://<repo>/packages/runner/src/runOrchestration.ts:490:13
-            at async runInEvalRuntimeScope (file://<repo>/packages/sdk/src/runtime.ts:849:12)
-            at async file://<repo>/packages/runner/src/runOrchestration.ts:489:11",
+            at async runWithEvalClock.freezeTime (file://<repo>/packages/runner/src/runOrchestration.ts:575:29)
+            at async runWithEvalClock (file://<repo>/packages/sdk/src/runtime.ts:429:10)
+            at async file://<repo>/packages/runner/src/runOrchestration.ts:571:21
+            at async file://<repo>/packages/runner/src/runOrchestration.ts:499:13
+            at async runInEvalRuntimeScope (file://<repo>/packages/sdk/src/runtime.ts:863:12)
+            at async file://<repo>/packages/runner/src/runOrchestration.ts:498:11",
           "summary": {
+            "cacheHits": 0,
+            "cacheOperations": 0,
             "cancelledCases": 0,
             "errorCases": 0,
             "errorMessage": "[run-error-details-demo] Error: ENOENT: no such file or directory, open '<workspace>/evals/datasets/run-error/refund-policy-cases.json'
@@ -75,13 +77,16 @@ describe('CLI run error details', () => {
             at async readFile (node:internal/fs/promises:1279:14)
             at async loadRefundPolicyDataset (file://<workspace>/evals/support/playground/run-error-details.eval.ts?v=<source-fingerprint>&agent-evals-isolate=<run-id>:5:10)
             at async Object.cases (file://<workspace>/evals/support/playground/run-error-details.eval.ts?v=<source-fingerprint>&agent-evals-isolate=<run-id>:18:33)
-            at async runWithEvalClock.freezeTime (file://<repo>/packages/runner/src/runOrchestration.ts:566:29)
-            at async runWithEvalClock (file://<repo>/packages/sdk/src/runtime.ts:415:10)
-            at async file://<repo>/packages/runner/src/runOrchestration.ts:562:21
-            at async file://<repo>/packages/runner/src/runOrchestration.ts:490:13
-            at async runInEvalRuntimeScope (file://<repo>/packages/sdk/src/runtime.ts:849:12)
-            at async file://<repo>/packages/runner/src/runOrchestration.ts:489:11",
+            at async runWithEvalClock.freezeTime (file://<repo>/packages/runner/src/runOrchestration.ts:575:29)
+            at async runWithEvalClock (file://<repo>/packages/sdk/src/runtime.ts:429:10)
+            at async file://<repo>/packages/runner/src/runOrchestration.ts:571:21
+            at async file://<repo>/packages/runner/src/runOrchestration.ts:499:13
+            at async runInEvalRuntimeScope (file://<repo>/packages/sdk/src/runtime.ts:863:12)
+            at async file://<repo>/packages/runner/src/runOrchestration.ts:498:11",
             "failedCases": 0,
+            "llmCacheHits": 0,
+            "llmCalls": 0,
+            "llmCallsMade": 0,
             "passedCases": 0,
             "runId": "<run-id>",
             "status": "error",
