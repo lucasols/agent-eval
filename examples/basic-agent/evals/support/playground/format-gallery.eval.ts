@@ -123,7 +123,7 @@ defineEval({
     requiresManualReview: { label: 'Manual Review', format: 'boolean' },
     previewCard: { label: 'Preview Card', format: 'image', hideInTable: true },
     htmlReport: { label: 'HTML Report', format: 'html', hideInTable: true },
-    pdfReport: { label: 'PDF Report', format: 'pdf', hideInTable: true },
+    pdfReport: { label: 'PDF Report', format: 'pdf' },
     audioBrief: { label: 'Audio Brief', format: 'audio', hideInTable: true },
     attachment: { label: 'Attachment', format: 'file', hideInTable: true },
     confidence: { label: 'Confidence', format: 'percent' },

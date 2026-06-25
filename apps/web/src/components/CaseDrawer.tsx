@@ -30,7 +30,9 @@ import { ErrorDetails } from '#src/components/ErrorDetails';
 import { ErrorStackTrace } from '#src/components/ErrorStackTrace';
 import {
   FormattedCellValue,
+  getMediaPreviewItemsForColumns,
   hasRichColumnFormat,
+  type MediaPreviewItem,
   summarizeCellValue,
 } from '#src/components/FormattedCellValue';
 import { IconButton } from '#src/components/IconButton';
@@ -640,6 +642,10 @@ export function CaseDrawer() {
     d.outputColumnDefs,
   );
   const outputColumnDefs = orderOutputColumnDefs(columnDefs, d.columns);
+  const mediaPreviewItems = getMediaPreviewItemsForColumns(
+    outputColumnDefs,
+    d.columns,
+  );
   const hasOutputValue = outputColumnDefs.some((columnDef) =>
     hasRenderableOutputValue(d.columns[columnDef.key]),
   );
@@ -813,6 +819,7 @@ export function CaseDrawer() {
                   def={c}
                   value={d.columns[c.key]}
                   previewFooter={manualScoringPreviewFooter}
+                  mediaPreviewItems={mediaPreviewItems}
                 />
               ))}
             </OutputLayout>
@@ -1184,10 +1191,12 @@ function ColumnCell({
   def,
   value,
   previewFooter,
+  mediaPreviewItems,
 }: {
   def: ColumnDef;
   value: CellValue | undefined;
   previewFooter: ReactNode | undefined;
+  mediaPreviewItems: MediaPreviewItem[];
 }) {
   const label = getDisplayColumnLabel(def);
   const diagnosticMatch = findDiagnosticOutputMatch(value, def.key);
@@ -1208,7 +1217,7 @@ function ColumnCell({
         ) : null}
       </OutputLabelRow>
       <OutputContent>
-        {renderColumnValue(def, value, previewFooter)}
+        {renderColumnValue(def, value, previewFooter, mediaPreviewItems)}
       </OutputContent>
     </OutputBlock>
   );
@@ -1218,6 +1227,7 @@ function renderColumnValue(
   def: ColumnDef,
   value: CellValue | undefined,
   previewFooter: ReactNode | undefined,
+  mediaPreviewItems: MediaPreviewItem[],
 ) {
   if (value === undefined || value === null) {
     return <ScalarValue>{'\u2014'}</ScalarValue>;
@@ -1249,6 +1259,7 @@ function renderColumnValue(
         inferMarkdown
         markdownRawToggle
         previewFooter={previewFooter}
+        previewItems={mediaPreviewItems}
       />
     );
   }

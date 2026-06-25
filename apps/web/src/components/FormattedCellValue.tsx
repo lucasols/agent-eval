@@ -1,11 +1,16 @@
 import type { CellValue, ColumnDef, FileRef } from '@agent-evals/shared';
 import {
+  ChevronLeft,
+  ChevronRight,
   Code2,
   Download,
   ExternalLink,
   Eye,
+  FileAudio,
   FileCode2,
+  FileImage,
   FileText,
+  FileVideo,
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -13,6 +18,7 @@ import remarkGfm from 'remark-gfm';
 import { styled } from 'vindur';
 import { JsonViewer } from '#src/components/JsonViewer';
 import { Modal } from '#src/components/Modal';
+import { Tooltip } from '#src/components/Tooltip';
 import { useImageLightbox } from '#src/components/useImageLightbox';
 import { colors } from '#src/style/colors';
 import { inline, monoFont, stack, transition } from '#src/style/helpers';
@@ -20,6 +26,8 @@ import {
   getEffectiveFileRefFormat,
   getFileLabel,
   getFileUrl,
+  isPreviewableFileRefFormat,
+  type PreviewableFileRefFormat,
 } from '#src/utils/fileRefDisplay';
 import {
   formatDuration,
@@ -214,6 +222,25 @@ const VideoValue = styled.video`
   border-radius: var(--radius-md);
 `;
 
+const PreviewImage = styled.img`
+  display: block;
+  max-width: 100%;
+  max-height: min(74vh, 820px);
+  margin: 0 auto;
+  border-radius: var(--radius-md);
+`;
+
+const PreviewAudio = styled.audio`
+  width: min(720px, 100%);
+`;
+
+const PreviewVideo = styled.video`
+  display: block;
+  width: min(100%, 960px);
+  max-height: min(74vh, 820px);
+  border-radius: var(--radius-md);
+`;
+
 const ArtifactPreviewButton = styled.button`
   ${inline({ align: 'stretch', gap: 12 })}
   width: 100%;
@@ -379,18 +406,98 @@ const PreviewHeaderLink = styled.a`
   }
 `;
 
+const PreviewHeaderActions = styled.div`
+  ${inline({ align: 'center', gap: 8 })}
+`;
+
+const PreviewNav = styled.div`
+  ${inline({ align: 'center', gap: 6 })}
+`;
+
+const PreviewNavButton = styled.button`
+  ${inline({ align: 'center', justify: 'center' })}
+  ${transition({ property: 'background, border-color, color' })}
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid ${colors.borderStrong.var};
+  border-radius: var(--radius-md);
+  background: ${colors.surface.var};
+  color: ${colors.text.var};
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: ${colors.surfaceHover.var};
+    border-color: ${colors.accent.alpha(0.45)};
+  }
+
+  &:disabled {
+    color: ${colors.textDim.var};
+    cursor: default;
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${colors.accent.var};
+    outline-offset: 2px;
+  }
+
+  & svg {
+    width: 15px;
+    height: 15px;
+  }
+`;
+
+const PreviewSelect = styled.select`
+  ${transition({ property: 'background, border-color' })}
+  width: min(220px, 24vw);
+  height: 32px;
+  padding: 0 28px 0 10px;
+  border: 1px solid ${colors.borderStrong.var};
+  border-radius: var(--radius-md);
+  background: ${colors.surface.var};
+  color: ${colors.text.var};
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+
+  &:hover {
+    background: ${colors.surfaceHover.var};
+    border-color: ${colors.accent.alpha(0.45)};
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${colors.accent.var};
+    outline-offset: 2px;
+  }
+`;
+
+export type MediaPreviewFormat = PreviewableFileRefFormat;
+
+export type MediaPreviewItem = {
+  id: string;
+  format: MediaPreviewFormat;
+  src: string;
+  title: string;
+  fileName: string;
+  sizeBytes: number | undefined;
+};
+
 export function FormattedCellValue({
   def,
   value,
   inferMarkdown = false,
   markdownRawToggle = false,
   previewFooter,
+  previewItems,
+  previewItemId,
 }: {
   def: ColumnDef;
   value: CellValue | undefined;
   inferMarkdown?: boolean;
   markdownRawToggle?: boolean;
   previewFooter?: ReactNode;
+  previewItems?: MediaPreviewItem[];
+  previewItemId?: string;
 }) {
   if (value === undefined || value === null) return '\u2014';
 
@@ -421,27 +528,37 @@ export function FormattedCellValue({
     );
   }
 
-  if (fileFormat === 'image' && fileRef !== undefined) {
-    return (
-      <ImageCell
-        src={getFileUrl(fileRef)}
-        alt={def.label}
-        previewFooter={previewFooter}
-      />
-    );
-  }
-
   if (
-    (fileFormat === 'html' || fileFormat === 'pdf') &&
-    fileRef !== undefined
+    fileRef !== undefined &&
+    fileFormat !== undefined &&
+    isPreviewableFileRefFormat(fileFormat)
   ) {
+    const currentPreviewItem = toMediaPreviewItem({
+      def,
+      fileRef,
+      format: fileFormat,
+      id: previewItemId,
+    });
+    const effectivePreviewItems = getEffectivePreviewItems(
+      currentPreviewItem,
+      previewItems,
+    );
+    if (fileFormat === 'image') {
+      return (
+        <ImageCell
+          src={currentPreviewItem.src}
+          alt={def.label}
+          previewFooter={previewFooter}
+          previewItems={effectivePreviewItems}
+          previewItemId={currentPreviewItem.id}
+        />
+      );
+    }
+
     return (
       <ArtifactPreviewCell
-        kind={fileFormat}
-        src={getFileUrl(fileRef)}
-        title={def.label}
-        fileName={getFileLabel(fileRef)}
-        sizeBytes={fileRef.sizeBytes}
+        item={currentPreviewItem}
+        previewItems={effectivePreviewItems}
         previewFooter={previewFooter}
       />
     );
@@ -586,18 +703,37 @@ function ImageCell({
   src,
   alt,
   previewFooter,
+  previewItems,
+  previewItemId,
 }: {
   src: string;
   alt: string;
   previewFooter: ReactNode | undefined;
+  previewItems: MediaPreviewItem[];
+  previewItemId: string;
 }) {
   const { openImage, lightbox } = useImageLightbox({ footer: previewFooter });
+  const [activePreviewId, setActivePreviewId] = useState<string | null>(null);
   return (
     <>
       <ImageValue
         src={src}
         alt={alt}
-        onClick={() => openImage(src, alt)}
+        onClick={() => {
+          if (previewItems.length > 1) {
+            setActivePreviewId(previewItemId);
+            return;
+          }
+          openImage(src, alt);
+        }}
+      />
+      <MediaPreviewModal
+        isOpen={activePreviewId !== null}
+        items={previewItems}
+        activeItemId={activePreviewId ?? previewItemId}
+        footer={previewFooter}
+        onChange={setActivePreviewId}
+        onClose={() => setActivePreviewId(null)}
       />
       {lightbox}
     </>
@@ -605,55 +741,51 @@ function ImageCell({
 }
 
 function ArtifactPreviewCell({
-  kind,
-  src,
-  title,
-  fileName,
-  sizeBytes,
+  item,
+  previewItems,
   previewFooter,
 }: {
-  kind: 'html' | 'pdf';
-  src: string;
-  title: string;
-  fileName: string;
-  sizeBytes: number | undefined;
+  item: MediaPreviewItem;
+  previewItems: MediaPreviewItem[];
   previewFooter: ReactNode | undefined;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const Icon = kind === 'html' ? FileCode2 : FileText;
-  const typeLabel = kind === 'html' ? 'HTML preview' : 'PDF preview';
+  const [activePreviewId, setActivePreviewId] = useState<string | null>(null);
+  const Icon = getPreviewIcon(item.format);
+  const typeLabel = getPreviewTypeLabel(item.format);
 
   return (
     <>
       <ArtifactPreviewButton
         type="button"
-        aria-label={`Open ${title} preview`}
-        onClick={() => setIsOpen(true)}
+        aria-label={`Open ${item.title} preview`}
+        onClick={() => setActivePreviewId(item.id)}
       >
         <ArtifactIconWrap>
           <Icon />
         </ArtifactIconWrap>
         <ArtifactPreviewMeta>
-          <ArtifactPreviewTitle>{title}</ArtifactPreviewTitle>
+          <ArtifactPreviewTitle>{item.title}</ArtifactPreviewTitle>
           <ArtifactPreviewSubtitle>
             <ArtifactPreviewSubtitleText>
-              {formatArtifactSubtitleText({ actionLabel: typeLabel, fileName })}
+              {formatArtifactSubtitleText({
+                actionLabel: typeLabel,
+                fileName: item.fileName,
+              })}
             </ArtifactPreviewSubtitleText>
-            <ArtifactSizeLabel sizeBytes={sizeBytes} />
+            <ArtifactSizeLabel sizeBytes={item.sizeBytes} />
           </ArtifactPreviewSubtitle>
         </ArtifactPreviewMeta>
         <ArtifactPreviewAction>
           <Eye />
         </ArtifactPreviewAction>
       </ArtifactPreviewButton>
-      <ArtifactPreviewModal
-        isOpen={isOpen}
-        kind={kind}
-        src={src}
-        title={title}
-        fileName={fileName}
+      <MediaPreviewModal
+        isOpen={activePreviewId !== null}
+        items={previewItems}
+        activeItemId={activePreviewId ?? item.id}
         footer={previewFooter}
-        onClose={() => setIsOpen(false)}
+        onChange={setActivePreviewId}
+        onClose={() => setActivePreviewId(null)}
       />
     </>
   );
@@ -704,52 +836,226 @@ function ArtifactDownloadCell({
   );
 }
 
-function ArtifactPreviewModal({
+export function MediaPreviewModal({
   isOpen,
-  kind,
-  src,
-  title,
-  fileName,
+  items,
+  activeItemId,
   footer,
+  onChange,
   onClose,
 }: {
   isOpen: boolean;
-  kind: 'html' | 'pdf';
-  src: string;
-  title: string;
-  fileName: string;
+  items: MediaPreviewItem[];
+  activeItemId: string;
   footer: ReactNode | undefined;
+  onChange: (id: string) => void;
   onClose: () => void;
 }) {
+  const activeIndex = items.findIndex((item) => item.id === activeItemId);
+  const activeItem = activeIndex >= 0 ? items[activeIndex] : items[0];
+  if (activeItem === undefined) return null;
+
+  const canNavigate = items.length > 1;
+  const displayIndex = activeIndex >= 0 ? activeIndex : 0;
+
+  function changeBy(delta: -1 | 1) {
+    if (!canNavigate) return;
+    const nextIndex = (displayIndex + delta + items.length) % items.length;
+    const nextItem = items[nextIndex];
+    if (nextItem !== undefined) onChange(nextItem.id);
+  }
+
   return (
     <Modal
       isOpen={isOpen}
-      title={title}
-      subtitle={fileName}
+      title={activeItem.title}
+      subtitle={activeItem.fileName}
       onClose={onClose}
       wide
       topLayer
       footer={footer}
       headerActions={
-        <PreviewHeaderLink
-          href={src}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <ExternalLink />
-          Open in new tab
-        </PreviewHeaderLink>
+        <PreviewHeaderActions>
+          {canNavigate ? (
+            <PreviewNav>
+              <Tooltip content="Previous preview">
+                <PreviewNavButton
+                  type="button"
+                  aria-label="Previous preview"
+                  onClick={() => changeBy(-1)}
+                >
+                  <ChevronLeft />
+                </PreviewNavButton>
+              </Tooltip>
+              <PreviewSelect
+                aria-label="Select preview"
+                value={activeItem.id}
+                onChange={(event) => onChange(event.currentTarget.value)}
+              >
+                {items.map((item, index) => (
+                  <option
+                    key={item.id}
+                    value={item.id}
+                  >
+                    {`${String(index + 1)}. ${item.title}`}
+                  </option>
+                ))}
+              </PreviewSelect>
+              <Tooltip content="Next preview">
+                <PreviewNavButton
+                  type="button"
+                  aria-label="Next preview"
+                  onClick={() => changeBy(1)}
+                >
+                  <ChevronRight />
+                </PreviewNavButton>
+              </Tooltip>
+            </PreviewNav>
+          ) : null}
+          <PreviewHeaderLink
+            href={activeItem.src}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <ExternalLink />
+            Open in new tab
+          </PreviewHeaderLink>
+        </PreviewHeaderActions>
       }
     >
-      <PreviewFrameWrap>
-        <PreviewFrame
-          title={`${title} preview`}
-          src={src}
-          sandbox={kind === 'html' ? '' : undefined}
-        />
-      </PreviewFrameWrap>
+      <MediaPreviewContent item={activeItem} />
     </Modal>
   );
+}
+
+function MediaPreviewContent({ item }: { item: MediaPreviewItem }) {
+  if (item.format === 'image') {
+    return (
+      <PreviewImage
+        src={item.src}
+        alt={item.title}
+      />
+    );
+  }
+  if (item.format === 'audio') {
+    return (
+      <PreviewAudio
+        controls
+        src={item.src}
+      />
+    );
+  }
+  if (item.format === 'video') {
+    return (
+      <PreviewVideo
+        controls
+        src={item.src}
+      />
+    );
+  }
+
+  return (
+    <PreviewFrameWrap>
+      <PreviewFrame
+        title={`${item.title} preview`}
+        src={item.src}
+        sandbox={item.format === 'html' ? '' : undefined}
+      />
+    </PreviewFrameWrap>
+  );
+}
+
+export function getMediaPreviewItemId(def: ColumnDef, ref: FileRef): string {
+  if (ref.source === 'repo') return `${def.key}:repo:${ref.path}`;
+  return `${def.key}:run:${ref.artifactId}`;
+}
+
+export function toMediaPreviewItem({
+  def,
+  fileRef,
+  format,
+  id,
+}: {
+  def: ColumnDef;
+  fileRef: FileRef;
+  format: MediaPreviewFormat;
+  id?: string | undefined;
+}): MediaPreviewItem {
+  return {
+    id: id ?? getMediaPreviewItemId(def, fileRef),
+    format,
+    src: getFileUrl(fileRef),
+    title: def.label,
+    fileName: getFileLabel(fileRef),
+    sizeBytes: fileRef.sizeBytes,
+  };
+}
+
+function getEffectivePreviewItems(
+  currentItem: MediaPreviewItem,
+  previewItems: MediaPreviewItem[] | undefined,
+): MediaPreviewItem[] {
+  if (previewItems === undefined || previewItems.length === 0) {
+    return [currentItem];
+  }
+  if (previewItems.some((item) => item.id === currentItem.id)) {
+    return previewItems;
+  }
+  return [currentItem, ...previewItems];
+}
+
+export function getMediaPreviewItemsForColumns(
+  columnDefs: ColumnDef[],
+  columns: Record<string, CellValue | undefined>,
+): MediaPreviewItem[] {
+  return columnDefs.flatMap((def) => {
+    const value = columns[def.key];
+    if (!isFileRef(value)) return [];
+    const format = getEffectiveFileRefFormat(def, value);
+    if (!isPreviewableFileRefFormat(format)) return [];
+    return [toMediaPreviewItem({ def, fileRef: value, format })];
+  });
+}
+
+export function getEffectiveMediaPreviewItems(
+  currentItem: MediaPreviewItem,
+  mediaPreviewItems: MediaPreviewItem[],
+): MediaPreviewItem[] {
+  if (mediaPreviewItems.length === 0) return [currentItem];
+  if (mediaPreviewItems.some((item) => item.id === currentItem.id)) {
+    return mediaPreviewItems;
+  }
+  return [currentItem, ...mediaPreviewItems];
+}
+
+function getPreviewIcon(format: MediaPreviewFormat) {
+  switch (format) {
+    case 'image':
+      return FileImage;
+    case 'html':
+      return FileCode2;
+    case 'pdf':
+      return FileText;
+    case 'audio':
+      return FileAudio;
+    case 'video':
+      return FileVideo;
+  }
+}
+
+function getPreviewTypeLabel(format: MediaPreviewFormat): string {
+  switch (format) {
+    case 'image':
+      return 'Image preview';
+    case 'html':
+      return 'HTML preview';
+    case 'pdf':
+      return 'PDF preview';
+    case 'audio':
+      return 'Audio preview';
+    case 'video':
+      return 'Video preview';
+  }
 }
 
 function formatArtifactSubtitleText({
@@ -812,7 +1118,7 @@ export function hasRichColumnFormat(def: ColumnDef): boolean {
   );
 }
 
-function isFileRef(value: CellValue): value is FileRef {
+function isFileRef(value: CellValue | undefined): value is FileRef {
   if (typeof value !== 'object' || value === null || !('source' in value)) {
     return false;
   }

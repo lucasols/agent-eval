@@ -1,6 +1,11 @@
 import type { ColumnDef, ColumnFormat, FileRef } from '@agent-evals/shared';
 import { apiUrl } from '#src/utils/apiUrl';
 
+export type PreviewableFileRefFormat = Extract<
+  ColumnFormat,
+  'image' | 'html' | 'pdf' | 'audio' | 'video'
+>;
+
 export function getEffectiveFileRefFormat(
   def: Pick<ColumnDef, 'format'>,
   ref: FileRef,
@@ -9,7 +14,9 @@ export function getEffectiveFileRefFormat(
   return inferFileRefFormat(ref.mimeType);
 }
 
-export function isPreviewableFileRefFormat(format: ColumnFormat): boolean {
+export function isPreviewableFileRefFormat(
+  format: ColumnFormat,
+): format is PreviewableFileRefFormat {
   return (
     format === 'image' ||
     format === 'html' ||

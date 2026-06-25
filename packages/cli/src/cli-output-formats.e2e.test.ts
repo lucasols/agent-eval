@@ -177,6 +177,7 @@ describe('CLI output formats', () => {
             "<run-id>__all-column-formats__t0__htmlReport__refund-report.html",
             "<run-id>__all-column-formats__t0__pdfReport__refund-report.pdf",
             "<run-id>__all-column-formats__t0__previewCard__previewCard.svg",
+            "<run-id>__all-column-formats__t0__visualReferences-0__status-card.svg",
           ],
         }
       `);

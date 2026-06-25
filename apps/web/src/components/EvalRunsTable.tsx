@@ -2,17 +2,22 @@ import type {
   CaseRow,
   CellValue,
   ColumnDef,
-  ColumnFormat,
   FileRef,
   RunManifest,
   ScopedCaseSummary,
 } from '@agent-evals/shared';
-import { ChevronDown, ChevronRight, ExternalLink, Eye } from 'lucide-react';
+import { ChevronDown, ChevronRight, Eye } from 'lucide-react';
 import { useState, type MouseEvent } from 'react';
 import { styled } from 'vindur';
-import { summarizeCellValue } from '#src/components/FormattedCellValue';
+import {
+  getEffectiveMediaPreviewItems,
+  getMediaPreviewItemsForColumns,
+  MediaPreviewModal,
+  summarizeCellValue,
+  toMediaPreviewItem,
+  type MediaPreviewItem,
+} from '#src/components/FormattedCellValue';
 import { LoadingLine } from '#src/components/LoadingState';
-import { Modal } from '#src/components/Modal';
 import { ManualScoreCell, ScoreCell } from '#src/components/ScoreCell';
 import { StatusBadge } from '#src/components/StatusBadge';
 import { Tooltip } from '#src/components/Tooltip';
@@ -31,7 +36,6 @@ import { getVisibleRunTableColumns } from '#src/utils/columnVisibility';
 import {
   getEffectiveFileRefFormat,
   getFileLabel,
-  getFileUrl,
   isPreviewableFileRefFormat,
 } from '#src/utils/fileRefDisplay';
 import {
@@ -346,74 +350,6 @@ const FilePreviewLabel = styled.span`
   min-width: 0;
 `;
 
-const FilePreviewFrameWrap = styled.div`
-  width: min(100%, 1120px);
-  height: min(74vh, 820px);
-  border: 1px solid ${colors.border.var};
-  border-radius: var(--radius-md);
-  background: ${colors.white.var};
-  overflow: hidden;
-`;
-
-const FilePreviewFrame = styled.iframe`
-  display: block;
-  width: 100%;
-  height: 100%;
-  border: none;
-  background: ${colors.white.var};
-`;
-
-const FilePreviewImage = styled.img`
-  display: block;
-  max-width: 100%;
-  max-height: min(74vh, 820px);
-  margin: 0 auto;
-  border-radius: var(--radius-md);
-`;
-
-const FilePreviewAudio = styled.audio`
-  width: min(720px, 100%);
-`;
-
-const FilePreviewVideo = styled.video`
-  display: block;
-  width: min(100%, 960px);
-  max-height: min(74vh, 820px);
-  border-radius: var(--radius-md);
-`;
-
-const FilePreviewHeaderLink = styled.a`
-  ${inline({ align: 'center', gap: 7 })}
-  ${transition({ property: 'background, border-color, color' })}
-  height: 32px;
-  padding: 0 14px;
-  border: 1px solid ${colors.borderStrong.var};
-  border-radius: var(--radius-md);
-  background: ${colors.surface.var};
-  color: ${colors.text.var};
-  font-size: 12.5px;
-  font-weight: 500;
-  line-height: 1;
-  text-decoration: none;
-  white-space: nowrap;
-
-  &:hover {
-    background: ${colors.surfaceHover.var};
-    border-color: ${colors.accent.alpha(0.45)};
-  }
-
-  &:focus-visible {
-    outline: 2px solid ${colors.accent.var};
-    outline-offset: 2px;
-  }
-
-  & svg {
-    width: 13px;
-    height: 13px;
-    flex-shrink: 0;
-  }
-`;
-
 const Dim = styled.span`
   color: ${colors.textDim.var};
 `;
@@ -513,19 +449,34 @@ function TableColumnValue({
   value,
   display,
   tooltipContent,
+  mediaPreviewItems = [],
 }: {
   column: ColumnDef;
   value: CellValue | undefined;
   display: string;
   tooltipContent: string | undefined;
+  mediaPreviewItems?: MediaPreviewItem[];
 }) {
-  const [previewRef, setPreviewRef] = useState<FileRef | null>(null);
+  const [activePreviewId, setActivePreviewId] = useState<string | null>(null);
   const showTooltip =
     tooltipContent !== undefined &&
     (tooltipContent !== display || tooltipContent.length > 48);
 
   if (isPreviewableFileRef(column, value)) {
     const label = getFileLabel(value);
+    const format = getEffectiveFileRefFormat(column, value);
+    if (!isPreviewableFileRefFormat(format)) {
+      return <ColumnText>{display}</ColumnText>;
+    }
+    const previewItem = toMediaPreviewItem({
+      def: column,
+      fileRef: value,
+      format,
+    });
+    const effectivePreviewItems = getEffectiveMediaPreviewItems(
+      previewItem,
+      mediaPreviewItems,
+    );
     return (
       <>
         <Tooltip content={formatFilePreviewTooltip(label, tooltipContent)}>
@@ -534,17 +485,20 @@ function TableColumnValue({
             aria-label={`Open ${label}`}
             onClick={(event) => {
               event.stopPropagation();
-              setPreviewRef(value);
+              setActivePreviewId(previewItem.id);
             }}
           >
             <Eye />
             <FilePreviewLabel>{display}</FilePreviewLabel>
           </FilePreviewButton>
         </Tooltip>
-        <TableFilePreviewModal
-          column={column}
-          refValue={previewRef}
-          onClose={() => setPreviewRef(null)}
+        <MediaPreviewModal
+          isOpen={activePreviewId !== null}
+          items={effectivePreviewItems}
+          activeItemId={activePreviewId ?? previewItem.id}
+          footer={undefined}
+          onChange={setActivePreviewId}
+          onClose={() => setActivePreviewId(null)}
         />
       </>
     );
@@ -554,93 +508,6 @@ function TableColumnValue({
     <Tooltip content={showTooltip ? tooltipContent : undefined}>
       <ColumnText>{display}</ColumnText>
     </Tooltip>
-  );
-}
-
-function TableFilePreviewModal({
-  column,
-  refValue,
-  onClose,
-}: {
-  column: ColumnDef;
-  refValue: FileRef | null;
-  onClose: () => void;
-}) {
-  if (refValue === null) return null;
-  const fileName = getFileLabel(refValue);
-  const format = getEffectiveFileRefFormat(column, refValue);
-  const src = getFileUrl(refValue);
-
-  return (
-    <Modal
-      isOpen
-      title={column.label}
-      subtitle={fileName}
-      onClose={onClose}
-      wide
-      topLayer
-      headerActions={
-        <FilePreviewHeaderLink
-          href={src}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <ExternalLink />
-          Open in new tab
-        </FilePreviewHeaderLink>
-      }
-    >
-      <TableFilePreviewContent
-        format={format}
-        src={src}
-        title={column.label}
-      />
-    </Modal>
-  );
-}
-
-function TableFilePreviewContent({
-  format,
-  src,
-  title,
-}: {
-  format: ColumnFormat;
-  src: string;
-  title: string;
-}) {
-  if (format === 'image') {
-    return (
-      <FilePreviewImage
-        src={src}
-        alt={title}
-      />
-    );
-  }
-  if (format === 'audio') {
-    return (
-      <FilePreviewAudio
-        controls
-        src={src}
-      />
-    );
-  }
-  if (format === 'video') {
-    return (
-      <FilePreviewVideo
-        controls
-        src={src}
-      />
-    );
-  }
-
-  return (
-    <FilePreviewFrameWrap>
-      <FilePreviewFrame
-        title={`${title} preview`}
-        src={src}
-        sandbox={format === 'html' ? '' : undefined}
-      />
-    </FilePreviewFrameWrap>
   );
 }
 
@@ -827,6 +694,14 @@ function RunGroup({
   );
   const runHasOpenDrawer =
     selectedRunId === manifest.id || selectedCaseRunId === manifest.id;
+  const bestPreviewCase = pickBestScoringCase(cases, scoreColumns) ?? cases[0];
+  const runHeaderMediaPreviewItems =
+    bestPreviewCase === undefined
+      ? []
+      : getMediaPreviewItemsForColumns(
+          otherCustomColumns,
+          bestPreviewCase.columns,
+        );
 
   function handleCaseClick(caseKey: string) {
     void selectCase(manifest.id, caseKey);
@@ -944,9 +819,10 @@ function RunGroup({
               </RunHeaderTd>
             );
           }
-          const bestCase = pickBestScoringCase(cases, scoreColumns) ?? cases[0];
           const bestValue =
-            bestCase === undefined ? undefined : bestCase.columns[c.key];
+            bestPreviewCase === undefined
+              ? undefined
+              : bestPreviewCase.columns[c.key];
           const display = formatCellValue(c, bestValue);
           if (display === EM_DASH) {
             return (
@@ -980,6 +856,7 @@ function RunGroup({
                 value={bestValue}
                 display={display}
                 tooltipContent={allCasesTooltip ?? tooltipContent}
+                mediaPreviewItems={runHeaderMediaPreviewItems}
               />
             </RunHeaderTd>
           );
@@ -993,94 +870,101 @@ function RunGroup({
             </PlaceholderCell>
           </PlaceholderRow>
         ) : (
-          cases.map((row) => (
-            <CaseRowEl
-              key={`${row.caseKey ?? row.caseId}-${String(row.trial)}`}
-              active={
-                selectedCaseRunId === manifest.id &&
-                selectedCaseId === (row.caseKey ?? row.caseId)
-              }
-              onClick={() => handleCaseClick(row.caseKey ?? row.caseId)}
-            >
-              <CaseTd
-                rightAlign={false}
-                mono={false}
-                indent={true}
+          cases.map((row) => {
+            const rowMediaPreviewItems = getMediaPreviewItemsForColumns(
+              otherCustomColumns,
+              row.columns,
+            );
+            return (
+              <CaseRowEl
+                key={`${row.caseKey ?? row.caseId}-${String(row.trial)}`}
+                active={
+                  selectedCaseRunId === manifest.id &&
+                  selectedCaseId === (row.caseKey ?? row.caseId)
+                }
+                onClick={() => handleCaseClick(row.caseKey ?? row.caseId)}
               >
-                <CaseId>{row.caseId}</CaseId>
-              </CaseTd>
-              <CaseTd
-                rightAlign={false}
-                mono={false}
-                indent={false}
-              >
-                <StatusBadge status={getCaseDisplayStatus(row.status)} />
-              </CaseTd>
-              {scoreColumns.map((c) => {
-                const v = row.columns[c.key];
-                const score =
-                  typeof v === 'number' && Number.isFinite(v) ? v : null;
-                return (
-                  <CaseTd
-                    key={c.key}
-                    rightAlign={true}
-                    mono={false}
-                    indent={false}
-                  >
-                    {c.isManualScore === true ? (
-                      <ManualScoreCell
-                        runId={manifest.id}
-                        caseId={row.caseKey ?? row.caseId}
-                        column={c}
-                        value={score}
-                      />
-                    ) : (
-                      <ScoreCell
-                        score={score}
-                        passThreshold={c.passThreshold}
-                        column={c}
-                      />
-                    )}
-                  </CaseTd>
-                );
-              })}
-              <CaseTd
-                rightAlign={true}
-                mono={true}
-                indent={false}
-              >
-                {row.durationMs === null ? (
-                  <Dim>{EM_DASH}</Dim>
-                ) : (
-                  formatDuration(row.durationMs)
-                )}
-              </CaseTd>
-              {otherCustomColumns.map((c) => {
-                const v = row.columns[c.key];
-                const display = formatCellValue(c, v);
-                const tooltipContent = getCellTooltipContent(v);
-                return (
-                  <CaseTd
-                    key={c.key}
-                    rightAlign={c.align === 'right' || isNumericColumn(c)}
-                    mono={true}
-                    indent={false}
-                  >
-                    {display === EM_DASH ? (
-                      <Dim>{display}</Dim>
-                    ) : (
-                      <TableColumnValue
-                        column={c}
-                        value={v}
-                        display={display}
-                        tooltipContent={tooltipContent}
-                      />
-                    )}
-                  </CaseTd>
-                );
-              })}
-            </CaseRowEl>
-          ))
+                <CaseTd
+                  rightAlign={false}
+                  mono={false}
+                  indent={true}
+                >
+                  <CaseId>{row.caseId}</CaseId>
+                </CaseTd>
+                <CaseTd
+                  rightAlign={false}
+                  mono={false}
+                  indent={false}
+                >
+                  <StatusBadge status={getCaseDisplayStatus(row.status)} />
+                </CaseTd>
+                {scoreColumns.map((c) => {
+                  const v = row.columns[c.key];
+                  const score =
+                    typeof v === 'number' && Number.isFinite(v) ? v : null;
+                  return (
+                    <CaseTd
+                      key={c.key}
+                      rightAlign={true}
+                      mono={false}
+                      indent={false}
+                    >
+                      {c.isManualScore === true ? (
+                        <ManualScoreCell
+                          runId={manifest.id}
+                          caseId={row.caseKey ?? row.caseId}
+                          column={c}
+                          value={score}
+                        />
+                      ) : (
+                        <ScoreCell
+                          score={score}
+                          passThreshold={c.passThreshold}
+                          column={c}
+                        />
+                      )}
+                    </CaseTd>
+                  );
+                })}
+                <CaseTd
+                  rightAlign={true}
+                  mono={true}
+                  indent={false}
+                >
+                  {row.durationMs === null ? (
+                    <Dim>{EM_DASH}</Dim>
+                  ) : (
+                    formatDuration(row.durationMs)
+                  )}
+                </CaseTd>
+                {otherCustomColumns.map((c) => {
+                  const v = row.columns[c.key];
+                  const display = formatCellValue(c, v);
+                  const tooltipContent = getCellTooltipContent(v);
+                  return (
+                    <CaseTd
+                      key={c.key}
+                      rightAlign={c.align === 'right' || isNumericColumn(c)}
+                      mono={true}
+                      indent={false}
+                    >
+                      {display === EM_DASH ? (
+                        <Dim>{display}</Dim>
+                      ) : (
+                        <TableColumnValue
+                          column={c}
+                          value={v}
+                          display={display}
+                          tooltipContent={tooltipContent}
+                          mediaPreviewItems={rowMediaPreviewItems}
+                        />
+                      )}
+                    </CaseTd>
+                  );
+                })}
+              </CaseRowEl>
+            );
+          })
         ))}
     </>
   );
