@@ -16,6 +16,7 @@ import {
   getCurrentActiveSpan,
   getCurrentScope,
   getRealDateNowMs,
+  getCacheAdapterForStorage,
   recordCacheRecordingAttributesIfActive,
   recordCacheRecordingOpIfActive,
   recordSpanForActiveCacheRecording,
@@ -655,6 +656,7 @@ async function traceSpanInternal(
       ) {
         const ctx = cacheCtx;
         const namespace = getRequiredSpanCacheNamespace(cacheOpts);
+        const cacheAdapter = getCacheAdapterForStorage(ctx, cacheOpts.storage);
         const keyHash = await hashCacheKey(
           { namespace, key: cacheOpts.key },
           { serializeFileBytes: cacheOpts.serializeFileBytes === true },
@@ -665,10 +667,13 @@ async function traceSpanInternal(
         mergeSpanAttributes(spanRecord, {
           'cache.key': keyHash,
           'cache.namespace': namespace,
+          ...(cacheOpts.storage === 'temporary'
+            ? { 'cache.storage': 'temporary' }
+            : {}),
         });
 
         if (canRead) {
-          const hit = await ctx.adapter.lookup(namespace, keyHash);
+          const hit = await cacheAdapter.lookup(namespace, keyHash);
           if (hit) {
             const storedAt = hit.storedAt;
             const age = getRealDateNowMs() - new Date(storedAt).getTime();
@@ -742,10 +747,10 @@ async function traceSpanInternal(
             spanKind: info.kind,
             storedAt: new Date(getRealDateNowMs()).toISOString(),
             recording: await serializeCacheRecording(recording, {
-              externalJsonStore: ctx.adapter.externalJsonStore,
+              externalJsonStore: cacheAdapter.externalJsonStore,
             }),
           };
-          await ctx.adapter.write(entry, {
+          await cacheAdapter.write(entry, {
             rawKey: cacheOpts.key,
             operationType: 'span',
             operationName: info.name,

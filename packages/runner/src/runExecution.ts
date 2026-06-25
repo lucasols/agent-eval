@@ -257,6 +257,7 @@ export async function runCase<
   trial: number;
   startTime: number;
   cacheAdapter: CacheAdapter | null;
+  temporaryCacheAdapter?: CacheAdapter | null;
   cacheMode: CacheMode;
   moduleIsolation: { key: string; workspaceRoot: string } | undefined;
   evalFilePath: string;
@@ -281,6 +282,7 @@ export async function runCase<
     trial,
     startTime,
     cacheAdapter,
+    temporaryCacheAdapter,
     cacheMode,
     moduleIsolation,
     evalFilePath,
@@ -323,6 +325,9 @@ export async function runCase<
       cacheContext: cacheAdapter
         ? {
             adapter: cacheAdapter,
+            ...(temporaryCacheAdapter
+              ? { temporaryAdapter: temporaryCacheAdapter }
+              : {}),
             mode: cacheMode,
             evalId,
             read: evalDef.cache?.read,
@@ -470,6 +475,9 @@ export async function runCase<
           cacheContext: cacheAdapter
             ? {
                 adapter: cacheAdapter,
+                ...(temporaryCacheAdapter
+                  ? { temporaryAdapter: temporaryCacheAdapter }
+                  : {}),
                 mode: cacheMode,
                 evalId: `${evalId}__score__${key}`,
                 read: evalDef.cache?.read,

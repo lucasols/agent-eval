@@ -8,7 +8,10 @@ import {
   resolveApiCallsConfig,
   resolveLlmCallsConfig,
 } from '@agent-evals/shared';
-import { getCacheRetentionOptions } from './cacheConfig.ts';
+import {
+  getCacheRetentionOptions,
+  getCacheStoreOptions,
+} from './cacheConfig.ts';
 import { createBufferedCacheStore, createFsCacheStore } from './cacheStore.ts';
 import {
   isCaseChildParentMessage,
@@ -104,9 +107,19 @@ async function executeCaseChild(
     captureConsole: config.runLogs?.captureConsole !== false,
   });
   const cacheRetentionOptions = getCacheRetentionOptions(config.cache);
+  const cacheStoreOptions = getCacheStoreOptions(config.cache);
   const cacheStore = createFsCacheStore({
     workspaceRoot: context.workspaceRoot,
-    dir: config.cache?.dir,
+    dir: cacheStoreOptions.dir,
+    maxBytesPerNamespace: cacheRetentionOptions.maxBytesPerNamespace,
+    maxBytesByNamespace: cacheRetentionOptions.maxBytesByNamespace,
+    lastAccessedAtUpdateIntervalMs:
+      config.cache?.lastAccessedAtUpdateIntervalMs,
+  });
+  const temporaryCacheStore = createFsCacheStore({
+    workspaceRoot: context.workspaceRoot,
+    dir: cacheStoreOptions.temporaryDir,
+    debugDir: cacheStoreOptions.temporaryDebugDir,
     maxBytesPerNamespace: cacheRetentionOptions.maxBytesPerNamespace,
     maxBytesByNamespace: cacheRetentionOptions.maxBytesByNamespace,
     lastAccessedAtUpdateIntervalMs:
@@ -114,7 +127,11 @@ async function executeCaseChild(
   });
   const bufferedCacheStore =
     context.cacheEnabled && context.cacheMode !== 'bypass'
-      ? createBufferedCacheStore(cacheStore)
+      ? createBufferedCacheStore(cacheStore, 'durable')
+      : null;
+  const temporaryBufferedCacheStore =
+    context.cacheEnabled && context.cacheMode !== 'bypass'
+      ? createBufferedCacheStore(temporaryCacheStore, 'temporary')
       : null;
   const llmCallsConfig = resolveLlmCallsConfig(config.llmCalls);
   const apiCallsConfig = resolveApiCallsConfig(config.apiCalls);
@@ -141,6 +158,9 @@ async function executeCaseChild(
         startTime: context.startTime,
         cacheAdapter:
           bufferedCacheStore ?? (context.cacheEnabled ? cacheStore : null),
+        temporaryCacheAdapter:
+          temporaryBufferedCacheStore ??
+          (context.cacheEnabled ? temporaryCacheStore : null),
         cacheMode: context.cacheMode,
         moduleIsolation: undefined,
         evalFilePath: context.evalFilePath,
@@ -169,7 +189,10 @@ async function executeCaseChild(
         : {}),
       trial: context.trial,
     },
-    pendingCacheWrites: bufferedCacheStore?.getPendingWrites() ?? [],
+    pendingCacheWrites: [
+      ...(bufferedCacheStore?.getPendingWrites() ?? []),
+      ...(temporaryBufferedCacheStore?.getPendingWrites() ?? []),
+    ],
   };
 }
 

@@ -24,7 +24,10 @@ import {
 } from '@agent-evals/shared';
 import { watch, type FSWatcher } from 'chokidar';
 import { glob } from 'glob';
-import { getCacheRetentionOptions } from './cacheConfig.ts';
+import {
+  getCacheRetentionOptions,
+  getCacheStoreOptions,
+} from './cacheConfig.ts';
 import { createFsCacheStore, type FsCacheStore } from './cacheStore.ts';
 import {
   resolveCaseDetailLookup,
@@ -104,6 +107,7 @@ export function createRunner({
   let workspaceRoot: string;
   let localStateDir: string;
   let cacheStore: FsCacheStore;
+  let temporaryCacheStore: FsCacheStore;
   let llmCallsConfig: ResolvedLlmCallsConfig = resolveLlmCallsConfig(undefined);
   let apiCallsConfig: ResolvedApiCallsConfig = resolveApiCallsConfig(undefined);
   const evals = new Map<string, EvalMeta>();
@@ -216,16 +220,55 @@ export function createRunner({
       await loadRunnerState();
     },
     async listCache() {
-      return cacheStore.list();
+      const entries = [
+        ...(await cacheStore.list()),
+        ...(await temporaryCacheStore.list()),
+      ];
+      return entries.toSorted((a, b) =>
+        (a.lastAccessedAt ?? a.storedAt) < (b.lastAccessedAt ?? b.storedAt)
+          ? 1
+          : -1,
+      );
     },
-    async getCacheEntry(namespace, key) {
-      return cacheStore.lookupWithDebug(namespace, key);
+    async getCacheEntry(namespace, key, storage) {
+      if (storage === 'temporary') {
+        return temporaryCacheStore.lookupWithDebug(namespace, key);
+      }
+      if (storage === 'durable') {
+        return cacheStore.lookupWithDebug(namespace, key);
+      }
+      return (
+        (await cacheStore.lookupWithDebug(namespace, key)) ??
+        (await temporaryCacheStore.lookupWithDebug(namespace, key))
+      );
     },
     async clearCache(filter) {
+      if (filter?.storage === 'temporary') {
+        await temporaryCacheStore.clear(filter);
+        return;
+      }
+      if (filter?.storage === 'durable') {
+        await cacheStore.clear(filter);
+        return;
+      }
       await cacheStore.clear(filter);
+      await temporaryCacheStore.clear(filter);
     },
     async repairCache() {
-      return cacheStore.repair();
+      const durableSummary = await cacheStore.repair();
+      const temporarySummary = await temporaryCacheStore.repair();
+      return {
+        removedCacheFiles:
+          durableSummary.removedCacheFiles + temporarySummary.removedCacheFiles,
+        removedDebugFiles:
+          durableSummary.removedDebugFiles + temporarySummary.removedDebugFiles,
+        removedBlobFiles:
+          durableSummary.removedBlobFiles + temporarySummary.removedBlobFiles,
+        removedIndexRows:
+          durableSummary.removedIndexRows + temporarySummary.removedIndexRows,
+        rewrittenIndexes:
+          durableSummary.rewrittenIndexes + temporarySummary.rewrittenIndexes,
+      };
     },
     async recomputeStatusesForEval(evalKey) {
       const evalMeta = resolveEvalMeta(evalKey);
@@ -805,9 +848,19 @@ export function createRunner({
     await cleanupStagedManualInputFiles(workspaceRoot);
 
     const cacheRetentionOptions = getCacheRetentionOptions(config.cache);
+    const cacheStoreOptions = getCacheStoreOptions(config.cache);
     cacheStore = createFsCacheStore({
       workspaceRoot,
-      dir: config.cache?.dir,
+      dir: cacheStoreOptions.dir,
+      maxBytesPerNamespace: cacheRetentionOptions.maxBytesPerNamespace,
+      maxBytesByNamespace: cacheRetentionOptions.maxBytesByNamespace,
+      lastAccessedAtUpdateIntervalMs:
+        config.cache?.lastAccessedAtUpdateIntervalMs,
+    });
+    temporaryCacheStore = createFsCacheStore({
+      workspaceRoot,
+      dir: cacheStoreOptions.temporaryDir,
+      debugDir: cacheStoreOptions.temporaryDebugDir,
       maxBytesPerNamespace: cacheRetentionOptions.maxBytesPerNamespace,
       maxBytesByNamespace: cacheRetentionOptions.maxBytesByNamespace,
       lastAccessedAtUpdateIntervalMs:
@@ -937,7 +990,10 @@ export function createRunner({
 
   async function pruneCacheRetentionIfIdle(): Promise<void> {
     if (getActiveRunCount() > 0) return;
-    await cacheStore.pruneRetention();
+    await Promise.all([
+      cacheStore.pruneRetention(),
+      temporaryCacheStore.pruneRetention(),
+    ]);
   }
 
   function emitDiscoveryEvent() {

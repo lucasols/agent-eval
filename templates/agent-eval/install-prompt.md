@@ -52,8 +52,9 @@ minimum files needed to author evals.
    are bounded and may be committed when a project wants to share them. Debug
    files under `.agent-evals/cache-debug/`
    may contain prompts, user inputs, full serialized cache payloads, or other
-   sensitive data and should stay local. Append to `.gitignore` if the entries
-   are not already there:
+   sensitive data and should stay local. Temporary caches under
+   `.agent-evals/tmp/` are local-only and should also stay ignored. Append to
+   `.gitignore` if the entries are not already there:
 
    ```gitignore
    .agent-evals/runs/
@@ -62,6 +63,7 @@ minimum files needed to author evals.
    !.agent-evals/cache/**/*.json.br
    !.agent-evals/cache/**/.index-*.json
    .agent-evals/cache-debug/
+   .agent-evals/tmp/
    ```
 
 6. Symlink the bundled `agent-eval` skill folder into the project's local

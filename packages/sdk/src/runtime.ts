@@ -6,6 +6,7 @@ import type {
   CacheEntry,
   CacheOperationType,
   CacheMode,
+  CacheStorage,
   CacheRecordingOp,
   EvalColumnOverride,
   EvalTraceSpan,
@@ -65,7 +66,10 @@ export type CacheAdapter = {
 
 /** Runner-supplied cache context attached to an eval case scope. */
 export type CacheScopeContext = {
+  /** Durable cache adapter used for committed/shareable cache entries. */
   adapter: CacheAdapter;
+  /** Temporary cache adapter used for local-only cache entries. */
+  temporaryAdapter?: CacheAdapter;
   mode: CacheMode;
   evalId: string;
   /**
@@ -83,6 +87,16 @@ export type CacheScopeContext = {
    */
   store?: boolean;
 };
+
+export function getCacheAdapterForStorage(
+  cacheContext: CacheScopeContext,
+  storage: CacheStorage | undefined,
+): CacheAdapter {
+  if (storage === 'temporary' && cacheContext.temporaryAdapter !== undefined) {
+    return cacheContext.temporaryAdapter;
+  }
+  return cacheContext.adapter;
+}
 
 /** Active recording frame captured while a cached operation body executes. */
 export type CacheRecordingFrame = {

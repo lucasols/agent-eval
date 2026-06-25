@@ -2,6 +2,7 @@ import type {
   CacheEntryWithDebugKey,
   CacheListItem,
   CacheRepairSummary,
+  CacheStorage,
   CaseDetail,
   CaseRow,
   ConfigReloadState,
@@ -91,6 +92,7 @@ export type EvalRunner = {
   getCacheEntry(
     namespace: string,
     key: string,
+    storage?: CacheStorage,
   ): Promise<CacheEntryWithDebugKey | null>;
   /**
    * Remove cache entries matching `filter`, or all entries when no filter is

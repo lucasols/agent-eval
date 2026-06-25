@@ -84,6 +84,7 @@ export type {
   FileRef,
   RepoFileRef,
   RunArtifactRef,
+  CacheStorage,
 } from '@agent-evals/shared';
 export type {
   EvalCase,

@@ -114,6 +114,7 @@ defineEval<LargeCacheKeyInput, LargeCacheKeyOutputs>({
         name: 'large-raw-key-probe',
         namespace: 'playground.large-cache-key-diff-demo',
         key: largeCacheKey,
+        storage: 'temporary',
       },
       (): CacheProbeResult => {
         return {

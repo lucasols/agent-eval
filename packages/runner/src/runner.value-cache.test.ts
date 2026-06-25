@@ -1,4 +1,5 @@
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { CacheAdapter } from '@agent-evals/sdk';
@@ -162,6 +163,16 @@ function findSpan(spans: EvalTraceSpan[], name: string): EvalTraceSpan {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function isRunArtifactValue(
+  value: unknown,
+): value is { source: 'run'; artifactId: string } {
+  return (
+    isRecord(value) &&
+    value.source === 'run' &&
+    typeof value.artifactId === 'string'
+  );
 }
 
 function valueCacheRef(
@@ -370,6 +381,149 @@ test('value cache respects bypass and refresh modes', async () => {
   }
 });
 
+test('temporary value cache stores outside durable cache and replays file outputs', async () => {
+  const workspacePath = await mkdtemp(
+    join(tmpdir(), 'agent-evals-runner-temporary-cache-'),
+  );
+  createdWorkspaces.push(workspacePath);
+  await mkdir(join(workspacePath, 'evals'), { recursive: true });
+  await writeFile(
+    join(workspacePath, 'agent-evals.config.ts'),
+    `export default {
+  include: ['evals/**/*.eval.ts'],
+};
+`,
+  );
+  await writeFile(
+    join(workspacePath, 'evals', 'temporary-file-cache.eval.ts'),
+    `import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { defineEval, evalTracer, setEvalOutput } from '@agent-evals/sdk';
+
+function nextBodyCall() {
+  const path = 'body-calls.txt';
+  const previous = existsSync(path) ? Number(readFileSync(path, 'utf-8')) : 0;
+  const next = previous + 1;
+  writeFileSync(path, String(next));
+  return next;
+}
+
+defineEval({
+  id: 'temporary-file-cache',
+  cases: [{ id: 'file', input: { name: 'report' } }],
+  columns: { report: { format: 'file' } },
+  execute: async ({ input }) => {
+    await evalTracer.cache(
+      {
+        name: 'large-report',
+        namespace: 'temporary-file-cache.large-report',
+        key: input,
+        storage: 'temporary',
+      },
+      async () => {
+        const bodyCalls = nextBodyCall();
+        setEvalOutput('bodyCalls', bodyCalls);
+        setEvalOutput(
+          'report',
+          new Blob([\`report-\${bodyCalls}-\${input.name}\`], {
+            type: 'text/plain',
+          }),
+          { format: 'file' },
+        );
+        return { bodyCalls };
+      },
+    );
+  },
+});
+`,
+  );
+
+  const previousCwd = process.cwd();
+  process.chdir(workspacePath);
+
+  try {
+    const runner = createRunner({ watchForChanges: false });
+    await runner.init();
+
+    const firstRun = await runner.startRun({
+      target: { mode: 'evalIds', evalIds: ['temporary-file-cache'] },
+      trials: 1,
+      cache: { mode: 'use' },
+    });
+    await expect
+      .poll(() => runner.getRun(firstRun.manifest.id)?.manifest.status, {
+        timeout: 10_000,
+      })
+      .toBe('completed');
+
+    const secondRun = await runner.startRun({
+      target: { mode: 'evalIds', evalIds: ['temporary-file-cache'] },
+      trials: 1,
+      cache: { mode: 'use' },
+    });
+    await expect
+      .poll(() => runner.getRun(secondRun.manifest.id)?.manifest.status, {
+        timeout: 10_000,
+      })
+      .toBe('completed');
+
+    expect(await readFile(join(workspacePath, 'body-calls.txt'), 'utf-8')).toBe(
+      '1',
+    );
+    expect(existsSync(join(workspacePath, '.agent-evals', 'cache'))).toBe(
+      false,
+    );
+    expect(
+      existsSync(join(workspacePath, '.agent-evals', 'tmp', 'cache')),
+    ).toBe(true);
+
+    const firstDetail = runner.getCaseDetail(firstRun.manifest.id, 'file');
+    const secondDetail = runner.getCaseDetail(secondRun.manifest.id, 'file');
+    expect(firstDetail?.cacheRefs).toEqual([
+      expect.objectContaining({
+        name: 'large-report',
+        status: 'miss',
+        storage: 'temporary',
+      }),
+    ]);
+    expect(secondDetail?.cacheRefs).toEqual([
+      expect.objectContaining({
+        name: 'large-report',
+        status: 'hit',
+        storage: 'temporary',
+      }),
+    ]);
+    expect(firstDetail?.columns.bodyCalls).toBe(1);
+    expect(secondDetail?.columns.bodyCalls).toBe(1);
+
+    const firstReport = firstDetail?.columns.report;
+    const secondReport = secondDetail?.columns.report;
+    expect(isRunArtifactValue(firstReport)).toBe(true);
+    expect(isRunArtifactValue(secondReport)).toBe(true);
+    if (isRunArtifactValue(firstReport) && isRunArtifactValue(secondReport)) {
+      expect(firstReport.artifactId).not.toBe(secondReport.artifactId);
+      const firstArtifactPath = runner.getArtifactPath(firstReport.artifactId);
+      const secondArtifactPath = runner.getArtifactPath(
+        secondReport.artifactId,
+      );
+      expect(typeof firstArtifactPath).toBe('string');
+      expect(typeof secondArtifactPath).toBe('string');
+      if (
+        typeof firstArtifactPath === 'string' &&
+        typeof secondArtifactPath === 'string'
+      ) {
+        await expect(readFile(firstArtifactPath, 'utf-8')).resolves.toBe(
+          'report-1-report',
+        );
+        await expect(readFile(secondArtifactPath, 'utf-8')).resolves.toBe(
+          'report-1-report',
+        );
+      }
+    }
+  } finally {
+    process.chdir(previousCwd);
+  }
+});
+
 test('revives rich cached values with Seroval while using the existing cache key adapter', async () => {
   const entries = new Map<string, CacheEntry>();
   const adapter = {
@@ -423,6 +577,82 @@ test('revives rich cached values with Seroval while using the existing cache key
   if (isRecord(checkpoint)) {
     expectDateValue(checkpoint.generatedAt, '2024-01-02T03:04:05.000Z');
   }
+});
+
+test('cached spans can use the temporary cache adapter', async () => {
+  const durableEntries = new Map<string, CacheEntry>();
+  const temporaryEntries = new Map<string, CacheEntry>();
+  const durableAdapter = {
+    lookup(namespace, keyHash) {
+      return Promise.resolve(
+        durableEntries.get(`${namespace}:${keyHash}`) ?? null,
+      );
+    },
+    write(entry) {
+      durableEntries.set(`${entry.namespace}:${entry.key}`, entry);
+      return Promise.resolve();
+    },
+  } satisfies CacheAdapter;
+  const temporaryAdapter = {
+    lookup(namespace, keyHash) {
+      return Promise.resolve(
+        temporaryEntries.get(`${namespace}:${keyHash}`) ?? null,
+      );
+    },
+    write(entry) {
+      temporaryEntries.set(`${entry.namespace}:${entry.key}`, entry);
+      return Promise.resolve();
+    },
+  } satisfies CacheAdapter;
+
+  let calls = 0;
+  async function runCachedSpan() {
+    return await runInEvalScope(
+      'case',
+      async () => {
+        return await evalTracer.span(
+          {
+            kind: 'tool',
+            name: 'temporary-span',
+            cache: {
+              namespace: 'temporary-span-cache',
+              key: { id: 'same' },
+              storage: 'temporary',
+            },
+          },
+          () => {
+            calls++;
+            setEvalOutput('calls', calls);
+            return { calls };
+          },
+        );
+      },
+      {
+        cacheContext: {
+          adapter: durableAdapter,
+          temporaryAdapter,
+          mode: 'use',
+          evalId: 'temporary-span-eval',
+        },
+      },
+    );
+  }
+
+  const first = await runCachedSpan();
+  const second = await runCachedSpan();
+
+  expect(first.error).toBeUndefined();
+  expect(second.error).toBeUndefined();
+  expect(calls).toBe(1);
+  expect(durableEntries.size).toBe(0);
+  expect(temporaryEntries.size).toBe(1);
+  expect(
+    findSpan(first.scope.spans, 'temporary-span').attributes,
+  ).toMatchObject({ 'cache.status': 'miss', 'cache.storage': 'temporary' });
+  expect(
+    findSpan(second.scope.spans, 'temporary-span').attributes,
+  ).toMatchObject({ 'cache.status': 'hit', 'cache.storage': 'temporary' });
+  expect(second.scope.outputs.calls).toBe(1);
 });
 
 test('value cache replay does not duplicate sibling spans from concurrent work', async () => {

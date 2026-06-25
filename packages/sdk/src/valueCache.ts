@@ -1,4 +1,4 @@
-import type { CacheRecording } from '@agent-evals/shared';
+import type { CacheRecording, CacheStorage } from '@agent-evals/shared';
 import { hashCacheKey } from './cacheKey.ts';
 import {
   appendSubSpanOps,
@@ -14,6 +14,7 @@ import {
   getCurrentActiveSpan,
   getCurrentScope,
   getRealDateNowMs,
+  getCacheAdapterForStorage,
   runWithCacheRecordingFrame,
 } from './runtime.ts';
 
@@ -25,6 +26,11 @@ export type TraceCacheInfo = {
   key: unknown;
   /** Override the default namespace (`${evalId}.${name}`). */
   namespace?: string;
+  /**
+   * Cache storage target. Durable entries use `.agent-evals/cache`; temporary
+   * entries use `.agent-evals/tmp/cache` and are intended to stay uncommitted.
+   */
+  storage?: CacheStorage;
   /**
    * Include native `Blob`/`File` bytes in the cache key. By default only stable
    * metadata (`type`, `size`, plus `name`/`lastModified` for `File`) is used.
@@ -51,6 +57,7 @@ export function createTraceCache(generateSpanId: () => string): {
     }
 
     const namespace = info.namespace ?? `${cacheCtx.evalId}.${info.name}`;
+    const cacheAdapter = getCacheAdapterForStorage(cacheCtx, info.storage);
     const keyHash = await hashCacheKey(
       { namespace, key: info.key },
       { serializeFileBytes: info.serializeFileBytes === true },
@@ -60,7 +67,7 @@ export function createTraceCache(generateSpanId: () => string): {
     const canStore = cacheCtx.mode !== 'bypass' && cacheCtx.store !== false;
 
     if (canRead) {
-      const hit = await cacheCtx.adapter.lookup(namespace, keyHash);
+      const hit = await cacheAdapter.lookup(namespace, keyHash);
       if (hit) {
         const storedAt = hit.storedAt;
         const age = getRealDateNowMs() - new Date(storedAt).getTime();
@@ -70,6 +77,7 @@ export function createTraceCache(generateSpanId: () => string): {
           namespace,
           key: keyHash,
           status: 'hit',
+          ...(info.storage === 'temporary' ? { storage: 'temporary' } : {}),
           storedAt,
           age,
         });
@@ -83,6 +91,7 @@ export function createTraceCache(generateSpanId: () => string): {
         namespace,
         key: keyHash,
         status: 'miss',
+        ...(info.storage === 'temporary' ? { storage: 'temporary' } : {}),
         ...(canStore ? {} : { stored: false }),
       });
     } else if (cacheCtx.mode === 'use' && canStore) {
@@ -92,6 +101,7 @@ export function createTraceCache(generateSpanId: () => string): {
         namespace,
         key: keyHash,
         status: 'miss',
+        ...(info.storage === 'temporary' ? { storage: 'temporary' } : {}),
         read: false,
       });
     } else if (cacheCtx.mode === 'refresh') {
@@ -101,6 +111,7 @@ export function createTraceCache(generateSpanId: () => string): {
         namespace,
         key: keyHash,
         status: 'refresh',
+        ...(info.storage === 'temporary' ? { storage: 'temporary' } : {}),
         ...(canStore ? {} : { stored: false }),
       });
     } else {
@@ -110,6 +121,7 @@ export function createTraceCache(generateSpanId: () => string): {
         namespace,
         key: keyHash,
         status: 'bypass',
+        ...(info.storage === 'temporary' ? { storage: 'temporary' } : {}),
       });
     }
 
@@ -133,7 +145,7 @@ export function createTraceCache(generateSpanId: () => string): {
         finalAttributes: frame.finalAttributes,
         ops: frame.ops,
       };
-      await cacheCtx.adapter.write(
+      await cacheAdapter.write(
         {
           version: 1,
           key: keyHash,
@@ -142,7 +154,7 @@ export function createTraceCache(generateSpanId: () => string): {
           operationName: info.name,
           storedAt: new Date(getRealDateNowMs()).toISOString(),
           recording: await serializeCacheRecording(recording, {
-            externalJsonStore: cacheCtx.adapter.externalJsonStore,
+            externalJsonStore: cacheAdapter.externalJsonStore,
           }),
         },
         { rawKey: info.key, operationType: 'value', operationName: info.name },

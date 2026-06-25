@@ -134,6 +134,7 @@ type ExecuteRunParams = {
   runDir: string;
   config: AgentEvalsConfig;
   cacheStore: FsCacheStore;
+  temporaryCacheStore: FsCacheStore;
   lastRunStatusMap: Map<string, EvalSummary['lastRunStatus']>;
   latestRunInfoMap: Map<string, EvalLatestRunInfo>;
   emitEvent: (runState: RunState, event: SseEnvelope) => void;
@@ -307,6 +308,7 @@ async function finalizePreparedCase(params: {
   runState: RunState;
   runDir: string;
   cacheStore: FsCacheStore;
+  temporaryCacheStore: FsCacheStore;
   preparedEval: PreparedEvalRun;
   preparedCase: PreparedEvalCase;
   onCaseFinished: ExecuteRunParams['onCaseFinished'];
@@ -332,6 +334,7 @@ async function finalizePreparedCase(params: {
   if (winningTrial.pendingCacheWrites.length > 0) {
     await commitPendingCacheWrites({
       backingStore: params.cacheStore,
+      temporaryBackingStore: params.temporaryCacheStore,
       pendingWrites: winningTrial.pendingCacheWrites,
     });
   }
@@ -415,6 +418,7 @@ export async function executeRun({
   runDir,
   config,
   cacheStore,
+  temporaryCacheStore,
   lastRunStatusMap,
   latestRunInfoMap,
   emitEvent,
@@ -723,6 +727,7 @@ export async function executeRun({
                         runState,
                         runDir,
                         cacheStore,
+                        temporaryCacheStore,
                         preparedEval,
                         preparedCase,
                         onCaseFinished,
@@ -776,6 +781,7 @@ export async function executeRun({
           runState,
           runDir,
           cacheStore,
+          temporaryCacheStore,
           preparedEval,
           preparedCase,
           onCaseFinished,

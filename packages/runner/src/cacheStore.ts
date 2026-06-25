@@ -20,6 +20,7 @@ import type {
 import {
   cacheDebugKeyEntrySchema,
   cacheEntrySchema,
+  type CacheStorage,
   type CacheDebugKeyEntry,
   type CacheEntry,
   type CacheEntryWithDebugKey,
@@ -80,6 +81,8 @@ export type CacheClearFilter = {
   namespace?: string;
   /** Cache key hash to remove. Omit to allow all keys in the selected namespace. */
   key?: string;
+  /** Cache storage target to remove. Omit to clear matching entries from every store. */
+  storage?: CacheStorage;
   /** Human-readable terminal explanation for why this cleanup was requested. */
   reason?: string;
 };
@@ -134,14 +137,20 @@ export type BufferedCacheStore = CacheAdapter & {
 export type PendingCacheWrite = {
   entry: CacheEntry;
   debugKey: CacheDebugKeyWrite | undefined;
+  storage: CacheStorage | undefined;
 };
 
 export async function commitPendingCacheWrites(params: {
   backingStore: CacheAdapter;
+  temporaryBackingStore?: CacheAdapter;
   pendingWrites: readonly PendingCacheWrite[];
 }): Promise<void> {
   for (const pendingWrite of params.pendingWrites) {
-    await params.backingStore.write(pendingWrite.entry, pendingWrite.debugKey);
+    const targetStore =
+      pendingWrite.storage === 'temporary' && params.temporaryBackingStore
+        ? params.temporaryBackingStore
+        : params.backingStore;
+    await targetStore.write(pendingWrite.entry, pendingWrite.debugKey);
   }
 }
 
@@ -441,6 +450,7 @@ export function createFsCacheStore(options: {
  */
 export function createBufferedCacheStore(
   backingStore: CacheAdapter,
+  storage: CacheStorage | undefined = undefined,
 ): BufferedCacheStore {
   const pendingEntries = new Map<
     string,
@@ -476,6 +486,7 @@ export function createBufferedCacheStore(
         backingStore,
         pendingWrites: [...pendingEntries.values()].map((pending) => ({
           ...pending,
+          storage,
         })),
       });
     },
@@ -485,7 +496,10 @@ export function createBufferedCacheStore(
     },
 
     getPendingWrites() {
-      return [...pendingEntries.values()].map((pending) => ({ ...pending }));
+      return [...pendingEntries.values()].map((pending) => ({
+        ...pending,
+        storage,
+      }));
     },
   };
 }

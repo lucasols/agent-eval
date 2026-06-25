@@ -1067,6 +1067,24 @@ await evalTracer.span(
 );
 ```
 
+Add `storage: 'temporary'` to keep a specific cached operation local-only under `.agent-evals/tmp/cache` instead of the durable `.agent-evals/cache` tree. Use this for large generated payloads or file outputs that should speed up local reruns without being committed:
+
+```ts
+const report = await evalTracer.cache(
+  {
+    name: 'large-report',
+    namespace: 'refund-workflow.large-report',
+    key: { orderId: input.orderId },
+    storage: 'temporary',
+  },
+  async () => {
+    const file = await generateLargeReviewPacket(input);
+    setEvalOutput('reviewPacket', file, { format: 'file' });
+    return file;
+  },
+);
+```
+
 Cached spans get `cache.status` in their attributes (`hit`, `miss`, `refresh`, or `bypass`) plus `cache.key`, `cache.storedAt`, and `cache.age` (on hit). These show as coloured badges in the trace tree.
 
 Use `evalTracer.cache(...)` when you want the same cache behavior without creating a wrapper span:
@@ -1130,6 +1148,7 @@ Server API (`/api/cache`):
 - Cached spans require an explicit `cache.namespace`. Spanless value caches default to `${evalId}.${name}` and can be overridden with `namespace`.
 - Cache identity is the namespace plus the authored key. Eval source fingerprints are tracked for run freshness separately, but do not participate in cache-key hashing.
 - Entries live as one Brotli-compressed JSON file per key at `<workspaceRoot>/.agent-evals/cache/<sanitizedNamespace>/<keyHash>.json.br`.
+- Temporary entries use the same format under `<workspaceRoot>/.agent-evals/tmp/cache/<sanitizedNamespace>/<keyHash>.json.br`, with raw-key debug sidecars under `<workspaceRoot>/.agent-evals/tmp/cache-debug/`. Add `storage: 'temporary'` to an `evalTracer.span({ cache })` or `evalTracer.cache(...)` call for large or local-only entries.
 - Cache retention metadata lives in small namespace index sidecars next to entries at `<workspaceRoot>/.agent-evals/cache/<sanitizedNamespace>/.index-<namespaceHash>.json`; cache listing and retention use these indexes without opening cached payloads. Index rows intentionally stay minimal: stored time, last access time, and external JSON blob refs.
 - Nested cached JSON values at or above roughly 10K JSON characters are stored as content-addressed Brotli blobs under `<workspaceRoot>/.agent-evals/cache/cache-blobs/` and referenced from cache entries by sha256. Identical large payloads share the same blob.
 - Authored raw cache keys are stored for debugging in `<workspaceRoot>/.agent-evals/cache-debug/<sanitizedNamespace>/<keyHash>.json`. These debug files also mirror the serialized cache entry for easier inspection. This folder may contain prompts, user inputs, cached payloads, or other sensitive data, is not needed for cache reuse, and should be gitignored. Normal cache files remain hash-only.
@@ -1140,7 +1159,7 @@ Server API (`/api/cache`):
 - Modes: `bypass` never reads or writes; `refresh` skips the read and always writes unless the eval has `cache.store: false`; `use` reads on hit and writes on miss unless disabled by the eval's `cache.read` or `cache.store`.
 - Multi-trial runs isolate cache writes per trial attempt and only flush the winning trial's writes into the shared cache, so later trials in the same run never reuse cache entries produced by earlier sibling trials.
 - Only SDK-mediated side effects replay (`evalTracer.span`, `evalTracer.checkpoint`, output helper calls, span attributes). External side effects (network, DB writes) do _not_ replay on cache hits — use caching only for pure functions of their key.
-- Cached payloads use JSON-safe tagged serialization, so return values and recorded SDK effects preserve richer built-ins such as `Date`, `Map`, `Set`, typed arrays, `URL`, `Headers`, `Blob`, and `File` on cache hits. Undefined values are omitted by default instead of being written to cache files; callers using `serializeCacheValue(...)` or `serializeCacheRecording(...)` directly can pass `{ preserveUndefined: true }` to retain explicit undefined wrappers. Cache keys still use the deterministic key-hashing rules above.
+- Cached payloads use JSON-safe tagged serialization, so return values and recorded SDK effects preserve richer built-ins such as `Date`, `Map`, `Set`, typed arrays, `URL`, `Headers`, `Blob`, and `File` on cache hits. File outputs emitted with `setOutput(...)` / `setEvalOutput(...)` inside a cached operation are recorded as `Blob`/`File` values and replayed on hits, then copied into the current run's artifact directory like fresh outputs. Undefined values are omitted by default instead of being written to cache files; callers using `serializeCacheValue(...)` or `serializeCacheRecording(...)` directly can pass `{ preserveUndefined: true }` to retain explicit undefined wrappers. Cache keys still use the deterministic key-hashing rules above.
 
 Disable caching globally from `agent-evals.config.ts`:
 

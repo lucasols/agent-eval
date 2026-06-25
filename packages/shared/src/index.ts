@@ -254,6 +254,7 @@ export {
 } from './schemas/config.ts';
 export {
   cacheModeSchema,
+  cacheStorageSchema,
   cacheListItemSchema,
   cacheRepairSummarySchema,
   cacheDebugKeyEntrySchema,
@@ -269,6 +270,7 @@ export {
   cacheOperationTypeSchema,
   traceCacheRefSchema,
   type CacheMode,
+  type CacheStorage,
   type CacheOperationType,
   type CacheListItem,
   type CacheRepairSummary,

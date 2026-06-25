@@ -17,7 +17,10 @@ import {
 } from '@agent-evals/shared';
 import { glob } from 'glob';
 import { z } from 'zod';
-import { getCacheRetentionOptions } from './cacheConfig.ts';
+import {
+  getCacheRetentionOptions,
+  getCacheStoreOptions,
+} from './cacheConfig.ts';
 import { createFsCacheStore } from './cacheStore.ts';
 import { loadConfig } from './config.ts';
 import { parseEvalDiscovery } from './discovery.ts';
@@ -211,9 +214,19 @@ async function main(): Promise<void> {
     captureConsole: config.runLogs?.captureConsole !== false,
   });
   const cacheRetentionOptions = getCacheRetentionOptions(config.cache);
+  const cacheStoreOptions = getCacheStoreOptions(config.cache);
   const cacheStore = createFsCacheStore({
     workspaceRoot: context.workspaceRoot,
-    dir: config.cache?.dir,
+    dir: cacheStoreOptions.dir,
+    maxBytesPerNamespace: cacheRetentionOptions.maxBytesPerNamespace,
+    maxBytesByNamespace: cacheRetentionOptions.maxBytesByNamespace,
+    lastAccessedAtUpdateIntervalMs:
+      config.cache?.lastAccessedAtUpdateIntervalMs,
+  });
+  const temporaryCacheStore = createFsCacheStore({
+    workspaceRoot: context.workspaceRoot,
+    dir: cacheStoreOptions.temporaryDir,
+    debugDir: cacheStoreOptions.temporaryDebugDir,
     maxBytesPerNamespace: cacheRetentionOptions.maxBytesPerNamespace,
     maxBytesByNamespace: cacheRetentionOptions.maxBytesByNamespace,
     lastAccessedAtUpdateIntervalMs:
@@ -242,6 +255,7 @@ async function main(): Promise<void> {
     runDir: context.runDir,
     config,
     cacheStore,
+    temporaryCacheStore,
     lastRunStatusMap,
     latestRunInfoMap,
     emitEvent(_runState, event) {

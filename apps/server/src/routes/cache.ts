@@ -1,5 +1,6 @@
 import {
   extractCacheEntries,
+  type CacheStorage,
   type CaseDetail,
   type RunManifest,
 } from '@agent-evals/shared';
@@ -30,8 +31,9 @@ export const cacheRoutes = new Hono()
   .get('/:namespace/:key', async (c) => {
     const namespace = c.req.param('namespace');
     const key = c.req.param('key');
+    const storage = parseCacheStorage(c.req.query('storage'));
     const runner = getRunnerInstance();
-    const entry = await runner.getCacheEntry(namespace, key);
+    const entry = await runner.getCacheEntry(namespace, key, storage);
     if (!entry) {
       return c.json({ error: 'cache entry not found' }, 404);
     }
@@ -58,6 +60,7 @@ export const cacheRoutes = new Hono()
         runner.clearCache({
           namespace: entry.namespace,
           key: entry.key,
+          ...(entry.storage === undefined ? {} : { storage: entry.storage }),
           reason: `web/API cache clear requested for eval ${evalKey}`,
         }),
       ),
@@ -78,6 +81,7 @@ export const cacheRoutes = new Hono()
         runner.clearCache({
           namespace: entry.namespace,
           key: entry.key,
+          ...(entry.storage === undefined ? {} : { storage: entry.storage }),
           reason: `web/API cache clear requested for run history through ${runId}`,
         }),
       ),
@@ -97,10 +101,12 @@ export const cacheRoutes = new Hono()
   .delete('/:namespace/:key', async (c) => {
     const namespace = c.req.param('namespace');
     const key = c.req.param('key');
+    const storage = parseCacheStorage(c.req.query('storage'));
     const runner = getRunnerInstance();
     await runner.clearCache({
       namespace,
       key,
+      ...(storage === undefined ? {} : { storage }),
       reason: `web/API cache clear requested for namespace ${namespace} and key ${key}`,
     });
     return c.json({ ok: true }, 200);
@@ -109,8 +115,11 @@ export const cacheRoutes = new Hono()
 function getCacheEntriesForEvalRuns(
   runner: EvalRunner,
   evalKey: string,
-): Array<{ namespace: string; key: string }> {
-  const entries = new Map<string, { namespace: string; key: string }>();
+): Array<{ namespace: string; key: string; storage?: CacheStorage }> {
+  const entries = new Map<
+    string,
+    { namespace: string; key: string; storage?: CacheStorage }
+  >();
 
   for (const manifest of runner.getRuns()) {
     const run = runner.getRun(manifest.id);
@@ -122,10 +131,14 @@ function getCacheEntriesForEvalRuns(
       if (caseDetail === undefined) continue;
 
       for (const entry of getStoredCacheEntriesForCase(caseDetail)) {
-        entries.set(`${entry.namespace}\u0000${entry.key}`, {
-          namespace: entry.namespace,
-          key: entry.key,
-        });
+        entries.set(
+          `${entry.namespace}\u0000${entry.key}\u0000${entry.storage ?? ''}`,
+          {
+            namespace: entry.namespace,
+            key: entry.key,
+            ...(entry.storage === undefined ? {} : { storage: entry.storage }),
+          },
+        );
       }
     }
   }
@@ -136,11 +149,14 @@ function getCacheEntriesForEvalRuns(
 function getCacheEntriesForRunAndPrevious(
   runner: EvalRunner,
   runId: string,
-): Array<{ namespace: string; key: string }> | null {
+): Array<{ namespace: string; key: string; storage?: CacheStorage }> | null {
   const selectedRun = runner.getRun(runId);
   if (selectedRun === undefined) return null;
 
-  const entries = new Map<string, { namespace: string; key: string }>();
+  const entries = new Map<
+    string,
+    { namespace: string; key: string; storage?: CacheStorage }
+  >();
 
   for (const manifest of runner.getRuns()) {
     const run = runner.getRun(manifest.id);
@@ -154,10 +170,14 @@ function getCacheEntriesForRunAndPrevious(
       if (caseDetail === undefined) continue;
 
       for (const entry of getStoredCacheEntriesForCase(caseDetail)) {
-        entries.set(`${entry.namespace}\u0000${entry.key}`, {
-          namespace: entry.namespace,
-          key: entry.key,
-        });
+        entries.set(
+          `${entry.namespace}\u0000${entry.key}\u0000${entry.storage ?? ''}`,
+          {
+            namespace: entry.namespace,
+            key: entry.key,
+            ...(entry.storage === undefined ? {} : { storage: entry.storage }),
+          },
+        );
       }
     }
   }
@@ -202,4 +222,11 @@ function readRunSequence(shortId: string): number | undefined {
   if (!shortId.startsWith('r')) return undefined;
   const value = Number(shortId.slice(1));
   return Number.isInteger(value) && value >= 0 ? value : undefined;
+}
+
+function parseCacheStorage(
+  value: string | undefined,
+): CacheStorage | undefined {
+  if (value === 'durable' || value === 'temporary') return value;
+  return undefined;
 }

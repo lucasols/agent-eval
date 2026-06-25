@@ -1,9 +1,16 @@
-import { type CacheEntryWithDebugKey } from '@agent-evals/shared';
+import {
+  type CacheEntryWithDebugKey,
+  type CacheStorage,
+} from '@agent-evals/shared';
 import { createCollectionStore } from 'tsdf';
 import { apiClient, getRpcResult, getRpcResultUnwrap } from '#src/api/client';
 import { dataStoreManager } from '#src/stores/dataStoreManager';
 
-export type CacheEntryPayload = { namespace: string; key: string };
+export type CacheEntryPayload = {
+  namespace: string;
+  key: string;
+  storage?: CacheStorage;
+};
 
 export const cacheEntryStore = createCollectionStore<
   CacheEntryWithDebugKey,
@@ -11,7 +18,11 @@ export const cacheEntryStore = createCollectionStore<
 >({
   id: 'collection-cache-entries',
   storeManager: dataStoreManager,
-  getCollectionItemKey: (payload) => [payload.namespace, payload.key],
+  getCollectionItemKey: (payload) => [
+    payload.namespace,
+    payload.key,
+    payload.storage ?? '',
+  ],
   fetchFn: async (payload, signal) => {
     return getRpcResultUnwrap(
       apiClient.api.cache[':namespace'][':key'].$get(
@@ -20,6 +31,9 @@ export const cacheEntryStore = createCollectionStore<
             namespace: encodeURIComponent(payload.namespace),
             key: encodeURIComponent(payload.key),
           },
+          ...(payload.storage === undefined
+            ? {}
+            : { query: { storage: payload.storage } }),
         },
         { init: { signal } },
       ),
@@ -27,9 +41,10 @@ export const cacheEntryStore = createCollectionStore<
   },
 });
 
-function getCacheEntryPathParams(
-  payload: CacheEntryPayload,
-): CacheEntryPayload {
+function getCacheEntryPathParams(payload: CacheEntryPayload): {
+  namespace: string;
+  key: string;
+} {
   return {
     namespace: encodeURIComponent(payload.namespace),
     key: encodeURIComponent(payload.key),
@@ -43,6 +58,9 @@ export async function deleteCacheEntry(
   const result = await getRpcResult(
     apiClient.api.cache[':namespace'][':key'].$delete({
       param: getCacheEntryPathParams(payload),
+      ...(payload.storage === undefined
+        ? {}
+        : { query: { storage: payload.storage } }),
     }),
   );
   endMutation();

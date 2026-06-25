@@ -29,12 +29,29 @@ export const cacheModeSchema = z.enum(['use', 'bypass', 'refresh']);
 /** Mode controlling how cached spans behave during a run. */
 export type CacheMode = z.infer<typeof cacheModeSchema>;
 
+/**
+ * Filesystem storage target for one cached operation.
+ *
+ * - `durable`: store under `.agent-evals/cache`, intended for small reusable
+ *   cache entries that a project may commit.
+ * - `temporary`: store under `.agent-evals/tmp/cache`, intended for large or
+ *   local-only cache entries.
+ */
+export const cacheStorageSchema = z.enum(['durable', 'temporary']);
+/** Filesystem storage target for one cached operation. */
+export type CacheStorage = z.infer<typeof cacheStorageSchema>;
+
 /** Options accepted by an `evalTracer.span` call to opt the span into caching. */
 export const spanCacheOptionsSchema = z.object({
   /** Arbitrary JSON-safe value used to derive the cache key. */
   key: z.unknown(),
   /** Required cache namespace shared by span cache entries in the same domain. */
   namespace: z.string().min(1),
+  /**
+   * Cache storage target. Durable entries use `.agent-evals/cache`; temporary
+   * entries use `.agent-evals/tmp/cache` and are meant to stay uncommitted.
+   */
+  storage: cacheStorageSchema.optional(),
   /**
    * Include native `Blob`/`File` bytes in the cache key. By default only stable
    * metadata (`type`, `size`, plus `name`/`lastModified` for `File`) is used.
@@ -67,6 +84,8 @@ export const traceCacheRefSchema = z.object({
   namespace: z.string(),
   key: z.string(),
   status: cacheStatusSchema,
+  /** Cache storage target. Omitted means durable for older saved runs. */
+  storage: cacheStorageSchema.optional(),
   /** Whether this ref attempted to read from cache. Defaults to true. */
   read: z.boolean().optional(),
   /** Whether this ref wrote a persisted cache entry. Defaults to true for misses/refreshes. */

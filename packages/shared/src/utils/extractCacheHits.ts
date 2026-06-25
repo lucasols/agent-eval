@@ -1,6 +1,8 @@
 import {
+  cacheStorageSchema,
   cacheStatusSchema,
   traceCacheRefSchema,
+  type CacheStorage,
   type TraceCacheRef,
 } from '../schemas/cache.ts';
 import type { EvalTraceSpan } from '../schemas/trace.ts';
@@ -27,6 +29,7 @@ export type CacheActivityEntry = {
   name: string;
   namespace: string;
   key: string;
+  storage?: CacheStorage;
   storedAt: string | undefined;
   age: number | undefined;
   spanId: string | undefined;
@@ -77,6 +80,12 @@ function readCacheStatus(
   return parsed.data;
 }
 
+function readCacheStorage(attributes: unknown): CacheStorage | undefined {
+  if (!isRecord(attributes)) return undefined;
+  const parsed = cacheStorageSchema.safeParse(attributes['cache.storage']);
+  return parsed.success ? parsed.data : undefined;
+}
+
 /**
  * Collect every cache hit or cache write recorded for a case run.
  *
@@ -101,6 +110,7 @@ export function extractCacheEntries(
         const stored = isHit
           ? true
           : readBoolean(span.attributes, 'cache.stored') !== false;
+        const storage = readCacheStorage(span.attributes);
         entries.push({
           id: span.id,
           source: 'span',
@@ -111,6 +121,7 @@ export function extractCacheEntries(
           name: span.name,
           namespace,
           key,
+          ...(storage === undefined ? {} : { storage }),
           storedAt: isHit
             ? readString(span.attributes, 'cache.storedAt')
             : undefined,
@@ -138,6 +149,7 @@ export function extractCacheEntries(
         name: ref.name,
         namespace: ref.namespace,
         key: ref.key,
+        ...(ref.storage === undefined ? {} : { storage: ref.storage }),
         storedAt: isHit ? ref.storedAt : undefined,
         age: isHit ? ref.age : undefined,
         spanId: span.id,
@@ -159,6 +171,7 @@ export function extractCacheEntries(
       name: ref.name,
       namespace: ref.namespace,
       key: ref.key,
+      ...(ref.storage === undefined ? {} : { storage: ref.storage }),
       storedAt: isHit ? ref.storedAt : undefined,
       age: isHit ? ref.age : undefined,
       spanId: undefined,

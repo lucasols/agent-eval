@@ -234,9 +234,13 @@ export function CacheHitRow({
   const cacheEntryPayload = useMemo(
     () =>
       canLoadEntry && expanded
-        ? { namespace: entry.namespace, key: entry.key }
+        ? {
+            namespace: entry.namespace,
+            key: entry.key,
+            ...(entry.storage === undefined ? {} : { storage: entry.storage }),
+          }
         : null,
-    [canLoadEntry, entry.key, entry.namespace, expanded],
+    [canLoadEntry, entry.key, entry.namespace, entry.storage, expanded],
   );
   const cacheEntryResult = cacheEntryStore.useItem(cacheEntryPayload);
   const cacheEntry = cacheEntryResult.data;
@@ -250,6 +254,7 @@ export function CacheHitRow({
     const errorMessage = await deleteCacheEntry({
       namespace: entry.namespace,
       key: entry.key,
+      ...(entry.storage === undefined ? {} : { storage: entry.storage }),
     });
     setDeleteError(errorMessage);
   });
