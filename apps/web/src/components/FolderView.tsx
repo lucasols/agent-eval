@@ -16,6 +16,7 @@ import {
   type SplitButtonMenuEntry,
 } from '#src/components/SplitButton';
 import { TagPickerModal } from '#src/components/TagPickerModal';
+import { markEvalNotStale, markEvalStale } from '#src/stores/evalsStore';
 import {
   cleanRunsForEval,
   clearCacheForEval,
@@ -207,7 +208,7 @@ const Stack = styled.div`
 
 export function FolderView({ folderPath, evals }: FolderViewProps) {
   const [maintenanceAction, setMaintenanceAction] = useState<
-    'recompute' | 'clean' | null
+    'recompute' | 'clean' | 'mark-stale' | 'mark-fresh' | null
   >(null);
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
   const [tagPickerCacheMode, setTagPickerCacheMode] =
@@ -348,6 +349,24 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
     void Promise.all(evalKeys.map((evalKey) => clearCacheForEval(evalKey)));
   }
 
+  function handleMarkAllStale() {
+    setMaintenanceAction('mark-stale');
+    void Promise.all(evalKeys.map((evalKey) => markEvalStale(evalKey))).finally(
+      () => {
+        setMaintenanceAction(null);
+      },
+    );
+  }
+
+  function handleMarkAllFresh() {
+    setMaintenanceAction('mark-fresh');
+    void Promise.all(
+      evalKeys.map((evalKey) => markEvalNotStale(evalKey)),
+    ).finally(() => {
+      setMaintenanceAction(null);
+    });
+  }
+
   const cacheMenu: SplitButtonMenuEntry[] = [
     {
       id: 'run-default',
@@ -399,6 +418,20 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
       },
     },
     { kind: 'separator' },
+    {
+      id: 'mark-stale',
+      label: 'Mark as stale',
+      description:
+        'Flag the latest saved run of every eval in view as not matching its source.',
+      onSelect: handleMarkAllStale,
+    },
+    {
+      id: 'mark-fresh',
+      label: 'Mark all as fresh',
+      description:
+        'Treat the latest saved run of every eval in view as current.',
+      onSelect: handleMarkAllFresh,
+    },
     {
       id: 'recompute-status',
       label: 'Recompute status',

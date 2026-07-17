@@ -63,3 +63,14 @@ export async function markEvalNotStale(evalId: string): Promise<void> {
   if (result.error) return;
   invalidateEvalSummaries();
 }
+
+/** Mark an eval's latest run fingerprint as mismatched and refresh eval summaries. */
+export async function markEvalStale(evalId: string): Promise<void> {
+  const result = await getRpcResult(
+    apiClient.api.evals[':evalId']['mark-stale'].$post({
+      param: { evalId: encodeURIComponent(evalId) },
+    }),
+  );
+  if (result.error) return;
+  invalidateEvalSummaries();
+}

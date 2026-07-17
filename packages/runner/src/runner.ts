@@ -574,6 +574,31 @@ export function createRunner({
       }
       return { updated: true, eval: evalSummary };
     },
+    async markEvalStale(id) {
+      const meta = resolveEvalMeta(id);
+      if (!meta) return { updated: false, reason: 'not-found' };
+      if (meta.sourceFingerprint === null) {
+        return { updated: false, reason: 'source-fingerprint-missing' };
+      }
+
+      const latestRun = getLatestRunForEval(meta.key);
+      if (latestRun === undefined) {
+        return { updated: false, reason: 'no-latest-run' };
+      }
+
+      // Prefixing the current fingerprint guarantees a mismatch, which is what
+      // deriveEvalFreshness treats as stale.
+      latestRun.manifest.evalSourceFingerprints[meta.key] =
+        `marked-stale:${meta.sourceFingerprint}`;
+      await persistRunState(latestRun);
+      emitDiscoveryEvent();
+
+      const evalSummary = runner.getEval(meta.key);
+      if (evalSummary === undefined) {
+        return { updated: false, reason: 'not-found' };
+      }
+      return { updated: true, eval: evalSummary };
+    },
     getDiscoveryIssues() {
       return discoveryIssues;
     },

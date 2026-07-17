@@ -42,6 +42,20 @@ export type EvalRunner = {
         reason: 'not-found' | 'no-latest-run' | 'source-fingerprint-missing';
       }
   >;
+  /**
+   * Mark a discovered eval's latest run as no longer matching the current eval
+   * source, forcing the eval into the stale state until it is re-run or marked
+   * fresh again. Run result status and case data are left unchanged.
+   */
+  markEvalStale(
+    id: string,
+  ): Promise<
+    | { updated: true; eval: EvalSummary }
+    | {
+        updated: false;
+        reason: 'not-found' | 'no-latest-run' | 'source-fingerprint-missing';
+      }
+  >;
   /** Return discovery errors that should be shown before running evals. */
   getDiscoveryIssues(): DiscoveryIssue[];
   /** Return current config-reload state for the long-running app server. */

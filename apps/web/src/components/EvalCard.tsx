@@ -43,6 +43,7 @@ import { useSearchParams } from '#src/hooks/useSearchParams';
 import {
   evalSummariesStore,
   markEvalNotStale,
+  markEvalStale,
   openEvalInEditor,
 } from '#src/stores/evalsStore';
 import { getRunsForEval, runHistoryStore } from '#src/stores/historyStore';
@@ -337,7 +338,12 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   }, [scoreHistoryCollapsed]);
 
   const [maintenanceAction, setMaintenanceAction] = useState<
-    'recompute' | 'clean' | 'clear-cache' | 'mark-not-stale' | null
+    | 'recompute'
+    | 'clean'
+    | 'clear-cache'
+    | 'mark-not-stale'
+    | 'mark-stale'
+    | null
   >(null);
   const isStacked = mode === 'stacked';
   const isSingle = mode === 'single';
@@ -705,6 +711,15 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
     }
   }
 
+  async function handleMarkStale() {
+    setMaintenanceAction('mark-stale');
+    try {
+      await markEvalStale(evalSummary.key);
+    } finally {
+      setMaintenanceAction(null);
+    }
+  }
+
   const runFilterOptions = getApplicableRunFilterOptions(allRunRows);
   const runFilter = parseRunFilter(
     searchParams.get(RUN_FILTER_SEARCH_PARAM),
@@ -848,6 +863,19 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
             tone: 'danger',
             onSelect: () => {
               void handleClearUnsuccessfulRuns();
+            },
+          } satisfies SplitButtonMenuEntry,
+        ]
+      : []),
+    ...(!evalSummary.stale && evalSummary.latestRunAt !== null
+      ? [
+          {
+            id: 'mark-stale',
+            label: 'Mark as stale',
+            description:
+              'Flag the latest saved run as not matching the eval source.',
+            onSelect: () => {
+              void handleMarkStale();
             },
           } satisfies SplitButtonMenuEntry,
         ]
