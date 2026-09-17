@@ -95,7 +95,7 @@ async function runCacheOptionsCase(params: {
                 return 0.75;
               },
             );
-            return typeof score === 'number' ? score : 0;
+            return score;
           },
         },
       },

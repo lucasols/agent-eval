@@ -5,6 +5,7 @@ import type {
   SpanCacheOptions,
 } from '@agent-evals/shared';
 import { resultify } from 't-result';
+import type { z } from 'zod';
 import { hashCacheKey } from './cacheKey.ts';
 import { appendSubSpanOps, replayRecording } from './cacheRecording.ts';
 import {
@@ -584,35 +585,32 @@ type TraceSpanInfoBase = {
 export type TraceSpanInfoUncached = TraceSpanInfoBase & { cache?: undefined };
 
 /**
- * Info accepted by `evalTracer.span(info, fn)` when opting in to caching.
+ * Info accepted by `evalTracer.span(info, fn)` when opting in to eval caching.
  *
- * Cached spans return `Promise<unknown>` because the replayed value is revived
- * from persisted cache data on hit. Narrow the value yourself when you need a
- * typed return.
+ * The callback determines the return type `T`. Cached values must preserve that
+ * shape; use `cache.responseSchema` to validate or restore persisted responses.
  */
-export type TraceSpanInfoCached = TraceSpanInfoBase & {
-  cache: SpanCacheOptions;
+export type TraceSpanInfoCached<T = unknown> = TraceSpanInfoBase & {
+  cache: SpanCacheOptions & {
+    /**
+     * Parse the revived cache response before replaying effects during eval runs.
+     * The schema output must match the callback result. Async parsing and
+     * transforms are supported; failures fail the span without replaying effects.
+     * Not used on fresh results, cache bypasses, or outside eval runs.
+     */
+    responseSchema?: z.ZodType<T>;
+  };
 };
 
-/** Info accepted by `evalTracer.span(info, fn)`. */
-export type TraceSpanInfo = TraceSpanInfoUncached | TraceSpanInfoCached;
+/** Span metadata and optional eval caching; `T` is the callback result type. */
+export type TraceSpanInfo<T = unknown> =
+  | TraceSpanInfoUncached
+  | TraceSpanInfoCached<T>;
 
 function traceSpan<T>(
-  info: TraceSpanInfoUncached,
-  fn: () => Promise<T> | T,
-): Promise<T>;
-function traceSpan<T>(
-  info: TraceSpanInfoUncached,
+  info: TraceSpanInfo<NoInfer<T>>,
   fn: (span: TraceActiveSpan) => Promise<T> | T,
 ): Promise<T>;
-function traceSpan(
-  info: TraceSpanInfoCached,
-  fn: () => unknown,
-): Promise<unknown>;
-function traceSpan(
-  info: TraceSpanInfoCached,
-  fn: (span: TraceActiveSpan) => unknown,
-): Promise<unknown>;
 function traceSpan(
   info: TraceSpanInfo,
   fn: (span: TraceActiveSpan) => unknown,
@@ -691,6 +689,11 @@ async function traceSpanInternal(
               'cache.age': age,
             });
             const recording = deserializeCacheRecording(hit.recording);
+            const response = await parseCachedSpanResponse(
+              cacheOpts.responseSchema,
+              recording.returnValue,
+              namespace,
+            );
             replayRecording(scope, spanRecord, recording, { generateSpanId });
             spanRecord.status =
               recording.finalStatus ??
@@ -699,7 +702,7 @@ async function traceSpanInternal(
               spanRecord.startedAt,
               getRealDateNowMs() - realStartedAt,
             );
-            return recording.returnValue;
+            return response;
           }
           mergeSpanAttributes(spanRecord, {
             'cache.status': 'miss',
@@ -783,6 +786,22 @@ async function traceSpanInternal(
   });
 }
 
+async function parseCachedSpanResponse(
+  schema: z.ZodType | undefined,
+  value: unknown,
+  namespace: string,
+): Promise<unknown> {
+  if (schema === undefined) return value;
+  const parsed = await schema.safeParseAsync(value);
+  if (!parsed.success) {
+    throw new Error(
+      `Cached response for "${namespace}" failed cache.responseSchema validation. Refresh the cache to regenerate it.\n${parsed.error.message}`,
+      { cause: parsed.error },
+    );
+  }
+  return parsed.data;
+}
+
 function getRequiredSpanCacheNamespace(cacheOpts: unknown): string {
   if (!isRecordLike(cacheOpts)) {
     throw new Error('Cached spans require a non-empty cache.namespace');
@@ -801,7 +820,12 @@ const traceCache = createTraceCache(generateSpanId);
  * execution.
  */
 export const evalTracer = {
-  /** Run a callback inside a new trace span and record its lifecycle. */
+  /**
+   * Run `fn` inside a span described by `info`, returning its inferred result.
+   * Outside eval runs, only the callback executes. Eval cache hits skip the
+   * callback and optionally parse the restored result with `cache.responseSchema`
+   * before replaying effects; invalid responses reject the promise.
+   */
   span: traceSpan,
 
   /**

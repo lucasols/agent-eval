@@ -192,7 +192,7 @@ defineEval({
           },
         );
 
-        return typeof score === 'number' ? score : 0;
+        return score;
       },
     },
   },

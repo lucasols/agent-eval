@@ -4,6 +4,7 @@ import {
   evalSpan,
   evalTracer,
 } from '@ls-stack/agent-eval';
+import { z } from 'zod';
 import { waitForWorkflowDelay } from './simulatedDelay.ts';
 
 export type WorkflowInput = {
@@ -25,12 +26,13 @@ export async function triggerWorkflow(
     async () => {
       evalSpan.setAttribute('input', input);
 
-      await evalTracer.span(
+      const plan = await evalTracer.span(
         {
           kind: 'llm',
           name: 'plan-refund',
           cache: {
             namespace: 'refund-workflow.plan-refund',
+            responseSchema: z.object({ plan: z.string() }),
             key: { prompt: input.message, locale: input.locale },
           },
         },
@@ -57,6 +59,7 @@ export async function triggerWorkflow(
             params: { temperature: 0.2 },
             output: { plan: 'approve refund' },
           });
+          return { plan: 'approve refund' };
         },
       );
 
@@ -81,7 +84,7 @@ export async function triggerWorkflow(
 
           const final = `Approved refund for: ${input.message}`;
           evalSpan.setAttributes({
-            input: { message: input.message },
+            input: { message: input.message, plan: plan.plan },
             output: { finalText: final, approved: true },
           });
           return { finalText: final, approved: true };

@@ -8,7 +8,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
-import { brotliDecompressSync } from 'node:zlib';
+import { brotliCompressSync, brotliDecompressSync } from 'node:zlib';
 import {
   cacheDebugKeyEntrySchema,
   cacheEntrySchema,
@@ -228,6 +228,11 @@ describe('CLI operation caching', () => {
       const cacheEntry = await readSingleCacheEntry(cacheFilePath);
       expect(cacheEntry.namespace).toBe('refund-workflow.plan-refund');
       expect(cacheEntry.recording.finalAttributes.model).toBe('gpt-4o-mini');
+      expect(cacheEntry.recording.returnValue).toMatchInlineSnapshot(`
+        {
+          "plan": "approve refund",
+        }
+      `);
       expect(cacheEntry).not.toHaveProperty('debugKey');
       expect(JSON.stringify(cacheEntry)).not.toContain('"rawKey"');
 
@@ -288,6 +293,78 @@ describe('CLI operation caching', () => {
       expect(secondDebugEntry.storedAt).toBe(firstStoredAt);
     });
   }, 10_000);
+
+  test('rejects invalid cached plan responses and recovers with refresh', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const args = [
+        'run',
+        '--eval',
+        'refund-workflow',
+        '--case',
+        'simple-text',
+      ];
+      const first = await runExampleCli(workspacePath, args);
+      expect(first.exitCode).toBe(0);
+      const files = await readCacheDir(workspacePath);
+      const filePath = cachePath(
+        workspacePath,
+        requireDefined(files[0], 'plan cache'),
+      );
+      const entry = await readSingleCacheEntry(filePath);
+      entry.recording.returnValue = { plan: 123 };
+      await writeFile(filePath, brotliCompressSync(JSON.stringify(entry)));
+      await resetRunsDirectory(workspacePath);
+
+      const invalid = await runExampleCli(workspacePath, args);
+      expect(invalid.exitCode).toBe(1);
+      const artifacts = await readSingleRunArtifacts(workspacePath);
+      const spans = artifacts.traces['simple-text.json'] ?? [];
+      const plan = findLlmSpan(spans, 'plan-refund');
+      expect(plan.status).toBe('error');
+      expect(plan.error?.message).toMatchInlineSnapshot(
+        `
+        "Cached response for "refund-workflow.plan-refund" failed cache.responseSchema validation. Refresh the cache to regenerate it.
+        [
+          {
+            "expected": "string",
+            "code": "invalid_type",
+            "path": [
+              "plan"
+            ],
+            "message": "Invalid input: expected string, received number"
+          }
+        ]"
+      `,
+      );
+      expect(plan.attributes).not.toHaveProperty('model');
+      expect(spans.some((span) => span.name === 'process-refund')).toBe(false);
+      expect(
+        artifacts.caseDetails['simple-text.json']?.columns,
+      ).toMatchInlineSnapshot(`{}`);
+
+      await resetRunsDirectory(workspacePath);
+      const refreshed = await runExampleCli(workspacePath, [
+        ...args,
+        '--refresh-cache',
+      ]);
+      expect(refreshed.exitCode).toBe(0);
+      expect(
+        (await readSingleCacheEntry(filePath)).recording.returnValue,
+      ).toEqual({ plan: 'approve refund' });
+      await resetRunsDirectory(workspacePath);
+      const hit = await runExampleCli(workspacePath, args);
+      expect(hit.exitCode).toBe(0);
+      const hitArtifacts = await readSingleRunArtifacts(workspacePath);
+      expect(
+        getCacheStatus(
+          findLlmSpan(
+            hitArtifacts.traces['simple-text.json'] ?? [],
+            'plan-refund',
+          ),
+        ),
+      ).toBe('hit');
+    });
+  }, 20_000);
 
   test('--no-cache bypasses the cache and leaves existing entries untouched', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {

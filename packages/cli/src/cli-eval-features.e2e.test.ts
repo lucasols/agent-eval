@@ -549,6 +549,7 @@ describe('CLI eval features', () => {
                 "display": undefined,
                 "input": {
                   "message": "I want a refund for order #123",
+                  "plan": "approve refund",
                 },
                 "kind": "tool",
                 "model": undefined,
@@ -620,6 +621,7 @@ describe('CLI eval features', () => {
                 "display": undefined,
                 "input": {
                   "message": "I need to return this product",
+                  "plan": "approve refund",
                 },
                 "kind": "tool",
                 "model": undefined,
@@ -706,6 +708,7 @@ describe('CLI eval features', () => {
                 "display": undefined,
                 "input": {
                   "message": "Please refund this damaged item",
+                  "plan": "approve refund",
                 },
                 "kind": "tool",
                 "model": undefined,

@@ -1071,6 +1071,26 @@ await evalTracer.span(
 );
 ```
 
+Cached and uncached `evalTracer.span(...)` calls return `Promise<T>`, inferred from the callback. Add an optional `cache.responseSchema` (a Zod schema whose output matches `T`) to validate or restore cached responses:
+
+```ts
+const plan = await evalTracer.span(
+  {
+    kind: 'llm',
+    name: 'plan-refund',
+    cache: {
+      namespace: 'refund-workflow.plan-refund',
+      key: { prompt: input.message },
+      responseSchema: z.object({ plan: z.string() }),
+    },
+  },
+  async () => ({ plan: await generateRefundPlan(input.message) }),
+);
+// plan.plan is inferred as string without parsing or casting here.
+```
+
+Import `z` from `zod`. The schema runs only on eval cache hits, after deserialization and before recorded effects replay. Async validation and transforms are supported. Invalid responses fail the span and eval case without replaying cached effects; use `--refresh-cache` to regenerate the entry. Fresh results and calls outside eval runs keep the callback result unchanged and never run this schema. Without a schema, callers are responsible for ensuring cached values preserve the callback's return shape.
+
 Add `storage: 'temporary'` to keep a specific cached operation local-only under `.agent-evals/tmp/cache` instead of the durable `.agent-evals/cache` tree. Use this for large generated payloads or file outputs that should speed up local reruns without being committed:
 
 ```ts

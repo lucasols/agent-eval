@@ -10,7 +10,7 @@ Local-first eval runner for LLM and agent systems. Evals are strict TypeScript m
 This skill covers the mental model and conventions. For exhaustive field lists (config options, eval shape, column formats, score/chart/stats options, trace display rules), read the TypeScript declarations shipped with the package:
 
 - `AgentEvalsConfig`, `EvalDefinition`, `EvalCase`, `EvalOutputs`, `EvalColumnOverride`, `EvalDeriveConfig`, `EvalScoreDef`, `EvalManualScoreDef`, `EvalTraceTree`, and `TraceSpanInfo` are exported from `@ls-stack/agent-eval`.
-- Import Zod directly from `zod` when authoring `outputsSchema` or `manualInput.schema`; `@ls-stack/agent-eval` does not re-export Zod.
+- Import Zod directly from `zod` when authoring `outputsSchema`, `manualInput.schema`, or `cache.responseSchema`; `@ls-stack/agent-eval` does not re-export Zod.
 - `.d.ts` files land in `node_modules/@ls-stack/agent-eval/dist/`.
 - CLI surface: `agent-evals --help` and `agent-evals <command> --help`. Unknown help targets exit non-zero instead of falling back to global help.
 - The CLI automatically loads `.env` from the current workspace. Shell-provided environment variables win; pass `--no-env` to disable `.env` loading once.
@@ -249,6 +249,26 @@ await evalTracer.span(
   },
 );
 ```
+
+Cached and uncached `evalTracer.span(...)` calls return `Promise<T>`, inferred from the callback. Add an optional `cache.responseSchema` (a Zod schema whose output matches `T`) to validate or restore cached responses:
+
+```ts
+const plan = await evalTracer.span(
+  {
+    kind: 'llm',
+    name: 'plan-refund',
+    cache: {
+      namespace: 'refund-workflow.plan-refund',
+      key: { prompt: input.message },
+      responseSchema: z.object({ plan: z.string() }),
+    },
+  },
+  async () => ({ plan: await generateRefundPlan(input.message) }),
+);
+// plan.plan is inferred as string without parsing or casting here.
+```
+
+Import `z` from `zod`. The schema runs only on eval cache hits, after deserialization and before recorded effects replay. Async validation and transforms are supported. Invalid responses fail the span and eval case without replaying cached effects; use `--refresh-cache` to regenerate the entry. Fresh results and calls outside eval runs keep the callback result unchanged and never run this schema. Without a schema, callers are responsible for ensuring cached values preserve the callback's return shape.
 
 Use `evalTracer.cache(...)` for pure values that should not create their own trace span:
 
