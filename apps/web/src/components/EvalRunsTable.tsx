@@ -809,6 +809,7 @@ function RunGroup({
                 score={avg}
                 passThreshold={c.passThreshold}
                 column={c}
+                override={undefined}
                 isAverage={cases.length > 1}
               />
             </RunHeaderTd>
@@ -965,6 +966,7 @@ function RunGroup({
                           score={score}
                           passThreshold={c.passThreshold}
                           column={c}
+                          override={row.scoreOverrides?.[c.key]}
                         />
                       )}
                     </CaseTd>

@@ -50,6 +50,7 @@ import { addDefaultOutputs, mergeDefaultColumns } from './defaultConfig.ts';
 import { resolveInputSections } from './inputSections.ts';
 import { runWithModuleIsolation } from './moduleIsolation.ts';
 import { persistInlineArtifact } from './outputArtifacts.ts';
+import { getScoreFailureMessagePrefix } from './runMaintenance.ts';
 import { stripTerminalControlCodes } from './stackFormatting.ts';
 import { resolveTracePresentation } from './traceDisplay.ts';
 
@@ -102,11 +103,7 @@ function getLlmCallCounts(
     }
   }
 
-  return {
-    llmCalls,
-    llmCallsMade: llmCalls - llmCacheHits,
-    llmCacheHits,
-  };
+  return { llmCalls, llmCallsMade: llmCalls - llmCacheHits, llmCacheHits };
 }
 
 function isSpanWithinCacheHit(
@@ -549,7 +546,7 @@ export async function runCase<
 
       const rawValue = scoreRun.result;
       if (scoreRun.error) {
-        const message = `score "${key}" threw: ${scoreRun.error.message}`;
+        const message = `${getScoreFailureMessagePrefix(key)}threw: ${scoreRun.error.message}`;
         recordAssertionFailure(
           scope,
           toAssertionFailure(message, scoreRun.error),
@@ -561,7 +558,9 @@ export async function runCase<
       if (typeof rawValue !== 'number') {
         recordAssertionFailure(
           scope,
-          toAssertionFailure(`score "${key}" must return a number`),
+          toAssertionFailure(
+            `${getScoreFailureMessagePrefix(key)}must return a number`,
+          ),
         );
         scope.outputs[key] = 0;
         scoreResults.set(key, { value: 0, passThreshold, label });

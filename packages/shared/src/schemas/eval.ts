@@ -149,6 +149,21 @@ export const evalSummarySchema = z.object({
 /** Metadata shown for one discovered eval in the explorer UI. */
 export type EvalSummary = z.infer<typeof evalSummarySchema>;
 
+/** Schema for one reviewer override applied to a computed score. */
+export const scoreOverrideSchema = z.object({
+  /**
+   * Score value produced by the run before the override was applied. `null`
+   * when the score had no value.
+   */
+  originalValue: z.number().nullable(),
+  /** Optional reviewer note explaining why the computed score was invalid. */
+  reason: z.string().optional(),
+  /** ISO timestamp of when the override was last updated. */
+  overriddenAt: z.string(),
+});
+/** Reviewer override metadata for one computed score on a persisted case. */
+export type ScoreOverride = z.infer<typeof scoreOverrideSchema>;
+
 /** Schema for one case row in an eval run result table. */
 export const caseRowSchema = z.object({
   /**
@@ -208,6 +223,12 @@ export const caseRowSchema = z.object({
   llmCacheHits: z.number().optional(),
   costUsd: z.number().nullable().optional(),
   columns: z.record(z.string(), cellValueSchema),
+  /**
+   * Reviewer overrides for computed scores, keyed by score column key. When a
+   * key is present, `columns[key]` holds the overridden value and the
+   * original computed value lives in the override entry.
+   */
+  scoreOverrides: z.record(z.string(), scoreOverrideSchema).optional(),
   /**
    * Runtime column definitions authored by output helpers for this case.
    * These complement eval-level `columns` without changing discovery metadata.
@@ -364,6 +385,12 @@ export const caseDetailSchema = z.object({
    */
   scoringTraces: z.record(z.string(), scoreTraceSchema).optional(),
   columns: z.record(z.string(), cellValueSchema),
+  /**
+   * Reviewer overrides for computed scores, keyed by score column key. When a
+   * key is present, `columns[key]` holds the overridden value and the
+   * original computed value lives in the override entry.
+   */
+  scoreOverrides: z.record(z.string(), scoreOverrideSchema).optional(),
   /**
    * Runtime column definitions authored by output helpers for this case.
    * These complement eval-level `columns` without changing discovery metadata.

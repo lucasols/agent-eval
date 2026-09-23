@@ -42,7 +42,7 @@ const createRunResponseSchema = z.object({
   summary: runSummarySchema,
   cases: z.array(caseRowSchema),
 });
-const updateManualScoreResponseSchema = z.object({
+const caseScoreUpdateResponseSchema = z.object({
   updated: z.literal(true),
   run: createRunResponseSchema,
   caseDetail: caseDetailSchema,
@@ -751,17 +751,60 @@ export async function updateManualScore(params: {
     apiClient.api.runs[':runId'].cases[':caseId']['manual-scores'][
       ':scoreKey'
     ].$patch({
-      param: {
-        runId: encodeURIComponent(params.runId),
-        caseId: encodeURIComponent(params.caseId),
-        scoreKey: encodeURIComponent(params.scoreKey),
-      },
+      param: getCaseScoreParams(params),
       json: { value: params.value },
     }),
   );
   if (result.error) return;
+  applyCaseScoreUpdateResponse(params, result.value);
+}
+
+/**
+ * Override a computed score for one persisted case, or clear the override
+ * when `value` is `null`, then refresh cached run and case data.
+ */
+export async function setScoreOverride(params: {
+  runId: string;
+  caseId: string;
+  scoreKey: string;
+  value: number | null;
+  reason: string | undefined;
+}): Promise<void> {
+  const endpoint =
+    apiClient.api.runs[':runId'].cases[':caseId']['score-overrides'][
+      ':scoreKey'
+    ];
+  const param = getCaseScoreParams(params);
+  const result = await getRpcResult(
+    params.value === null
+      ? endpoint.$delete({ param })
+      : endpoint.$put({
+          param,
+          json: { value: params.value, reason: params.reason },
+        }),
+  );
+  if (result.error) return;
+  applyCaseScoreUpdateResponse(params, result.value);
+}
+
+function getCaseScoreParams(params: {
+  runId: string;
+  caseId: string;
+  scoreKey: string;
+}) {
+  return {
+    runId: encodeURIComponent(params.runId),
+    caseId: encodeURIComponent(params.caseId),
+    scoreKey: encodeURIComponent(params.scoreKey),
+  };
+}
+
+function applyCaseScoreUpdateResponse(
+  params: { runId: string; caseId: string },
+  response: unknown,
+): void {
   const parseResult = resultify(() =>
-    updateManualScoreResponseSchema.parse(result.value),
+    caseScoreUpdateResponseSchema.parse(response),
   );
   if (parseResult.error) return;
   if (runStore.state.currentRun?.manifest.id === params.runId) {

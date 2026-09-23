@@ -877,6 +877,24 @@ manualScores: {
 }
 ```
 
+#### Overriding computed scores
+
+When a computed score is wrong — an LLM judge misread the output, or a scorer threw on a malformed response — you can override it for one case of a finished run without rerunning. In the case detail **Scores** tab, use **Override** on any computed score, pick the corrected `0..1` value, and optionally note why. Overridden scores are marked in the runs table, and **Revert** restores the computed value.
+
+Overrides are persisted in the run artifacts: `cases.jsonl` rows and case detail JSON store the overridden value in `columns[scoreKey]` and the metadata in `scoreOverrides[scoreKey]` (`{ originalValue, reason?, overriddenAt }`). The case status and run summary are recomputed; if the scorer threw, its `score "<key>" …` assertion failure stops failing the case while the override is in place. Rerunning the case produces fresh, un-overridden scores. Manual scores are edited directly and cannot be overridden.
+
+The same operation is available over the app server API:
+
+```sh
+# set or update an override
+curl -X PUT localhost:4100/api/runs/<runId>/cases/<caseId>/score-overrides/<scoreKey> \
+  -H 'content-type: application/json' \
+  -d '{ "value": 1, "reason": "Judge misread the refund amount" }'
+
+# revert to the computed value
+curl -X DELETE localhost:4100/api/runs/<runId>/cases/<caseId>/score-overrides/<scoreKey>
+```
+
 ### Custom columns
 
 ```ts

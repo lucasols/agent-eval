@@ -30,12 +30,24 @@ export async function persistRunState(runState: {
 }
 
 /**
- * Recompute a persisted case's status after score definitions changed.
+ * Prefix of the assertion-failure message recorded when a score's `compute`
+ * throws or returns a non-number, used to relate those failures back to the
+ * score key.
+ */
+export function getScoreFailureMessagePrefix(scoreKey: string): string {
+  return `score "${scoreKey}" `;
+}
+
+/**
+ * Recompute a persisted case's status after score definitions or values
+ * changed.
  *
  * Pass/fail gates are per-score: a case fails when any score with a declared
  * `passThreshold` reports a numeric value below that threshold. Scores
- * without a threshold are informational and never gate. Cancelled and
- * errored cases retain their terminal status.
+ * without a threshold are informational and never gate. Scorer failures for
+ * scores with a reviewer override no longer gate the case, since the override
+ * replaces the invalid value. Cancelled and errored cases retain their
+ * terminal status.
  */
 export function recomputePersistedCaseStatus(
   caseRow: CaseRow,
@@ -45,7 +57,16 @@ export function recomputePersistedCaseStatus(
   if (caseRow.status === 'cancelled') return 'cancelled';
   if (caseDetail?.error !== null && caseDetail?.error !== undefined)
     return 'error';
-  if ((caseDetail?.assertionFailures.length ?? 0) > 0) return 'fail';
+  const overriddenScorePrefixes = Object.keys(caseRow.scoreOverrides ?? {}).map(
+    getScoreFailureMessagePrefix,
+  );
+  const hasGatingAssertionFailure = (caseDetail?.assertionFailures ?? []).some(
+    (failure) =>
+      !overriddenScorePrefixes.some((prefix) =>
+        failure.message.startsWith(prefix),
+      ),
+  );
+  if (hasGatingAssertionFailure) return 'fail';
 
   for (const [key, passThreshold] of scoreThresholds) {
     const rawValue = caseRow.columns[key] ?? caseDetail?.columns[key];

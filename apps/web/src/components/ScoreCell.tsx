@@ -1,12 +1,13 @@
-import type { ColumnDef } from '@agent-evals/shared';
+import type { ColumnDef, ScoreOverride } from '@agent-evals/shared';
 import { useActionFn } from '@ls-stack/react-utils/useActionFn';
-import { Check, Star, X } from 'lucide-react';
+import { Check, PencilLine, Star, X } from 'lucide-react';
 import { styled } from 'vindur';
 import { Tooltip } from '#src/components/Tooltip';
 import { updateManualScore } from '#src/stores/runStore';
 import { colors } from '#src/style/colors';
 import { inline, monoFont, tabularNums } from '#src/style/helpers';
 import {
+  formatNumericCellValue,
   formatPassFail,
   formatScore,
   getMaxStars,
@@ -106,6 +107,22 @@ const StarsWrap = styled.span`
   }
 `;
 
+const OverriddenScoreWrap = styled.span`
+  ${inline({ gap: 5, align: 'center' })}
+  display: inline-flex;
+`;
+
+const OverrideMarker = styled.span`
+  ${inline({ align: 'center' })}
+  display: inline-flex;
+  color: ${colors.warning.var};
+
+  & > svg {
+    width: 11px;
+    height: 11px;
+  }
+`;
+
 const ManualControls = styled.div`
   ${inline({ gap: 4, align: 'center', justify: 'right' })}
 `;
@@ -187,12 +204,55 @@ export function ScoreCell({
   score,
   passThreshold,
   column,
+  override,
   isAverage = false,
 }: {
   score: number | null;
   passThreshold: number | undefined;
   column: ColumnDef;
+  /** Reviewer override applied to this score, marked with an indicator. */
+  override: ScoreOverride | undefined;
   isAverage?: boolean;
+}) {
+  const display = (
+    <ScoreValueDisplay
+      score={score}
+      passThreshold={passThreshold}
+      column={column}
+      isAverage={isAverage}
+    />
+  );
+  if (override === undefined) return display;
+
+  const originalValue =
+    override.originalValue === null
+      ? EM_DASH
+      : formatNumericCellValue(column, override.originalValue);
+  const tooltip = `Manually overridden (computed: ${originalValue})${
+    override.reason === undefined ? '' : ` — ${override.reason}`
+  }`;
+  return (
+    <OverriddenScoreWrap>
+      <Tooltip content={tooltip}>
+        <OverrideMarker aria-label="Manually overridden score">
+          <PencilLine />
+        </OverrideMarker>
+      </Tooltip>
+      {display}
+    </OverriddenScoreWrap>
+  );
+}
+
+function ScoreValueDisplay({
+  score,
+  passThreshold,
+  column,
+  isAverage,
+}: {
+  score: number | null;
+  passThreshold: number | undefined;
+  column: ColumnDef;
+  isAverage: boolean;
 }) {
   if (score === null) return <Dim>{EM_DASH}</Dim>;
   if (column.format === 'passFail') {
@@ -313,6 +373,31 @@ export function ManualScoreControls({
     });
   });
 
+  return (
+    <ScoreValuePicker
+      column={column}
+      value={value}
+      disabled={updateAction.isInProgress}
+      onChange={(nextValue) => void updateAction.call(nextValue)}
+    />
+  );
+}
+
+/**
+ * Pass/fail buttons, or star buttons for `stars` columns, that pick a
+ * normalized `0..1` score value.
+ */
+export function ScoreValuePicker({
+  column,
+  value,
+  disabled,
+  onChange,
+}: {
+  column: ColumnDef;
+  value: number | null;
+  disabled: boolean;
+  onChange: (value: number) => void;
+}) {
   if (column.format === 'stars') {
     const max = getMaxStars(column.maxStars);
     const stars = valueToStars(value, max) ?? 0;
@@ -325,11 +410,11 @@ export function ManualScoreControls({
               key={star}
               type="button"
               selected={star <= stars}
-              disabled={updateAction.isInProgress}
+              disabled={disabled}
               aria-label={`Set ${String(star)} of ${String(max)} stars`}
               onClick={(event) => {
                 event.stopPropagation();
-                void updateAction.call(starsToValue(star, max));
+                onChange(starsToValue(star, max));
               }}
             >
               <Star />
@@ -348,11 +433,11 @@ export function ManualScoreControls({
         type="button"
         selectedFail={selectedFail}
         selectedPass={false}
-        disabled={updateAction.isInProgress}
+        disabled={disabled}
         aria-label={`Fail ${column.label}`}
         onClick={(event) => {
           event.stopPropagation();
-          void updateAction.call(0);
+          onChange(0);
         }}
       >
         <X />
@@ -362,11 +447,11 @@ export function ManualScoreControls({
         type="button"
         selectedPass={selectedPass}
         selectedFail={false}
-        disabled={updateAction.isInProgress}
+        disabled={disabled}
         aria-label={`Pass ${column.label}`}
         onClick={(event) => {
           event.stopPropagation();
-          void updateAction.call(1);
+          onChange(1);
         }}
       >
         <Check />

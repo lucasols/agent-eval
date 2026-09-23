@@ -847,6 +847,9 @@ export function CaseDrawer() {
           <CaseScores
             scoreColumns={scoreColumns}
             columns={d.columns}
+            scoreOverrides={d.scoreOverrides}
+            runId={selectedCaseRunId}
+            caseId={selectedCaseId}
           />
         ) : null}
 

@@ -63,3 +63,20 @@ export const updateManualScoreRequestSchema = z.object({
 export type UpdateManualScoreRequest = z.infer<
   typeof updateManualScoreRequestSchema
 >;
+
+/**
+ * Schema for manually overriding a computed score on one persisted case.
+ *
+ * `value` is the normalized `0..1` score to store in place of the computed
+ * one. Clearing an override restores the original value and uses the
+ * `DELETE` variant of the same endpoint instead.
+ */
+export const updateScoreOverrideRequestSchema = z.object({
+  value: z.number().min(0).max(1),
+  /** Optional reviewer note explaining why the computed score was invalid. */
+  reason: z.string().optional(),
+});
+/** Request payload accepted by the score override endpoint. */
+export type UpdateScoreOverrideRequest = z.infer<
+  typeof updateScoreOverrideRequestSchema
+>;

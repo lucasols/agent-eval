@@ -257,6 +257,7 @@ export type {
   RunSummary,
   ScalarCell,
   ScopedCaseSummary,
+  ScoreOverride,
   ScoreTrace,
   SerializedCacheSpan,
   SpanCacheOptions,
@@ -272,5 +273,6 @@ export type {
   TraceDisplayInputConfig,
   TrialSelectionMode,
   UpdateManualScoreRequest,
+  UpdateScoreOverrideRequest,
 } from '@agent-evals/shared';
 export { runCli } from './cli.ts';

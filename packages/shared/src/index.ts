@@ -58,6 +58,7 @@ export {
   runLogLocationSchema,
   runLogLevelSchema,
   runLogPhaseSchema,
+  scoreOverrideSchema,
   scoreTraceSchema,
   discoveryIssueSchema,
   type AssertionFailure,
@@ -75,6 +76,7 @@ export {
   type RunLogLocation,
   type RunLogLevel,
   type RunLogPhase,
+  type ScoreOverride,
   type ScoreTrace,
   type DiscoveryIssue,
 } from './schemas/eval.ts';
@@ -159,10 +161,12 @@ export {
   configReloadStatusSchema,
   createRunRequestSchema,
   updateManualScoreRequestSchema,
+  updateScoreOverrideRequestSchema,
   type ConfigReloadState,
   type ConfigReloadStatus,
   type CreateRunRequest,
   type UpdateManualScoreRequest,
+  type UpdateScoreOverrideRequest,
 } from './schemas/api.ts';
 export {
   manualInputBooleanFieldSchema,

@@ -12,6 +12,7 @@ import type {
   CaseDetail,
   CaseRow,
   ResolvedApiCallsConfig,
+  ScoreOverride,
   ResolvedLlmCallsConfig,
   DiscoveryIssue,
 } from '@agent-evals/shared';
@@ -196,6 +197,83 @@ export function createRunner({
         getCaseRowCaseKey(existing) !== caseKey,
     );
     return collides ? caseKey : caseRow.caseId;
+  }
+
+  function resolveCaseScoreTarget(
+    runId: string,
+    caseId: string,
+  ):
+    | { ok: true; run: RunnerRunState; caseRow: CaseRow; evalMeta: EvalMeta }
+    | { ok: false; reason: string } {
+    const run = runs.get(runId);
+    if (!run) return { ok: false, reason: 'Run not found' };
+    if (run.manifest.status === 'running') {
+      return { ok: false, reason: 'Run is still running' };
+    }
+
+    const caseRow = run.cases.find(
+      (row) => getCaseRowCaseKey(row) === caseId || row.caseId === caseId,
+    );
+    if (!caseRow) return { ok: false, reason: 'Case not found' };
+
+    const evalMeta =
+      caseRow.evalKey === undefined ? undefined : evals.get(caseRow.evalKey);
+    if (!evalMeta) return { ok: false, reason: 'Eval not found' };
+    return { ok: true, run, caseRow, evalMeta };
+  }
+
+  /**
+   * Recompute case status and run summary after a score value changed in
+   * place, then persist the case detail and run state.
+   */
+  async function commitCaseScoreChange({
+    run,
+    caseRow,
+    caseDetail,
+    evalMeta,
+  }: {
+    run: RunnerRunState;
+    caseRow: CaseRow;
+    caseDetail: CaseDetail;
+    evalMeta: EvalMeta;
+  }): Promise<{
+    updated: true;
+    run: { manifest: RunManifest; summary: RunSummary; cases: CaseRow[] };
+    caseDetail: CaseDetail;
+  }> {
+    const scoreThresholds = new Map<string, number>();
+    for (const def of evalMeta.columnDefs) {
+      if (def.isScore !== true || def.passThreshold === undefined) continue;
+      scoreThresholds.set(def.key, def.passThreshold);
+    }
+
+    const nextStatus = recomputePersistedCaseStatus(
+      caseRow,
+      caseDetail,
+      scoreThresholds,
+    );
+    caseRow.status = nextStatus;
+    caseDetail.status = nextStatus;
+
+    const derivedSummary = deriveScopedSummaryFromCases({
+      caseRows: run.cases,
+    });
+    run.summary.totalCases = derivedSummary.totalCases;
+    run.summary.passedCases = derivedSummary.passedCases;
+    run.summary.failedCases = derivedSummary.failedCases;
+    run.summary.errorCases = derivedSummary.errorCases;
+    run.summary.cancelledCases = derivedSummary.cancelledCases;
+    run.summary.totalDurationMs = derivedSummary.totalDurationMs;
+
+    await persistCaseDetail(run.runDir, caseDetail);
+    await persistRunState(run);
+    emitDiscoveryEvent();
+
+    return {
+      updated: true,
+      run: { manifest: run.manifest, summary: run.summary, cases: run.cases },
+      caseDetail,
+    };
   }
 
   function hydrateCaseDetailForRow(
@@ -423,22 +501,10 @@ export function createRunner({
       return { deletedRuns };
     },
     async updateManualScore({ runId, caseId, scoreKey, value }) {
-      const run = runs.get(runId);
-      if (!run) return { updated: false, reason: 'Run not found' };
-      if (run.manifest.status === 'running') {
-        return { updated: false, reason: 'Run is still running' };
-      }
+      const target = resolveCaseScoreTarget(runId, caseId);
+      if (!target.ok) return { updated: false, reason: target.reason };
+      const { run, caseRow, evalMeta } = target;
 
-      const caseRow = run.cases.find(
-        (row) => getCaseRowCaseKey(row) === caseId || row.caseId === caseId,
-      );
-      if (!caseRow) return { updated: false, reason: 'Case not found' };
-
-      const evalMeta =
-        caseRow.evalKey === undefined ? undefined : evals.get(caseRow.evalKey);
-      if (!evalMeta) {
-        return { updated: false, reason: 'Eval not found' };
-      }
       const columnDef = evalMeta.columnDefs.find((def) => def.key === scoreKey);
       const currentScoreValue = caseRow.columns[scoreKey];
       const canFillPendingScore =
@@ -456,39 +522,68 @@ export function createRunner({
       caseRow.columns[scoreKey] = value;
       caseDetail.columns[scoreKey] = value;
 
-      const scoreThresholds = new Map<string, number>();
-      for (const def of evalMeta.columnDefs) {
-        if (def.isScore !== true || def.passThreshold === undefined) continue;
-        scoreThresholds.set(def.key, def.passThreshold);
+      return commitCaseScoreChange({ run, caseRow, caseDetail, evalMeta });
+    },
+    async setScoreOverride({ runId, caseId, scoreKey, value, reason }) {
+      const target = resolveCaseScoreTarget(runId, caseId);
+      if (!target.ok) return { updated: false, reason: target.reason };
+      const { run, caseRow, evalMeta } = target;
+
+      const existingOverride = caseRow.scoreOverrides?.[scoreKey];
+      if (value === null) {
+        if (existingOverride === undefined) {
+          return { updated: false, reason: 'Score override not found' };
+        }
+      } else {
+        const columnDef =
+          evalMeta.columnDefs.find((def) => def.key === scoreKey) ??
+          caseRow.outputColumnDefs?.find((def) => def.key === scoreKey);
+        if (
+          existingOverride === undefined &&
+          (columnDef?.isScore !== true || columnDef.isManualScore === true)
+        ) {
+          return { updated: false, reason: 'Computed score not found' };
+        }
       }
 
-      const nextStatus = recomputePersistedCaseStatus(
-        caseRow,
-        caseDetail,
-        scoreThresholds,
+      const caseDetail = hydrateCaseDetailForRow(run, caseRow);
+      if (!caseDetail) {
+        return { updated: false, reason: 'Case detail not found' };
+      }
+
+      const remainingOverrides = Object.fromEntries(
+        Object.entries(caseRow.scoreOverrides ?? {}).filter(
+          ([key]) => key !== scoreKey,
+        ),
       );
-      caseRow.status = nextStatus;
-      caseDetail.status = nextStatus;
+      let nextOverrides: Record<string, ScoreOverride> = remainingOverrides;
+      let nextValue: number | null;
+      if (value === null) {
+        nextValue = existingOverride?.originalValue ?? null;
+      } else {
+        const currentValue = caseRow.columns[scoreKey];
+        nextOverrides = {
+          ...remainingOverrides,
+          [scoreKey]: {
+            originalValue:
+              existingOverride?.originalValue ??
+              (typeof currentValue === 'number' ? currentValue : null),
+            ...(reason === undefined || reason.trim() === ''
+              ? {}
+              : { reason: reason.trim() }),
+            overriddenAt: new Date().toISOString(),
+          },
+        };
+        nextValue = value;
+      }
 
-      const derivedSummary = deriveScopedSummaryFromCases({
-        caseRows: run.cases,
-      });
-      run.summary.totalCases = derivedSummary.totalCases;
-      run.summary.passedCases = derivedSummary.passedCases;
-      run.summary.failedCases = derivedSummary.failedCases;
-      run.summary.errorCases = derivedSummary.errorCases;
-      run.summary.cancelledCases = derivedSummary.cancelledCases;
-      run.summary.totalDurationMs = derivedSummary.totalDurationMs;
+      caseRow.columns[scoreKey] = nextValue;
+      caseDetail.columns[scoreKey] = nextValue;
+      const hasOverrides = Object.keys(nextOverrides).length > 0;
+      caseRow.scoreOverrides = hasOverrides ? nextOverrides : undefined;
+      caseDetail.scoreOverrides = hasOverrides ? nextOverrides : undefined;
 
-      await persistCaseDetail(run.runDir, caseDetail);
-      await persistRunState(run);
-      emitDiscoveryEvent();
-
-      return {
-        updated: true,
-        run: { manifest: run.manifest, summary: run.summary, cases: run.cases },
-        caseDetail,
-      };
+      return commitCaseScoreChange({ run, caseRow, caseDetail, evalMeta });
     },
     async deleteRun(runId) {
       const run = runs.get(runId);

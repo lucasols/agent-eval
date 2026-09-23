@@ -9,6 +9,7 @@ import {
   type EvalSummary,
   type RunSummary,
   updateManualScoreRequestSchema,
+  updateScoreOverrideRequestSchema,
 } from '@agent-evals/shared';
 import { zValidator } from '@hono/zod-validator';
 import type { EvalRunner } from '@ls-stack/agent-eval';
@@ -447,6 +448,37 @@ export const runsRoutes = new Hono()
       return c.json(result, 200);
     },
   )
+  .put(
+    '/:runId/cases/:caseId/score-overrides/:scoreKey',
+    zValidator('json', updateScoreOverrideRequestSchema),
+    async (c) => {
+      const body = c.req.valid('json');
+      const result = await getRunnerInstance().setScoreOverride({
+        runId: c.req.param('runId'),
+        caseId: c.req.param('caseId'),
+        scoreKey: c.req.param('scoreKey'),
+        value: body.value,
+        reason: body.reason,
+      });
+      if (!result.updated) {
+        return c.json({ error: result.reason }, 404);
+      }
+      return c.json(result, 200);
+    },
+  )
+  .delete('/:runId/cases/:caseId/score-overrides/:scoreKey', async (c) => {
+    const result = await getRunnerInstance().setScoreOverride({
+      runId: c.req.param('runId'),
+      caseId: c.req.param('caseId'),
+      scoreKey: c.req.param('scoreKey'),
+      value: null,
+      reason: undefined,
+    });
+    if (!result.updated) {
+      return c.json({ error: result.reason }, 404);
+    }
+    return c.json(result, 200);
+  })
   .get('/:runId/events', (c) => {
     const runId = c.req.param('runId');
     const runner = getRunnerInstance();

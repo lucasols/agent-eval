@@ -160,6 +160,33 @@ export type EvalRunner = {
     | { updated: false; reason: string }
   >;
   /**
+   * Manually override a computed score for one persisted case, e.g. to fix an
+   * invalid LLM-judge result or a scorer that threw.
+   *
+   * The first override records the run's original value in
+   * `caseRow.scoreOverrides[scoreKey].originalValue`; later overrides keep
+   * that original. Pass `value: null` to remove the override and restore the
+   * original value. Case status and run summary are recomputed, and scorer
+   * failures for overridden scores stop gating the case. Manual scores are
+   * rejected — use {@link EvalRunner.updateManualScore} for those.
+   */
+  setScoreOverride(params: {
+    runId: string;
+    caseId: string;
+    scoreKey: string;
+    /** Normalized `0..1` override value, or `null` to clear the override. */
+    value: number | null;
+    /** Optional reviewer note explaining why the computed score was invalid. */
+    reason: string | undefined;
+  }): Promise<
+    | {
+        updated: true;
+        run: { manifest: RunManifest; summary: RunSummary; cases: CaseRow[] };
+        caseDetail: CaseDetail;
+      }
+    | { updated: false; reason: string }
+  >;
+  /**
    * Delete one persisted run from in-memory history and disk.
    *
    * Ignored for in-flight runs — cancel first, then delete.
