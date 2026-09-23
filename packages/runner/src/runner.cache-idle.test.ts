@@ -81,7 +81,9 @@ defineEval({
       cache: { mode: 'use' },
     });
     await waitForRunStatus(runner, firstRun.manifest.id, 'completed');
-    expect(await runner.listCache()).toHaveLength(1);
+    const firstRunEntries = await runner.listCache();
+    expect(firstRunEntries).toHaveLength(1);
+    const firstRunKey = firstRunEntries[0]?.key;
 
     const secondRun = await runner.startRun({
       target: { mode: 'caseIds', evalIds: ['idle-cache'], caseIds: ['second'] },
@@ -91,9 +93,13 @@ defineEval({
     await waitForRunStatus(runner, secondRun.manifest.id, 'completed');
 
     expect(await runner.listCache()).toHaveLength(2);
+    // The byte limit drops the first run's entry once idle, while the entry
+    // referenced by the eval's latest run stays protected from retention.
     await expect
       .poll(() => runner.listCache(), { timeout: 2_000 })
-      .toHaveLength(0);
+      .toHaveLength(1);
+    const remainingEntries = await runner.listCache();
+    expect(remainingEntries[0]?.key).not.toBe(firstRunKey);
     const cleanupLogs = errorSpy.mock.calls.map((call) => String(call[0]));
     expect(
       cleanupLogs.some(

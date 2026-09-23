@@ -1163,8 +1163,11 @@ export type AgentEvalsConfig = {
      */
     oldRunMaxAgeMs?: number;
     /**
-     * Minimum milliseconds between `lastAccessedAt` index rewrites for repeated
-     * cache hits. Defaults to four hours. Set to `0` to record every hit.
+     * Minimum milliseconds between `lastAccessedAt` updates for repeated cache
+     * hits. Defaults to four hours. Set to `0` to record every hit. Access
+     * times are stored in a machine-local sidecar next to the cache dir
+     * (`.agent-evals/cache-access` by default), never in committed cache
+     * index files.
      */
     lastAccessedAtUpdateIntervalMs?: number;
   };

@@ -34,8 +34,12 @@ import {
 import { resultify } from 't-result';
 import {
   cacheAccessSortTime,
+  cacheAccessTimesPath,
+  latestAccessTime,
   normalizeLastAccessedAtUpdateIntervalMs,
+  readCacheAccessTimes,
   shouldRefreshLastAccessedAt,
+  writeCacheAccessTimes,
 } from './cacheAccessTime.ts';
 import {
   cacheClearReason,
@@ -626,11 +630,14 @@ async function updateCacheIndexLastAccessedAt(params: {
       ) {
         return;
       }
-      index.entries[params.key] = {
-        ...entry,
-        lastAccessedAt: new Date(nowMs).toISOString(),
-      };
-      await writeNamespaceIndex(params.cacheDir, index);
+      const accessTimesPath = namespaceAccessTimesPath(
+        params.cacheDir,
+        params.namespace,
+      );
+      await writeCacheAccessTimes(accessTimesPath, {
+        ...(await readCacheAccessTimes(accessTimesPath)),
+        [params.key]: new Date(nowMs).toISOString(),
+      });
     },
   );
 }
@@ -767,7 +774,39 @@ async function readNamespaceIndex(
   const rawResult = await resultify(() => readFile(indexPath, 'utf8'));
   if (rawResult.error) return emptyCacheIndex(namespace);
   const parsed = parseCacheIndexFile(safeJsonParse(rawResult.value), namespace);
-  return parsed ?? emptyCacheIndex(namespace);
+  return parsed === null
+    ? emptyCacheIndex(namespace)
+    : await withAccessTimes(cacheDir, parsed);
+}
+
+function namespaceAccessTimesPath(cacheDir: string, namespace: string): string {
+  return cacheAccessTimesPath(cacheDir, hashNamespace(namespace));
+}
+
+/**
+ * Merge machine-local access times into an index. Older committed indexes may
+ * still carry `lastAccessedAt`, so the most recent of both wins.
+ */
+async function withAccessTimes(
+  cacheDir: string,
+  index: CacheIndexFile,
+): Promise<CacheIndexFile> {
+  const accessTimes = await readCacheAccessTimes(
+    namespaceAccessTimesPath(cacheDir, index.namespace),
+  );
+  const entries = Object.fromEntries(
+    Object.entries(index.entries).map(([key, entry]) => [
+      key,
+      {
+        ...entry,
+        lastAccessedAt: latestAccessTime(
+          entry.lastAccessedAt,
+          accessTimes[key],
+        ),
+      },
+    ]),
+  );
+  return { ...index, entries };
 }
 
 async function writeNamespaceIndex(
@@ -775,18 +814,31 @@ async function writeNamespaceIndex(
   index: CacheIndexFile,
 ): Promise<void> {
   const entries = Object.entries(index.entries);
+  const sortedEntries = entries.toSorted(([a], [b]) => (a < b ? -1 : 1));
+  // Access times change on every cache hit, so they live in a machine-local
+  // sidecar instead of the index that workspaces commit alongside entries.
+  await writeCacheAccessTimes(
+    namespaceAccessTimesPath(cacheDir, index.namespace),
+    Object.fromEntries(
+      sortedEntries.flatMap(([key, entry]) =>
+        entry.lastAccessedAt === null ? [] : [[key, entry.lastAccessedAt]],
+      ),
+    ),
+  );
   if (entries.length === 0) {
     await rm(cacheIndexPath(cacheDir, index.namespace), { force: true });
     await removeDirIfEmpty(namespaceDirPath(cacheDir, index.namespace));
     return;
   }
-  const sortedEntries = entries.toSorted(([a], [b]) => (a < b ? -1 : 1));
   const normalizedEntries = Object.fromEntries(
-    sortedEntries.map(([key, entry]) => [key, entry]),
+    sortedEntries.map(([key, entry]) => [
+      key,
+      { storedAt: entry.storedAt, blobRefs: entry.blobRefs },
+    ]),
   );
   await writeAtomicFile(
     cacheIndexPath(cacheDir, index.namespace),
-    JSON.stringify({ ...index, entries: normalizedEntries }, null, 2),
+    `${JSON.stringify({ ...index, entries: normalizedEntries }, null, 2)}\n`,
   );
 }
 
@@ -805,7 +857,7 @@ async function listCacheIndexes(cacheDir: string): Promise<CacheIndexFile[]> {
       if (rawResult.error) continue;
       const parsed = parseCacheIndexFile(safeJsonParse(rawResult.value));
       if (parsed === null) continue;
-      records.push(parsed);
+      records.push(await withAccessTimes(cacheDir, parsed));
     }
   }
   return records;
@@ -841,7 +893,9 @@ function parseCacheIndexEntry(value: unknown): CacheIndexEntry | null {
   if (!isRecordLike(value)) return null;
   if (
     typeof value.storedAt !== 'string' ||
-    (value.lastAccessedAt !== null && typeof value.lastAccessedAt !== 'string')
+    (value.lastAccessedAt !== undefined &&
+      value.lastAccessedAt !== null &&
+      typeof value.lastAccessedAt !== 'string')
   ) {
     return null;
   }
@@ -853,7 +907,7 @@ function parseCacheIndexEntry(value: unknown): CacheIndexEntry | null {
   }
   return {
     storedAt: value.storedAt,
-    lastAccessedAt: value.lastAccessedAt,
+    lastAccessedAt: value.lastAccessedAt ?? null,
     blobRefs,
   };
 }

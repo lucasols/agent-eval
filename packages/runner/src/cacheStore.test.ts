@@ -34,13 +34,7 @@ const cacheIndexSchema = z.object({
   namespace: z.string(),
   entries: z.record(
     z.string(),
-    z
-      .object({
-        storedAt: z.string(),
-        lastAccessedAt: z.string().nullable(),
-        blobRefs: z.array(z.string()),
-      })
-      .strict(),
+    z.object({ storedAt: z.string(), blobRefs: z.array(z.string()) }).strict(),
   ),
 });
 
@@ -150,6 +144,23 @@ async function readCacheIndex(
       ),
     ),
   );
+}
+
+async function readAccessTimes(workspacePath: string): Promise<unknown> {
+  const accessDir = join(workspacePath, '.agent-evals', 'cache-access');
+  const [fileName, ...otherFiles] = await readdir(accessDir);
+  if (fileName === undefined || otherFiles.length > 0) {
+    throw new Error('Expected one cache access-time sidecar');
+  }
+  return JSON.parse(await readFile(join(accessDir, fileName), 'utf8'));
+}
+
+async function readListedLastAccessedAt(
+  store: ReturnType<typeof createFsCacheStore>,
+): Promise<string | null> {
+  const [item] = await store.list();
+  if (item === undefined) throw new Error('Expected one cache list item');
+  return item.lastAccessedAt;
 }
 
 async function cacheIndexFilePath(
@@ -316,7 +327,7 @@ describe('filesystem cache store raw-key debug storage', () => {
     });
   });
 
-  test('writes namespace index rows with last access initialized', async () => {
+  test('writes namespace index rows without machine-local access times', async () => {
     const workspacePath = await createWorkspace();
     const store = createFsCacheStore({ workspaceRoot: workspacePath });
 
@@ -328,12 +339,12 @@ describe('filesystem cache store raw-key debug storage', () => {
       version: 1,
       namespace: defaultNamespace,
       entries: {
-        'hashed-key': {
-          storedAt: '2026-04-29T00:00:00.000Z',
-          lastAccessedAt: '2026-04-29T00:00:00.000Z',
-          blobRefs: [],
-        },
+        'hashed-key': { storedAt: '2026-04-29T00:00:00.000Z', blobRefs: [] },
       },
+    });
+    await expect(readAccessTimes(workspacePath)).resolves.toEqual({
+      version: 1,
+      entries: { 'hashed-key': '2026-04-29T00:00:00.000Z' },
     });
   });
 
@@ -582,28 +593,35 @@ describe('filesystem cache store raw-key debug storage', () => {
       cacheEntry({ key: 'hashed-key', storedAt: '2026-04-29T00:00:00.000Z' }),
     );
 
+    // Older committed indexes stored access times inline; they still count.
     const recentLastAccessedAt = new Date(
       getRealDateNowMs() - 1000,
     ).toISOString();
-    const index = await readCacheIndex(workspacePath);
-    index.entries['hashed-key'] = {
-      storedAt: '2026-04-29T00:00:00.000Z',
-      lastAccessedAt: recentLastAccessedAt,
-      blobRefs: [],
-    };
+    const indexPath = await cacheIndexFilePath(workspacePath);
     await writeFile(
-      await cacheIndexFilePath(workspacePath),
-      JSON.stringify(index, null, 2),
+      indexPath,
+      JSON.stringify(
+        {
+          version: 1,
+          namespace: defaultNamespace,
+          entries: {
+            'hashed-key': {
+              storedAt: '2026-04-29T00:00:00.000Z',
+              lastAccessedAt: recentLastAccessedAt,
+              blobRefs: [],
+            },
+          },
+        },
+        null,
+        2,
+      ),
     );
+    const committedIndex = await readFile(indexPath, 'utf8');
 
     await expect(
       store.lookup(defaultNamespace, 'hashed-key'),
     ).resolves.toMatchObject({ key: 'hashed-key' });
-
-    const afterDefaultIntervalLookup = await readCacheIndex(workspacePath);
-    expect(
-      afterDefaultIntervalLookup.entries['hashed-key']?.lastAccessedAt,
-    ).toBe(recentLastAccessedAt);
+    expect(await readListedLastAccessedAt(store)).toBe(recentLastAccessedAt);
 
     const shortIntervalStore = createFsCacheStore({
       workspaceRoot: workspacePath,
@@ -613,11 +631,11 @@ describe('filesystem cache store raw-key debug storage', () => {
       shortIntervalStore.lookup(defaultNamespace, 'hashed-key'),
     ).resolves.toMatchObject({ key: 'hashed-key' });
 
-    const afterShortIntervalLookup = await readCacheIndex(workspacePath);
-    const refreshedLastAccessedAt =
-      afterShortIntervalLookup.entries['hashed-key']?.lastAccessedAt;
+    const refreshedLastAccessedAt = await readListedLastAccessedAt(store);
     expect(refreshedLastAccessedAt).not.toBeNull();
     expect(refreshedLastAccessedAt).not.toBe(recentLastAccessedAt);
+    // Hits only touch the access-time sidecar, never the committed index.
+    expect(await readFile(indexPath, 'utf8')).toBe(committedIndex);
   });
 
   test('writes raw-key debug files with two-space indentation', async () => {
