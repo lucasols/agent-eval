@@ -41,7 +41,7 @@ import { loadConfig } from './config.ts';
 import { createConfigReloadController } from './configReload.ts';
 import { resolveEvalDefaultConfig } from './defaultConfig.ts';
 import { parseEvalDiscovery } from './discovery.ts';
-import { loadIsolatedEvalRegistry } from './evalRegistryLoader.ts';
+import { loadDiscoveryEvalRegistry } from './evalRegistryLoader.ts';
 import { buildEvalSummary, setLatestRunInfoMap } from './evalSummaries.ts';
 import { getRunFreshnessTimestamp } from './freshness.ts';
 import { readGitWorktreeState } from './gitState.ts';
@@ -634,22 +634,14 @@ export function createRunner({
             })),
           );
           const sourceFingerprint = getSourceFingerprint(content);
-          let loadedRegistry:
-            | Awaited<ReturnType<typeof loadIsolatedEvalRegistry>>
-            | undefined;
-          try {
-            loadedRegistry = await loadIsolatedEvalRegistry({
-              evalFilePath: filePath,
-              sourceFingerprint,
-              moduleIsolation: {
-                key: getDiscoveryModuleIsolationKey(filePath),
-                workspaceRoot,
-              },
-              runtimeScope: 'env',
-            });
-          } catch {
-            // Fall back to statically parsed metadata when the module fails to load.
-          }
+          const loadedRegistry = await loadDiscoveryEvalRegistry({
+            evalFilePath: filePath,
+            sourceFingerprint,
+            moduleIsolation: {
+              key: getDiscoveryModuleIsolationKey(filePath),
+              workspaceRoot,
+            },
+          });
           for (const meta of discoveredMetas) {
             const discoveredEntry = loadedRegistry?.get(meta.id);
             const title = meta.title;
