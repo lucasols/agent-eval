@@ -280,7 +280,15 @@ async function main(): Promise<void> {
     },
   });
 
-  sendMessage({ type: 'done', evals: [...evals.values()] });
+  // Only evals prepared by this run carry loaded metadata. The rest are static
+  // placeholders from discoverRunEvals (no tags or columns) and would wipe the
+  // parent's discovered metadata for every eval the run did not target.
+  sendMessage({
+    type: 'done',
+    evals: [...evals.values()].filter(
+      (evalMeta) => evalMeta.caseCount !== null,
+    ),
+  });
   await flushMessageSends();
 }
 

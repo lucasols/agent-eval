@@ -60,6 +60,65 @@ test('app keeps loaded eval metadata for unchanged files after watcher refreshes
   });
 }, 60_000);
 
+test('app keeps discovered metadata for other evals after a run finishes', async () => {
+  await withIsolatedExampleWorkspace(async (workspacePath) => {
+    const port = await getFreePort();
+    const app = startApp(workspacePath, port);
+
+    try {
+      const baseline = await waitForTagCounts(
+        port,
+        (counts) => Object.keys(counts).length > 0,
+      );
+
+      const created = runCreatedSchema.parse(
+        await (
+          await fetch(`http://localhost:${String(port)}/api/runs`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              target: {
+                mode: 'evalIds',
+                evalKeys: [
+                  'evals%2Fsupport%2Frefunds%2Fescalations%2Fhigh-value-refund.eval.ts#high-value-refund',
+                ],
+              },
+              trials: 1,
+            }),
+          })
+        ).json(),
+      );
+      await expect
+        .poll(() => fetchRunStatus(port, created.manifest.id), {
+          timeout: 30_000,
+          interval: 250,
+        })
+        .toBe('completed');
+
+      // The run child only prepares the targeted eval; its placeholders for
+      // every other eval must not overwrite the app's discovered metadata.
+      expect(await fetchTagCounts(port)).toEqual(baseline);
+    } finally {
+      app.kill();
+    }
+  });
+}, 60_000);
+
+const runCreatedSchema = z.object({ manifest: z.object({ id: z.string() }) });
+
+async function fetchRunStatus(
+  port: number,
+  runId: string,
+): Promise<string | null> {
+  const response = await fetch(
+    `http://localhost:${String(port)}/api/runs/${encodeURIComponent(runId)}`,
+  );
+  if (!response.ok) return null;
+  return runCreatedSchema
+    .extend({ manifest: z.object({ id: z.string(), status: z.string() }) })
+    .parse(await response.json()).manifest.status;
+}
+
 function startApp(workspacePath: string, port: number): ChildProcess {
   const childEnv: NodeJS.ProcessEnv = { ...process.env, FORCE_COLOR: '0' };
   delete childEnv.VITEST;
