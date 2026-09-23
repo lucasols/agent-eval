@@ -368,7 +368,12 @@ export function Sidebar() {
   const tagFilteredEvals = filterEvalsByTags(statusFilteredEvals, tagFilters);
   const filteredEvals = filterEvalsBySearchQuery(tagFilteredEvals, searchQuery);
   const hasActiveSearch = searchQuery.trim().length > 0;
-  const statusBreakdown = getStatusBreakdown(evals, getEvalActiveStatusForKey);
+  // Status chips reflect the active tag filter but not the status filter, so
+  // toggling one status never zeroes the counts of the others.
+  const statusBreakdown = getStatusBreakdown(
+    filterEvalsByTags(evals, tagFilters),
+    getEvalActiveStatusForKey,
+  );
   const statusFilterItems = EVAL_STATUS_FILTER_OPTIONS.map((status) => ({
     status,
     count: statusBreakdown[status],

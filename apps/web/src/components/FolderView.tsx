@@ -246,7 +246,12 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
     evalKeys.some((evalKey) =>
       targetIncludesEval(currentRun.manifest.target, evalKey),
     );
-  const breakdown = getStatusBreakdown(evals, getEvalActiveStatusForKey);
+  // Status chips reflect the active tag filter but not the status filter, so
+  // toggling one status never zeroes the counts of the others.
+  const breakdown = getStatusBreakdown(
+    filterEvalsByTags(evals, tagFilters),
+    getEvalActiveStatusForKey,
+  );
   const breakdownItems = BREAKDOWN_STATUS_ORDER.filter(
     ({ key }) => breakdown[key] > 0 || statusFilters.has(key),
   );
