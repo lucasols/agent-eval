@@ -726,7 +726,7 @@ async function commandCache(args: CliArgs): Promise<void> {
       console.info(`  ${entry.namespace}  ${entry.key}`);
     }
     console.info(
-      `Kept ${String(summary.keptLatestRunEntries)} branch entries used by the latest runs, ${String(summary.keptUnreferencedEntries)} branch entries with no related run, and ${String(summary.keptBaseEntries)} entries from the base.`,
+      `Kept ${String(summary.keptLatestRunEntries)} branch entries used by the latest runs, ${String(summary.keptUnreferencedEntries)} branch entries with no related run, ${String(summary.keptNewerThanLatestRunEntries)} branch entries newer than their latest run, and ${String(summary.keptBaseEntries)} entries from the base.`,
     );
     return;
   }

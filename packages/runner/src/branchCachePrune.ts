@@ -52,6 +52,11 @@ export type BranchCachePruneSummary = {
   keptBaseEntries: number;
   /** Branch-added entries kept because no saved run references them. */
   keptUnreferencedEntries: number;
+  /**
+   * Branch-added entries kept because they were stored after the latest run
+   * of a case that references them started (e.g. refreshed later).
+   */
+  keptNewerThanLatestRunEntries: number;
 };
 
 type PrunableRun = { manifest: RunManifest; cases: CaseRow[] };
@@ -74,7 +79,8 @@ export function getStoredCacheEntriesForCase(caseDetail: CaseDetail) {
 
 /**
  * Remove durable cache entries added on the current git branch that saved
- * runs reference, but not the latest local run of any eval case.
+ * runs reference, but not the latest local run of any eval case. Entries
+ * stored after the latest run of a referencing case started are kept.
  *
  * "Added" means the entry file does not exist at the merge-base of `HEAD` and
  * the base ref, so it also covers uncommitted entries. Entries present at the
@@ -126,6 +132,7 @@ export async function pruneBranchCache<TRun extends PrunableRun>(params: {
     keptLatestRunEntries: 0,
     keptBaseEntries: 0,
     keptUnreferencedEntries: 0,
+    keptNewerThanLatestRunEntries: 0,
   };
 
   for (const entry of await params.cacheStore.list()) {
@@ -134,12 +141,19 @@ export async function pruneBranchCache<TRun extends PrunableRun>(params: {
       entry.key,
     );
     const entryId = toEntryId(entry);
+    const latestRunStarts = runEntries.latestRunStartsByEntry.get(entryId);
     if (baseFiles.value.has(entryPath)) {
       summary.keptBaseEntries += 1;
     } else if (runEntries.latest.has(entryId)) {
       summary.keptLatestRunEntries += 1;
-    } else if (!runEntries.referenced.has(entryId)) {
+    } else if (latestRunStarts === undefined) {
       summary.keptUnreferencedEntries += 1;
+    } else if (
+      latestRunStarts.some(
+        (startedAt) => startedAt <= new Date(entry.storedAt).getTime(),
+      )
+    ) {
+      summary.keptNewerThanLatestRunEntries += 1;
     } else {
       summary.removed.push(entry);
     }
@@ -158,19 +172,34 @@ export async function pruneBranchCache<TRun extends PrunableRun>(params: {
   return Result.ok(summary);
 }
 
+type RunCacheEntries = {
+  /** Entry ids referenced by the latest run of each case. */
+  latest: Set<string>;
+  /** Start time of the latest run of each case that references an entry. */
+  latestRunStartsByEntry: Map<string, number[]>;
+};
+
 /**
- * Collect durable cache entry ids referenced by any saved run (`referenced`)
- * and by the latest run of each case (`latest`).
+ * Collect durable cache entry ids referenced by the latest run of each case,
+ * plus, for every entry any saved run references, the start times of the
+ * latest runs of the cases that reference it.
  */
 function getRunCacheEntries<TRun extends PrunableRun>(
   runs: TRun[],
   hydrateCaseDetail: (run: TRun, caseRow: CaseRow) => CaseDetail | undefined,
-): { latest: Set<string>; referenced: Set<string> } {
-  const latestByCase = new Map<string, { entryIds: string[]; time: number }>();
-  const referenced = new Set<string>();
+): RunCacheEntries {
+  const latestByCase = new Map<
+    string,
+    { entryIds: string[]; freshness: number; startedAt: number }
+  >();
+  const casesByEntry = new Map<string, Set<string>>();
   for (const run of runs) {
-    const time = new Date(getRunFreshnessTimestamp(run.manifest)).getTime();
+    const freshness = new Date(
+      getRunFreshnessTimestamp(run.manifest),
+    ).getTime();
+    const startedAt = new Date(run.manifest.startedAt).getTime();
     for (const caseRow of run.cases) {
+      const caseKey = getCaseRowCaseKey(caseRow);
       const caseDetail = hydrateCaseDetail(run, caseRow);
       const entryIds =
         caseDetail === undefined
@@ -178,20 +207,36 @@ function getRunCacheEntries<TRun extends PrunableRun>(
           : getStoredCacheEntriesForCase(caseDetail)
               .filter((entry) => (entry.storage ?? 'durable') === 'durable')
               .map(toEntryId);
-      for (const entryId of entryIds) referenced.add(entryId);
+      for (const entryId of entryIds) {
+        const cases = casesByEntry.get(entryId) ?? new Set();
+        cases.add(caseKey);
+        casesByEntry.set(entryId, cases);
+      }
 
-      const caseKey = getCaseRowCaseKey(caseRow);
       const current = latestByCase.get(caseKey);
-      if (current === undefined || time > current.time) {
-        latestByCase.set(caseKey, { entryIds, time });
+      if (current === undefined || freshness > current.freshness) {
+        latestByCase.set(caseKey, { entryIds, freshness, startedAt });
       }
     }
   }
 
-  const latest = new Set(
-    [...latestByCase.values()].flatMap(({ entryIds }) => entryIds),
-  );
-  return { latest, referenced };
+  const latestRunStartsByEntry = new Map<string, number[]>();
+  for (const [entryId, caseKeys] of casesByEntry) {
+    latestRunStartsByEntry.set(
+      entryId,
+      [...caseKeys].flatMap((caseKey) => {
+        const latest = latestByCase.get(caseKey);
+        return latest === undefined ? [] : [latest.startedAt];
+      }),
+    );
+  }
+
+  return {
+    latest: new Set(
+      [...latestByCase.values()].flatMap(({ entryIds }) => entryIds),
+    ),
+    latestRunStartsByEntry,
+  };
 }
 
 function resolveBaseRef(params: {

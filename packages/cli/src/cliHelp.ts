@@ -112,7 +112,7 @@ Usage:
 prune-branch removes durable cache entries added on the current branch
 (not present at the merge-base with the base ref) that saved runs used but
 the latest local run of each case no longer uses. Entries with no related
-run are kept. The base ref is --base, else the current
+run, or stored after that latest run started, are kept. The base ref is --base, else the current
 pull request's base branch (gh pr view), else cache.branchPruneBaseRef.
 
 Flags:

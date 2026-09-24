@@ -19,6 +19,7 @@ const pruneSummarySchema = z.object({
   keptLatestRunEntries: z.number(),
   keptBaseEntries: z.number(),
   keptUnreferencedEntries: z.number(),
+  keptNewerThanLatestRunEntries: z.number(),
 });
 
 test('cache prune-branch removes branch-added entries only used by superseded runs', async () => {
@@ -33,13 +34,14 @@ test('cache prune-branch removes branch-added entries only used by superseded ru
       ]);
       expect(result.exitCode, result.stderr).toBe(0);
     };
-    const runSimpleText = async () => {
+    const runSimpleText = async (extraArgs: string[] = []) => {
       const result = await runExampleCli(workspacePath, [
         'run',
         '--eval',
         'refund-workflow',
         '--case',
         'simple-text',
+        ...extraArgs,
       ]);
       expect(result.exitCode, result.stderr).toBe(0);
     };
@@ -95,27 +97,37 @@ test('cache prune-branch removes branch-added entries only used by superseded ru
       );
 
     const runsDir = resolve(workspacePath, '.agent-evals/runs');
-    const runEditedCase = async (message: string) => {
+    const runEditedCase = async (message: string, extraArgs: string[] = []) => {
       const keysBefore = await listCacheKeys();
       const runsBefore = await readdir(runsDir);
       await editMessage(message);
-      await runSimpleText();
+      await runSimpleText(extraArgs);
       const newKey = (await listCacheKeys()).find(
         (key) => !keysBefore.includes(key),
       );
       const newRunId = (await readdir(runsDir)).find(
         (runId) => !runsBefore.includes(runId),
       );
-      expect(newKey).toBeDefined();
       expect(newRunId).toBeDefined();
       return { key: newKey, runId: newRunId ?? '' };
     };
 
     const orphaned = await runEditedCase('I want a refund for order #456');
     const stale = await runEditedCase('I want a refund for order #789');
+    const refreshed = await runEditedCase('I want a refund for order #555');
     const latest = await runEditedCase('I want a refund for order #999');
+    // Re-store #555 after the latest run started, then drop that run: only the
+    // older run references it, but the latest run is older than the cache.
+    const refreshRun = await runEditedCase('I want a refund for order #555', [
+      '--cache',
+      'refresh',
+    ]);
+    await rm(resolve(runsDir, refreshRun.runId), { recursive: true });
     // Without its run, the entry has no related run and must be left alone.
     await rm(resolve(runsDir, orphaned.runId), { recursive: true });
+    for (const run of [orphaned, stale, refreshed, latest]) {
+      expect(run.key).toBeDefined();
+    }
     const staleKey = stale.key;
     const latestKey = latest.key;
 
@@ -127,6 +139,7 @@ test('cache prune-branch removes branch-added entries only used by superseded ru
       keptLatestRunEntries: 1,
       keptBaseEntries: 1,
       keptUnreferencedEntries: 1,
+      keptNewerThanLatestRunEntries: 1,
     });
     expect(
       dryRun.removed.map((entry) => ({
@@ -134,7 +147,7 @@ test('cache prune-branch removes branch-added entries only used by superseded ru
         key: entry.key,
       })),
     ).toEqual([{ namespace: 'refund-workflow.plan-refund', key: staleKey }]);
-    expect(await listCacheKeys()).toHaveLength(4);
+    expect(await listCacheKeys()).toHaveLength(5);
 
     const pruned = await pruneBranch(['--base', 'main']);
     expect(pruned).toMatchObject({
@@ -144,7 +157,7 @@ test('cache prune-branch removes branch-added entries only used by superseded ru
     });
     expect(pruned.removed.map((entry) => entry.key)).toEqual([staleKey]);
     expect(await listCacheKeys()).toEqual(
-      [baseKey, orphaned.key, latestKey].sort(),
+      [baseKey, orphaned.key, refreshed.key, latestKey].sort(),
     );
 
     const missingBase = await runExampleCli(workspacePath, [
