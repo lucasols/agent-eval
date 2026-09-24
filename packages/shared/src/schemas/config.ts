@@ -1170,6 +1170,14 @@ export type AgentEvalsConfig = {
      * index files.
      */
     lastAccessedAtUpdateIntervalMs?: number;
+    /**
+     * Fallback git ref (for example `origin/main`) that
+     * `agent-evals cache prune-branch` compares the current branch against
+     * when the base branch of the current pull request cannot be read with
+     * the GitHub CLI (`gh pr view`), e.g. no PR is open yet or `gh` is not
+     * installed. The `--base` flag overrides both.
+     */
+    branchPruneBaseRef?: string;
   };
 };
 
@@ -1230,6 +1238,7 @@ export const agentEvalsConfigSchema = z.object({
             : undefined,
         z.number().optional(),
       ),
+      branchPruneBaseRef: z.string().optional(),
     })
     .optional(),
 });

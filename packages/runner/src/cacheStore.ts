@@ -112,6 +112,8 @@ export type FsCacheStore = CacheAdapter & {
   clear(filter?: CacheClearFilter): Promise<void>;
   /** Resolve the on-disk directory used for cache entries. */
   dir(): string;
+  /** Resolve the absolute path of one entry's compressed cache file. */
+  entryFilePath(namespace: string, key: string): string;
   /** Resolve the on-disk directory used for raw-key debug entries. */
   debugDir(): string;
   /** Resolve the on-disk directory used for external JSON cache blobs. */
@@ -220,6 +222,10 @@ export function createFsCacheStore(options: {
 
     dir() {
       return cacheDir;
+    },
+
+    entryFilePath(namespace, key) {
+      return cacheEntryPath(cacheDir, namespace, key);
     },
 
     debugDir() {

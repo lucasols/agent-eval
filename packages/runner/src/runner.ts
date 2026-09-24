@@ -19,13 +19,16 @@ import type {
 import {
   buildEvalKey,
   deriveScopedSummaryFromCases,
-  extractCacheEntries,
   getCaseRowCaseKey,
   resolveApiCallsConfig,
   resolveLlmCallsConfig,
 } from '@agent-evals/shared';
 import { watch, type FSWatcher } from 'chokidar';
 import { glob } from 'glob';
+import {
+  getStoredCacheEntriesForCase,
+  pruneBranchCache,
+} from './branchCachePrune.ts';
 import {
   getCacheRetentionOptions,
   getCacheStoreOptions,
@@ -310,18 +313,6 @@ export function createRunner({
     return hydrateCaseDetailForRow(run, caseRow);
   }
 
-  function getStoredCacheEntriesForCase(caseDetail: CaseDetail) {
-    const entries = extractCacheEntries(caseDetail.trace, caseDetail.cacheRefs);
-
-    for (const scoreTrace of Object.values(caseDetail.scoringTraces ?? {})) {
-      entries.push(
-        ...extractCacheEntries(scoreTrace.trace, scoreTrace.cacheRefs),
-      );
-    }
-
-    return entries.filter((entry) => entry.stored);
-  }
-
   function getCacheRetentionRunReferences(): {
     durable: CacheRetentionRunReference[];
     temporary: CacheRetentionRunReference[];
@@ -418,6 +409,16 @@ export function createRunner({
       }
       await cacheStore.clear(filter);
       await temporaryCacheStore.clear(filter);
+    },
+    async pruneBranchCache(options) {
+      return pruneBranchCache({
+        workspaceRoot,
+        cacheStore,
+        configuredBaseRef: config.cache?.branchPruneBaseRef,
+        runs: runs.values(),
+        hydrateCaseDetail: hydrateCaseDetailForRow,
+        options,
+      });
     },
     async repairCache() {
       const durableSummary = await cacheStore.repair();

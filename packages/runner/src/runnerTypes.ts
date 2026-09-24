@@ -15,6 +15,11 @@ import type {
   RunSummary,
   SseEnvelope,
 } from '@agent-evals/shared';
+import type { Result } from 't-result';
+import type {
+  BranchCachePruneOptions,
+  BranchCachePruneSummary,
+} from './branchCachePrune.ts';
 import type { CacheClearFilter } from './cacheStore.ts';
 import type { ManualInputValidationResult } from './manualInput/validation.ts';
 import type { RecalculateDerivedAttributesResult } from './recalculateDerivedAttributes.ts';
@@ -130,6 +135,18 @@ export type EvalRunner = {
   clearCache(filter?: CacheClearFilter): Promise<void>;
   /** Remove cache/debug/blob files that are not referenced by cache indexes. */
   repairCache(): Promise<CacheRepairSummary>;
+  /**
+   * Remove durable cache entries added on the current git branch (relative to
+   * the merge-base with the base ref) that the latest local run of each case
+   * no longer references. The base ref is `options.baseRef`, then the
+   * current pull request's base branch from `gh pr view`, then
+   * `cache.branchPruneBaseRef` from the config. Entries that already exist at the
+   * merge-base are kept. Fails without local run history, while a run is in
+   * progress, or when the base cannot be resolved.
+   */
+  pruneBranchCache(
+    options: BranchCachePruneOptions,
+  ): Promise<Result<BranchCachePruneSummary, Error>>;
   /**
    * Recompute persisted case and run statuses for terminal runs touching one
    * eval. Accepts the exact eval key.

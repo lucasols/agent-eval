@@ -44,6 +44,10 @@ type CliArgs = {
    * mapping to per-eval inputs (for multi-eval runs).
    */
   inputFilePath: string | undefined;
+  /** Git ref supplied with `--base` for `cache prune-branch`. */
+  baseRef: string | undefined;
+  /** `--dry-run`: report what `cache prune-branch` would remove. */
+  dryRun: boolean;
 };
 
 function parseArgs(argv: string[]): CliArgs {
@@ -69,6 +73,8 @@ function parseArgs(argv: string[]): CliArgs {
     loadEnv: normalizedArgv.length === argv.length,
     inputJson: undefined,
     inputFilePath: undefined,
+    baseRef: undefined,
+    dryRun: false,
   };
 
   const command = normalizedArgv[0];
@@ -87,7 +93,12 @@ function parseArgs(argv: string[]): CliArgs {
   let cursor = 1;
   if (args.command === 'cache') {
     const sub = normalizedArgv[cursor];
-    if (sub === 'list' || sub === 'clear' || sub === 'repair') {
+    if (
+      sub === 'list' ||
+      sub === 'clear' ||
+      sub === 'repair' ||
+      sub === 'prune-branch'
+    ) {
       args.subcommand = sub;
       args.helpTopic = `cache ${sub}`;
       cursor++;
@@ -142,6 +153,11 @@ function parseArgs(argv: string[]): CliArgs {
     } else if (arg === '--input-file' && next !== undefined) {
       args.inputFilePath = next;
       i++;
+    } else if (arg === '--base' && next !== undefined) {
+      args.baseRef = next;
+      i++;
+    } else if (arg === '--dry-run') {
+      args.dryRun = true;
     } else if (arg === '--all') {
       args.all = true;
     } else if (!arg.startsWith('-')) {
@@ -683,6 +699,35 @@ async function commandCache(args: CliArgs): Promise<void> {
     console.info(`Removed blob files: ${String(summary.removedBlobFiles)}`);
     console.info(`Removed index rows: ${String(summary.removedIndexRows)}`);
     console.info(`Rewritten indexes: ${String(summary.rewrittenIndexes)}`);
+    return;
+  }
+
+  if (args.subcommand === 'prune-branch') {
+    const pruned = await runner.pruneBranchCache({
+      baseRef: args.baseRef,
+      dryRun: args.dryRun,
+    });
+    if (pruned.error) {
+      console.error(pruned.error.message);
+      process.exit(1);
+    }
+    const summary = pruned.value;
+    if (args.json) {
+      console.info(JSON.stringify(summary, null, 2));
+      return;
+    }
+    console.info(
+      `Base: ${summary.baseRef} (${summary.baseRefSource}), merge-base ${summary.mergeBase.slice(0, 12)}`,
+    );
+    console.info(
+      `${summary.dryRun ? 'Would remove' : 'Removed'} ${String(summary.removed.length)} branch cache entries not used by the latest runs.`,
+    );
+    for (const entry of summary.removed) {
+      console.info(`  ${entry.namespace}  ${entry.key}`);
+    }
+    console.info(
+      `Kept ${String(summary.keptLatestRunEntries)} branch entries used by the latest runs and ${String(summary.keptBaseEntries)} entries from the base.`,
+    );
     return;
   }
 
