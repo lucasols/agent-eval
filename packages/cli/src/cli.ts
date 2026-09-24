@@ -720,13 +720,13 @@ async function commandCache(args: CliArgs): Promise<void> {
       `Base: ${summary.baseRef} (${summary.baseRefSource}), merge-base ${summary.mergeBase.slice(0, 12)}`,
     );
     console.info(
-      `${summary.dryRun ? 'Would remove' : 'Removed'} ${String(summary.removed.length)} branch cache entries not used by the latest runs.`,
+      `${summary.dryRun ? 'Would remove' : 'Removed'} ${String(summary.removed.length)} branch cache entries only used by superseded runs.`,
     );
     for (const entry of summary.removed) {
       console.info(`  ${entry.namespace}  ${entry.key}`);
     }
     console.info(
-      `Kept ${String(summary.keptLatestRunEntries)} branch entries used by the latest runs and ${String(summary.keptBaseEntries)} entries from the base.`,
+      `Kept ${String(summary.keptLatestRunEntries)} branch entries used by the latest runs, ${String(summary.keptUnreferencedEntries)} branch entries with no related run, and ${String(summary.keptBaseEntries)} entries from the base.`,
     );
     return;
   }

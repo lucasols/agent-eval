@@ -137,12 +137,13 @@ export type EvalRunner = {
   repairCache(): Promise<CacheRepairSummary>;
   /**
    * Remove durable cache entries added on the current git branch (relative to
-   * the merge-base with the base ref) that the latest local run of each case
-   * no longer references. The base ref is `options.baseRef`, then the
+   * the merge-base with the base ref) that saved runs reference but the
+   * latest local run of each case no longer does. Entries no saved run
+   * references are kept. The base ref is `options.baseRef`, then the
    * current pull request's base branch from `gh pr view`, then
    * `cache.branchPruneBaseRef` from the config. Entries that already exist at the
-   * merge-base are kept. Fails without local run history, while a run is in
-   * progress, or when the base cannot be resolved.
+   * merge-base are kept. Fails while a run is in progress or when the base
+   * cannot be resolved.
    */
   pruneBranchCache(
     options: BranchCachePruneOptions,
