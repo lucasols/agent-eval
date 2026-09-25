@@ -1184,6 +1184,8 @@ CLI:
 - `pnpm eval cache repair` — remove unindexed/orphaned cache, debug, and blob files.
 - `pnpm eval cache prune-branch [--base <ref>] [--dry-run] [--json]` — before merging a PR, remove durable cache entries added on the current branch (entry files missing at the merge-base with the base ref, committed or not) that saved runs referenced but the latest local run of each case no longer references. Entries already present at the merge-base, entries no saved run references, and entries stored after the latest run of a referencing case started are never touched. The base ref is `--base`, else the current PR's base branch from `gh pr view` (preferring `origin/<base>`), else `cache.branchPruneBaseRef`. It refuses to run while a run is in progress.
 
+After each run, branch-cache pruning runs automatically before completion is reported. It uses the same merge-base protection as `cache prune-branch` and only prunes superseded durable entries for cases that completed in this run. Entries referenced by untouched evals or cases (including their older runs) are preserved, as are the latest case's cache hits/writes, base-branch entries, unreferenced entries, and entries stored after the latest case run started. Bypass runs and errored/cancelled cases do not trigger this cleanup. If another run is active or Git/the base ref is unavailable, automatic pruning is skipped without failing the run. Use `cache prune-branch` for workspace-wide cleanup, including any skipped automatic pruning.
+
 UI: every `EvalCard` has a split button next to **Run** with a chevron menu containing the cache run modes and, for single evals, a case picker. The single eval page's more menu includes a danger-toned "Clear cache for this eval" that deletes the cache namespace/key pairs recorded by saved runs for that eval, plus a "Clear non-successful runs" action for failed, errored, and cancelled saved runs. While a run is active, eval cards, folder headers, and the run drawer show **Stop** to cancel the whole in-flight run by terminating its isolated run process.
 
 Per eval, use `cache.read` and `cache.store` to control whether authored cached operations may read or persist entries:
@@ -1247,7 +1249,7 @@ export const config: AgentEvalsConfig = {
     pruneIdleDelayMs: 5_000,
     oldRunMaxAgeMs: 15 * 24 * 60 * 60 * 1000,
     lastAccessedAtUpdateIntervalMs: 4 * 60 * 60 * 1000,
-    // `cache prune-branch` base when the branch has no PR (or `gh` is missing).
+    // Base for automatic and manual branch pruning when no PR is available.
     branchPruneBaseRef: 'origin/main',
   },
 };

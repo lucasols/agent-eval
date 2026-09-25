@@ -87,6 +87,8 @@ export function getStoredCacheEntriesForCase(caseDetail: CaseDetail) {
  * merge-base, and entries no saved run references, are never touched.
  * Protection is per case, so running a single case keeps the latest cache for
  * the eval's other cases. Refuses to run while a run is in progress.
+ * `caseKeys` limits automatic cleanup to completed cases; entries referenced
+ * by any other case are left untouched, including its older entries.
  */
 export async function pruneBranchCache<TRun extends PrunableRun>(params: {
   workspaceRoot: string;
@@ -96,6 +98,8 @@ export async function pruneBranchCache<TRun extends PrunableRun>(params: {
   runs: Iterable<TRun>;
   hydrateCaseDetail: (run: TRun, caseRow: CaseRow) => CaseDetail | undefined;
   options: BranchCachePruneOptions;
+  /** Exact case keys eligible for cleanup; omitted for workspace-wide pruning. */
+  caseKeys?: ReadonlySet<string>;
 }): Promise<Result<BranchCachePruneSummary, Error>> {
   const runs = [...params.runs];
   if (runs.some((run) => run.manifest.status === 'running')) {
@@ -122,7 +126,11 @@ export async function pruneBranchCache<TRun extends PrunableRun>(params: {
   });
   if (baseFiles.error) return baseFiles.errorResult();
 
-  const runEntries = getRunCacheEntries(runs, params.hydrateCaseDetail);
+  const runEntries = getRunCacheEntries(
+    runs,
+    params.hydrateCaseDetail,
+    params.caseKeys,
+  );
   const summary: BranchCachePruneSummary = {
     baseRef: baseRef.value.ref,
     baseRefSource: baseRef.value.source,
@@ -141,6 +149,7 @@ export async function pruneBranchCache<TRun extends PrunableRun>(params: {
       entry.key,
     );
     const entryId = toEntryId(entry);
+    if (runEntries.untouched.has(entryId)) continue;
     const latestRunStarts = runEntries.latestRunStartsByEntry.get(entryId);
     if (baseFiles.value.has(entryPath)) {
       summary.keptBaseEntries += 1;
@@ -173,6 +182,8 @@ export async function pruneBranchCache<TRun extends PrunableRun>(params: {
 }
 
 type RunCacheEntries = {
+  /** Entries referenced by cases outside the automatic cleanup scope. */
+  untouched: Set<string>;
   /** Entry ids referenced by the latest run of each case. */
   latest: Set<string>;
   /** Start time of the latest run of each case that references an entry. */
@@ -187,7 +198,9 @@ type RunCacheEntries = {
 function getRunCacheEntries<TRun extends PrunableRun>(
   runs: TRun[],
   hydrateCaseDetail: (run: TRun, caseRow: CaseRow) => CaseDetail | undefined,
+  caseKeys: ReadonlySet<string> | undefined,
 ): RunCacheEntries {
+  const untouched = new Set<string>();
   const latestByCase = new Map<
     string,
     { entryIds: string[]; freshness: number; startedAt: number }
@@ -208,6 +221,9 @@ function getRunCacheEntries<TRun extends PrunableRun>(
               .filter((entry) => (entry.storage ?? 'durable') === 'durable')
               .map(toEntryId);
       for (const entryId of entryIds) {
+        if (caseKeys !== undefined && !caseKeys.has(caseKey)) {
+          untouched.add(entryId);
+        }
         const cases = casesByEntry.get(entryId) ?? new Set();
         cases.add(caseKey);
         casesByEntry.set(entryId, cases);
@@ -221,10 +237,10 @@ function getRunCacheEntries<TRun extends PrunableRun>(
   }
 
   const latestRunStartsByEntry = new Map<string, number[]>();
-  for (const [entryId, caseKeys] of casesByEntry) {
+  for (const [entryId, referencingCaseKeys] of casesByEntry) {
     latestRunStartsByEntry.set(
       entryId,
-      [...caseKeys].flatMap((caseKey) => {
+      [...referencingCaseKeys].flatMap((caseKey) => {
         const latest = latestByCase.get(caseKey);
         return latest === undefined ? [] : [latest.startedAt];
       }),
@@ -232,6 +248,7 @@ function getRunCacheEntries<TRun extends PrunableRun>(
   }
 
   return {
+    untouched,
     latest: new Set(
       [...latestByCase.values()].flatMap(({ entryIds }) => entryIds),
     ),
@@ -340,6 +357,8 @@ function runCommand(
     cwd,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
+    // PR lookup must not hold eval completion indefinitely when offline.
+    timeout: command === 'gh' ? 5_000 : undefined,
   });
   if (result.error) {
     return Result.err(

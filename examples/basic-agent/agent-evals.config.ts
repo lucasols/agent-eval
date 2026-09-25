@@ -10,7 +10,7 @@ export const config: AgentEvalsConfig = {
   concurrency: 2,
   staleAfterDays: 14,
   defaultStatAggregate: 'avg',
-  // `agent-evals cache prune-branch` fallback when no PR is open for the branch.
+  // Base for automatic post-run pruning and `cache prune-branch` without a PR.
   cache: { branchPruneBaseRef: 'origin/main' },
   traceDisplay: {
     attributes: [

@@ -1172,10 +1172,12 @@ export type AgentEvalsConfig = {
     lastAccessedAtUpdateIntervalMs?: number;
     /**
      * Fallback git ref (for example `origin/main`) that
-     * `agent-evals cache prune-branch` compares the current branch against
-     * when the base branch of the current pull request cannot be read with
-     * the GitHub CLI (`gh pr view`), e.g. no PR is open yet or `gh` is not
-     * installed. The `--base` flag overrides both.
+     * automatic post-run branch pruning and `agent-evals cache prune-branch`
+     * compare the current branch against when the current pull request's base
+     * cannot be read with the GitHub CLI (`gh pr view`), e.g. no PR is open or `gh` is not
+     * installed. The manual command's `--base` flag overrides both. Automatic
+     * pruning skips cleanup when no base can be resolved, without failing
+     * the run.
      */
     branchPruneBaseRef?: string;
   };

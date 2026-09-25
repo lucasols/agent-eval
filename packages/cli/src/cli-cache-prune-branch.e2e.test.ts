@@ -67,13 +67,13 @@ test('cache prune-branch removes branch-added entries only used by superseded ru
       return pruneSummarySchema.parse(JSON.parse(result.stdout));
     };
 
-    // The isolated workspace has no remote, so the fallback points at `main`.
+    // Defer automatic pruning while building the history for the manual command.
     const configPath = resolve(workspacePath, 'agent-evals.config.ts');
     await writeFile(
       configPath,
       (await readFile(configPath, 'utf8')).replace(
         "branchPruneBaseRef: 'origin/main'",
-        "branchPruneBaseRef: 'main'",
+        "branchPruneBaseRef: 'not-configured-yet'",
       ),
     );
     await writeFile(
@@ -131,6 +131,13 @@ test('cache prune-branch removes branch-added entries only used by superseded ru
     const staleKey = stale.key;
     const latestKey = latest.key;
 
+    await writeFile(
+      configPath,
+      (await readFile(configPath, 'utf8')).replace(
+        "branchPruneBaseRef: 'not-configured-yet'",
+        "branchPruneBaseRef: 'main'",
+      ),
+    );
     const dryRun = await pruneBranch(['--dry-run']);
     expect(dryRun).toMatchObject({
       baseRef: 'main',

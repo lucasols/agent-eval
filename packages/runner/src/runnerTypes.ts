@@ -69,6 +69,14 @@ export type EvalRunner = {
   getConfiguredConcurrency(): number;
   /** Re-scan configured eval files and emit a discovery update to listeners. */
   refreshDiscovery(): Promise<void>;
+  /**
+   * Start an isolated run for the requested targets, trials, and cache mode.
+   * Returns its initial state; observe completion through run events or getRun.
+   * Before reporting completion, the runner prunes superseded branch-added
+   * durable cache for completed cases, preserving cache used by other cases.
+   * Cleanup is skipped for bypass runs or when the Git base is unavailable
+   * or another run is active, and cleanup failures do not fail the eval.
+   */
   startRun(
     request: CreateRunRequest,
   ): Promise<{ manifest: RunManifest; summary: RunSummary; cases: CaseRow[] }>;

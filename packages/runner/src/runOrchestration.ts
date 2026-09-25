@@ -37,6 +37,7 @@ import { loadIsolatedEvalRegistry } from './evalRegistryLoader.ts';
 import { parseManualInputValues } from './manualInput/walker.ts';
 import { runWithModuleIsolation } from './moduleIsolation.ts';
 import type { ModuleIsolationContext } from './moduleIsolation.ts';
+import { pruneCompletedRunCache } from './runCachePrune.ts';
 import { filterEvalCases, resolveRunnableEvalCases } from './runExecution.ts';
 import { persistRunState } from './runMaintenance.ts';
 import { persistCaseDetail, type EvalLatestRunInfo } from './runPersistence.ts';
@@ -853,6 +854,12 @@ export async function executeRun({
       });
     }
 
+    await pruneCompletedRunCache({
+      workspaceRoot,
+      cacheStore,
+      configuredBaseRef: config.cache?.branchPruneBaseRef,
+      runState,
+    });
     await persistRunState(runState);
 
     emitEvent(runState, {
