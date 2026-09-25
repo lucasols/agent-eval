@@ -829,6 +829,36 @@ describe('CLI eval features', () => {
                 "response": "Prepared **refund package** for order \`A-1024\`.
 
         Customer note: Please confirm the refund package for my damaged mug.",
+                "reviewPackage": [
+                  {
+                    "artifactId": "<run-id>__all-column-formats__t0__reviewPackage-0__reviewPackage-0.svg",
+                    "fileName": "reviewPackage-0.svg",
+                    "mimeType": "image/svg+xml",
+                    "sizeBytes": 1151,
+                    "source": "run",
+                  },
+                  {
+                    "artifactId": "<run-id>__all-column-formats__t0__reviewPackage-1__refund-report.html",
+                    "fileName": "refund-report.html",
+                    "mimeType": "text/html",
+                    "sizeBytes": 858,
+                    "source": "run",
+                  },
+                  {
+                    "artifactId": "<run-id>__all-column-formats__t0__reviewPackage-2__refund-report.pdf",
+                    "fileName": "refund-report.pdf",
+                    "mimeType": "application/pdf",
+                    "sizeBytes": 721,
+                    "source": "run",
+                  },
+                  {
+                    "artifactId": "<run-id>__all-column-formats__t0__reviewPackage-3__refund-template.txt",
+                    "fileName": "refund-template.txt",
+                    "mimeType": "text/plain",
+                    "sizeBytes": 146,
+                    "source": "run",
+                  },
+                ],
                 "reviewQueuedAt": "<timestamp>",
                 "reviewTimeMs": 1450,
                 "reviewerDecision": null,

@@ -271,6 +271,14 @@ defineEval({
       'attachment',
       new File([attachmentText], 'refund-template.txt', { type: 'text/plain' }),
     );
+    setOutput('reviewPackage', [
+      new Blob([previewCardSvg], { type: 'image/svg+xml' }),
+      new File([htmlReport], 'refund-report.html', { type: 'text/html' }),
+      new File([createRefundSummaryPdf()], 'refund-report.pdf', {
+        type: 'application/pdf',
+      }),
+      new File([attachmentText], 'refund-template.txt', { type: 'text/plain' }),
+    ]);
     setEvalOutput('confidence', 0.93);
     setEvalOutput('handlingCostUsd', 1.25);
     setEvalOutput('requestCount', 1200);

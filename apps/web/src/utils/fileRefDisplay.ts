@@ -1,10 +1,23 @@
-import type { ColumnDef, ColumnFormat, FileRef } from '@agent-evals/shared';
+import {
+  fileRefSchema,
+  type ColumnDef,
+  type ColumnFormat,
+  type FileRef,
+} from '@agent-evals/shared';
 import { apiUrl } from '#src/utils/apiUrl';
 
 export type PreviewableFileRefFormat = Extract<
   ColumnFormat,
   'image' | 'html' | 'pdf' | 'audio' | 'video'
 >;
+
+export function isFileRef(value: unknown): value is FileRef {
+  return fileRefSchema.safeParse(value).success;
+}
+
+export function isFileRefArray(value: unknown): value is FileRef[] {
+  return Array.isArray(value) && value.length > 0 && value.every(isFileRef);
+}
 
 export function getEffectiveFileRefFormat(
   def: Pick<ColumnDef, 'format'>,

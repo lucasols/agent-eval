@@ -1,9 +1,4 @@
-import {
-  fileRefSchema,
-  type CaseInputSection,
-  type CellValue,
-  type FileRef,
-} from '@agent-evals/shared';
+import type { CaseInputSection } from '@agent-evals/shared';
 import { Download } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { styled } from 'vindur';
@@ -56,10 +51,6 @@ const InputSectionLabel = styled.div`
 const InputSectionContent = styled.div`
   font-size: 13px;
   color: ${colors.text.var};
-`;
-
-const FileRefList = styled.div`
-  ${stack({ gap: 8 })}
 `;
 
 const GroupKicker = styled.span`
@@ -231,23 +222,6 @@ function InputSectionValue({
   section: CaseInputSection;
   previewFooter: ReactNode | undefined;
 }) {
-  if (isFileRefArray(section.value)) {
-    return (
-      <FileRefList>
-        {section.value.map((fileRef, index) => (
-          <FormattedCellValue
-            key={getFileRefKey(fileRef, index)}
-            def={section}
-            value={fileRef}
-            inferMarkdown
-            markdownRawToggle
-            previewFooter={previewFooter}
-          />
-        ))}
-      </FileRefList>
-    );
-  }
-
   return (
     <FormattedCellValue
       def={section}
@@ -257,19 +231,6 @@ function InputSectionValue({
       previewFooter={previewFooter}
     />
   );
-}
-
-function isFileRefArray(value: CellValue): value is FileRef[] {
-  return Array.isArray(value) && value.every(isFileRef);
-}
-
-function isFileRef(value: unknown): value is FileRef {
-  return fileRefSchema.safeParse(value).success;
-}
-
-function getFileRefKey(ref: FileRef, index: number): string {
-  if (ref.source === 'run') return `${ref.artifactId}:${String(index)}`;
-  return `${ref.path}:${String(index)}`;
 }
 
 /**

@@ -26,6 +26,8 @@ import {
   getEffectiveFileRefFormat,
   getFileLabel,
   getFileUrl,
+  isFileRef,
+  isFileRefArray,
   isPreviewableFileRefFormat,
   type PreviewableFileRefFormat,
 } from '#src/utils/fileRefDisplay';
@@ -42,6 +44,10 @@ const TextValue = styled.p`
   margin: 0;
   font-size: 13px;
   line-height: 1.55;
+`;
+
+const FileRefList = styled.div`
+  ${stack({ gap: 8 })}
 `;
 
 const RawTextValue = styled.pre`
@@ -509,6 +515,29 @@ export function FormattedCellValue({
         maxHeight="detail"
         collapsed={2}
       />
+    );
+  }
+
+  if (isFileRefArray(value)) {
+    const items =
+      previewItems ??
+      getMediaPreviewItemsForColumns([def], { [def.key]: value });
+    return (
+      <FileRefList>
+        {value.map((ref, index) => {
+          const id = `${getMediaPreviewItemId(def, ref)}:${String(index)}`;
+          return (
+            <FormattedCellValue
+              key={id}
+              def={def}
+              value={ref}
+              previewFooter={previewFooter}
+              previewItems={items}
+              previewItemId={id}
+            />
+          );
+        })}
+      </FileRefList>
     );
   }
 
@@ -1010,10 +1039,24 @@ export function getMediaPreviewItemsForColumns(
 ): MediaPreviewItem[] {
   return columnDefs.flatMap((def) => {
     const value = columns[def.key];
-    if (!isFileRef(value)) return [];
-    const format = getEffectiveFileRefFormat(def, value);
-    if (!isPreviewableFileRefFormat(format)) return [];
-    return [toMediaPreviewItem({ def, fileRef: value, format })];
+    const refs = isFileRefArray(value)
+      ? value
+      : isFileRef(value)
+        ? [value]
+        : [];
+    return refs.flatMap((fileRef, index) => {
+      const format = getEffectiveFileRefFormat(def, fileRef);
+      if (!isPreviewableFileRefFormat(format)) return [];
+      const id = getMediaPreviewItemId(def, fileRef);
+      return [
+        toMediaPreviewItem({
+          def,
+          fileRef,
+          format,
+          id: Array.isArray(value) ? `${id}:${String(index)}` : id,
+        }),
+      ];
+    });
   });
 }
 
@@ -1100,6 +1143,8 @@ export function summarizeCellValue(
     return String(value);
   }
   if (def.format === 'json' && typeof value === 'object') return 'JSON';
+  if (isFileRefArray(value))
+    return `${String(value.length)} ${value.length === 1 ? 'file' : 'files'}`;
   if (isFileRef(value)) return getFileLabel(value);
   if (typeof value === 'object') return 'JSON';
   return String(value);
@@ -1116,11 +1161,4 @@ export function hasRichColumnFormat(def: ColumnDef): boolean {
     def.format === 'video' ||
     def.format === 'file'
   );
-}
-
-function isFileRef(value: CellValue | undefined): value is FileRef {
-  if (typeof value !== 'object' || value === null || !('source' in value)) {
-    return false;
-  }
-  return value.source === 'repo' || value.source === 'run';
 }

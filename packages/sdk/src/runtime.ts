@@ -1018,11 +1018,18 @@ function toAssertionFailure(
  * Record or replace an output value for the current case scope.
  *
  * Supported values include scalars, JSON-safe objects/arrays, explicit file
- * refs, and native `Blob`/`File` instances for media or file columns.
+ * refs, and native `Blob`/`File` instances for media or file columns. Arrays
+ * of files are persisted as ordered artifact references, with each file saved
+ * separately even when filenames repeat.
  *
  * Pass the optional third argument to persist a display format or full column
  * override with this runtime output, for example `'markdown'` or
  * `{ label: 'Receipt', format: 'image', hideInTable: true }`.
+ *
+ * @param key Output name to record or replace.
+ * @param value Runtime value; file array entries are saved as separate artifacts.
+ * @param options Optional display format or column metadata.
+ * @returns Nothing. Calls outside an active case scope have no effect.
  */
 export function setEvalOutput(
   key: string,

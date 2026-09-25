@@ -1,5 +1,6 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { fileRefSchema } from '@agent-evals/shared';
 import { describe, expect, test } from 'vitest';
 import {
   normalizeSnapshotValue,
@@ -21,6 +22,35 @@ describe('CLI output formats', () => {
       expect(result.stderr).toBe('');
 
       const artifacts = await readSingleRunArtifacts(workspacePath);
+      const reviewPackage = fileRefSchema
+        .array()
+        .parse(
+          artifacts.caseDetails['all-column-formats.json']?.columns
+            .reviewPackage,
+        );
+      expect(reviewPackage).toHaveLength(4);
+      expect(artifacts.cases[0]?.columns.reviewPackage).toEqual(reviewPackage);
+      const packageContents = [];
+      for (const ref of reviewPackage) {
+        if (ref.source !== 'run') throw new Error('Expected a run artifact');
+        const bytes = await readFile(
+          resolve(
+            workspacePath,
+            '.agent-evals/runs',
+            artifacts.manifest.id,
+            'artifacts',
+            ref.artifactId,
+          ),
+        );
+        expect(bytes.byteLength).toBe(ref.sizeBytes);
+        packageContents.push(bytes.toString('utf8'));
+      }
+      expect(packageContents[0]).toContain('Refund Review');
+      expect(packageContents[1]).toContain(
+        '<title>Refund Package Report</title>',
+      );
+      expect(packageContents[2]).toContain('%PDF-1.4');
+      expect(packageContents[3]).toContain('refund');
       const persistedArtifactFiles = (
         await readdir(
           resolve(
@@ -119,6 +149,36 @@ describe('CLI output formats', () => {
                 "response": "Prepared **refund package** for order \`A-1024\`.
 
         Customer note: Please confirm the refund package for my damaged mug.",
+                "reviewPackage": [
+                  {
+                    "artifactId": "<run-id>__all-column-formats__t0__reviewPackage-0__reviewPackage-0.svg",
+                    "fileName": "reviewPackage-0.svg",
+                    "mimeType": "image/svg+xml",
+                    "sizeBytes": 1151,
+                    "source": "run",
+                  },
+                  {
+                    "artifactId": "<run-id>__all-column-formats__t0__reviewPackage-1__refund-report.html",
+                    "fileName": "refund-report.html",
+                    "mimeType": "text/html",
+                    "sizeBytes": 858,
+                    "source": "run",
+                  },
+                  {
+                    "artifactId": "<run-id>__all-column-formats__t0__reviewPackage-2__refund-report.pdf",
+                    "fileName": "refund-report.pdf",
+                    "mimeType": "application/pdf",
+                    "sizeBytes": 721,
+                    "source": "run",
+                  },
+                  {
+                    "artifactId": "<run-id>__all-column-formats__t0__reviewPackage-3__refund-template.txt",
+                    "fileName": "refund-template.txt",
+                    "mimeType": "text/plain",
+                    "sizeBytes": 146,
+                    "source": "run",
+                  },
+                ],
                 "reviewQueuedAt": "<timestamp>",
                 "reviewTimeMs": 1450,
                 "reviewerDecision": null,
@@ -205,6 +265,10 @@ describe('CLI output formats', () => {
             "<run-id>__all-column-formats__t0__htmlReport__refund-report.html",
             "<run-id>__all-column-formats__t0__pdfReport__refund-report.pdf",
             "<run-id>__all-column-formats__t0__previewCard__previewCard.svg",
+            "<run-id>__all-column-formats__t0__reviewPackage-0__reviewPackage-0.svg",
+            "<run-id>__all-column-formats__t0__reviewPackage-1__refund-report.html",
+            "<run-id>__all-column-formats__t0__reviewPackage-2__refund-report.pdf",
+            "<run-id>__all-column-formats__t0__reviewPackage-3__refund-template.txt",
             "<run-id>__all-column-formats__t0__visualReferences-0__status-card.svg",
           ],
         }

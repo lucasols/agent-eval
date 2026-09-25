@@ -2,7 +2,6 @@ import type {
   CaseRow,
   CellValue,
   ColumnDef,
-  FileRef,
   RunManifest,
 } from '@agent-evals/shared';
 import { ChevronDown, ChevronRight, Eye } from 'lucide-react';
@@ -13,7 +12,6 @@ import {
   getMediaPreviewItemsForColumns,
   MediaPreviewModal,
   summarizeCellValue,
-  toMediaPreviewItem,
   type MediaPreviewItem,
 } from '#src/components/FormattedCellValue';
 import { LoadingLine } from '#src/components/LoadingState';
@@ -37,11 +35,7 @@ import {
   getManualScoreAwareCaseDisplayStatus,
   type DisplayScopedCaseSummary,
 } from '#src/utils/evalRuns';
-import {
-  getEffectiveFileRefFormat,
-  getFileLabel,
-  isPreviewableFileRefFormat,
-} from '#src/utils/fileRefDisplay';
+import { isFileRefArray } from '#src/utils/fileRefDisplay';
 import {
   formatDuration,
   formatNumericCellValue,
@@ -391,24 +385,10 @@ function isFileRefLike(value: object): boolean {
   return value.source === 'repo' || value.source === 'run';
 }
 
-function isFileRef(value: CellValue | undefined): value is FileRef {
-  if (typeof value !== 'object' || value === null || !('source' in value)) {
-    return false;
-  }
-  return value.source === 'repo' || value.source === 'run';
-}
-
-export function isPreviewableFileRef(
-  def: ColumnDef,
-  value: CellValue | undefined,
-): value is FileRef {
-  if (!isFileRef(value)) return false;
-  const format = getEffectiveFileRefFormat(def, value);
-  return isPreviewableFileRefFormat(format);
-}
-
 function formatCellValue(c: ColumnDef, value: CellValue | undefined): string {
   if (value === null || value === undefined) return EM_DASH;
+  if (c.format !== 'json' && isFileRefArray(value))
+    return summarizeCellValue(c, value);
   const simpleJsonPreview = getSimpleJsonPreview(c, value);
   if (simpleJsonPreview !== undefined) return simpleJsonPreview;
   if (Array.isArray(value)) return `JSON Array (len=${String(value.length)})`;
@@ -463,17 +443,11 @@ function TableColumnValue({
     tooltipContent !== undefined &&
     (tooltipContent !== display || tooltipContent.length > 48);
 
-  if (isPreviewableFileRef(column, value)) {
-    const label = getFileLabel(value);
-    const format = getEffectiveFileRefFormat(column, value);
-    if (!isPreviewableFileRefFormat(format)) {
-      return <ColumnText>{display}</ColumnText>;
-    }
-    const previewItem = toMediaPreviewItem({
-      def: column,
-      fileRef: value,
-      format,
-    });
+  const previewItem = getMediaPreviewItemsForColumns([column], {
+    [column.key]: value,
+  })[0];
+  if (previewItem !== undefined) {
+    const label = previewItem.fileName;
     const effectivePreviewItems = getEffectiveMediaPreviewItems(
       previewItem,
       mediaPreviewItems,

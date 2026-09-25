@@ -600,16 +600,25 @@ export async function runCase<
 
   const columns: Record<string, CellValue> = {};
   for (const [key, value] of Object.entries(scope.outputs)) {
-    const cell = isBlob(value)
-      ? await persistInlineArtifact({
-          artifactDir,
-          runId,
-          caseId: evalCase.id,
-          outputKey: key,
-          trial,
-          value,
-        })
-      : await toCellValue(value);
+    const persistValue = async (item: unknown, outputKey: string) =>
+      isBlob(item)
+        ? await persistInlineArtifact({
+            artifactDir,
+            runId,
+            caseId: evalCase.id,
+            outputKey,
+            trial,
+            value: item,
+          })
+        : item;
+    const materialized = Array.isArray(value)
+      ? await Promise.all(
+          value.map((item: unknown, index) =>
+            persistValue(item, `${key}-${String(index)}`),
+          ),
+        )
+      : await persistValue(value, key);
+    const cell = await toCellValue(materialized);
     if (cell !== undefined) {
       columns[key] = cell;
     }
