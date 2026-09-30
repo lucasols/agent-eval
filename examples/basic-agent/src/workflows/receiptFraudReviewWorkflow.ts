@@ -4,7 +4,7 @@ import {
   setEvalOutput,
   evalSpan,
   evalTracer,
-} from '@ls-stack/agent-eval';
+} from '@ls-stack/agent-eval/runtime';
 import { waitForWorkflowDelay } from './simulatedDelay.ts';
 
 export type ReceiptFraudReviewInput = {

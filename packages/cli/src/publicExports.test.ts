@@ -14,3 +14,38 @@ describe('public package exports', () => {
     expect(Object.hasOwn(apiExports, 'createRunRequestSchema')).toBe(false);
   });
 });
+
+describe('runtime package exports', () => {
+  it('shares the helpers of the main entry', async () => {
+    const runtimeApi: Record<string, unknown> = await import('./runtime.ts');
+    const apiExports: Record<string, unknown> = publicApi;
+    const notShared = Object.keys(runtimeApi).filter(
+      (key) => runtimeApi[key] !== apiExports[key],
+    );
+
+    expect(notShared).toEqual([]);
+    expect(Object.keys(runtimeApi).sort()).toMatchInlineSnapshot(`
+      [
+        "EvalAssertionError",
+        "EvalRuntimeUsageError",
+        "appendToEvalOutput",
+        "captureEvalSpanError",
+        "evalAssert",
+        "evalExpect",
+        "evalLog",
+        "evalSpan",
+        "evalTime",
+        "evalTracer",
+        "getCurrentScope",
+        "getEvalCaseInput",
+        "incrementEvalOutput",
+        "isInEvalScope",
+        "matchesEvalTags",
+        "mergeEvalOutput",
+        "nextEvalId",
+        "setEvalOutput",
+        "startEvalBackgroundJob",
+      ]
+    `);
+  });
+});

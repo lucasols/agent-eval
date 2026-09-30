@@ -40,6 +40,8 @@ declare module '@ls-stack/agent-eval' {
 
 ### Product code (instrumented once, reused everywhere)
 
+Import the ambient helpers in product code from `@ls-stack/agent-eval/runtime`. It exposes the same helpers as the main entry (scope checks, tracing, outputs, assertions, `matchesEvalTags`) and shares the eval scope with the runner, but doesn't load the runner, the CLI or their schemas, so production processes don't pay for the eval tool. Keep eval files, config and runner APIs (`defineEval`, `AgentEvalsConfig`, cache utilities) on the main `@ls-stack/agent-eval` entry.
+
 ```ts
 // src/workflows/refundWorkflow.ts
 import {
@@ -55,7 +57,7 @@ import {
   nextEvalId,
   setEvalOutput,
   startEvalBackgroundJob,
-} from '@ls-stack/agent-eval';
+} from '@ls-stack/agent-eval/runtime';
 
 export async function runRefundWorkflow(input: RefundInput) {
   return evalTracer.span(

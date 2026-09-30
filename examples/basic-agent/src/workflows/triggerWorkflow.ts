@@ -3,7 +3,7 @@ import {
   setEvalOutput,
   evalSpan,
   evalTracer,
-} from '@ls-stack/agent-eval';
+} from '@ls-stack/agent-eval/runtime';
 import { z } from 'zod';
 import { waitForWorkflowDelay } from './simulatedDelay.ts';
 

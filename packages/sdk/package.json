@@ -2,6 +2,9 @@
   "name": "@agent-evals/sdk",
   "version": "0.0.1",
   "type": "module",
+  "sideEffects": [
+    "./src/runtime.ts"
+  ],
   "exports": {
     ".": "./src/index.ts"
   },

@@ -142,6 +142,7 @@ defineEval({
 
 Notes:
 
+- Product code that also runs outside evals should import these helpers from `@ls-stack/agent-eval/runtime`. It has the same scope, tracing, output and assertion helpers (and `matchesEvalTags`) as the main entry and shares the eval scope with the runner, but doesn't load the runner, the CLI or their schemas, so importing it in production costs about 1 MB of heap instead of about 11 MB.
 - `isInEvalScope()` returns the current eval runner phase (`'env'`, `'cases'`, `'eval'`, `'derive'`, `'tracingAssertions'`, `'outputsSchema'`, or `'scorer'`) and returns `null` outside eval-owned work. This is useful when shared workflow code needs to branch on eval-only behavior. Top-level modules imported while a run is being prepared see `'env'`; code called from `execute` sees `'eval'`.
 - `matchesEvalTags('tag')` and `matchesEvalTags({ all, any, not })` check the active case's effective tags with typed exact tag names. Calls outside a case scope return `false`.
 - `getEvalCaseInput()` returns the current case input while an eval case is executing, and `getEvalCaseInput('customer.tier')` reads nested values with dot-path access. Outside a case scope, both return `undefined`.

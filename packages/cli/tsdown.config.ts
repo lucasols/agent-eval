@@ -22,6 +22,7 @@ export default defineConfig([
     dts: false,
     entry: [
       'src/index.ts',
+      'src/runtime.ts',
       'src/bin.ts',
       'src/caseChild.ts',
       'src/runChild.ts',
@@ -32,7 +33,7 @@ export default defineConfig([
     ...sharedConfig,
     clean: false,
     dts: { eager: true, emitDtsOnly: true, tsconfig: 'tsconfig.build.json' },
-    entry: 'src/index.ts',
+    entry: ['src/index.ts', 'src/runtime.ts'],
     name: 'cli-types',
   },
 ]);
