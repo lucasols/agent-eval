@@ -46,7 +46,11 @@ function matchesEvalIds(
   evalIds: string[] | undefined,
 ): boolean {
   if (evalIds === undefined || evalIds.length === 0) return true;
-  return evalIds.includes(evalMeta.id);
+  return (
+    evalIds.includes(evalMeta.id) ||
+    (evalMeta.parentEvalId !== undefined &&
+      evalIds.includes(evalMeta.parentEvalId))
+  );
 }
 
 function matchesEvalKeys(
@@ -59,7 +63,8 @@ function matchesEvalKeys(
 
 function compareEvalMetas(left: EvalMeta, right: EvalMeta): number {
   return (
-    left.filePath.localeCompare(right.filePath) || left.id.localeCompare(right.id)
+    left.filePath.localeCompare(right.filePath) ||
+    left.id.localeCompare(right.id)
   );
 }
 

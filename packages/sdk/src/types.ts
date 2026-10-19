@@ -384,6 +384,63 @@ type EvalDefinitionOutputSchemaConfig<TOutputs extends EvalOutputs> = [
       outputsSchema: EvalOutputsSchema<TOutputs>;
     };
 
+/**
+ * Case source for an eval: authored or loaded cases, manual input, or cases
+ * split into separate evals with `casesAsEvals`.
+ */
+type EvalDefinitionCasesConfig<TInput> =
+  | {
+      /**
+       * Keep every case inside this eval. Defaults to `false`; set to `true`
+       * to register each case as its own eval instead.
+       */
+      casesAsEvals?: false;
+      /**
+       * Authored cases for this eval.
+       *
+       * When omitted or resolved to an empty array, the runner still executes
+       * the eval once using a synthetic case with empty object input.
+       *
+       * Mutually exclusive with `manualInput`: declaring both raises a
+       * discovery issue and prevents the eval from running. Manual-input evals
+       * always produce a single synthetic case whose input is the
+       * user-submitted value.
+       */
+      cases?: EvalCase<TInput>[] | (() => Promise<EvalCase<TInput>[]>);
+      /**
+       * Pause every run on a modal in the web UI (or require `--input` /
+       * `--input-file` from the CLI) and use the user-submitted,
+       * schema-validated value as the case input.
+       *
+       * Default field configuration is derived from `manualInput.schema`; per
+       * field overrides under `manualInput.fields` can replace labels, mark a
+       * string field as multiline, override the default value, etc. Mutually
+       * exclusive with `cases`.
+       */
+      manualInput?: EvalManualInputConfig<TInput>;
+    }
+  | {
+      /**
+       * Register every case as its own eval that shares this definition's
+       * `execute`, scores, columns, and other settings.
+       *
+       * Each split eval has id `<id>/<case id>`, title
+       * `<title> / <case id>`, and runs only its own case, so it gets its own
+       * history, status, stats, and freshness. Targeting `--eval <id>` runs
+       * every split eval. Must be written as the literal `true` so static
+       * discovery can detect it.
+       */
+      casesAsEvals: true;
+      /**
+       * Cases to split into separate evals. Must be an array: load async
+       * datasets with top-level `await` in the eval module. An empty array
+       * registers no evals.
+       */
+      cases: EvalCase<TInput>[];
+      /** Not supported when `casesAsEvals` is `true`. */
+      manualInput?: undefined;
+    };
+
 type EvalDefinitionBase<
   TInput = unknown,
   TOutputs extends EvalOutputs = EvalOutputs,
@@ -426,28 +483,6 @@ type EvalDefinitionBase<
    * unless `read` is also disabled.
    */
   cache?: EvalCacheConfig;
-  /**
-   * Authored cases for this eval.
-   *
-   * When omitted or resolved to an empty array, the runner still executes the
-   * eval once using a synthetic case with empty object input.
-   *
-   * Mutually exclusive with `manualInput`: declaring both raises a discovery
-   * issue and prevents the eval from running. Manual-input evals always
-   * produce a single synthetic case whose input is the user-submitted value.
-   */
-  cases?: EvalCase<TInput>[] | (() => Promise<EvalCase<TInput>[]>);
-  /**
-   * Pause every run on a modal in the web UI (or require `--input` /
-   * `--input-file` from the CLI) and use the user-submitted, schema-validated
-   * value as the case input.
-   *
-   * Default field configuration is derived from `manualInput.schema`; per
-   * field overrides under `manualInput.fields` can replace labels, mark a
-   * string field as multiline, override the default value, etc. Mutually
-   * exclusive with `cases`.
-   */
-  manualInput?: EvalManualInputConfig<TInput>;
   /**
    * Output and score column display overrides for this eval.
    *
@@ -612,4 +647,5 @@ export type EvalDefinition<
   TInput = unknown,
   TOutputs extends EvalOutputs = EvalOutputs,
 > = EvalDefinitionBase<TInput, TOutputs> &
+  EvalDefinitionCasesConfig<TInput> &
   EvalDefinitionOutputSchemaConfig<TOutputs>;

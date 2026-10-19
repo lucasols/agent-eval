@@ -1,3 +1,4 @@
+import type { EvalRegistryEntry } from '@agent-evals/sdk';
 import type { DiscoveryIssue } from '@agent-evals/shared';
 
 type EvalDiscoveryMeta = {
@@ -5,6 +6,18 @@ type EvalDiscoveryMeta = {
   id: string;
   title?: string;
   description?: string;
+  /** Whether the definition sets `casesAsEvals: true`. */
+  casesAsEvals: boolean;
+};
+
+/** Discovered eval after splitting `casesAsEvals` definitions per case. */
+export type ResolvedEvalDiscoveryMeta = {
+  filePath: string;
+  id: string;
+  title?: string;
+  description?: string;
+  /** Authored `defineEval(...)` id the eval was split from, if any. */
+  parentEvalId: string | undefined;
 };
 export type EvalDiscoveryResult = {
   metas: EvalDiscoveryMeta[];
@@ -41,7 +54,16 @@ export function parseEvalDiscovery(
 
     const id = findTopLevelStringProperty(extracted.objectText, 'id');
     if (id !== undefined) {
-      const result: EvalDiscoveryMeta = { filePath, id };
+      const result: EvalDiscoveryMeta = {
+        filePath,
+        id,
+        casesAsEvals:
+          findTopLevelProperty(
+            extracted.objectText,
+            'casesAsEvals',
+            readTrueLiteral,
+          ) === true,
+      };
 
       const title = findTopLevelStringProperty(extracted.objectText, 'title');
       if (title !== undefined) {
@@ -78,6 +100,33 @@ export function parseEvalDiscovery(
   }));
 
   return { metas: metas.filter((meta) => !duplicateIds.has(meta.id)), issues };
+}
+
+/**
+ * Replace statically discovered `casesAsEvals` definitions with the per-case
+ * evals they registered. Without a loaded registry (module failed to import)
+ * the authored definition is kept so the import error surfaces when it runs.
+ */
+export function resolveCasesAsEvalsMetas(
+  metas: EvalDiscoveryMeta[],
+  registry: Map<string, EvalRegistryEntry> | undefined,
+): ResolvedEvalDiscoveryMeta[] {
+  return metas.flatMap((meta): ResolvedEvalDiscoveryMeta[] => {
+    const { casesAsEvals, ...baseMeta } = meta;
+    if (!casesAsEvals || registry === undefined) {
+      return [{ ...baseMeta, parentEvalId: undefined }];
+    }
+
+    return [...registry.values()]
+      .filter((entry) => entry.parentEvalId === meta.id)
+      .map((entry) => ({
+        filePath: meta.filePath,
+        id: entry.id,
+        title: entry.title,
+        description: entry.description,
+        parentEvalId: meta.id,
+      }));
+  });
 }
 
 function isIdentifierChar(char: string | undefined): boolean {
@@ -126,10 +175,27 @@ function readStringLiteral(
   return undefined;
 }
 
+function readTrueLiteral(
+  content: string,
+  startIndex: number,
+): true | undefined {
+  if (!content.startsWith('true', startIndex)) return undefined;
+  if (isIdentifierChar(content[startIndex + 'true'.length])) return undefined;
+  return true;
+}
+
 function findTopLevelStringProperty(
   objectText: string,
   propertyName: string,
 ): string | undefined {
+  return findTopLevelProperty(objectText, propertyName, readStringLiteral);
+}
+
+function findTopLevelProperty<T>(
+  objectText: string,
+  propertyName: string,
+  readValue: (content: string, startIndex: number) => T | undefined,
+): T | undefined {
   let depth = 0;
   let quote: '"' | "'" | '`' | undefined;
   let inBlockComment = false;
@@ -210,7 +276,7 @@ function findTopLevelStringProperty(
     if (objectText[colonIndex] !== ':') continue;
 
     const valueIndex = skipWhitespace(objectText, colonIndex + 1);
-    const value = readStringLiteral(objectText, valueIndex);
+    const value = readValue(objectText, valueIndex);
     if (value !== undefined) return value;
   }
 

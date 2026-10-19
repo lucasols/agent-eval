@@ -55,6 +55,11 @@ import { getTargetEvalKeys } from './targeting.ts';
 export type EvalMeta = {
   key: string;
   id: string;
+  /**
+   * Authored `defineEval(...)` id this eval was split from with
+   * `casesAsEvals: true`. Absent for regular evals.
+   */
+  parentEvalId?: string;
   title?: string;
   description?: string;
   filePath: string;

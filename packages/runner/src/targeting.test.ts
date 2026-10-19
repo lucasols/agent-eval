@@ -32,10 +32,9 @@ describe('getTargetEvals', () => {
     ];
 
     expect(
-      getTargetEvals({
-        evals,
-        request: request({ mode: 'all' }),
-      }).map((evalMeta_) => evalMeta_.id),
+      getTargetEvals({ evals, request: request({ mode: 'all' }) }).map(
+        (evalMeta_) => evalMeta_.id,
+      ),
     ).toEqual([
       'quality-a',
       'refund-a',
@@ -64,5 +63,32 @@ describe('getTargetEvals', () => {
         }),
       }).map((evalMeta_) => evalMeta_.id),
     ).toEqual(['first', 'second-beta', 'second', 'alpha', 'zeta']);
+  });
+
+  test('targets every split eval by its parent casesAsEvals id', () => {
+    const evals = [
+      {
+        ...evalMeta('evals/tiers.eval.ts', 'tiers/standard'),
+        parentEvalId: 'tiers',
+      },
+      {
+        ...evalMeta('evals/tiers.eval.ts', 'tiers/vip'),
+        parentEvalId: 'tiers',
+      },
+      evalMeta('evals/tiers.eval.ts', 'regular'),
+    ];
+
+    expect(
+      getTargetEvals({
+        evals,
+        request: request({ mode: 'evalIds', evalIds: ['tiers'] }),
+      }).map((evalMeta_) => evalMeta_.id),
+    ).toEqual(['tiers/standard', 'tiers/vip']);
+    expect(
+      getTargetEvals({
+        evals,
+        request: request({ mode: 'evalIds', evalIds: ['tiers/vip'] }),
+      }).map((evalMeta_) => evalMeta_.id),
+    ).toEqual(['tiers/vip']);
   });
 });

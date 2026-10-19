@@ -13,6 +13,11 @@ export type EvalRegistryEntry = {
   title?: string;
   /** Optional short summary describing what the eval covers. */
   description?: string;
+  /**
+   * Id of the authored `defineEval(...)` this entry was split from when the
+   * definition sets `casesAsEvals: true`. `undefined` for regular evals.
+   */
+  parentEvalId: string | undefined;
   /** Read the registered definition without erasing its input/output generics. */
   use: <R>(
     fn: <TInput, TOutputs extends EvalOutputs>(
@@ -51,18 +56,53 @@ export async function runWithEvalRegistry<T>(
 /**
  * Register an eval definition with the SDK so the runner can discover it
  * after importing the eval module.
+ *
+ * With `casesAsEvals: true`, each case is registered as its own eval with id
+ * `<id>/<case id>` and title `<title> / <case id>`, sharing every other
+ * setting of the definition. The authored `id` itself is not registered.
  */
 export function defineEval<
   TInput = unknown,
   TOutputs extends EvalOutputs = EvalOutputs,
 >(definition: EvalDefinition<TInput, TOutputs>): void {
   assertManualScoreDescriptions(definition);
-  getEvalRegistry().set(definition.id, {
-    id: definition.id,
-    title: definition.title,
-    description: definition.description,
-    use: (fn) => fn(definition),
-  });
+  const registry = getEvalRegistry();
+
+  if (!definition.casesAsEvals) {
+    registry.set(definition.id, {
+      id: definition.id,
+      title: definition.title,
+      description: definition.description,
+      parentEvalId: undefined,
+      use: (fn) => fn(definition),
+    });
+    return;
+  }
+
+  const caseEvalIds = new Set<string>();
+  for (const evalCase of definition.cases) {
+    const caseEvalId = `${definition.id}/${evalCase.id}`;
+    if (caseEvalIds.has(caseEvalId)) {
+      throw new Error(
+        `Eval "${definition.id}" with casesAsEvals produces duplicate eval id "${caseEvalId}". Case ids must be unique.`,
+      );
+    }
+    caseEvalIds.add(caseEvalId);
+    const caseEvalDef: EvalDefinition<TInput, TOutputs> = {
+      ...definition,
+      id: caseEvalId,
+      title: `${definition.title ?? definition.id} / ${evalCase.id}`,
+      casesAsEvals: false,
+      cases: [evalCase],
+    };
+    registry.set(caseEvalId, {
+      id: caseEvalId,
+      title: caseEvalDef.title,
+      description: definition.description,
+      parentEvalId: definition.id,
+      use: (fn) => fn(caseEvalDef),
+    });
+  }
 }
 
 function assertManualScoreDescriptions<

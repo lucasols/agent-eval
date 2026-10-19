@@ -23,17 +23,19 @@ describe('CLI discovery', () => {
       expect(result.stdout).toContain('beta-eval');
       expect(normalizeTextSnapshot(workspacePath, result.stdout))
         .toMatchInlineSnapshot(`
-        "Discovered evals:
+          "Discovered evals:
 
-          Alpha Eval
-            description: Covers the happy-path alpha workflow
-            id: alpha-eval
-            file: evals/alpha.eval.ts
+            Alpha Eval
+              description: Covers the happy-path alpha workflow
+              id: alpha-eval
+              file: evals/alpha.eval.ts
+              cases: 1
 
-          Beta Eval
-            id: beta-eval
-            file: evals/nested/beta.eval.ts"
-      `);
+            Beta Eval
+              id: beta-eval
+              file: evals/nested/beta.eval.ts
+              cases: 1"
+        `);
     });
   });
 

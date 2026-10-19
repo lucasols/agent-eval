@@ -6,7 +6,13 @@ import {
   type EvalRegistryEntry,
   type EvalRuntimeScope,
 } from '@agent-evals/sdk';
+import type { DiscoveryIssue } from '@agent-evals/shared';
 import { resultify } from 't-result';
+import {
+  parseEvalDiscovery,
+  resolveCasesAsEvalsMetas,
+  type ResolvedEvalDiscoveryMeta,
+} from './discovery.ts';
 import { loadEvalModule } from './evalModuleLoader.ts';
 import {
   runWithModuleIsolation,
@@ -73,6 +79,49 @@ export async function loadDiscoveryEvalRegistry(params: {
   if (loaded.error) return undefined;
   discoveryRegistries.set(cacheKey, loaded.value);
   return loaded.value;
+}
+
+/**
+ * Discover the evals in one eval file: statically parse its `defineEval(...)`
+ * calls, load its discovery registry, and split `casesAsEvals` definitions
+ * into per-case evals. With `loadRegistry: 'when-split'` the module is only
+ * imported when a definition splits cases, since split evals exist only in
+ * the registry. `registry` is `undefined` when not loaded or the import failed.
+ */
+export async function discoverEvalFile(params: {
+  filePath: string;
+  content: string;
+  sourceFingerprint: string;
+  workspaceRoot: string;
+  loadRegistry: 'always' | 'when-split';
+}): Promise<{
+  metas: ResolvedEvalDiscoveryMeta[];
+  issues: DiscoveryIssue[];
+  registry: Map<string, EvalRegistryEntry> | undefined;
+  moduleIsolation: ModuleIsolationContext;
+}> {
+  const discovery = parseEvalDiscovery(params.filePath, params.content);
+  const moduleIsolation = {
+    key: `discovery:${params.filePath}`,
+    workspaceRoot: params.workspaceRoot,
+  };
+  const shouldLoadRegistry =
+    params.loadRegistry === 'always' ||
+    discovery.metas.some((meta) => meta.casesAsEvals);
+  const registry = shouldLoadRegistry
+    ? await loadDiscoveryEvalRegistry({
+        evalFilePath: params.filePath,
+        sourceFingerprint: params.sourceFingerprint,
+        moduleIsolation,
+      })
+    : undefined;
+
+  return {
+    metas: resolveCasesAsEvalsMetas(discovery.metas, registry),
+    issues: discovery.issues,
+    registry,
+    moduleIsolation,
+  };
 }
 
 export async function useIsolatedEvalDefinition<TResult>(

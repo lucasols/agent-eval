@@ -242,6 +242,7 @@ Eval freshness is tracked from the eval source fingerprint captured on the lates
 | `removeTags` |  | Workspace tags this eval should not inherit |
 | `cache` |  | Per-eval cache controls: `{ read?: boolean; store?: boolean }` |
 | `cases` | yes | `EvalCase[]` or `() => Promise<EvalCase[]>` (async loader for dynamic datasets) |
+| `casesAsEvals` |  | Set `true` to register each case as its own eval (see [Cases as separate evals](#cases-as-separate-evals)) |
 | `execute` | yes | `async ({ input }) => { ... }` |
 | `outputsSchema` | `TOutputs` | Zod schema that validates and types collected outputs before scoring |
 | `traceDisplay` |  | Per-eval trace attribute display overrides for the UI |
@@ -267,6 +268,29 @@ cases: [
 ```
 
 If you omit `cases` entirely, or resolve them to `[]`, the runner still executes the eval once with a synthetic empty-object input and a generated case id. Case ids must be unique within one eval. The same eval id may appear in different files; the runner treats the exact eval identity as `filePath + evalId`, and the exact case identity as `filePath + evalId + caseId`. Duplicate eval ids inside one file and duplicate case ids inside one eval are reported as errors.
+
+Discovery resolves case ids from the eval definition, without depending on past runs: array cases are read directly and async `cases` loaders are called in the `'cases'` scope, so `agent-evals list` and the app case picker show the current cases before any run. If the eval module or its loader throws, the case count is left unknown and the error surfaces when the eval runs.
+
+### Cases as separate evals
+
+Set `casesAsEvals: true` when each case should be tracked as its own eval with separate history, status, stats, charts, and freshness, while sharing one `execute`, scores, columns, and the rest of the definition:
+
+```ts
+defineEval<HighValueRefundInput>({
+  id: 'high-value-refund-tiers',
+  title: 'High Value Refund by Tier',
+  casesAsEvals: true,
+  cases: [
+    { id: 'standard-laptop', input: { loyaltyTier: 'standard' /* ... */ } },
+    { id: 'vip-espresso-machine', input: { loyaltyTier: 'vip' /* ... */ } },
+  ],
+  execute: async ({ input }) => {
+    await runHighValueRefundWorkflow(input);
+  },
+});
+```
+
+Each case becomes an eval with id `<id>/<case id>` (for example `high-value-refund-tiers/vip-espresso-machine`) and title `<title> / <case id>`, running only that case under its original case id. `agent-evals run --eval high-value-refund-tiers` runs every split eval; pass the full split id to run one. `casesAsEvals` must be written as the literal `true`, `cases` must be an array (load async datasets with top-level `await`), and it cannot be combined with `manualInput`. Switching an existing eval to `casesAsEvals` changes its eval keys, so earlier runs stay under the old eval.
 
 ### Tags
 

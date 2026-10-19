@@ -168,6 +168,10 @@ defineEval<RefundInput, RefundOutputs>({
 
 Case `id` values anchor historical runs, caches, and manual scores — keep them stable. Use eval `title` for the display name. Always set a short `description` that explains what behavior, workflow, or risk area the eval is testing; it is the primary summary shown in discovery surfaces and eval cards. For evals that require manual validation — `manualScores` columns or any output a human must review — make the `description` explain what the reviewer needs to validate. See `EvalDefinition` / `EvalCase` in the types for every supported field.
 
+Set `casesAsEvals: true` (literal) on `defineEval` when each case needs its own eval history, status, and freshness while sharing `execute`, scores, and columns. Each case registers as eval id `<id>/<case id>` with title `<title> / <case id>`; `--eval <id>` runs all split evals and `--eval <id>/<case id>` runs one. `cases` must be an array (use top-level `await` for async datasets) and `manualInput` is not allowed. Switching an existing eval to `casesAsEvals` changes its eval keys, so prior run history is not carried over.
+
+Discovery resolves case ids from the definition (including async `cases` loaders, run in the `'cases'` scope), so `agent-evals list` reports `cases: N` before any run. Keep async loaders cheap and side-effect free since discovery calls them; when one throws, the case count is omitted until a run surfaces the error.
+
 ### Manual input
 
 Use `manualInput` instead of `cases` when each run should pause for the user to type values:

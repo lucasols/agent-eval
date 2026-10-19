@@ -1,8 +1,9 @@
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { defineEval, runWithEvalRegistry } from '@agent-evals/sdk';
 import { afterEach, describe, expect, test } from 'vitest';
-import { parseEvalMetas } from './discovery.ts';
+import { parseEvalMetas, resolveCasesAsEvalsMetas } from './discovery.ts';
 import { createRunner } from './runner.ts';
 
 const createdWorkspaces: string[] = [];
@@ -47,14 +48,117 @@ defineEval({
 `,
       ),
     ).toEqual([
-      { filePath: 'evals/kanban.eval.ts', id: 'reuse-existing-stage-field' },
+      {
+        filePath: 'evals/kanban.eval.ts',
+        id: 'reuse-existing-stage-field',
+        casesAsEvals: false,
+      },
       {
         filePath: 'evals/kanban.eval.ts',
         id: 'top-level-title',
         title: 'Authored Eval Title',
         description: 'Authored eval description',
+        casesAsEvals: false,
       },
     ]);
+  });
+
+  test('splits casesAsEvals definitions into one eval per case', async () => {
+    const source = `import { defineEval } from '@agent-evals/sdk';
+
+defineEval({
+  id: 'tiers',
+  title: 'Tiers',
+  description: 'Refund policy per tier',
+  casesAsEvals: true,
+  cases: [
+    { id: 'standard', input: { casesAsEvals: false } },
+    { id: 'vip', input: {} },
+  ],
+  execute: () => {},
+});
+
+defineEval({ id: 'regular', casesAsEvals: false, execute: () => {} });
+`;
+    const staticMetas = parseEvalMetas('evals/tiers.eval.ts', source);
+    expect(staticMetas.map((meta) => [meta.id, meta.casesAsEvals])).toEqual([
+      ['tiers', true],
+      ['regular', false],
+    ]);
+
+    const registry = await runWithEvalRegistry((activeRegistry) => {
+      defineEval({
+        id: 'tiers',
+        title: 'Tiers',
+        description: 'Refund policy per tier',
+        casesAsEvals: true,
+        cases: [
+          { id: 'standard', input: { tier: 'standard' } },
+          { id: 'vip', input: { tier: 'vip' } },
+        ],
+        execute: () => {},
+      });
+      defineEval({ id: 'regular', execute: () => {} });
+      return activeRegistry;
+    });
+
+    expect([...registry.keys()]).toEqual([
+      'tiers/standard',
+      'tiers/vip',
+      'regular',
+    ]);
+    expect(
+      registry
+        .get('tiers/vip')
+        ?.use((def) => ({ id: def.id, title: def.title, cases: def.cases })),
+    ).toEqual({
+      id: 'tiers/vip',
+      title: 'Tiers / vip',
+      cases: [{ id: 'vip', input: { tier: 'vip' } }],
+    });
+    expect(resolveCasesAsEvalsMetas(staticMetas, registry))
+      .toMatchInlineSnapshot(`
+        [
+          {
+            "description": "Refund policy per tier",
+            "filePath": "evals/tiers.eval.ts",
+            "id": "tiers/standard",
+            "parentEvalId": "tiers",
+            "title": "Tiers / standard",
+          },
+          {
+            "description": "Refund policy per tier",
+            "filePath": "evals/tiers.eval.ts",
+            "id": "tiers/vip",
+            "parentEvalId": "tiers",
+            "title": "Tiers / vip",
+          },
+          {
+            "filePath": "evals/tiers.eval.ts",
+            "id": "regular",
+            "parentEvalId": undefined,
+          },
+        ]
+      `);
+    expect(
+      resolveCasesAsEvalsMetas(staticMetas, undefined).map((meta) => meta.id),
+    ).toEqual(['tiers', 'regular']);
+  });
+
+  test('rejects duplicate case ids in casesAsEvals definitions', () => {
+    expect(() =>
+      defineEval({
+        id: 'tiers',
+        casesAsEvals: true,
+        cases: [
+          { id: 'vip', input: {} },
+          { id: 'vip', input: {} },
+        ],
+        execute: () => {},
+      }),
+    ).toThrow(
+      'Eval "tiers" with casesAsEvals produces duplicate eval id "tiers/vip". Case ids must be unique.',
+    );
   });
 
   test('allows the same eval id in different files', async () => {

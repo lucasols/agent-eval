@@ -39,13 +39,13 @@ import {
   resolveCaseDetailLookup,
   resolveCaseRowForCaseDetailLookup,
 } from './caseDetailLookup.ts';
+import { discoverEvalCaseIds } from './caseDiscovery.ts';
 import { validateCharts } from './chartValidation.ts';
 import { buildDeclaredColumnDefs } from './columnBuilder.ts';
 import { loadConfig } from './config.ts';
 import { createConfigReloadController } from './configReload.ts';
 import { resolveEvalDefaultConfig } from './defaultConfig.ts';
-import { parseEvalDiscovery } from './discovery.ts';
-import { loadDiscoveryEvalRegistry } from './evalRegistryLoader.ts';
+import { discoverEvalFile } from './evalRegistryLoader.ts';
 import { buildEvalSummary, setLatestRunInfoMap } from './evalSummaries.ts';
 import { getRunFreshnessTimestamp } from './freshness.ts';
 import { readGitWorktreeState } from './gitState.ts';
@@ -365,10 +365,6 @@ export function createRunner({
     }
 
     return references;
-  }
-
-  function getDiscoveryModuleIsolationKey(filePath: string): string {
-    return `discovery:${filePath}`;
   }
 
   const runner: EvalRunner = {
@@ -720,8 +716,14 @@ export function createRunner({
       for (const filePath of discovered) {
         try {
           const content = await readFile(filePath, 'utf-8');
-          const discovery = parseEvalDiscovery(filePath, content);
-          const discoveredMetas = discovery.metas;
+          const sourceFingerprint = getSourceFingerprint(content);
+          const discovery = await discoverEvalFile({
+            filePath,
+            content,
+            sourceFingerprint,
+            workspaceRoot,
+            loadRegistry: 'always',
+          });
           discoveryIssues.push(
             ...discovery.issues.map((issue) => ({
               ...issue,
@@ -729,17 +731,8 @@ export function createRunner({
               message: `Duplicate eval id "${issue.evalId}" in ${toWorkspaceRelativePath(issue.filePath)}. Eval ids must be unique within one file.`,
             })),
           );
-          const sourceFingerprint = getSourceFingerprint(content);
-          const loadedRegistry = await loadDiscoveryEvalRegistry({
-            evalFilePath: filePath,
-            sourceFingerprint,
-            moduleIsolation: {
-              key: getDiscoveryModuleIsolationKey(filePath),
-              workspaceRoot,
-            },
-          });
-          for (const meta of discoveredMetas) {
-            const discoveredEntry = loadedRegistry?.get(meta.id);
+          for (const meta of discovery.metas) {
+            const discoveredEntry = discovery.registry?.get(meta.id);
             const title = meta.title;
             const description = meta.description;
             let columnDefs = buildDeclaredColumnDefs(
@@ -809,6 +802,12 @@ export function createRunner({
               }
             });
 
+            const caseIds = await discoverEvalCaseIds({
+              entry: discoveredEntry,
+              evalId: meta.id,
+              moduleIsolation: discovery.moduleIsolation,
+            });
+
             const key = buildEvalKey({
               filePath: relativeFilePath,
               evalId: meta.id,
@@ -816,6 +815,7 @@ export function createRunner({
             evals.set(key, {
               key,
               id: meta.id,
+              parentEvalId: meta.parentEvalId,
               title,
               description,
               filePath: relativeFilePath,
@@ -823,8 +823,8 @@ export function createRunner({
               sourceFilePath: meta.filePath,
               sourceFingerprint,
               columnDefs,
-              caseCount: null,
-              caseIds: undefined,
+              caseCount: caseIds?.length ?? null,
+              caseIds,
               stats,
               defaultStatAggregate,
               charts,

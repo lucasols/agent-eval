@@ -480,23 +480,15 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   const chartLabels = visibleCharts.map(
     ({ config }, index) => config.heading ?? `Chart ${String(index + 1)}`,
   );
-  const knownCaseIds = useMemo(() => {
-    const fromSummary = evalSummary.caseIds ?? [];
-    const sourceCaseIds =
-      fromSummary.length > 0
-        ? fromSummary
-        : latestCases.map((caseRow) => caseRow.caseId);
-    return [...new Set(sourceCaseIds)];
-  }, [evalSummary.caseIds, latestCases]);
   const knownCases = useMemo(() => {
     const latestTagsByCaseId = new Map(
       latestCases.map((caseRow) => [caseRow.caseId, caseRow.tags ?? []]),
     );
-    return knownCaseIds.map((caseId) => ({
+    return (evalSummary.caseIds ?? []).map((caseId) => ({
       id: caseId,
       tags: latestTagsByCaseId.get(caseId) ?? evalSummary.tags ?? [],
     }));
-  }, [evalSummary.tags, knownCaseIds, latestCases]);
+  }, [evalSummary.caseIds, evalSummary.tags, latestCases]);
 
   const activeStatus = getActiveEvalStatus(currentRun, evalSummary.key);
   const isRunning = activeStatus === 'running';
@@ -526,7 +518,7 @@ export function EvalCard({ evalSummary, mode }: EvalCardProps) {
   function openCasePicker(cacheMode: CacheMode) {
     setCasePickerCacheMode(cacheMode);
     setCasePickerTemporary(true);
-    setSelectedCaseIds(knownCaseIds);
+    setSelectedCaseIds(evalSummary.caseIds ?? []);
     setCasePickerOpen(true);
   }
 

@@ -118,8 +118,16 @@ export const evalSummarySchema = z.object({
   /** Current workspace commit SHA when the summary was requested. */
   currentCommitSha: z.string().nullable(),
   columnDefs: z.array(columnDefSchema),
+  /**
+   * Number of cases resolved from the eval definition during discovery, or
+   * `null` when the eval module or its `cases` loader failed.
+   */
   caseCount: z.number().nullable(),
-  /** Authored case ids discovered for this eval, when case generation has run. */
+  /**
+   * Case ids resolved from the eval definition during discovery (including
+   * async `cases` loaders), independent of past runs. `undefined` when the
+   * eval module or its `cases` loader failed.
+   */
   caseIds: z.array(z.string()).optional(),
   lastRunStatus: z
     .enum(['pass', 'fail', 'error', 'running', 'cancelled', 'unscored'])

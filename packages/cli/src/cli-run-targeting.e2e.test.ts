@@ -730,6 +730,105 @@ defineEval({
     });
   });
 
+  test('runs casesAsEvals cases as separate evals targeted by the parent id', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const listResult = await runExampleCli(workspacePath, ['list']);
+      expect(listResult.exitCode).toBe(0);
+      expect(listResult.stdout).toContain(
+        'id: high-value-refund-tiers/standard-laptop',
+      );
+      expect(listResult.stdout).toContain(
+        'id: high-value-refund-tiers/vip-espresso-machine',
+      );
+      expect(listResult.stdout).not.toContain('id: high-value-refund-tiers\n');
+
+      const result = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'high-value-refund-tiers',
+      ]);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe('');
+
+      const artifacts = await readSingleRunArtifacts(workspacePath);
+
+      expect(
+        normalizeSnapshotValue(workspacePath, {
+          commandOutput: normalizeTextSnapshot(workspacePath, result.stdout),
+          persistedCases: artifacts.cases.map((caseRow) => ({
+            caseId: caseRow.caseId,
+            evalId: caseRow.evalId,
+            escalationQueue: caseRow.columns.escalationQueue,
+            financeEscalated: caseRow.columns.financeEscalated,
+            status: caseRow.status,
+          })),
+          target: artifacts.manifest.target,
+        }),
+      ).toMatchInlineSnapshot(`
+        {
+          "commandOutput": "Run started: <run-id>
+        Trials: 1
+
+        --- Run Summary ---
+        Status: completed
+        Total: 2
+        Passed: 2
+        Failed: 0
+        Errors: 0
+        Pass Rate: 2/2
+        Duration: <duration>
+        LLM calls: 4 made, 0 cached",
+          "persistedCases": [
+            {
+              "caseId": "standard-laptop",
+              "escalationQueue": "finance-review",
+              "evalId": "high-value-refund-tiers/standard-laptop",
+              "financeEscalated": 1,
+              "status": "pass",
+            },
+            {
+              "caseId": "vip-espresso-machine",
+              "escalationQueue": "finance-review",
+              "evalId": "high-value-refund-tiers/vip-espresso-machine",
+              "financeEscalated": 1,
+              "status": "pass",
+            },
+          ],
+          "target": {
+            "evalKeys": [
+              "evals%2Fsupport%2Frefunds%2Fescalations%2Fhigh-value-refund-tiers.eval.ts#high-value-refund-tiers%2Fstandard-laptop",
+              "evals%2Fsupport%2Frefunds%2Fescalations%2Fhigh-value-refund-tiers.eval.ts#high-value-refund-tiers%2Fvip-espresso-machine",
+            ],
+            "mode": "evalIds",
+          },
+        }
+      `);
+    });
+  });
+
+  test('runs one casesAsEvals split eval by its own id', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      const result = await runExampleCli(workspacePath, [
+        'run',
+        '--eval',
+        'high-value-refund-tiers/vip-espresso-machine',
+      ]);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe('');
+      expect(result.stdout).toContain('Total: 1');
+
+      const artifacts = await readSingleRunArtifacts(workspacePath);
+      expect(artifacts.manifest.target.evalKeys).toEqual([
+        'evals%2Fsupport%2Frefunds%2Fescalations%2Fhigh-value-refund-tiers.eval.ts#high-value-refund-tiers%2Fvip-espresso-machine',
+      ]);
+      expect(artifacts.cases.map((caseRow) => caseRow.caseId)).toEqual([
+        'vip-espresso-machine',
+      ]);
+    });
+  });
+
   test('supports json summaries and persists one winning case row for multi-trial runs', async () => {
     await withIsolatedExampleWorkspace(async (workspacePath) => {
       const result = await runExampleCli(workspacePath, [

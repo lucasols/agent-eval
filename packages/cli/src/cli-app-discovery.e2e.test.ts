@@ -23,7 +23,7 @@ test('app keeps loaded eval metadata for unchanged files after watcher refreshes
       );
       expect(baseline).toMatchInlineSnapshot(`
         {
-          "example": 23,
+          "example": 25,
           "manual": 1,
           "playground": 5,
           "refunds": 3,

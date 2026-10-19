@@ -23,7 +23,7 @@ import {
 } from './cacheConfig.ts';
 import { createFsCacheStore } from './cacheStore.ts';
 import { loadConfig } from './config.ts';
-import { parseEvalDiscovery } from './discovery.ts';
+import { discoverEvalFile } from './evalRegistryLoader.ts';
 import { registerAgentEvalsPackageResolutionHooks } from './moduleIsolation.ts';
 import type { RunChildContext, RunChildMessage } from './runChildProtocol.ts';
 import { persistRunState } from './runMaintenance.ts';
@@ -38,6 +38,7 @@ import { getTargetEvals as resolveTargetEvals } from './targeting.ts';
 const evalMetaSchema = z.object({
   key: z.string(),
   id: z.string(),
+  parentEvalId: z.string().optional(),
   title: z.string().optional(),
   description: z.string().optional(),
   filePath: z.string(),
@@ -161,7 +162,13 @@ async function discoverRunEvals(params: {
   for (const filePath of discovered) {
     const source = await readFile(filePath, 'utf-8');
     const sourceFingerprint = getSourceFingerprint(source);
-    const metas = parseEvalDiscovery(filePath, source).metas;
+    const { metas } = await discoverEvalFile({
+      filePath,
+      content: source,
+      sourceFingerprint,
+      workspaceRoot: params.workspaceRoot,
+      loadRegistry: 'when-split',
+    });
 
     for (const meta of metas) {
       const relativeFilePath = toWorkspaceRelativePath({
@@ -172,6 +179,7 @@ async function discoverRunEvals(params: {
       evals.set(key, {
         key,
         id: meta.id,
+        parentEvalId: meta.parentEvalId,
         title: meta.title,
         description: meta.description,
         filePath: relativeFilePath,
