@@ -78,6 +78,10 @@ const CommandHint = styled.code`
   padding: 10px 12px;
 `;
 
+function getRowIndent(depth: number): number {
+  return 10 + depth * 14;
+}
+
 const rowShell = css`
   ${inline({ gap: 8, align: 'center' })}
   ${transition({ property: 'background, color' })}
@@ -97,19 +101,6 @@ const rowShell = css`
   padding-right: 10px;
   overflow: hidden;
 
-  &.depth0 {
-    padding-left: 10px;
-  }
-  &.depth1 {
-    padding-left: 24px;
-  }
-  &.depth2 {
-    padding-left: 38px;
-  }
-  &.depth3 {
-    padding-left: 52px;
-  }
-
   &.active {
     background: ${colors.surface.var};
     color: ${colors.text.var};
@@ -127,13 +118,7 @@ const rowShell = css`
   }
 `;
 
-const RowBase = styled.button<{
-  active: boolean;
-  depth0: boolean;
-  depth1: boolean;
-  depth2: boolean;
-  depth3: boolean;
-}>`
+const RowBase = styled.button<{ active: boolean }>`
   ${rowShell};
   cursor: pointer;
 
@@ -429,10 +414,7 @@ function FolderRow({
         type="button"
         onClick={handleRowClick}
         active={isActive}
-        depth0={depth === 0}
-        depth1={depth === 1}
-        depth2={depth === 2}
-        depth3={depth >= 3}
+        style={{ paddingLeft: getRowIndent(depth) }}
       >
         <Tooltip content={isOpen ? 'Collapse folder' : 'Expand folder'}>
           <ChevronButton
@@ -505,10 +487,7 @@ function FileRow({
         type="button"
         onClick={handleRowClick}
         active={isActive}
-        depth0={depth === 0}
-        depth1={depth === 1}
-        depth2={depth === 2}
-        depth3={depth >= 3}
+        style={{ paddingLeft: getRowIndent(depth) }}
       >
         <Tooltip content={isOpen ? 'Collapse file' : 'Expand file'}>
           <ChevronButton
@@ -575,10 +554,7 @@ function LeafRow({
         type="button"
         onClick={() => selectEval(ev.key)}
         active={isActive}
-        depth0={depth === 0}
-        depth1={depth === 1}
-        depth2={depth === 2}
-        depth3={depth >= 3}
+        style={{ paddingLeft: getRowIndent(depth) }}
       >
         <StatusDot status={displayStatus} />
         <LeafLabel>
