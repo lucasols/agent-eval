@@ -170,7 +170,7 @@ Case `id` values anchor historical runs, caches, and manual scores — keep them
 
 Set `casesAsEvals: true` (literal) on `defineEval` when each case needs its own eval history, status, and freshness while sharing `execute`, scores, and columns. Each case registers as eval id `<id>/<case id>` with title `<title> / <case id>`; `--eval <id>` runs all split evals and `--eval <id>/<case id>` runs one. `cases` must be an array (use top-level `await` for async datasets) and `manualInput` is not allowed. Switching an existing eval to `casesAsEvals` changes its eval keys, so prior run history is not carried over.
 
-Discovery resolves case ids from the definition (including async `cases` loaders, run in the `'cases'` scope), so `agent-evals list` reports `cases: N` before any run. Keep async loaders cheap and side-effect free since discovery calls them; when one throws, the case count is omitted until a run surfaces the error.
+Discovery resolves case ids from the definition (including async `cases` loaders, run in the `'cases'` scope), so `agent-evals list` reports `cases: N` before any run. Keep async loaders cheap and side-effect free since discovery calls them; when one throws, the case count is omitted until a run surfaces the error. Discovery imports every eval file into one shared module graph, so workspace modules imported by several eval files are evaluated once per discovery process; keep module top-level code free of per-eval side effects. Runs still give every case/trial its own isolation scope.
 
 ### Manual input
 

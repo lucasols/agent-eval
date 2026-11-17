@@ -1,4 +1,11 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
@@ -7,6 +14,7 @@ import {
   repoRoot,
   runExampleCli,
   runWorkspaceCommand,
+  withIsolatedExampleWorkspace,
 } from './cliTestUtils.ts';
 
 describe('CLI discovery', () => {
@@ -36,6 +44,38 @@ describe('CLI discovery', () => {
               file: evals/nested/beta.eval.ts
               cases: 1"
         `);
+    });
+  });
+
+  test('evaluates workspace modules shared by several eval files once per discovery', async () => {
+    await withIsolatedExampleWorkspace(async (workspacePath) => {
+      // Imported by five example eval files. ESM hoists the appended imports.
+      const sharedModulePath = resolve(
+        workspacePath,
+        'src/evals/exampleEvalUtils.ts',
+      );
+      await writeFile(
+        sharedModulePath,
+        `${await readFile(sharedModulePath, 'utf8')}
+import { appendFileSync as appendLoadLog } from 'node:fs';
+appendLoadLog(${JSON.stringify(resolve(workspacePath, 'shared-module-loads.log'))}, 'load\\n');
+`,
+      );
+
+      const result = await runExampleCli(workspacePath, ['list']);
+
+      expect(result.exitCode, result.stderr).toBe(0);
+      // Case counts only appear when each eval file's registry loaded.
+      expect(result.stdout).toContain('id: refund-workflow');
+      expect(
+        result.stdout.match(/^ {4}cases: \d+$/gm)?.length ?? 0,
+      ).toBeGreaterThan(20);
+      expect(
+        await readFile(
+          resolve(workspacePath, 'shared-module-loads.log'),
+          'utf8',
+        ),
+      ).toBe('load\n');
     });
   });
 

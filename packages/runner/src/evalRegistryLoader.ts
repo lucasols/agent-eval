@@ -101,8 +101,13 @@ export async function discoverEvalFile(params: {
   moduleIsolation: ModuleIsolationContext;
 }> {
   const discovery = parseEvalDiscovery(params.filePath, params.content);
+  // One key for every eval file, so workspace modules shared by many eval
+  // files (agents, tools, SDK clients) are compiled and evaluated once per
+  // process instead of once per eval file. Eval files themselves still load
+  // fresh per source fingerprint. Discovery only registers definitions and
+  // resolves cases; runs keep per-run isolation in child processes.
   const moduleIsolation = {
-    key: `discovery:${params.filePath}`,
+    key: 'discovery',
     workspaceRoot: params.workspaceRoot,
   };
   const shouldLoadRegistry =
