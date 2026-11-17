@@ -204,10 +204,21 @@ export type EvalScoreContext<
   TOutputs extends EvalOutputs = EvalOutputs,
 > = { input: TInput; outputs: TOutputs; case: EvalCase<TInput> };
 
-/** Score callback that computes a numeric result for one case. */
+/**
+ * Score value plus a short explanation of the verdict, e.g. the reason an
+ * LLM judge gave. The reason is persisted next to the score value on the case
+ * result; `null`, a missing `reason`, or a blank string stores no reason.
+ */
+export type EvalScoreResult = { value: number; reason?: string | null };
+
+/**
+ * Score callback that computes a numeric result for one case. Return a bare
+ * number, or an {@link EvalScoreResult} to also record why the case got that
+ * score.
+ */
 export type EvalScoreFn<TInput, TOutputs extends EvalOutputs = EvalOutputs> = (
   ctx: EvalScoreContext<TInput, TOutputs>,
-) => number | Promise<number>;
+) => number | EvalScoreResult | Promise<number | EvalScoreResult>;
 
 /**
  * Score definition accepted by `defineEval`, with optional UI metadata.

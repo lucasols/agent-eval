@@ -266,6 +266,13 @@ export const caseRowSchema = z.object({
    */
   scoreOverrides: z.record(z.string(), scoreOverrideSchema).optional(),
   /**
+   * Short explanations returned by computed scores, keyed by score column
+   * key (from `compute` returning `{ value, reason }`). Scores that returned a
+   * bare number or no reason are absent. A reviewer override keeps the
+   * reason, which then explains the original computed value.
+   */
+  scoreReasons: z.record(z.string(), z.string()).optional(),
+  /**
    * Runtime column definitions authored by output helpers for this case.
    * These complement eval-level `columns` without changing discovery metadata.
    */
@@ -427,6 +434,13 @@ export const caseDetailSchema = z.object({
    * original computed value lives in the override entry.
    */
   scoreOverrides: z.record(z.string(), scoreOverrideSchema).optional(),
+  /**
+   * Short explanations returned by computed scores, keyed by score column
+   * key (from `compute` returning `{ value, reason }`). Scores that returned a
+   * bare number or no reason are absent. A reviewer override keeps the
+   * reason, which then explains the original computed value.
+   */
+  scoreReasons: z.record(z.string(), z.string()).optional(),
   /**
    * Runtime column definitions authored by output helpers for this case.
    * These complement eval-level `columns` without changing discovery metadata.

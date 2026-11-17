@@ -848,6 +848,7 @@ export function CaseDrawer() {
             scoreColumns={scoreColumns}
             columns={d.columns}
             scoreOverrides={d.scoreOverrides}
+            scoreReasons={d.scoreReasons}
             runId={selectedCaseRunId}
             caseId={selectedCaseId}
           />

@@ -925,6 +925,18 @@ describe('CLI eval features', () => {
 
       expect(scoreThresholdCase.status).toBe('fail');
       expect(scoreThresholdCase.columns.matchesGoldAnswer).toBe(0);
+      // `compute` returned `{ value, reason }`; the reason is persisted on both
+      // the case row and the case detail.
+      const goldAnswerReason = {
+        matchesGoldAnswer:
+          'Response does not state the gold answer "Approved refund".',
+      };
+      expect(scoreThresholdCase.scoreReasons).toEqual(goldAnswerReason);
+      expect(
+        requireCaseDetail(artifacts.caseDetails, 'score-threshold-miss')
+          .scoreReasons,
+      ).toEqual(goldAnswerReason);
+      expect(assertionFailureCase.scoreReasons).toBeUndefined();
       expect(assertionFailureCase.status).toBe('fail');
       expect(silentPassCase.status).toBe('pass');
       expect(silentAssertionCase.status).toBe('fail');

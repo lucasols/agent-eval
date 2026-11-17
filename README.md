@@ -206,7 +206,7 @@ Use `pnpm publish:pkg` from the repo root to publish through `pkg-manager`. The 
 | `apiCalls` | `ApiCallsConfig?` | API calls tab config for the case-run drawer (kinds, attribute paths, custom metrics) |
 | `runLogs` | `{ captureConsole?: boolean }?` | Case log capture config; set `captureConsole: false` to stop persisting console calls |
 
-Each run executes in a separate child process. Within that run, every case and trial gets its own module-isolation scope while still respecting `concurrency`, so module-level state used by mocks is not shared across parallel cases. Targeted evals are queued round-robin by parent folder, with file/id order preserved inside each folder, so folder-local caches have a chance to warm before later evals from the same folder run.
+Discovery (`agent-evals list`, `agent-evals app` startup, and watcher refreshes) imports all eval files into one shared module graph, so workspace modules shared by many eval files load once instead of once per file. Each run executes in a separate child process. Within that run, every case and trial gets its own module-isolation scope while still respecting `concurrency`, so module-level state used by mocks is not shared across parallel cases. Targeted evals are queued round-robin by parent folder, with file/id order preserved inside each folder, so folder-local caches have a chance to warm before later evals from the same folder run.
 
 When `trials > 1`, the runner executes the case repeatedly but persists a single winning result per case. `lowestScore` is the default. `median` uses the lower median when the number of trials is even.
 
@@ -827,6 +827,21 @@ scores: {
 Every score is a first-class column in the run table, rendered per case and as the per-run average. Scores are **not** combined into a single average — each column stands on its own.
 
 Pass/fail is per-score: a case fails if any score that declares a `passThreshold` falls below that threshold (or if an assertion failed, or the case errored). A run fails if any of its cases fail. Scores without `passThreshold` are purely informational and never gate pass/fail. Hover a score column in the UI to see its threshold.
+
+A score's `compute` can return `{ value, reason }` instead of a bare number to record why the case got that score, for example an LLM judge's verdict sentence. The reason is persisted as `scoreReasons[scoreKey]` on the case row and case detail, shown under the score in the case's score panel, and shown on hover over the score cell in the run table. `reason` may be omitted, `null`, or blank to store nothing:
+
+```ts
+scores: {
+  judgeVerdict: {
+    label: 'Judge Verdict',
+    passThreshold: 1,
+    compute: async ({ outputs }) => {
+      const verdict = await judgeResponse(outputs.response);
+      return { value: verdict.pass ? 1 : 0, reason: verdict.reason };
+    },
+  },
+}
+```
 
 Scores can choose a numeric visualization with `format`. In addition to the standard numeric formats, score columns support `format: 'passFail'` and `format: 'stars'`:
 
