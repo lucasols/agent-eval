@@ -5,6 +5,7 @@ import type {
   CacheStorage,
   CaseDetail,
   CaseRow,
+  ChangedEvals,
   ConfigReloadState,
   CreateRunRequest,
   DiscoveryIssue,
@@ -30,6 +31,15 @@ export type EvalRunner = {
   init(): Promise<void>;
   /** Return the currently discovered eval summaries for the active workspace. */
   getEvals(): EvalSummary[];
+  /**
+   * Report which discovered evals have a changed source file on the current
+   * branch: committed, uncommitted, or untracked changes since the merge-base
+   * with the base ref. The base ref is the current pull request's base branch
+   * from `gh pr view` (preferring `origin/<base>`), else
+   * `cache.branchPruneBaseRef`. Resolves to `available: false` with a reason
+   * outside git or when no base ref can be resolved; never rejects.
+   */
+  getChangedEvals(): Promise<ChangedEvals>;
   /** Look up one discovered eval by id. */
   getEval(id: string): EvalSummary | undefined;
   /**

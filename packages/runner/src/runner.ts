@@ -40,6 +40,7 @@ import {
   resolveCaseRowForCaseDetailLookup,
 } from './caseDetailLookup.ts';
 import { discoverEvalCaseIds } from './caseDiscovery.ts';
+import { createChangedEvalsReader } from './changedEvals.ts';
 import { validateCharts } from './chartValidation.ts';
 import { buildDeclaredColumnDefs } from './columnBuilder.ts';
 import { loadConfig } from './config.ts';
@@ -130,6 +131,10 @@ export function createRunner({
   let discoveryRefreshTimer: ReturnType<typeof setTimeout> | undefined;
   let runHistoryRefreshTimer: ReturnType<typeof setTimeout> | undefined;
   let cachePruneIdleTimer: ReturnType<typeof setTimeout> | undefined;
+  const readChangedEvals = createChangedEvalsReader({
+    getWorkspaceRoot: () => workspaceRoot,
+    getConfiguredBaseRef: () => config.cache?.branchPruneBaseRef,
+  });
   const configReload = createConfigReloadController({
     getActiveRunCount,
     closeRunnerWatchers: closeWatchers,
@@ -632,6 +637,7 @@ export function createRunner({
       }
       return result;
     },
+    getChangedEvals: () => readChangedEvals(getSortedEvalMetas()),
     getEval(id) {
       const meta = resolveEvalMeta(id);
       if (!meta) return undefined;

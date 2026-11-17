@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process';
 import { relative, resolve } from 'node:path';
 import {
   extractCacheEntries,
@@ -11,6 +10,11 @@ import {
 import { Result } from 't-result';
 import type { FsCacheStore } from './cacheStore.ts';
 import { getRunFreshnessTimestamp } from './freshness.ts';
+import {
+  resolveGitBaseRef,
+  runGit,
+  type GitBaseRefSource,
+} from './gitBaseRef.ts';
 
 /** Options for {@link pruneBranchCache}. */
 export type BranchCachePruneOptions = {
@@ -27,9 +31,7 @@ export type BranchCachePruneOptions = {
 };
 
 /** Where the base ref used by {@link pruneBranchCache} came from. */
-export type BranchCachePruneBaseRefSource = 'flag' | 'config' | 'pullRequest';
-
-type ResolvedBaseRef = { ref: string; source: BranchCachePruneBaseRefSource };
+export type BranchCachePruneBaseRefSource = GitBaseRefSource;
 
 /** Result of pruning cache entries added on the current branch. */
 export type BranchCachePruneSummary = {
@@ -107,19 +109,19 @@ export async function pruneBranchCache<TRun extends PrunableRun>(params: {
       new Error('A run is in progress; wait for it to finish before pruning.'),
     );
   }
-  const baseRef = resolveBaseRef({
+  const baseRef = await resolveGitBaseRef({
     workspaceRoot: params.workspaceRoot,
     flagBaseRef: params.options.baseRef,
     configuredBaseRef: params.configuredBaseRef,
   });
   if (baseRef.error) return baseRef.errorResult();
-  const mergeBase = runGit(params.workspaceRoot, [
+  const mergeBase = await runGit(params.workspaceRoot, [
     'merge-base',
     'HEAD',
     baseRef.value.ref,
   ]);
   if (mergeBase.error) return mergeBase.errorResult();
-  const baseFiles = listBaseCacheFiles({
+  const baseFiles = await listBaseCacheFiles({
     workspaceRoot: params.workspaceRoot,
     cacheDir: params.cacheStore.dir(),
     commit: mergeBase.value,
@@ -256,74 +258,18 @@ function getRunCacheEntries<TRun extends PrunableRun>(
   };
 }
 
-function resolveBaseRef(params: {
-  workspaceRoot: string;
-  flagBaseRef: string | undefined;
-  configuredBaseRef: string | undefined;
-}): Result<ResolvedBaseRef, Error> {
-  if (params.flagBaseRef !== undefined) {
-    return verifyRef(params.workspaceRoot, params.flagBaseRef, 'flag');
-  }
-
-  const prBase = runCommand(params.workspaceRoot, 'gh', [
-    'pr',
-    'view',
-    '--json',
-    'baseRefName',
-    '--jq',
-    '.baseRefName',
-  ]);
-  if (!prBase.error && prBase.value.length > 0) {
-    // Prefer the remote-tracking ref so a stale local base branch does not
-    // make already-merged cache entries look branch-added.
-    const remoteRef = verifyRef(
-      params.workspaceRoot,
-      `origin/${prBase.value}`,
-      'pullRequest',
-    );
-    if (!remoteRef.error) return remoteRef;
-    return verifyRef(params.workspaceRoot, prBase.value, 'pullRequest');
-  }
-
-  if (params.configuredBaseRef !== undefined) {
-    return verifyRef(params.workspaceRoot, params.configuredBaseRef, 'config');
-  }
-  return Result.err(
-    new Error(
-      `Could not resolve the base branch from the current pull request${prBase.error ? ` (${prBase.error.message})` : ''}. Pass --base <ref> or set cache.branchPruneBaseRef in agent-evals.config.ts.`,
-    ),
-  );
-}
-
-function verifyRef(
-  workspaceRoot: string,
-  ref: string,
-  source: BranchCachePruneBaseRefSource,
-): Result<ResolvedBaseRef, Error> {
-  const verified = runGit(workspaceRoot, [
-    'rev-parse',
-    '--verify',
-    '--quiet',
-    `${ref}^{commit}`,
-  ]);
-  if (verified.error) {
-    return Result.err(new Error(`Base ref "${ref}" was not found.`));
-  }
-  return Result.ok({ ref, source });
-}
-
-function listBaseCacheFiles(params: {
+async function listBaseCacheFiles(params: {
   workspaceRoot: string;
   cacheDir: string;
   commit: string;
-}): Result<Set<string>, Error> {
-  const repoRoot = runGit(params.workspaceRoot, [
+}): Promise<Result<Set<string>, Error>> {
+  const repoRoot = await runGit(params.workspaceRoot, [
     'rev-parse',
     '--show-toplevel',
   ]);
   if (repoRoot.error) return repoRoot.errorResult();
 
-  const files = runGit(params.workspaceRoot, [
+  const files = await runGit(params.workspaceRoot, [
     'ls-tree',
     '-r',
     '--name-only',
@@ -342,38 +288,6 @@ function listBaseCacheFiles(params: {
         .map((line) => resolve(repoRoot.value, line)),
     ),
   );
-}
-
-function runGit(cwd: string, args: string[]): Result<string, Error> {
-  return runCommand(cwd, 'git', args);
-}
-
-function runCommand(
-  cwd: string,
-  command: string,
-  args: string[],
-): Result<string, Error> {
-  const result = spawnSync(command, args, {
-    cwd,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-    // PR lookup must not hold eval completion indefinitely when offline.
-    timeout: command === 'gh' ? 5_000 : undefined,
-  });
-  if (result.error) {
-    return Result.err(
-      new Error(`${command} could not be started: ${result.error.message}`),
-    );
-  }
-  if (result.status !== 0) {
-    const stderr = result.stderr.trim();
-    return Result.err(
-      new Error(
-        `${command} ${args.join(' ')} failed${stderr.length > 0 ? `: ${stderr}` : ''}`,
-      ),
-    );
-  }
-  return Result.ok(result.stdout.trim());
 }
 
 function toEntryId(entry: { namespace: string; key: string }): string {

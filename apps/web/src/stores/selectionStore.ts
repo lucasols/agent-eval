@@ -29,6 +29,8 @@ type SelectionState = {
   collapsedFolders: Set<string>;
   statusFilters: Set<EvalDisplayStatus>;
   tagFilters: Set<string>;
+  /** Keep only evals whose file changed on the current branch. */
+  changedOnly: boolean;
   searchQuery: string;
 };
 
@@ -112,6 +114,12 @@ function writeTagFiltersToSearchParams(
   }
 }
 
+function readChangedOnlyFromSearchParams(
+  searchParams: URLSearchParams,
+): boolean {
+  return searchParams.get('changed') === '1';
+}
+
 function readSelectionFromSearchParams(
   searchParams: URLSearchParams,
 ): Selection {
@@ -138,6 +146,7 @@ export const selectionStore = new Store<SelectionState>({
     collapsedFolders: new Set<string>(),
     statusFilters: initialStatusFilters,
     tagFilters: initialTagFilters,
+    changedOnly: readChangedOnlyFromSearchParams(getCurrentSearchParams()),
     searchQuery: '',
   },
 });
@@ -170,6 +179,7 @@ function applySelectionFromUrl(
   selection: Selection,
   statusFilters: Set<EvalDisplayStatus>,
   tagFilters: Set<string>,
+  changedOnly: boolean,
 ): void {
   selectionStore.setState((prev) => {
     let collapsedFolders = prev.collapsedFolders;
@@ -199,12 +209,20 @@ function applySelectionFromUrl(
       !selectionChanged &&
       !collapsedChanged &&
       !statusFiltersChanged &&
-      !tagFiltersChanged
+      !tagFiltersChanged &&
+      prev.changedOnly === changedOnly
     ) {
       return prev;
     }
 
-    return { ...prev, selection, collapsedFolders, statusFilters, tagFilters };
+    return {
+      ...prev,
+      selection,
+      collapsedFolders,
+      statusFilters,
+      tagFilters,
+      changedOnly,
+    };
   });
 }
 
@@ -281,6 +299,19 @@ export function clearEvalTagFilters(): void {
   });
 }
 
+/**
+ * Toggle the filter that keeps only evals whose file changed on the current
+ * branch versus its base ref.
+ */
+export function toggleChangedEvalsFilter(): void {
+  const changedOnly = !selectionStore.state.changedOnly;
+  selectionStore.setPartialState({ changedOnly });
+  updateSearchParams((searchParams) => {
+    if (changedOnly) searchParams.set('changed', '1');
+    else searchParams.delete('changed');
+  });
+}
+
 export function toggleFolder(path: string): void {
   selectionStore.setState((prev) => {
     const next = new Set(prev.collapsedFolders);
@@ -322,5 +353,10 @@ export function syncSelectionFromSearchParams(
   const selection = readSelectionFromSearchParams(searchParams);
   const statusFilters = readStatusFiltersFromSearchParams(searchParams);
   const tagFilters = readTagFiltersFromSearchParams(searchParams);
-  applySelectionFromUrl(selection, statusFilters, tagFilters);
+  applySelectionFromUrl(
+    selection,
+    statusFilters,
+    tagFilters,
+    readChangedOnlyFromSearchParams(searchParams),
+  );
 }

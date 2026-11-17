@@ -21,13 +21,13 @@ import { Tooltip } from '#src/components/Tooltip';
 import { colors } from '#src/style/colors';
 import { inline, stack, transition } from '#src/style/helpers';
 
+// Lays its chips out inline within the parent filter row.
 const Root = styled.div`
-  ${inline({ gap: 6, align: 'center' })}
-  flex-wrap: wrap;
-  padding: 10px 12px 0;
+  display: contents;
 `;
 
-const Trigger = styled.button<{ active: boolean }>`
+/** Pill-shaped sidebar filter toggle shared by the eval filter chips. */
+export const FilterTrigger = styled.button<{ active: boolean }>`
   ${inline({ gap: 5, align: 'center' })}
   ${transition({ property: 'background, border-color, color' })}
   appearance: none;
@@ -59,7 +59,8 @@ const Trigger = styled.button<{ active: boolean }>`
   }
 `;
 
-const TriggerCount = styled.span`
+/** Tabular count rendered inside a {@link FilterTrigger}. */
+export const FilterTriggerCount = styled.span`
   font-family:
     'Geist Mono', 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
   font-size: 10px;
@@ -380,7 +381,7 @@ export function TagFilter({
 
   return (
     <Root aria-label="Eval tag filters">
-      <Trigger
+      <FilterTrigger
         ref={refs.setReference}
         type="button"
         active={selectedCount > 0}
@@ -391,9 +392,9 @@ export function TagFilter({
         <Filter aria-hidden="true" />
         Tags
         {selectedCount > 0 ? (
-          <TriggerCount>{selectedCount}</TriggerCount>
+          <FilterTriggerCount>{selectedCount}</FilterTriggerCount>
         ) : null}
-      </Trigger>
+      </FilterTrigger>
       {activeSelectedTags.map((tag) => (
         <Tooltip
           key={tag}

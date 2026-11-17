@@ -5,6 +5,7 @@ import { css, styled } from 'vindur';
 import { LoadingLine } from '#src/components/LoadingState';
 import { StatusDot } from '#src/components/StatusBadge';
 import { Tooltip } from '#src/components/Tooltip';
+import { useChangedEvalsFilter } from '#src/hooks/useChangedEvalsFilter';
 import { evalSummariesStore } from '#src/stores/evalsStore';
 import { runStore } from '#src/stores/runStore';
 import {
@@ -29,6 +30,7 @@ import {
   buildEvalTree,
   collectNodeEvals,
   deriveCombinedStatus,
+  filterEvalsByChangedKeys,
   filterEvalsBySearchQuery,
   filterEvalsByStatuses,
   filterEvalsByTags,
@@ -227,6 +229,8 @@ export function EvalTree() {
     currentRun: s.currentRun,
   }));
 
+  const changedFilter = useChangedEvalsFilter();
+
   const getEvalActiveStatusForKey = (evalKey: string) =>
     getActiveEvalStatus(currentRun, evalKey);
 
@@ -284,7 +288,7 @@ export function EvalTree() {
   }
 
   const statusFilteredEvals = filterEvalsByStatuses(
-    evals,
+    filterEvalsByChangedKeys(evals, changedFilter.filterKeys),
     statusFilters,
     getEvalActiveStatusForKey,
   );

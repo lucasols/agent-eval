@@ -157,6 +157,34 @@ export const evalSummarySchema = z.object({
 /** Metadata shown for one discovered eval in the explorer UI. */
 export type EvalSummary = z.infer<typeof evalSummarySchema>;
 
+/**
+ * Evals whose source file changed on the current branch, relative to the
+ * merge-base with the branch's base ref (the current pull request's base from
+ * `gh pr view`, else `cache.branchPruneBaseRef`). Committed, uncommitted, and
+ * untracked eval-file changes all count. `available: false` when the
+ * workspace is not a git repo or no base ref can be resolved.
+ */
+export const changedEvalsSchema = z.discriminatedUnion('available', [
+  z.object({
+    available: z.literal(true),
+    /** Git ref the branch is compared against, e.g. `origin/main`. */
+    baseRef: z.string(),
+    /** Whether `baseRef` came from the current pull request or the config. */
+    baseRefSource: z.enum(['pullRequest', 'config']),
+    /** Merge-base commit of `HEAD` and `baseRef`. */
+    mergeBase: z.string(),
+    /** Exact eval keys whose file changed since `mergeBase`. */
+    evalKeys: z.array(z.string()),
+  }),
+  z.object({
+    available: z.literal(false),
+    /** Why changed evals could not be computed. */
+    reason: z.string(),
+  }),
+]);
+/** Evals changed on the current branch, or why they could not be computed. */
+export type ChangedEvals = z.infer<typeof changedEvalsSchema>;
+
 /** Schema for one reviewer override applied to a computed score. */
 export const scoreOverrideSchema = z.object({
   /**

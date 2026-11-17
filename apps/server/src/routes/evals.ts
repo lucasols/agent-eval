@@ -41,6 +41,10 @@ export const evalsRoutes = new Hono()
     }
     return c.json(result, 200);
   })
+  .get('/changed', async (c) => {
+    const runner = getRunnerInstance();
+    return c.json(await runner.getChangedEvals(), 200);
+  })
   .get('/discovery-issues', (c) => {
     const runner = getRunnerInstance();
     return c.json(runner.getDiscoveryIssues(), 200);
