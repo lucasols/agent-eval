@@ -3,6 +3,7 @@ import type {
   EvalManualScoreDef,
   EvalOutputs,
   EvalScoreDef,
+  EvalScoreResult,
 } from '@agent-evals/sdk';
 import { serializeCacheValue } from '@agent-evals/sdk';
 import type {
@@ -28,7 +29,7 @@ export function normalizeScoreDef<
     input: TInput;
     outputs: TOutputs;
     case: { id: string; input: TInput; tags?: string[] };
-  }) => number | Promise<number>;
+  }) => number | EvalScoreResult | Promise<number | EvalScoreResult>;
   passThreshold: number | undefined;
   label: string | undefined;
 } {

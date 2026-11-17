@@ -107,6 +107,23 @@ const ScoreActionButton = styled.button`
   }
 `;
 
+const ScoreReason = styled.p<{ fail: boolean }>`
+  margin: 0;
+  padding: 6px 10px;
+  border-left: 2px solid ${colors.borderStrong.var};
+  background: ${colors.surface.var};
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  line-height: 1.45;
+  color: ${colors.text.var};
+  white-space: pre-wrap;
+
+  &.fail {
+    border-left-color: ${colors.error.var};
+    background: ${colors.error.alpha(0.06)};
+  }
+`;
+
 const OverrideNote = styled.div`
   ${stack({ gap: 2 })}
   padding: 6px 10px;
@@ -154,12 +171,15 @@ export function CaseScores({
   scoreColumns,
   columns,
   scoreOverrides,
+  scoreReasons,
   runId,
   caseId,
 }: {
   scoreColumns: ColumnDef[];
   columns: Record<string, CellValue>;
   scoreOverrides: Record<string, ScoreOverride> | undefined;
+  /** Explanations returned by computed scores, keyed by score column. */
+  scoreReasons: Record<string, string> | undefined;
   /** Persisted run/case identity; `null` disables overriding. */
   runId: string | null;
   caseId: string | null;
@@ -212,6 +232,9 @@ export function CaseScores({
                   style={{ width: `${fillWidth}%` }}
                 />
               </ScoreBar>
+            ) : null}
+            {scoreReasons?.[c.key] !== undefined ? (
+              <ScoreReason fail={fail}>{scoreReasons[c.key]}</ScoreReason>
             ) : null}
             {override !== undefined ? (
               <OverrideNote>

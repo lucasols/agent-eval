@@ -117,6 +117,7 @@ export {
   type EvalToolCallSpan,
   type EvalScoreContext,
   type EvalScoreFn,
+  type EvalScoreResult,
   type EvalScoreDef,
   type EvalManualScoreDef,
   type EvalManualInputConfig,

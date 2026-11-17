@@ -192,7 +192,11 @@ defineEval({
           },
         );
 
-        return score;
+        return {
+          value: score,
+          reason:
+            'Response, receipt attachment, and next-step guidance are present; tone is left for the reviewer.',
+        };
       },
     },
   },

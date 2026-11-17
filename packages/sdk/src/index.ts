@@ -117,6 +117,7 @@ export type {
   EvalTracingAssertionsFn,
   EvalScoreContext,
   EvalScoreFn,
+  EvalScoreResult,
   EvalScoreDef,
   EvalManualScoreDef,
   EvalManualInputConfig,

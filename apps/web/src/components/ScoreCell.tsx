@@ -107,6 +107,13 @@ const StarsWrap = styled.span`
   }
 `;
 
+// Dotted underline hints that hovering the score shows its reason.
+const ReasonTrigger = styled.span`
+  display: inline-flex;
+  border-bottom: 1px dotted ${colors.textDim.var};
+  cursor: help;
+`;
+
 const OverriddenScoreWrap = styled.span`
   ${inline({ gap: 5, align: 'center' })}
   display: inline-flex;
@@ -205,6 +212,7 @@ export function ScoreCell({
   passThreshold,
   column,
   override,
+  reason,
   isAverage = false,
 }: {
   score: number | null;
@@ -212,9 +220,11 @@ export function ScoreCell({
   column: ColumnDef;
   /** Reviewer override applied to this score, marked with an indicator. */
   override: ScoreOverride | undefined;
+  /** Explanation returned by the score's `compute`, shown on hover. */
+  reason: string | undefined;
   isAverage?: boolean;
 }) {
-  const display = (
+  const valueDisplay = (
     <ScoreValueDisplay
       score={score}
       passThreshold={passThreshold}
@@ -222,6 +232,19 @@ export function ScoreCell({
       isAverage={isAverage}
     />
   );
+  const display =
+    reason === undefined ? (
+      valueDisplay
+    ) : (
+      <Tooltip content={reason}>
+        <ReasonTrigger
+          tabIndex={0}
+          aria-label={`Score reason: ${reason}`}
+        >
+          {valueDisplay}
+        </ReasonTrigger>
+      </Tooltip>
+    );
   if (override === undefined) return display;
 
   const originalValue =

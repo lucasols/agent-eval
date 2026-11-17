@@ -480,6 +480,7 @@ export async function runCase<
     }
   >();
   const scoringTraces: Record<string, ScoreTrace> = {};
+  const scoreReasons: Record<string, string> = {};
   const scoreStartTime =
     getEvalClockStateTimeMs(scope.evalClockState) ?? evalDef.startTime;
 
@@ -555,11 +556,12 @@ export async function runCase<
         scoreResults.set(key, { value: 0, passThreshold, label });
         continue;
       }
-      if (typeof rawValue !== 'number') {
+      const scoreResult = parseScoreResult(rawValue);
+      if (scoreResult === undefined) {
         recordAssertionFailure(
           scope,
           toAssertionFailure(
-            `${getScoreFailureMessagePrefix(key)}must return a number`,
+            `${getScoreFailureMessagePrefix(key)}must return a number or { value: number; reason?: string | null }`,
           ),
         );
         scope.outputs[key] = 0;
@@ -567,7 +569,8 @@ export async function runCase<
         continue;
       }
 
-      const value = rawValue;
+      const { value, reason } = scoreResult;
+      if (reason !== undefined) scoreReasons[key] = reason;
       scope.outputs[key] = value;
       scoreResults.set(key, { value, passThreshold, label });
     }
@@ -676,6 +679,7 @@ export async function runCase<
     trace: displayTrace,
     traceDisplay,
     columns,
+    ...(Object.keys(scoreReasons).length > 0 ? { scoreReasons } : {}),
     ...(persistedColumnDefs.length > 0
       ? { outputColumnDefs: persistedColumnDefs }
       : {}),
@@ -703,12 +707,38 @@ export async function runCase<
     cacheOperations: cacheEntries.length,
     ...llmCallCounts,
     columns,
+    ...(Object.keys(scoreReasons).length > 0 ? { scoreReasons } : {}),
     ...(persistedColumnDefs.length > 0
       ? { outputColumnDefs: persistedColumnDefs }
       : {}),
   };
 
   return { caseDetail, caseRowUpdate };
+}
+
+/**
+ * Accept a bare number or `{ value, reason }` from a score's `compute`.
+ * Blank or `null` reasons are dropped. Returns `undefined` for anything else.
+ */
+function parseScoreResult(
+  rawValue: unknown,
+): { value: number; reason: string | undefined } | undefined {
+  if (typeof rawValue === 'number') {
+    return { value: rawValue, reason: undefined };
+  }
+  if (!isRecord(rawValue) || typeof rawValue.value !== 'number') {
+    return undefined;
+  }
+  const { reason } = rawValue;
+  if (reason === undefined || reason === null) {
+    return { value: rawValue.value, reason: undefined };
+  }
+  if (typeof reason !== 'string') return undefined;
+  const trimmedReason = reason.trim();
+  return {
+    value: rawValue.value,
+    reason: trimmedReason.length > 0 ? trimmedReason : undefined,
+  };
 }
 
 function mergePersistedColumnDefs(

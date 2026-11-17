@@ -204,7 +204,7 @@ For file or image fields, set `{ asFile: true, accept?, maxSizeBytes? }` and typ
 
 ## Scoring
 
-Every score returns a normalized `0..1` value. Pass/fail is per-score: a case fails if any score with `passThreshold` falls below it, if an assertion fails, or if the case errors. Scores without `passThreshold` are informational.
+Every score returns a normalized `0..1` value. Pass/fail is per-score: a case fails if any score with `passThreshold` falls below it, if an assertion fails, or if the case errors. Scores without `passThreshold` are informational. `compute` may return a bare number or `{ value, reason }` (`EvalScoreResult`); a non-blank `reason` is persisted as `scoreReasons[scoreKey]` on the case row (`cases.jsonl`) and case detail. Return a reason from LLM-judge and other non-obvious scores, especially on failure, so a failed score explains itself without opening the scoring trace.
 
 Score functions run in their own trace scope, separate from the execution trace, so LLM-as-judge scorers can use `evalTracer.span(...)` and cached spans without polluting the agent trajectory. Outputs set inside a scorer stay private to that score. Spanless `evalTracer.cache(...)` calls made directly inside a scorer are stored on that score trace's `cacheRefs` payload.
 

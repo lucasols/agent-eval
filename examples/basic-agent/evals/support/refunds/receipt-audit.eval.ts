@@ -65,7 +65,13 @@ defineEval<ReceiptAuditInput>({
     receiptVerified: {
       label: 'Receipt Verified',
       passThreshold: 1,
-      compute: ({ outputs }) => (outputs.auditStatus === 'verified' ? 1 : 0),
+      compute: ({ outputs }) =>
+        outputs.auditStatus === 'verified'
+          ? 1
+          : {
+              value: 0,
+              reason: `Receipt audit ended as "${String(outputs.auditStatus)}" instead of "verified".`,
+            },
     },
   },
 });

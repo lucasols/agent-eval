@@ -828,6 +828,21 @@ Every score is a first-class column in the run table, rendered per case and as t
 
 Pass/fail is per-score: a case fails if any score that declares a `passThreshold` falls below that threshold (or if an assertion failed, or the case errored). A run fails if any of its cases fail. Scores without `passThreshold` are purely informational and never gate pass/fail. Hover a score column in the UI to see its threshold.
 
+A score's `compute` can return `{ value, reason }` instead of a bare number to record why the case got that score, for example an LLM judge's verdict sentence. The reason is persisted as `scoreReasons[scoreKey]` on the case row and case detail, shown under the score in the case's score panel, and shown on hover over the score cell in the run table. `reason` may be omitted, `null`, or blank to store nothing:
+
+```ts
+scores: {
+  judgeVerdict: {
+    label: 'Judge Verdict',
+    passThreshold: 1,
+    compute: async ({ outputs }) => {
+      const verdict = await judgeResponse(outputs.response);
+      return { value: verdict.pass ? 1 : 0, reason: verdict.reason };
+    },
+  },
+}
+```
+
 Scores can choose a numeric visualization with `format`. In addition to the standard numeric formats, score columns support `format: 'passFail'` and `format: 'stars'`:
 
 ```ts

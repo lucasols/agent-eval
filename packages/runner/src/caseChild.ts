@@ -189,6 +189,9 @@ async function executeCaseChild(
       llmCallsMade: caseRowUpdate.llmCallsMade ?? 0,
       llmCacheHits: caseRowUpdate.llmCacheHits ?? 0,
       columns: caseRowUpdate.columns ?? {},
+      ...(caseRowUpdate.scoreReasons !== undefined
+        ? { scoreReasons: caseRowUpdate.scoreReasons }
+        : {}),
       ...(caseRowUpdate.outputColumnDefs !== undefined
         ? { outputColumnDefs: caseRowUpdate.outputColumnDefs }
         : {}),

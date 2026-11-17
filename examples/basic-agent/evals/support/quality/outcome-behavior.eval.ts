@@ -35,7 +35,13 @@ defineEval<{ prompt: string }>({
       label: 'Matches Gold Answer',
       passThreshold: 1,
       compute: ({ outputs }) =>
-        getResponseText(outputs.response).includes('Approved refund') ? 1 : 0,
+        getResponseText(outputs.response).includes('Approved refund')
+          ? 1
+          : {
+              value: 0,
+              reason:
+                'Response does not state the gold answer "Approved refund".',
+            },
     },
   },
   charts: [
