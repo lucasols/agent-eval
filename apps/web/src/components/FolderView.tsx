@@ -16,6 +16,7 @@ import {
   type SplitButtonMenuEntry,
 } from '#src/components/SplitButton';
 import { TagPickerModal } from '#src/components/TagPickerModal';
+import { useChangedEvalsFilter } from '#src/hooks/useChangedEvalsFilter';
 import { markEvalNotStale, markEvalStale } from '#src/stores/evalsStore';
 import {
   cleanRunsForEval,
@@ -37,6 +38,7 @@ import {
   targetIncludesEval,
 } from '#src/utils/activeEvalStatus';
 import {
+  filterEvalsByChangedKeys,
   filterEvalsByStatuses,
   filterEvalsByTags,
   getStatusBreakdown,
@@ -218,6 +220,7 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
   const { currentRun } = runStore.useSelectorRC((s) => ({
     currentRun: s.currentRun,
   }));
+  const changedFilter = useChangedEvalsFilter();
   const { statusFilters, tagFilters } = selectionStore.useSelectorRC((s) => ({
     statusFilters: s.statusFilters,
     tagFilters: s.tagFilters,
@@ -234,8 +237,12 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
     }));
   const getEvalActiveStatusForKey = (evalKey: string) =>
     getActiveEvalStatus(currentRun, evalKey);
-  const statusFilteredEvals = filterEvalsByStatuses(
+  const changedFilteredEvals = filterEvalsByChangedKeys(
     evals,
+    changedFilter.filterKeys,
+  );
+  const statusFilteredEvals = filterEvalsByStatuses(
+    changedFilteredEvals,
     statusFilters,
     getEvalActiveStatusForKey,
   );
@@ -246,10 +253,10 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
     evalKeys.some((evalKey) =>
       targetIncludesEval(currentRun.manifest.target, evalKey),
     );
-  // Status chips reflect the active tag filter but not the status filter, so
-  // toggling one status never zeroes the counts of the others.
+  // Status chips reflect the active changed/tag filters but not the status
+  // filter, so toggling one status never zeroes the counts of the others.
   const breakdown = getStatusBreakdown(
-    filterEvalsByTags(evals, tagFilters),
+    filterEvalsByTags(changedFilteredEvals, tagFilters),
     getEvalActiveStatusForKey,
   );
   const breakdownItems = BREAKDOWN_STATUS_ORDER.filter(
@@ -475,7 +482,9 @@ export function FolderView({ folderPath, evals }: FolderViewProps) {
             <Count>
               <TotalPill>
                 <TotalPillValue>
-                  {statusFilters.size > 0 || tagFilters.size > 0
+                  {statusFilters.size > 0 ||
+                  tagFilters.size > 0 ||
+                  changedFilter.filterKeys !== null
                     ? `${filteredEvals.length}/${evals.length}`
                     : evals.length}
                 </TotalPillValue>

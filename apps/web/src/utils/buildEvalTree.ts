@@ -283,6 +283,18 @@ export function filterEvalsByTags(
 }
 
 /**
+ * Keep only evals whose key is in `changedEvalKeys`. `null` disables the
+ * filter (inactive, or changed evals are unavailable).
+ */
+export function filterEvalsByChangedKeys(
+  evals: EvalSummary[],
+  changedEvalKeys: Set<string> | null,
+): EvalSummary[] {
+  if (changedEvalKeys === null) return evals;
+  return evals.filter((ev) => changedEvalKeys.has(ev.key));
+}
+
+/**
  * Aggregate the distinct tags discovered across the provided evals together
  * with how many evals carry each tag. Returned entries are sorted by descending
  * count, then alphabetically for stability.

@@ -2,11 +2,13 @@ import type { EvalDisplayStatus } from '@agent-evals/shared';
 import { ChevronsDownUp, ChevronsUpDown, Search, X } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { styled } from 'vindur';
+import { ChangedEvalsFilter } from '#src/components/ChangedEvalsFilter';
 import { EvalTree } from '#src/components/EvalTree';
 import { LoadingIcon } from '#src/components/LoadingState';
 import { ResizeHandle } from '#src/components/ResizeHandle';
 import { TagFilter } from '#src/components/TagFilter';
 import { Tooltip } from '#src/components/Tooltip';
+import { useChangedEvalsFilter } from '#src/hooks/useChangedEvalsFilter';
 import { useResizableWidth } from '#src/hooks/useResizableWidth';
 import { evalSummariesStore } from '#src/stores/evalsStore';
 import {
@@ -34,6 +36,7 @@ import { getActiveEvalStatus } from '#src/utils/activeEvalStatus';
 import {
   buildEvalTree,
   collectCollapsiblePaths,
+  filterEvalsByChangedKeys,
   filterEvalsBySearchQuery,
   filterEvalsByStatuses,
   filterEvalsByTags,
@@ -178,6 +181,12 @@ type StatusTone =
   | 'unscored'
   | 'cancelled'
   | 'pending';
+
+const ScopeFilters = styled.div`
+  ${inline({ gap: 6, align: 'center' })}
+  flex-wrap: wrap;
+  padding: 10px 12px 0;
+`;
 
 const StatusFilterChip = styled.button<{
   active: boolean;
@@ -358,20 +367,26 @@ export function Sidebar() {
     setSidebarWidth(width);
   }, [width]);
 
+  const changedFilter = useChangedEvalsFilter();
+
   const getEvalActiveStatusForKey = (evalKey: string) =>
     getActiveEvalStatus(currentRun, evalKey);
-  const statusFilteredEvals = filterEvalsByStatuses(
+  const changedFilteredEvals = filterEvalsByChangedKeys(
     evals,
+    changedFilter.filterKeys,
+  );
+  const statusFilteredEvals = filterEvalsByStatuses(
+    changedFilteredEvals,
     statusFilters,
     getEvalActiveStatusForKey,
   );
   const tagFilteredEvals = filterEvalsByTags(statusFilteredEvals, tagFilters);
   const filteredEvals = filterEvalsBySearchQuery(tagFilteredEvals, searchQuery);
   const hasActiveSearch = searchQuery.trim().length > 0;
-  // Status chips reflect the active tag filter but not the status filter, so
-  // toggling one status never zeroes the counts of the others.
+  // Status chips reflect the active changed/tag filters but not the status
+  // filter, so toggling one status never zeroes the counts of the others.
   const statusBreakdown = getStatusBreakdown(
-    filterEvalsByTags(evals, tagFilters),
+    filterEvalsByTags(changedFilteredEvals, tagFilters),
     getEvalActiveStatusForKey,
   );
   const statusFilterItems = EVAL_STATUS_FILTER_OPTIONS.map((status) => ({
@@ -381,6 +396,13 @@ export function Sidebar() {
     tone: getStatusTone(status),
   })).filter(({ count, active }) => !evalsAreLoading && (count > 0 || active));
   const tagBreakdown = useMemo(() => getTagBreakdown(evals), [evals]);
+  const showChangedFilter =
+    !evalsAreLoading &&
+    changedFilter.changedEvals !== null &&
+    (changedFilter.changedEvals.evalKeys.length > 0 ||
+      changedFilter.changedOnly);
+  const showTagFilter =
+    !evalsAreLoading && (tagBreakdown.length > 0 || tagFilters.size > 0);
   const collapsiblePaths = useMemo(
     () => collectCollapsiblePaths(buildEvalTree(filteredEvals)),
     [filteredEvals],
@@ -460,13 +482,23 @@ export function Sidebar() {
           ))}
         </StatusFilters>
       ) : null}
-      {!evalsAreLoading ? (
-        <TagFilter
-          availableTags={tagBreakdown}
-          selectedTags={tagFilters}
-          onToggleTag={toggleEvalTagFilter}
-          onClearAll={clearEvalTagFilters}
-        />
+      {showChangedFilter || showTagFilter ? (
+        <ScopeFilters>
+          {showChangedFilter && changedFilter.changedEvals !== null ? (
+            <ChangedEvalsFilter
+              changedEvals={changedFilter.changedEvals}
+              active={changedFilter.changedOnly}
+            />
+          ) : null}
+          {showTagFilter ? (
+            <TagFilter
+              availableTags={tagBreakdown}
+              selectedTags={tagFilters}
+              onToggleTag={toggleEvalTagFilter}
+              onClearAll={clearEvalTagFilters}
+            />
+          ) : null}
+        </ScopeFilters>
       ) : null}
       <SectionHeader>
         <SectionLabel
@@ -499,6 +531,7 @@ export function Sidebar() {
               <LoadingIcon size="small" />
             ) : statusFilters.size > 0 ||
               tagFilters.size > 0 ||
+              changedFilter.filterKeys !== null ||
               hasActiveSearch ? (
               `${filteredEvals.length}/${evals.length}`
             ) : (

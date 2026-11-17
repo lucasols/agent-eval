@@ -2,14 +2,19 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
-import { evalSummarySchema } from '@agent-evals/shared';
+import { changedEvalsSchema, evalSummarySchema } from '@agent-evals/shared';
 import { resultify } from 't-result';
 import { expect, test } from 'vitest';
 import { z } from 'zod';
-import { repoRoot, withIsolatedExampleWorkspace } from './cliTestUtils.ts';
+import {
+  repoRoot,
+  runWorkspaceCommand,
+  withIsolatedExampleWorkspace,
+} from './cliTestUtils.ts';
 
 const cliBinPath = resolve(repoRoot, 'packages/cli/src/bin.ts');
 const evalSummariesSchema = z.array(evalSummarySchema);
+const gitShaPattern = /^[0-9a-f]{40}$/;
 
 test('app keeps loaded eval metadata for unchanged files after watcher refreshes', async () => {
   await withIsolatedExampleWorkspace(async (workspacePath) => {
@@ -98,6 +103,89 @@ test('app keeps discovered metadata for other evals after a run finishes', async
       // The run child only prepares the targeted eval; its placeholders for
       // every other eval must not overwrite the app's discovered metadata.
       expect(await fetchTagCounts(port)).toEqual(baseline);
+    } finally {
+      app.kill();
+    }
+  });
+}, 60_000);
+
+test('app reports evals whose file changed on the current branch', async () => {
+  await withIsolatedExampleWorkspace(async (workspacePath) => {
+    const git = async (args: string[]) => {
+      const result = await runWorkspaceCommand(workspacePath, 'git', [
+        '-c',
+        'user.name=Agent Evals',
+        '-c',
+        'user.email=agent-evals@example.com',
+        ...args,
+      ]);
+      expect(result.exitCode, result.stderr).toBe(0);
+    };
+    const appendComment = async (relativePath: string) => {
+      const filePath = resolve(workspacePath, relativePath);
+      await writeFile(
+        filePath,
+        `${await readFile(filePath, 'utf8')}\n// edited on branch\n`,
+      );
+    };
+
+    // No PR exists in the temp repo, so the configured base ref is used.
+    const configPath = resolve(workspacePath, 'agent-evals.config.ts');
+    await writeFile(
+      configPath,
+      (await readFile(configPath, 'utf8')).replace(
+        "branchPruneBaseRef: 'origin/main'",
+        "branchPruneBaseRef: 'main'",
+      ),
+    );
+    await writeFile(
+      resolve(workspacePath, '.gitignore'),
+      'node_modules\n.agent-evals\n',
+    );
+    await git(['init', '--quiet', '--initial-branch', 'main']);
+    await git(['add', '.']);
+    await git(['commit', '--quiet', '-m', 'base']);
+    await git(['checkout', '--quiet', '-b', 'feature']);
+
+    // One committed and one uncommitted eval-file change, plus a non-eval file.
+    await appendComment('evals/support/playground/format-gallery.eval.ts');
+    await appendComment('agent-evals.config.ts');
+    await git(['commit', '--quiet', '-am', 'edit format gallery']);
+    await appendComment('evals/refund-workflow.eval.ts');
+
+    const port = await getFreePort();
+    const app = startApp(workspacePath, port);
+
+    try {
+      let changed: unknown = null;
+      await expect
+        .poll(
+          async () => {
+            const response = await resultify(() =>
+              fetch(`http://localhost:${String(port)}/api/evals/changed`, {
+                signal: AbortSignal.timeout(10_000),
+              }),
+            );
+            if (response.error || !response.value.ok) return false;
+            changed = await response.value.json();
+            return true;
+          },
+          { timeout: 30_000, interval: 250 },
+        )
+        .toBe(true);
+
+      const parsed = changedEvalsSchema.parse(changed);
+      expect(parsed.available && parsed.mergeBase).toMatch(gitShaPattern);
+      expect({ ...parsed, mergeBase: '<sha>' }).toEqual({
+        available: true,
+        baseRef: 'main',
+        baseRefSource: 'config',
+        mergeBase: '<sha>',
+        evalKeys: [
+          'evals%2Frefund-workflow.eval.ts#refund-workflow',
+          'evals%2Fsupport%2Fplayground%2Fformat-gallery.eval.ts#format-gallery',
+        ],
+      });
     } finally {
       app.kill();
     }
