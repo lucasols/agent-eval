@@ -197,61 +197,9 @@ function findTopLevelProperty<T>(
   readValue: (content: string, startIndex: number) => T | undefined,
 ): T | undefined {
   let depth = 0;
-  let quote: '"' | "'" | '`' | undefined;
-  let inBlockComment = false;
-  let inLineComment = false;
-  let isEscaped = false;
 
-  for (let index = 0; index < objectText.length; index++) {
+  for (const index of codeCharIndexes(objectText, 0)) {
     const currentChar = objectText[index];
-    const nextChar = objectText[index + 1];
-
-    if (inLineComment) {
-      if (currentChar === '\n') {
-        inLineComment = false;
-      }
-      continue;
-    }
-
-    if (inBlockComment) {
-      if (currentChar === '*' && nextChar === '/') {
-        inBlockComment = false;
-        index++;
-      }
-      continue;
-    }
-
-    if (quote) {
-      if (isEscaped) {
-        isEscaped = false;
-        continue;
-      }
-      if (currentChar === '\\') {
-        isEscaped = true;
-        continue;
-      }
-      if (currentChar === quote) {
-        quote = undefined;
-      }
-      continue;
-    }
-
-    if (currentChar === '/' && nextChar === '/') {
-      inLineComment = true;
-      index++;
-      continue;
-    }
-
-    if (currentChar === '/' && nextChar === '*') {
-      inBlockComment = true;
-      index++;
-      continue;
-    }
-
-    if (currentChar === '"' || currentChar === "'" || currentChar === '`') {
-      quote = currentChar;
-      continue;
-    }
 
     if (currentChar === '{') {
       depth++;
@@ -294,61 +242,9 @@ function extractDefineEvalObject(
   if (objectStartIndex === -1) return undefined;
 
   let depth = 0;
-  let quote: '"' | "'" | '`' | undefined;
-  let inBlockComment = false;
-  let inLineComment = false;
-  let isEscaped = false;
 
-  for (let index = objectStartIndex; index < content.length; index++) {
+  for (const index of codeCharIndexes(content, objectStartIndex)) {
     const currentChar = content[index];
-    const nextChar = content[index + 1];
-
-    if (inLineComment) {
-      if (currentChar === '\n') {
-        inLineComment = false;
-      }
-      continue;
-    }
-
-    if (inBlockComment) {
-      if (currentChar === '*' && nextChar === '/') {
-        inBlockComment = false;
-        index++;
-      }
-      continue;
-    }
-
-    if (quote) {
-      if (isEscaped) {
-        isEscaped = false;
-        continue;
-      }
-      if (currentChar === '\\') {
-        isEscaped = true;
-        continue;
-      }
-      if (currentChar === quote) {
-        quote = undefined;
-      }
-      continue;
-    }
-
-    if (currentChar === '/' && nextChar === '/') {
-      inLineComment = true;
-      index++;
-      continue;
-    }
-
-    if (currentChar === '/' && nextChar === '*') {
-      inBlockComment = true;
-      index++;
-      continue;
-    }
-
-    if (currentChar === '"' || currentChar === "'" || currentChar === '`') {
-      quote = currentChar;
-      continue;
-    }
 
     if (currentChar === '{') {
       depth++;
@@ -363,6 +259,210 @@ function extractDefineEvalObject(
           objectText: content.slice(objectStartIndex, index + 1),
         };
       }
+    }
+  }
+
+  return undefined;
+}
+
+/** Keywords after which a `/` starts a regex literal instead of a division. */
+const regexPrecedingKeywords = new Set([
+  'await',
+  'case',
+  'delete',
+  'do',
+  'else',
+  'in',
+  'instanceof',
+  'new',
+  'of',
+  'return',
+  'throw',
+  'typeof',
+  'void',
+  'yield',
+]);
+
+/**
+ * Yield the index of every character in `content` (from `startIndex`) that is
+ * source code, skipping comments, string literals, template literal text and
+ * regex literals. Code inside template `${...}` substitutions is yielded, but
+ * the `${` and its closing `}` are not, so callers can balance braces safely.
+ */
+function* codeCharIndexes(
+  content: string,
+  startIndex: number,
+): Generator<number> {
+  // Brace depth at which each currently open template substitution started.
+  const templateSubstitutionDepths: number[] = [];
+  let braceDepth = 0;
+  let lastSignificantIndex: number | undefined;
+  let index = startIndex;
+
+  while (index < content.length) {
+    const currentChar = content[index];
+    const nextChar = content[index + 1];
+
+    if (currentChar === '/' && nextChar === '/') {
+      const lineEnd = content.indexOf('\n', index + 2);
+      index = lineEnd === -1 ? content.length : lineEnd + 1;
+      continue;
+    }
+
+    if (currentChar === '/' && nextChar === '*') {
+      const commentEnd = content.indexOf('*/', index + 2);
+      index = commentEnd === -1 ? content.length : commentEnd + 2;
+      continue;
+    }
+
+    if (currentChar === '"' || currentChar === "'") {
+      index = skipQuotedString(content, index);
+      lastSignificantIndex = index - 1;
+      continue;
+    }
+
+    const resumesTemplate =
+      currentChar === '}' && templateSubstitutionDepths.at(-1) === braceDepth;
+    if (currentChar === '`' || resumesTemplate) {
+      if (resumesTemplate) templateSubstitutionDepths.pop();
+      const template = skipTemplateText(content, index + 1);
+      if (template.opensSubstitution) {
+        templateSubstitutionDepths.push(braceDepth);
+        lastSignificantIndex = undefined;
+      } else {
+        lastSignificantIndex = template.nextIndex - 1;
+      }
+      index = template.nextIndex;
+      continue;
+    }
+
+    if (currentChar === '/' && isRegexStart(content, lastSignificantIndex)) {
+      const regexEnd = skipRegexLiteral(content, index);
+      if (regexEnd !== undefined) {
+        index = regexEnd;
+        lastSignificantIndex = index - 1;
+        continue;
+      }
+    }
+
+    if (currentChar === '{') braceDepth++;
+    if (currentChar === '}') braceDepth--;
+    if (!whitespaceRegex.test(currentChar ?? '')) {
+      lastSignificantIndex = index;
+    }
+
+    yield index;
+    index++;
+  }
+}
+
+/** Return the index right after the closing quote of a `'`/`"` string. */
+function skipQuotedString(content: string, quoteIndex: number): number {
+  const quote = content[quoteIndex];
+  let index = quoteIndex + 1;
+
+  while (index < content.length) {
+    const currentChar = content[index];
+    if (currentChar === '\\') {
+      index += 2;
+      continue;
+    }
+    index++;
+    if (currentChar === quote || currentChar === '\n') return index;
+  }
+
+  return index;
+}
+
+/**
+ * Skip template literal text starting at `startIndex` (right after a backtick
+ * or a substitution's closing `}`) until the closing backtick or the next
+ * `${`.
+ */
+function skipTemplateText(
+  content: string,
+  startIndex: number,
+): { nextIndex: number; opensSubstitution: boolean } {
+  let index = startIndex;
+
+  while (index < content.length) {
+    const currentChar = content[index];
+    if (currentChar === '\\') {
+      index += 2;
+      continue;
+    }
+    if (currentChar === '`') {
+      return { nextIndex: index + 1, opensSubstitution: false };
+    }
+    if (currentChar === '$' && content[index + 1] === '{') {
+      return { nextIndex: index + 2, opensSubstitution: true };
+    }
+    index++;
+  }
+
+  return { nextIndex: index, opensSubstitution: false };
+}
+
+/**
+ * Decide whether a `/` starts a regex literal based on the previous
+ * significant source character: after a value (identifier, number, closing
+ * bracket or literal) it is a division, otherwise a regex.
+ */
+function isRegexStart(
+  content: string,
+  lastSignificantIndex: number | undefined,
+): boolean {
+  if (lastSignificantIndex === undefined) return true;
+
+  const previousChar = content[lastSignificantIndex];
+  if (
+    previousChar === ')' ||
+    previousChar === ']' ||
+    previousChar === '}' ||
+    previousChar === '"' ||
+    previousChar === "'" ||
+    previousChar === '`'
+  ) {
+    return false;
+  }
+
+  if (!isIdentifierChar(previousChar)) return true;
+
+  let wordStart = lastSignificantIndex;
+  while (isIdentifierChar(content[wordStart - 1])) {
+    wordStart--;
+  }
+  return regexPrecedingKeywords.has(
+    content.slice(wordStart, lastSignificantIndex + 1),
+  );
+}
+
+/**
+ * Return the index right after a regex literal (including flags) starting at
+ * `slashIndex`, or `undefined` when no closing `/` exists on the same line.
+ */
+function skipRegexLiteral(
+  content: string,
+  slashIndex: number,
+): number | undefined {
+  let inCharacterClass = false;
+  let index = slashIndex + 1;
+
+  while (index < content.length) {
+    const currentChar = content[index];
+    if (currentChar === '\n') return undefined;
+    if (currentChar === '\\') {
+      index += 2;
+      continue;
+    }
+    if (currentChar === '[') inCharacterClass = true;
+    if (currentChar === ']') inCharacterClass = false;
+    index++;
+    if (currentChar === '/' && !inCharacterClass) {
+      while (isIdentifierChar(content[index])) {
+        index++;
+      }
+      return index;
     }
   }
 

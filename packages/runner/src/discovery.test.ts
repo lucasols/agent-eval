@@ -63,6 +63,44 @@ defineEval({
     ]);
   });
 
+  test('discovers evals that contain regex literals and template substitutions', () => {
+    const source = String.raw`import { defineEval, evalAssert } from '@agent-evals/sdk';
+
+const URL = 'https://example.com';
+
+defineEval({
+  id: 'external-link',
+  cases: [{ id: 'button', input: { message: ${'`'}Open ${'$'}{URL} in a new tab ${'$'}{'{'}${'`'} } }],
+  execute: ({ output }) => {
+    const ratio = output.total / 2 / output.count;
+    evalAssert(/type:\s*['"]url['"]/.test(output.source), 'Uses url navigation');
+    evalAssert(/[/{]"/.test(output.source), 'Matches slash-brace class');
+    return ratio;
+  },
+});
+
+defineEval({
+  id: 'after-regex',
+  description: 'Defined after an eval with regex literals',
+  execute: () => {},
+});
+`;
+
+    expect(parseEvalMetas('evals/links.eval.ts', source)).toEqual([
+      {
+        filePath: 'evals/links.eval.ts',
+        id: 'external-link',
+        casesAsEvals: false,
+      },
+      {
+        filePath: 'evals/links.eval.ts',
+        id: 'after-regex',
+        description: 'Defined after an eval with regex literals',
+        casesAsEvals: false,
+      },
+    ]);
+  });
+
   test('splits casesAsEvals definitions into one eval per case', async () => {
     const source = `import { defineEval } from '@agent-evals/sdk';
 
