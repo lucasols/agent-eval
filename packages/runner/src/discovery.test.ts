@@ -101,6 +101,34 @@ defineEval({
     ]);
   });
 
+  test('only reads defineEval calls, not other objects after the import', () => {
+    const source = `import { defineEval } from '@agent-evals/sdk';
+import { createAgent } from './agent';
+
+// defineEval({ id: 'commented-out' })
+const agent = createAgent({ id: 'support-agent', title: 'Not an eval' });
+const note = "defineEval({ id: 'inside-string' })";
+
+defineEval({
+  id: 'real-eval',
+  title: \`Real eval\`,
+  'description': 'Uses a string key',
+  casesAsEvals: false,
+  execute: () => agent.run(note),
+});
+`;
+
+    expect(parseEvalMetas('evals/agent.eval.ts', source)).toEqual([
+      {
+        filePath: 'evals/agent.eval.ts',
+        id: 'real-eval',
+        title: 'Real eval',
+        description: 'Uses a string key',
+        casesAsEvals: false,
+      },
+    ]);
+  });
+
   test('splits casesAsEvals definitions into one eval per case', async () => {
     const source = `import { defineEval } from '@agent-evals/sdk';
 
