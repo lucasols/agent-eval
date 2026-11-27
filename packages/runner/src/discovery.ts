@@ -1,5 +1,12 @@
 import type { EvalRegistryEntry } from '@agent-evals/sdk';
 import type { DiscoveryIssue } from '@agent-evals/shared';
+import {
+  parseSync,
+  Visitor,
+  type Expression,
+  type ObjectExpression,
+  type ObjectProperty,
+} from 'oxc-parser';
 
 type EvalDiscoveryMeta = {
   filePath: string;
@@ -24,9 +31,6 @@ export type EvalDiscoveryResult = {
   issues: DiscoveryIssue[];
 };
 
-const identifierCharRegex = /[A-Za-z0-9_$]/;
-const whitespaceRegex = /\s/;
-
 export function parseEvalMetas(
   filePath: string,
   content: string,
@@ -34,55 +38,41 @@ export function parseEvalMetas(
   return parseEvalDiscovery(filePath, content).metas;
 }
 
-/** Parse static eval metadata and discovery issues from one eval file. */
+/**
+ * Parse static eval metadata and discovery issues from one eval file.
+ *
+ * The file is parsed into an AST and every `defineEval({...})` call is read
+ * without executing the module. Only statically known values are picked up:
+ * `id`, `title` and `description` must be string literals (or templates
+ * without substitutions) and `casesAsEvals` must be the literal `true`.
+ * Definitions without a static `id` are skipped. Files with syntax errors
+ * yield whatever definitions the parser could still recover.
+ */
 export function parseEvalDiscovery(
   filePath: string,
   content: string,
 ): EvalDiscoveryResult {
   const metas: EvalDiscoveryMeta[] = [];
-  let searchIndex = 0;
+  const { program } = parseSync(filePath, content, {
+    lang: 'ts',
+    sourceType: 'module',
+  });
 
-  while (searchIndex < content.length) {
-    const defineEvalIndex = content.indexOf('defineEval', searchIndex);
-    if (defineEvalIndex === -1) break;
+  new Visitor({
+    CallExpression(node) {
+      if (
+        node.callee.type !== 'Identifier' ||
+        node.callee.name !== 'defineEval'
+      )
+        return;
 
-    const extracted = extractDefineEvalObject(content, defineEvalIndex);
-    if (!extracted) {
-      searchIndex = defineEvalIndex + 'defineEval'.length;
-      continue;
-    }
+      const [definition] = node.arguments;
+      if (definition?.type !== 'ObjectExpression') return;
 
-    const id = findTopLevelStringProperty(extracted.objectText, 'id');
-    if (id !== undefined) {
-      const result: EvalDiscoveryMeta = {
-        filePath,
-        id,
-        casesAsEvals:
-          findTopLevelProperty(
-            extracted.objectText,
-            'casesAsEvals',
-            readTrueLiteral,
-          ) === true,
-      };
-
-      const title = findTopLevelStringProperty(extracted.objectText, 'title');
-      if (title !== undefined) {
-        result.title = title;
-      }
-
-      const description = findTopLevelStringProperty(
-        extracted.objectText,
-        'description',
-      );
-      if (description !== undefined) {
-        result.description = description;
-      }
-
-      metas.push(result);
-    }
-
-    searchIndex = extracted.nextIndex;
-  }
+      const meta = readEvalDiscoveryMeta(filePath, definition);
+      if (meta) metas.push(meta);
+    },
+  }).visit(program);
 
   const countsById = new Map<string, number>();
   for (const meta of metas) {
@@ -129,342 +119,54 @@ export function resolveCasesAsEvalsMetas(
   });
 }
 
-function isIdentifierChar(char: string | undefined): boolean {
-  return char !== undefined && identifierCharRegex.test(char);
-}
-
-function skipWhitespace(content: string, startIndex: number): number {
-  let index = startIndex;
-  while (whitespaceRegex.test(content[index] ?? '')) {
-    index++;
-  }
-  return index;
-}
-
-function readStringLiteral(
-  content: string,
-  startIndex: number,
-): string | undefined {
-  const quote = content[startIndex];
-  if (quote !== '"' && quote !== "'") return undefined;
-
-  let value = '';
-  let isEscaped = false;
-  for (let index = startIndex + 1; index < content.length; index++) {
-    const currentChar = content[index];
-    if (currentChar === undefined) return undefined;
-
-    if (isEscaped) {
-      value += currentChar;
-      isEscaped = false;
-      continue;
-    }
-
-    if (currentChar === '\\') {
-      isEscaped = true;
-      continue;
-    }
-
-    if (currentChar === quote) {
-      return value;
-    }
-
-    value += currentChar;
+function readEvalDiscoveryMeta(
+  filePath: string,
+  definition: ObjectExpression,
+): EvalDiscoveryMeta | undefined {
+  const properties = new Map<string, Expression>();
+  for (const property of definition.properties) {
+    if (property.type !== 'Property') continue;
+    const name = getStaticPropertyName(property);
+    // Later keys win, matching object literal semantics.
+    if (name !== undefined) properties.set(name, property.value);
   }
 
+  const id = readStaticString(properties.get('id'));
+  if (id === undefined) return undefined;
+
+  const casesAsEvalsValue = properties.get('casesAsEvals');
+  const meta: EvalDiscoveryMeta = {
+    filePath,
+    id,
+    casesAsEvals:
+      casesAsEvalsValue?.type === 'Literal' && casesAsEvalsValue.value === true,
+  };
+
+  const title = readStaticString(properties.get('title'));
+  if (title !== undefined) meta.title = title;
+
+  const description = readStaticString(properties.get('description'));
+  if (description !== undefined) meta.description = description;
+
+  return meta;
+}
+
+function getStaticPropertyName(property: ObjectProperty): string | undefined {
+  if (property.kind !== 'init' || property.method) return undefined;
+
+  const { key } = property;
+  if (!property.computed && key.type === 'Identifier') return key.name;
+  if (key.type === 'Literal' && typeof key.value === 'string') return key.value;
   return undefined;
 }
 
-function readTrueLiteral(
-  content: string,
-  startIndex: number,
-): true | undefined {
-  if (!content.startsWith('true', startIndex)) return undefined;
-  if (isIdentifierChar(content[startIndex + 'true'.length])) return undefined;
-  return true;
-}
-
-function findTopLevelStringProperty(
-  objectText: string,
-  propertyName: string,
-): string | undefined {
-  return findTopLevelProperty(objectText, propertyName, readStringLiteral);
-}
-
-function findTopLevelProperty<T>(
-  objectText: string,
-  propertyName: string,
-  readValue: (content: string, startIndex: number) => T | undefined,
-): T | undefined {
-  let depth = 0;
-
-  for (const index of codeCharIndexes(objectText, 0)) {
-    const currentChar = objectText[index];
-
-    if (currentChar === '{') {
-      depth++;
-      continue;
-    }
-
-    if (currentChar === '}') {
-      depth--;
-      continue;
-    }
-
-    if (
-      depth !== 1 ||
-      !objectText.startsWith(propertyName, index) ||
-      isIdentifierChar(objectText[index - 1]) ||
-      isIdentifierChar(objectText[index + propertyName.length])
-    ) {
-      continue;
-    }
-
-    const colonIndex = skipWhitespace(objectText, index + propertyName.length);
-    if (objectText[colonIndex] !== ':') continue;
-
-    const valueIndex = skipWhitespace(objectText, colonIndex + 1);
-    const value = readValue(objectText, valueIndex);
-    if (value !== undefined) return value;
+function readStaticString(value: Expression | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  if (value.type === 'Literal') {
+    return typeof value.value === 'string' ? value.value : undefined;
   }
-
-  return undefined;
-}
-
-function extractDefineEvalObject(
-  content: string,
-  defineEvalIndex: number,
-): { nextIndex: number; objectText: string } | undefined {
-  const openParenIndex = content.indexOf('(', defineEvalIndex);
-  if (openParenIndex === -1) return undefined;
-
-  const objectStartIndex = content.indexOf('{', openParenIndex);
-  if (objectStartIndex === -1) return undefined;
-
-  let depth = 0;
-
-  for (const index of codeCharIndexes(content, objectStartIndex)) {
-    const currentChar = content[index];
-
-    if (currentChar === '{') {
-      depth++;
-      continue;
-    }
-
-    if (currentChar === '}') {
-      depth--;
-      if (depth === 0) {
-        return {
-          nextIndex: index + 1,
-          objectText: content.slice(objectStartIndex, index + 1),
-        };
-      }
-    }
+  if (value.type === 'TemplateLiteral' && value.expressions.length === 0) {
+    return value.quasis[0]?.value.cooked ?? undefined;
   }
-
-  return undefined;
-}
-
-/** Keywords after which a `/` starts a regex literal instead of a division. */
-const regexPrecedingKeywords = new Set([
-  'await',
-  'case',
-  'delete',
-  'do',
-  'else',
-  'in',
-  'instanceof',
-  'new',
-  'of',
-  'return',
-  'throw',
-  'typeof',
-  'void',
-  'yield',
-]);
-
-/**
- * Yield the index of every character in `content` (from `startIndex`) that is
- * source code, skipping comments, string literals, template literal text and
- * regex literals. Code inside template `${...}` substitutions is yielded, but
- * the `${` and its closing `}` are not, so callers can balance braces safely.
- */
-function* codeCharIndexes(
-  content: string,
-  startIndex: number,
-): Generator<number> {
-  // Brace depth at which each currently open template substitution started.
-  const templateSubstitutionDepths: number[] = [];
-  let braceDepth = 0;
-  let lastSignificantIndex: number | undefined;
-  let index = startIndex;
-
-  while (index < content.length) {
-    const currentChar = content[index];
-    const nextChar = content[index + 1];
-
-    if (currentChar === '/' && nextChar === '/') {
-      const lineEnd = content.indexOf('\n', index + 2);
-      index = lineEnd === -1 ? content.length : lineEnd + 1;
-      continue;
-    }
-
-    if (currentChar === '/' && nextChar === '*') {
-      const commentEnd = content.indexOf('*/', index + 2);
-      index = commentEnd === -1 ? content.length : commentEnd + 2;
-      continue;
-    }
-
-    if (currentChar === '"' || currentChar === "'") {
-      index = skipQuotedString(content, index);
-      lastSignificantIndex = index - 1;
-      continue;
-    }
-
-    const resumesTemplate =
-      currentChar === '}' && templateSubstitutionDepths.at(-1) === braceDepth;
-    if (currentChar === '`' || resumesTemplate) {
-      if (resumesTemplate) templateSubstitutionDepths.pop();
-      const template = skipTemplateText(content, index + 1);
-      if (template.opensSubstitution) {
-        templateSubstitutionDepths.push(braceDepth);
-        lastSignificantIndex = undefined;
-      } else {
-        lastSignificantIndex = template.nextIndex - 1;
-      }
-      index = template.nextIndex;
-      continue;
-    }
-
-    if (currentChar === '/' && isRegexStart(content, lastSignificantIndex)) {
-      const regexEnd = skipRegexLiteral(content, index);
-      if (regexEnd !== undefined) {
-        index = regexEnd;
-        lastSignificantIndex = index - 1;
-        continue;
-      }
-    }
-
-    if (currentChar === '{') braceDepth++;
-    if (currentChar === '}') braceDepth--;
-    if (!whitespaceRegex.test(currentChar ?? '')) {
-      lastSignificantIndex = index;
-    }
-
-    yield index;
-    index++;
-  }
-}
-
-/** Return the index right after the closing quote of a `'`/`"` string. */
-function skipQuotedString(content: string, quoteIndex: number): number {
-  const quote = content[quoteIndex];
-  let index = quoteIndex + 1;
-
-  while (index < content.length) {
-    const currentChar = content[index];
-    if (currentChar === '\\') {
-      index += 2;
-      continue;
-    }
-    index++;
-    if (currentChar === quote || currentChar === '\n') return index;
-  }
-
-  return index;
-}
-
-/**
- * Skip template literal text starting at `startIndex` (right after a backtick
- * or a substitution's closing `}`) until the closing backtick or the next
- * `${`.
- */
-function skipTemplateText(
-  content: string,
-  startIndex: number,
-): { nextIndex: number; opensSubstitution: boolean } {
-  let index = startIndex;
-
-  while (index < content.length) {
-    const currentChar = content[index];
-    if (currentChar === '\\') {
-      index += 2;
-      continue;
-    }
-    if (currentChar === '`') {
-      return { nextIndex: index + 1, opensSubstitution: false };
-    }
-    if (currentChar === '$' && content[index + 1] === '{') {
-      return { nextIndex: index + 2, opensSubstitution: true };
-    }
-    index++;
-  }
-
-  return { nextIndex: index, opensSubstitution: false };
-}
-
-/**
- * Decide whether a `/` starts a regex literal based on the previous
- * significant source character: after a value (identifier, number, closing
- * bracket or literal) it is a division, otherwise a regex.
- */
-function isRegexStart(
-  content: string,
-  lastSignificantIndex: number | undefined,
-): boolean {
-  if (lastSignificantIndex === undefined) return true;
-
-  const previousChar = content[lastSignificantIndex];
-  if (
-    previousChar === ')' ||
-    previousChar === ']' ||
-    previousChar === '}' ||
-    previousChar === '"' ||
-    previousChar === "'" ||
-    previousChar === '`'
-  ) {
-    return false;
-  }
-
-  if (!isIdentifierChar(previousChar)) return true;
-
-  let wordStart = lastSignificantIndex;
-  while (isIdentifierChar(content[wordStart - 1])) {
-    wordStart--;
-  }
-  return regexPrecedingKeywords.has(
-    content.slice(wordStart, lastSignificantIndex + 1),
-  );
-}
-
-/**
- * Return the index right after a regex literal (including flags) starting at
- * `slashIndex`, or `undefined` when no closing `/` exists on the same line.
- */
-function skipRegexLiteral(
-  content: string,
-  slashIndex: number,
-): number | undefined {
-  let inCharacterClass = false;
-  let index = slashIndex + 1;
-
-  while (index < content.length) {
-    const currentChar = content[index];
-    if (currentChar === '\n') return undefined;
-    if (currentChar === '\\') {
-      index += 2;
-      continue;
-    }
-    if (currentChar === '[') inCharacterClass = true;
-    if (currentChar === ']') inCharacterClass = false;
-    index++;
-    if (currentChar === '/' && !inCharacterClass) {
-      while (isIdentifierChar(content[index])) {
-        index++;
-      }
-      return index;
-    }
-  }
-
   return undefined;
 }
